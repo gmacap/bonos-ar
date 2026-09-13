@@ -935,11 +935,17 @@ const check = (cond, label, detalle = '') => {
     await new Promise(r => setTimeout(r, 400));
     const ds = projTamarChart.data.datasets;
     const linea = ds.find(d => /real/i.test(d.label));
-    const ejeProp = !!projTamarChart.options.scales.yReal;
+    const esc = projTamarChart.options.scales;
+    // Las dos tasas van sobre la misma regla, con el cero a la vista.
+    const mismoEje = ds.every(d => d.yAxisID === 'y') && !esc.yReal;
+    const conReal = { min: esc.y.min, valores: ds.flatMap(d => d.data).filter(v => v != null) };
     document.getElementById('proy-tamar-cb-real').checked = false;
     proyRenderChart('tamar');
+    const soloTNA = projTamarChart.options.scales.y.min;
     return { i12, errores, antes, despues: ds.length,
-             tieneLinea: !!linea, ejeProp,
+             tieneLinea: !!linea, mismoEje,
+             minConReal: conReal.min, minValor: Math.min(...conReal.valores),
+             minSoloTNA: soloTNA,
              conDatos: linea ? linea.data.filter(v => v != null).length : 0 };
   });
   check(real.i12 != null, 'hay inflación de 12 meses para el mes en curso',
@@ -948,7 +954,12 @@ const check = (cond, label, detalle = '') => {
         real.errores.join(' | '));
   check(real.tieneLinea && real.despues === real.antes + 1 && real.conDatos > 0,
         'la TAMAR real se puede sumar al gráfico', JSON.stringify(real));
-  check(real.ejeProp, 'la TAMAR real usa su propio eje, no el de la TNA');
+  check(real.mismoEje, 'nominal y real comparten la misma regla');
+  check(real.minSoloTNA === 0,
+        'el gráfico de TAMAR arranca en cero', `min: ${real.minSoloTNA}`);
+  check(real.minConReal <= 0 && real.minConReal <= real.minValor,
+        'con tasa real negativa el eje baja de cero sin recortar la serie',
+        `min eje ${real.minConReal} · mínimo de la serie ${real.minValor}`);
 
   // Escribir la tasa real despeja la TNA y queda guardada como TNA.
   const inverso = await page.evaluate(async () => {
