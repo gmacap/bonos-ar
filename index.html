@@ -7011,12 +7011,13 @@ function proyRenderChart(serie){
   }
   if(serie==='tamar'&&cb('real')){
     const reales=lista.map(p=>{const r=tamarRealDe(p.mes,p.v);return r!=null?+r.toFixed(4):null;});
+    // Misma regla, mismo eje: nominal y real son las dos tasas anuales, y con
+    // una sola regla la distancia entre las curvas se lee como lo que es, la
+    // inflación. Con dos ejes cada una flota por su cuenta.
     datasets.push({label:'TAMAR real %',
       data:reales,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.08)',
       borderWidth:2,pointRadius:2,pointHoverRadius:4,tension:.15,fill:false,
-      spanGaps:false,yAxisID:'yReal'});
-    escalas.yReal={position:'right',ticks:{color:'#22c55e',font:{size:9},callback:v=>v+'%'},
-      grid:{display:false}};
+      spanGaps:false,yAxisID:'y'});
   }
   if(serie==='tcn'&&cb('dev')){
     const todo=proySerieCompleta('tcn');
@@ -7029,10 +7030,21 @@ function proyRenderChart(serie){
     datasets.push({label:'Devaluación mensual %',type:'bar',data:devs,
       backgroundColor:'rgba(245,158,11,.28)',borderColor:'rgba(245,158,11,.7)',borderWidth:1,
       borderRadius:2,yAxisID:'yDev',order:3});
-    escalas.yDev={position:'right',ticks:{color:'#f59e0b',font:{size:9},callback:v=>v+'%'},
-      grid:{display:false}};
+    escalas.yDev={position:'right',beginAtZero:true,
+      ticks:{color:'#f59e0b',font:{size:9},callback:v=>v+'%'},grid:{display:false}};
   }
   if(!datasets.length)return;
+
+  // El gráfico de TAMAR arranca en cero. Un eje que empieza en 22% convierte
+  // medio punto de tasa en un acantilado; con el cero a la vista los
+  // movimientos se ven en la proporción que tienen. Sólo baja de cero cuando
+  // la tasa real es negativa, para no recortar la serie.
+  if(serie==='tamar'){
+    const vals=datasets.flatMap(d=>d.data).filter(v=>v!=null&&isFinite(v));
+    const minV=vals.length?Math.min(0,...vals):0;
+    escalas.y.min=minV<0?Math.floor(minV/5)*5:0;
+    escalas.y.grid={color:c=>c.tick&&c.tick.value===0?'rgba(107,114,128,.45)':'rgba(107,114,128,.12)'};
+  }
 
   const ch=new Chart(cv.getContext('2d'),{
     type:'line',
