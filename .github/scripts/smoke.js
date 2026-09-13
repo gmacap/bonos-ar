@@ -860,6 +860,114 @@ const check = (cond, label, detalle = '') => {
           `la sub-solapa ${s} de Proyecciones se dibuja`, JSON.stringify(subs[s]));
   }
 
+  // Meses ya cerrados: el valor tiene que ser el dato real, no una proyección.
+  const cerrados = await page.evaluate(() => {
+    const h = proyHistoriaLista('tamar');
+    const hd = proyHistoriaLista('tcn');
+    if (!h.length || !hd.length) return { vacio: true, tamar: h.length, tcn: hd.length };
+    const u = h[h.length - 1];
+    const ruedas = TAMAR_INDEX.filter(t => t.fecha.substring(0, 7) === u.mes);
+    const prom = ruedas.reduce((s, t) => s + t.valor, 0) / ruedas.length;
+    const ud = hd[hd.length - 1];
+    const fixes = DLK_INDEX.filter(t => t.fecha.substring(0, 7) === ud.mes)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+    return {
+      tamarEsPromedio: Math.abs(u.v - prom) < 1e-9, ruedas: ruedas.length, mes: u.mes,
+      tcnEsUltimoFix: Math.abs(ud.v - fixes[fixes.length - 1].valor) < 1e-9,
+      todosReales: h.every(p => p.origen === 'real') && hd.every(p => p.origen === 'real'),
+      anteriores: h.every(p => p.mes < proyMesHoy()),
+    };
+  });
+  check(!cerrados.vacio && cerrados.tamarEsPromedio,
+        'un mes cerrado de TAMAR es el promedio de sus ruedas',
+        JSON.stringify(cerrados));
+  check(!cerrados.vacio && cerrados.tcnEsUltimoFix,
+        'un mes cerrado del dólar es el último fix del mes');
+  check(!cerrados.vacio && cerrados.todosReales && cerrados.anteriores,
+        'el tramo realizado va marcado y queda antes del mes en curso');
+
+  // Rango por defecto: 12 meses, 4 de datos y 8 de proyección.
+  const rango = await page.evaluate(async () => {
+    const out = {};
+    for (const s of ['tamar', 'tcn']) {
+      proySubtabGo(s);
+      await new Promise(r => setTimeout(r, 500));
+      proyRangoDefault(s);
+      await new Promise(r => setTimeout(r, 400));
+      const v = proyVentana(s);
+      const ch = s === 'tamar' ? projTamarChart : projTcnChart;
+      out[s] = {
+        total: v.length,
+        reales: v.filter(p => p.origen === 'real').length,
+        filas: document.querySelectorAll(`#proy-${s}-tbody tr`).length,
+        puntos: ch ? ch.data.labels.length : -1,
+        selectores: !!document.getElementById(`proy-${s}-desde`) &&
+                    !!document.getElementById(`proy-${s}-hasta`),
+      };
+    }
+    return out;
+  });
+  for (const s of ['tamar', 'tcn']) {
+    check(rango[s].selectores, `${s}: hay selectores de mes inicial y final`);
+    check(rango[s].total === 12 && rango[s].reales === 4,
+          `${s}: por defecto 12 meses, 4 de datos y 8 de proyección`, JSON.stringify(rango[s]));
+    check(rango[s].filas === rango[s].total && rango[s].puntos === rango[s].total,
+          `${s}: tabla y gráfico muestran el mismo rango`, JSON.stringify(rango[s]));
+  }
+
+  // TAMAR real: ida y vuelta exacta, y entra al gráfico.
+  const real = await page.evaluate(async () => {
+    proySubtabGo('tamar');
+    await new Promise(r => setTimeout(r, 500));
+    const mes = proyMesHoy();
+    const i12 = proyInfl12Mapa().get(mes);
+    const errores = [];
+    for (const tna of [12, 24.01, 35, 55, 80]) {
+      const r = tamarRealDe(mes, tna);
+      if (r == null) { errores.push(`sin real para ${tna}`); continue; }
+      const vuelta = tamarRealAtna(mes, r);
+      if (vuelta == null || Math.abs(vuelta - tna) > 1e-6) errores.push(`${tna} → ${vuelta}`);
+    }
+    // Una TNA igual a la inflación de 12 meses en efectiva anual da real ≈ 0
+    const antes = projTamarChart ? projTamarChart.data.datasets.length : 0;
+    document.getElementById('proy-tamar-cb-real').checked = true;
+    proyRenderChart('tamar');
+    await new Promise(r => setTimeout(r, 400));
+    const ds = projTamarChart.data.datasets;
+    const linea = ds.find(d => /real/i.test(d.label));
+    const ejeProp = !!projTamarChart.options.scales.yReal;
+    document.getElementById('proy-tamar-cb-real').checked = false;
+    proyRenderChart('tamar');
+    return { i12, errores, antes, despues: ds.length,
+             tieneLinea: !!linea, ejeProp,
+             conDatos: linea ? linea.data.filter(v => v != null).length : 0 };
+  });
+  check(real.i12 != null, 'hay inflación de 12 meses para el mes en curso',
+        String(real.i12));
+  check(real.errores.length === 0, 'la TAMAR real y la TNA son inversas exactas',
+        real.errores.join(' | '));
+  check(real.tieneLinea && real.despues === real.antes + 1 && real.conDatos > 0,
+        'la TAMAR real se puede sumar al gráfico', JSON.stringify(real));
+  check(real.ejeProp, 'la TAMAR real usa su propio eje, no el de la TNA');
+
+  // Escribir la tasa real despeja la TNA y queda guardada como TNA.
+  const inverso = await page.evaluate(async () => {
+    const prev = JSON.parse(JSON.stringify(PROJ_TAMAR));
+    const mes = proyMesAdd(proyMesHoy(), 3);
+    proySetTamarReal(mes, '5');
+    await new Promise(r => setTimeout(r, 400));
+    const g = PROJ_TAMAR.find(o => o.mes === mes);
+    const leido = g ? tamarRealDe(mes, g.v) : null;
+    const p = tamarSendero().mapa.get(mes);
+    PROJ_TAMAR = prev; proySaveLs(); proyInvalidar();
+    return { guardadaTNA: g ? +g.v.toFixed(4) : null,
+             vuelve: leido != null ? +leido.toFixed(4) : null,
+             esManual: p ? p.origen === 'manual' : false };
+  });
+  check(inverso.guardadaTNA != null && Math.abs(inverso.vuelve - 5) < 1e-3,
+        'escribir la tasa real despeja la TNA que la produce', JSON.stringify(inverso));
+  check(inverso.esManual, 'la TNA despejada entra al sendero como override manual');
+
   console.log('\nResto de pestañas (no deben lanzar)');
   const antes = errores.length;
   await page.evaluate(() => switchSection('usd'));
