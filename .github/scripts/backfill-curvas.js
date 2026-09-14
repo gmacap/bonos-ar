@@ -19,6 +19,15 @@
 // viejos (DICP, TX26, GD30) y no tiene LECAPs, TAMAR, DLK ni Bopreales. BYMA
 // tiene todo desde septiembre de 2024, que alcanza de sobra para 2025 y 2026.
 //
+// ── Bonos que amortizan ────────────────────────────────────────────────────
+// BYMA y data912 reexpresan la serie histórica al residual de HOY, como un
+// precio de acción ajustado por split. Verificado: el precio de TX26 no cae en
+// ninguna de sus cuatro amortizaciones, y las dos fuentes coinciden al centavo.
+// La app, en cambio, valúa con el residual de CADA fecha. Antes de detectarlo,
+// eso producía TIR de hasta 1,3e13% en TX26 y un 48% real sostenido en TX28,
+// y los tres bonos afectados quedaban excluidos del histórico.
+// La corrección está en cerAjustePrecio, más abajo.
+//
 // Requiere los secrets SUPABASE_BOT_EMAIL y SUPABASE_BOT_PASSWORD.
 
 const { chromium } = require('playwright');
@@ -31,6 +40,11 @@ const HASTA    = process.env.HASTA ||
   new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
 const DRY      = process.env.DRY_RUN === '1';
 const SOBRESCRIBIR = process.env.SOBRESCRIBIR === '1';
+// Reparación quirúrgica: limita el backfill a unos tickers concretos. Sin esto,
+// pisar el histórico para arreglar tres bonos reescribiría también las filas que
+// el snapshot diario tomó en vivo para los otros setenta y seis.
+//   SOLO_TICKERS=TX26,TX28,DICP SOBRESCRIBIR=1 node .github/scripts/backfill-curvas.js
+const SOLO = (process.env.SOLO_TICKERS || '').split(',').map(s => s.trim()).filter(Boolean);
 
 const BYMA_HIST = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free'
                 + '/chart/historical-series/history';
@@ -165,14 +179,67 @@ async function serieByma(symbol) {
     const px = {};
     for (const f of delMes) px[f] = precios[f];
 
-    const res = await page.evaluate(async ({ delMes, px, dry }) => {
+    const res = await page.evaluate(async ({ delMes, px, dry, solo }) => {
       const bkLiq = G_LIQ, bkTC = dlkTCOverride;
       const filas = [];
       const omitidos = {};
+      // Filtro de reparación: si viene una lista, sólo esos tickers se recalculan.
+      const incluir = t => !solo.length || solo.includes(t);
       // Red de seguridad: una tasa de tres dígitos largos no es una cotización,
       // es un cálculo que se fue de escala. Mejor no guardarla que ensuciar el
       // eje de todos los gráficos con un solo punto.
       const sano = t => t != null && isFinite(t) && Math.abs(t) < 500;
+
+      // ── Precio de un CER que amortiza, traído a la base de su rueda ──────
+      //
+      // BYMA y data912 —que coinciden al centavo— reexpresan la serie histórica
+      // al residual de HOY, como un precio de acción ajustado por split: la
+      // serie queda continua a través de los pagos de capital. Verificado: el
+      // precio de TX26 no cae en ninguna de sus cuatro amortizaciones.
+      //
+      // La app, en cambio, valúa con el residual de CADA fecha. Las dos cosas
+      // están en bases distintas y el desfasaje es residual(t)/residual(hoy).
+      // En TX26 eso es 80/20 = 4 veces en enero de 2025, y de ahí salían las
+      // tasas de 1,3e13%. En TX28 es 80/50 = 1,6 y la distorsión no se notaba,
+      // que es peor.
+      //
+      // Al multiplicar por esa razón, la paridad de TX26 pasa de saltar
+      // 0,22 → 0,30 → 0,48 → 1,00 en cada cuota, a converger suave de 0,88 a
+      // 1,00 en veinte meses, que es lo que tiene que hacer.
+      // El residual se calcula con las funciones de la app, no a mano: DICP
+      // capitaliza intereses y su saldo no es una resta de cuotas. Reimplementarlo
+      // daba 75% donde la app dice 68,25%, y el ajuste habría quedado sesgado.
+      // Esto replica el PASO 1 de cerBuildFlujosProy.
+      const residualPct = (b, hasta) => {
+        if (b.tipo !== 'cupon') return b.vnInicial || 100;
+        const freq = b.freq || 6;
+        const dates = cerCouponDates(b.emision, b.vcto, freq, b.primerCupon || null);
+        const amortTable = cerBuildAmortTable(b, dates, freq);
+        const lim = parseDate(hasta);
+        if (b.cuponSchedule && b.cuponSchedule.length) {
+          const amortMap = new Map(amortTable.map(a => [a.fecha, a.pct]));
+          let vn = 100;
+          for (const d of dates) {
+            if (d > lim) break;
+            const tramo = b.cuponSchedule.find(t => d > parseDate(t.desde) && d <= parseDate(t.hasta));
+            const pik = ((tramo && tramo.tasaPIK) || 0) / 100 * (freq / 12);
+            vn = Math.max(0, vn * (1 + pik) - (amortMap.get(fmtDate(d)) || 0));
+          }
+          return vn;
+        }
+        let vn = b.vnInicial || 100;
+        amortTable.forEach(a => { if (parseDate(a.fecha) <= lim) vn = Math.max(0, vn - a.pct); });
+        return vn;
+      };
+      const hoyStr = fmtDate(TODAY);
+      const cerAjustePrecio = (b, liqStr) => {
+        const tieneCuotas = (b.amortSchedule || []).length > 0 || (b.amortAuto && b.amortAuto.first);
+        if (!tieneCuotas) return 1;
+        const rt = residualPct(b, liqStr), rHoy = residualPct(b, hoyStr);
+        if (!(rt > 0) || !(rHoy > 0)) return 1;
+        return rt / rHoy;
+      };
+
       try {
         for (const fecha of delMes) {
           const p = px[fecha] || {};
@@ -189,6 +256,7 @@ async function serieByma(symbol) {
           for (const [arr, sector] of [[BOP_BONDS, 'BOP'], [BON_BONDS, 'BON'], [GLO_BONDS, 'GLO']])
             for (const b of arr || []) {
               const v = p[b.ticker]; if (v == null) continue;
+              if (!incluir(b.ticker)) continue;
               try {
                 const r = usdResCalcRow({ ...b, lastPrecio: v }, liqStr);
                 if (r.tir == null || isNaN(r.tir) || r.md == null || !sano(r.tir)) continue;
@@ -199,6 +267,7 @@ async function serieByma(symbol) {
 
           for (const b of (typeof LECAPS !== 'undefined' ? LECAPS : [])) {
             const v = p[b.ticker]; if (v == null) continue;
+              if (!incluir(b.ticker)) continue;
             try {
               const e = enrich({ ...b, precio: v });
               if (!e || isNaN(e.tna) || !(e.dias > 0) || !sano(e.tna)) continue;
@@ -210,17 +279,12 @@ async function serieByma(symbol) {
           }
 
           for (const b of (typeof CER_BONDS !== 'undefined' ? CER_BONDS : [])) {
-            const v = p[b.ticker]; if (v == null) continue;
-            // Los CER que ya empezaron a amortizar quedan afuera del histórico.
-            // El cierre de BYMA y el capital residual que calcula la app no
-            // reconcilian una vez pagada la primera cuota, y salen tasas
-            // imposibles: TX26 llegó a 1,3e13% y TX28 a 48% real sostenido.
-            // No está determinado cuál de los dos lados está en otra base, y
-            // guardar el número sin saberlo es peor que no tenerlo. Afecta a
-            // TX26, TX28 y DICP; los otros 27 CER no amortizaron todavía.
-            const cuotas = (b.amortSchedule || []).map(s => s.fecha)
-              .concat(b.amortAuto && b.amortAuto.first ? [b.amortAuto.first] : []);
-            if (cuotas.some(f => f && f <= liqStr)) { omitidos[b.ticker] = 'amortiza'; continue; }
+            const v0 = p[b.ticker]; if (v0 == null) continue;
+              if (!incluir(b.ticker)) continue;
+            // Los CER que amortizan necesitan que el precio se traiga a la base
+            // del día. Ver el comentario de residualPct: la serie histórica
+            // viene reexpresada al residual de hoy.
+            const v = v0 * cerAjustePrecio(b, liqStr);
             try {
               const e = cerEnrich({ ...b, precio: v });
               if (!e || isNaN(e.tir) || !(e.dias > 0) || !sano(e.tir)) continue;
@@ -233,6 +297,7 @@ async function serieByma(symbol) {
 
           for (const b of (typeof TAMAR_BONDS !== 'undefined' ? TAMAR_BONDS : [])) {
             const v = p[b.ticker]; if (v == null) continue;
+              if (!incluir(b.ticker)) continue;
             try {
               const e = tamarEnrich({ ...b, precio: v });
               if (!e || isNaN(e.margenTNA) || !(e.dias > 0) || !sano(e.margenTNA)) continue;
@@ -245,6 +310,7 @@ async function serieByma(symbol) {
 
           for (const b of (typeof DLK_BONDS !== 'undefined' ? DLK_BONDS : [])) {
             const v = p[b.ticker]; if (v == null) continue;
+              if (!incluir(b.ticker)) continue;
             try {
               const e = dlkEnrich({ ...b, precio: v });
               if (!e || e.tna == null || isNaN(e.tna) || !(e.dias > 0) || !sano(e.tna)) continue;
@@ -272,7 +338,7 @@ async function serieByma(symbol) {
         guardadas += lote.length;
       }
       return { filas: filas.length, guardadas, error: null, omitidos };
-    }, { delMes, px, dry: DRY });
+    }, { delMes, px, dry: DRY, solo: SOLO });
 
     totalFilas += res.filas;
     totalGuardadas += res.guardadas;
@@ -285,8 +351,6 @@ async function serieByma(symbol) {
   const om = Object.keys(omitidosTotal);
   if (om.length) {
     console.log(`\nBonos omitidos del histórico (${om.length}): ${om.sort().join(', ')}`);
-    console.log('  CER que ya empezaron a amortizar: el cierre de BYMA y el capital');
-    console.log('  residual de la app no reconcilian y salen tasas imposibles.');
   }
 
   console.log(`\n${totalFilas} filas calculadas · ${DRY ? '0 guardadas (dry run)' : totalGuardadas + ' guardadas'}\n`);
