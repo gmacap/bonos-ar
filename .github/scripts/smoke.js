@@ -1037,7 +1037,14 @@ const omitir = (label, motivo) =>
     proySubtabGo('tamar');
     await new Promise(r => setTimeout(r, 500));
     const mes = proyMesHoy();
-    const i12 = proyInfl12Mapa().get(mes);
+    // El deflactor es la inflación DE ESE MES anualizada, no la de los últimos
+    // doce. Se compara contra el sendero crudo para que no haya dos fórmulas.
+    const teaI = proyInflTEA(mes);
+    const fila = projCalcAcum().find(r => r.mes === mes);
+    const teaEsperada = fila ? (Math.pow(1 + fila.inflaEfectiva / 100, 12) - 1) * 100 : null;
+    // Y si la TEA de la TAMAR iguala a la de la inflación del mes, la real es 0.
+    const tnaNeutra = tamarRealAtna(mes, 0);
+    const teaNeutra = tnaNeutra != null ? tamarTEAde(tnaNeutra) : null;
     const errores = [];
     for (const tna of [12, 24.01, 35, 55, 80]) {
       const r = tamarRealDe(mes, tna);
@@ -1059,14 +1066,19 @@ const omitir = (label, motivo) =>
     document.getElementById('proy-tamar-cb-real').checked = false;
     proyRenderChart('tamar');
     const soloTNA = projTamarChart.options.scales.y.min;
-    return { i12, errores, antes, despues: ds.length,
+    return { teaI, teaEsperada, teaNeutra, errores, antes, despues: ds.length,
              tieneLinea: !!linea, mismoEje,
              minConReal: conReal.min, minValor: Math.min(...conReal.valores),
              minSoloTNA: soloTNA,
              conDatos: linea ? linea.data.filter(v => v != null).length : 0 };
   });
-  check(real.i12 != null, 'hay inflación de 12 meses para el mes en curso',
-        String(real.i12));
+  check(real.teaI != null, 'hay inflación proyectada para el mes en curso', String(real.teaI));
+  check(real.teaEsperada != null && Math.abs(real.teaI - real.teaEsperada) < 1e-9,
+        'el deflactor es la inflación del mes anualizada',
+        `${real.teaI} vs ${real.teaEsperada}`);
+  check(real.teaNeutra != null && Math.abs(real.teaNeutra - real.teaI) < 1e-6,
+        'TAMAR real cero es TEA de TAMAR igual a TEA de inflación',
+        `${real.teaNeutra} vs ${real.teaI}`);
   check(real.errores.length === 0, 'la TAMAR real y la TNA son inversas exactas',
         real.errores.join(' | '));
   check(real.tieneLinea && real.despues === real.antes + 1 && real.conDatos > 0,

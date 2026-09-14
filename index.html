@@ -1660,8 +1660,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th style="text-align:left;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:400">Origen</th>
             <th style="text-align:right;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:400">TNA %</th>
             <th style="text-align:right;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:400">TEM %</th>
-            <th style="text-align:right;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:400">Infl. 12m</th>
-            <th style="text-align:right;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:400">TAMAR real %</th>
+            <th title="Inflación mensual de ese mes, anualizada" style="text-align:right;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:400">Infl. TEA</th>
+            <th title="TEA de la TAMAR deflactada por la TEA de la inflación del mismo mes" style="text-align:right;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);font-weight:400">TAMAR real %</th>
             <th style="width:32px"></th>
           </tr>
         </thead>
@@ -6225,11 +6225,11 @@ let projSubtab='infla';
 
 // Los senderos se arman una vez y se guardan acá.
 let _proySendero={tamar:null,tcn:null};
-// Declarado acá y no junto a proyInfl12Mapa: proyInvalidar() lo escribe y se
+// Declarado acá y no junto a proyInflMesMapa: proyInvalidar() lo escribe y se
 // llama desde el arranque, así que la declaración tiene que verse antes.
-let _proyInfl12=null;
+let _proyInflMes=null;
 let _projHistStart=null;
-function proyInvalidar(){_proySendero={tamar:null,tcn:null};_proyInfl12=null;_projHistStart=null;}
+function proyInvalidar(){_proySendero={tamar:null,tcn:null};_proyInflMes=null;_projHistStart=null;}
 
 function proyMesAdd(mesStr,n){
   const[y,m]=mesStr.split('-').map(Number);
@@ -6664,17 +6664,32 @@ function proySerieCompleta(serie){
 }
 
 // ── TAMAR real ───────────────────────────────────────────────────────────────
-// Tasa real = efectiva anual de la TAMAR deflactada por la inflación de los
-// últimos 12 meses, tomada del mismo sendero de inflación que usa el CER.
-function proyInfl12Mapa(){
-  if(_proyInfl12)return _proyInfl12;
+// Tasa real = TEA de la TAMAR deflactada por la TEA de la inflación DE ESE MES,
+// no por la de los últimos doce. Las dos patas quedan en la misma unidad y la
+// comparación es mes contra mes: la TAMAR de septiembre contra lo que pasa en
+// septiembre. Con inflación de 12 meses, un sendero que baja arrastraba meses
+// viejos y la tasa real del mes en curso salía deprimida sin que nada hubiera
+// pasado ese mes.
+//
+// Anualizar las dos patas o comparar las mensuales da lo mismo, porque
+// ((1+tem)/(1+i))^12 = (1+tem)^12 / (1+i)^12. Se anualiza para que el número
+// que se lee en pantalla esté en la misma escala que la TNA de al lado.
+function proyInflMesMapa(){
+  if(_proyInflMes)return _proyInflMes;
   const m=new Map();
   try{
     if(typeof projCalcAcum==='function'&&PROJ_INFLACION.length)
-      projCalcAcum().forEach(r=>{if(r.inf12m!=null)m.set(r.mes,r.inf12m);});
+      projCalcAcum().forEach(r=>{if(r.inflaEfectiva!=null)m.set(r.mes,r.inflaEfectiva);});
   }catch(e){}
-  _proyInfl12=m;
+  _proyInflMes=m;
   return m;
+}
+// La mensual de ese mes, anualizada. Es el denominador de la tasa real y la
+// columna que se muestra al lado, para que se vea contra qué se está midiendo.
+function proyInflTEA(mes){
+  const im=proyInflMesMapa().get(mes);
+  if(im==null||!isFinite(im))return null;
+  return (Math.pow(1+im/100,12)-1)*100;
 }
 function tamarTEAde(tna){
   const tem=tamarTEM(tna)/100;
@@ -6682,18 +6697,18 @@ function tamarTEAde(tna){
 }
 // TNA → tasa real del mes. null si el sendero de inflación no cubre ese mes.
 function tamarRealDe(mes,tna){
-  const i12=proyInfl12Mapa().get(mes);
-  if(i12==null||tna==null||!isFinite(tna))return null;
+  const teaI=proyInflTEA(mes);
+  if(teaI==null||tna==null||!isFinite(tna))return null;
   const tea=tamarTEAde(tna)/100;
-  return ((1+tea)/(1+i12/100)-1)*100;
+  return ((1+tea)/(1+teaI/100)-1)*100;
 }
 // Tasa real → TNA. Es la inversa exacta de tamarRealDe, invirtiendo tamarTEM:
 //   TEM = ((1 + TNA/100 × 32/365)^(365/32))^(1/12) − 1
 //   ⇒ TNA = ((1+TEM)^(384/365) − 1) × 365/32 × 100
 function tamarRealAtna(mes,real){
-  const i12=proyInfl12Mapa().get(mes);
-  if(i12==null||real==null||!isFinite(real))return null;
-  const tea=(1+real/100)*(1+i12/100)-1;
+  const teaI=proyInflTEA(mes);
+  if(teaI==null||real==null||!isFinite(real))return null;
+  const tea=(1+real/100)*(1+teaI/100)-1;
   if(tea<=-1)return null;
   const tem=Math.pow(1+tea,1/12)-1;
   return (Math.pow(1+tem,384/365)-1)*(365/32)*100;
@@ -7098,15 +7113,15 @@ function proySetValor(serie,mes,val){
 }
 
 // Escribir la tasa real despeja la TNA que la produce, dada la inflación de
-// los últimos 12 meses de ese mes. El sendero se sigue guardando como TNA:
-// la tasa real es una lectura, no un segundo dato que pueda desincronizarse.
+// ese mismo mes. El sendero se sigue guardando como TNA: la tasa real es una
+// lectura, no un segundo dato que pueda desincronizarse.
 function proySetTamarReal(mes,val){
   if(val===''){proySetValor('tamar',mes,'');return;}
   const real=parseFloat(val);
   if(isNaN(real)){proyRenderSerie('tamar');return;}
   const tna=tamarRealAtna(mes,real);
   if(tna==null||!isFinite(tna)){
-    alert('No hay inflación de 12 meses para '+proyMesLabel(mes)+
+    alert('No hay inflación proyectada para '+proyMesLabel(mes)+
           ', así que no se puede despejar la TNA. Cargá el sendero de inflación primero.');
     proyRenderSerie('tamar');return;
   }
@@ -7220,7 +7235,8 @@ function proyRenderTablaTamar(){
     }
     const tem=tamarTEM(p.v);
     const real=tamarRealDe(p.mes,p.v);
-    const i12=proyInfl12Mapa().get(p.mes);
+    const teaI=proyInflTEA(p.mes);
+    const imes=proyInflMesMapa().get(p.mes);
     const esManual=ovr.has(p.mes);
     const cerrado=p.origen==='real';
     // Los meses cerrados son dato, no proyección: se muestran sin editar.
@@ -7241,7 +7257,7 @@ function proyRenderTablaTamar(){
       <td style="padding:4px 8px;text-align:left">${proyBadge(p.origen)}</td>
       <td style="padding:4px 8px;text-align:right">${celdaTNA}</td>
       <td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text3)">${isFinite(tem)?tem.toFixed(2)+'%':'—'}</td>
-      <td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text3)">${i12!=null?i12.toFixed(1)+'%':'—'}</td>
+      <td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text3)"${imes!=null?` title="${imes.toFixed(2)}% mensual, anualizado"`:''}>${teaI!=null?teaI.toFixed(1)+'%':'—'}</td>
       <td style="padding:4px 8px;text-align:right">${celdaReal}</td>
       <td style="padding:4px 8px;text-align:center">${esManual?`<span onclick="proySetValor('tamar','${p.mes}','')" style="cursor:pointer;color:var(--text3);font-size:12px" title="Quitar el override">×</span>`:''}</td>
     </tr>`;
@@ -7256,10 +7272,11 @@ function proyRenderTablaTamar(){
   const hoyMes=proyMesHoy();
   const pHoy=tamarSendero().mapa.get(hoyMes);
   const realHoy=pHoy?tamarRealDe(hoyMes,pHoy.v):null;
-  const i12Hoy=proyInfl12Mapa().get(hoyMes);
+  const imesHoy=proyInflMesMapa().get(hoyMes);
+  const teaIHoy=proyInflTEA(hoyMes);
   set('proy-tamar-real',realHoy!=null?realHoy.toFixed(2)+'%':'—');
   set('proy-tamar-real-det',realHoy!=null
-    ?`${proyMesLabel(hoyMes)} · infl. 12m ${i12Hoy.toFixed(1)}%`
+    ?`${proyMesLabel(hoyMes)} · infl. ${imesHoy.toFixed(1)}% m · TEA ${teaIHoy.toFixed(1)}%`
     :'falta el sendero de inflación');
   set('proy-tamar-fuente',proyFuenteLabel('tamar'));
   const det=PROJ_FUENTE.tamar==='rem'
