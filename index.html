@@ -2669,7 +2669,7 @@ async function supaSaveSharedKey(key){
       value=value.map(b=>({...b,precio:null,pct_change:null}));
     }
     if(key==='bonosAR_bop_v1'||key==='bonosAR_glo_v1'||key==='bonosAR_bon_v1'){
-      value=value.map(b=>({...b,lastPrecio:null,lastPctChange:null,lastBid:null,lastAsk:null,lastLiq:null}));
+      value=value.map(b=>({...b,lastPrecio:null,lastPrecioMEP:null,lastPctChange:null,lastBid:null,lastAsk:null,lastLiq:null}));
     }
     console.log(`[Supa] guardando ${key} → ${value.length ?? JSON.stringify(value).length} items`,value);
     const{error}=await supa.from('shared_data').upsert({key,value,updated_at:new Date().toISOString()},{onConflict:'key'});
@@ -12313,6 +12313,20 @@ async function usdRefreshPrices(){
   try{
     const{map,pctMap,bidMap,askMap}=await usdFetchPriceMap();
     const mepRate=(map['AL30']&&map['AL30D'])?map['AL30']/map['AL30D']:null;
+    // El histórico de curvas se archiva SIEMPRE en base MEP, mire lo que mire
+    // el selector de moneda. El selector es una preferencia de pantalla, pero
+    // viaja entre dispositivos por SUPA_SHARED_KEYS y el bot del snapshot la
+    // hereda: el 03/09/2026 corrió en cable y guardó los 21 bonos en dólares
+    // entre 3,2% y 4,3% abajo, que es justo el spread MEP/CCL de esa rueda.
+    // Contra los cierres del ticker C daba +0,01%. El backfill ya usa MEP
+    // (EQUIV_DATA.mep), así que esto es lo que pone a las dos rutas en la
+    // misma base. El precio de pantalla sigue siendo el que elegiste.
+    const pxMEP=row=>{
+      const d=map[row.mep];
+      if(d!=null)return +(+d).toFixed(4);
+      const a=map[row.ars];
+      return (a!=null&&mepRate)?+(a/mepRate).toFixed(4):null;
+    };
     const liq=usdNextHabil();
     let updated=0;
 
@@ -12331,7 +12345,7 @@ async function usdRefreshPrices(){
         const raw=map[row.cable];
         if(raw!=null){usdPrecio=raw;sym=row.cable;}
       }
-      if(usdPrecio!=null){bond.lastPrecio=+usdPrecio.toFixed(4);bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+usdPrecio.toFixed(2);bond.lastPctChange=sym&&pctMap[sym]!=null?pctMap[sym]:null;if(!bond.lastLiq)bond.lastLiq=liq;bond.manualOverride=false;updated++;}
+      if(usdPrecio!=null){bond.lastPrecio=+usdPrecio.toFixed(4);bond.lastPrecioMEP=pxMEP(row);bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+usdPrecio.toFixed(2);bond.lastPctChange=sym&&pctMap[sym]!=null?pctMap[sym]:null;if(!bond.lastLiq)bond.lastLiq=liq;bond.manualOverride=false;updated++;}
     }
 
     if(updated)bopSave();
@@ -12355,6 +12369,7 @@ async function usdRefreshPrices(){
       }
       if(gloPrecio!=null){
         bond.lastPrecio=+gloPrecio.toFixed(4);bond.manualOverride=false;
+        bond.lastPrecioMEP=pxMEP(row);
         bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+gloPrecio.toFixed(2);
         bond.lastPctChange=gloSym&&pctMap[gloSym]!=null?pctMap[gloSym]:null;
         if(gloSym){
@@ -12385,6 +12400,7 @@ async function usdRefreshPrices(){
       }
       if(bonPrecio!=null){
         bond.lastPrecio=+bonPrecio.toFixed(4);bond.manualOverride=false;
+        bond.lastPrecioMEP=pxMEP(row);
         bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+bonPrecio.toFixed(2);
         bond.lastPctChange=bonSym&&pctMap[bonSym]!=null?pctMap[bonSym]:null;
         if(bonSym){
@@ -12559,6 +12575,9 @@ function usdRowCommit(inp){
     bond.lastPrecioDisplay=+px.toFixed(4);
   }
   bond.manualOverride=true;
+  // Un precio escrito a mano está en la moneda que estabas mirando. Sólo se
+  // puede archivar si esa moneda era MEP, que es la base del histórico.
+  bond.lastPrecioMEP=usdCurrency==='MEP'?bond.lastPrecio:null;
   if(group==='bop'){bopSave();bopRenderSummaryRows();}
   else if(group==='bon'){bonSave();bonRenderSummaryRows();}
   else{gloSave();gloRenderSummaryRows();}
@@ -12949,6 +12968,7 @@ function bopSaveModal(){
     bond.fechaOverrides=old.fechaOverrides||null;
     const amortUnchanged=JSON.stringify(old.amort)===JSON.stringify(bond.amort)&&old.amortiza===bond.amortiza&&JSON.stringify(old.amortCustom)===JSON.stringify(bond.amortCustom)&&JSON.stringify(old.rateOverrides)===JSON.stringify(bond.rateOverrides);
     if(amortUnchanged&&old.lastPrecio!=null)bond.lastPrecio=old.lastPrecio;
+    if(amortUnchanged&&old.lastPrecioMEP!=null)bond.lastPrecioMEP=old.lastPrecioMEP;
     if(amortUnchanged&&old.lastLiq)bond.lastLiq=old.lastLiq;
     BONDS[idx]=bond;
   }else BONDS.push(bond);
@@ -13910,13 +13930,21 @@ async function _curvasSnapshotTodayImpl(){
   function addUsd(bonds,sector){
     if(fresh(sector))return;
     bonds.forEach(b=>{
-      if(b.lastPrecio==null)return;
+      // Precio y TIR salen los dos del precio MEP, nunca del que muestra el
+      // selector de moneda. usdResCalcRow lee b.lastPrecio, así que hay que
+      // prestárselo y devolverlo: guardar el precio de una base y la tasa de
+      // otra sería peor que no guardar nada.
+      const px=b.lastPrecioMEP??(usdCurrency==='MEP'?b.lastPrecio:null);
+      if(px==null)return;
       if(curvasMuyCerca(b.vencimiento,liq))return;
+      const bk=b.lastPrecio;
       try{
+        b.lastPrecio=px;
         const r=usdResCalcRow(b,liq);
         if(r.tir==null||isNaN(r.tir)||r.md==null)return;
-        rows.push({snapshot_date:today,ticker:b.ticker,sector,price:+b.lastPrecio.toFixed(4),tir:+r.tir.toFixed(6),md:+r.md.toFixed(4),dias:curvasDiasHasta(b.vencimiento,liq)});
+        rows.push({snapshot_date:today,ticker:b.ticker,sector,price:+px.toFixed(4),tir:+r.tir.toFixed(6),md:+r.md.toFixed(4),dias:curvasDiasHasta(b.vencimiento,liq)});
       }catch(e){}
+      finally{b.lastPrecio=bk;}
     });
   }
   // Si algún sector USD está desactualizado y sin precios en memoria, buscarlos ahora
@@ -14104,8 +14132,14 @@ function curvasSnapshotFromMemory(sector){
   function addUsd(bonds,sec){
     if(sector&&sector!=='ALL'&&sector!==sec)return;
     bonds.forEach(b=>{
-      if(b.lastPrecio==null)return;
-      try{const r=usdResCalcRow(b,liq);if(r.tir==null||isNaN(r.tir))return;rows.push({ticker:b.ticker,tir:r.tir,md:r.md,dias:null,sector:sec,price:b.lastPrecio});}catch(e){}
+      // Misma base MEP que el histórico: el punto de hoy se dibuja en el mismo
+      // gráfico que las ruedas guardadas, y en cable quedaba medio punto de
+      // tasa por encima de su propia serie.
+      const px=b.lastPrecioMEP??(usdCurrency==='MEP'?b.lastPrecio:null);
+      if(px==null)return;
+      const bk=b.lastPrecio;
+      try{b.lastPrecio=px;const r=usdResCalcRow(b,liq);if(r.tir==null||isNaN(r.tir))return;rows.push({ticker:b.ticker,tir:r.tir,md:r.md,dias:null,sector:sec,price:px});}catch(e){}
+      finally{b.lastPrecio=bk;}
     });
   }
   if(BOP_BONDS&&BOP_BONDS.length) addUsd(BOP_BONDS,'BOP');
