@@ -688,7 +688,7 @@ const omitir = (label, motivo) =>
         refrescoNoResetea: !/dlkResetA3500/.test(dlkFetchPrices.toString())
                         && !/dlkResetA3500/.test(fetchAllPrices.toString()),
         sintVuelca: /maeAplicarFuturos/.test(sintInit.toString()),
-        volcadoCargaBonos: /sintLoadBonds/.test(maeAplicarFuturos.toString()),
+        volcadoCargaBonos: /sintCargarEstado/.test(maeAplicarFuturos.toString()),
       };
     } finally { A3500_LIVE = bkLive; dlkTCOverride = bkOver; a3500Pintar(); }
   });
@@ -731,6 +731,34 @@ const omitir = (label, motivo) =>
   check(mae.forzado === 2, 'un pedido explícito trae el cierre igual',
         `${mae.forzado} pedidos`);
   check(mae.trasSupabase, 'al llegar las definiciones DLK se vuelca la curva pendiente');
+
+  // La tasa de descuento de los sintéticos se leía sólo al abrir esa solapa,
+  // pero el Resumen los grafica desde el arranque. Al recargar la página salían
+  // calculados con descuento 0: el sintético más corto daba 41,49% de TNA en vez
+  // de 15,05% y ese punto solo estiraba el eje del gráfico de 14-30 a 20-45.
+  const sintTasa = await page.evaluate(() => {
+    const bkTasa = SINT_TASA_DESC, bkLs = localStorage.getItem('bonosAR_sint_tasa_desc_v1');
+    try {
+      localStorage.setItem('bonosAR_sint_tasa_desc_v1', '30');
+      _sintCargado = false; SINT_TASA_DESC = null;
+      beRenderChartTF();               // el camino del Resumen, sin pasar por Sintéticos
+      const trasChart = SINT_TASA_DESC;
+      _sintCargado = false; SINT_TASA_DESC = null;
+      beCPEnrich({ ticker: (SINT_BONDS[0] || {}).ticker || 'X', tipo: 'sint' });
+      const trasTabla = SINT_TASA_DESC;   // el comparador del Resumen
+      _sintCargado = false; SINT_TASA_DESC = null;
+      maeAplicarFuturos([]);           // el camino del volcado del MAE
+      return { trasChart, trasTabla, trasMae: SINT_TASA_DESC };
+    } finally {
+      SINT_TASA_DESC = bkTasa;
+      if (bkLs == null) localStorage.removeItem('bonosAR_sint_tasa_desc_v1');
+      else localStorage.setItem('bonosAR_sint_tasa_desc_v1', bkLs);
+    }
+  });
+  check(sintTasa.trasChart === 30, 'graficar el Resumen carga la tasa de descuento de los sintéticos',
+        String(sintTasa.trasChart));
+  check(sintTasa.trasTabla === 30, 'la tabla del Resumen también la carga', String(sintTasa.trasTabla));
+  check(sintTasa.trasMae === 30, 'el volcado del MAE también la carga', String(sintTasa.trasMae));
 
   // IOL se eliminó por completo: no debe quedar ni el modal ni las credenciales.
   const iol = await page.evaluate(() => ({
