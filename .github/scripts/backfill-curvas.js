@@ -185,6 +185,22 @@ async function serieByma(symbol) {
       const omitidos = {};
       // Filtro de reparación: si viene una lista, sólo esos tickers se recalculan.
       const incluir = t => !solo.length || solo.includes(t);
+
+      // ── Las últimas ruedas antes del vencimiento no entran ─────────────────
+      // A tres días del pago, mover el precio medio punto mueve la tasa
+      // anualizada decenas de puntos: no es información sobre la curva, es
+      // aritmética de anualizar un plazo que tiende a cero. Quedaban cosas como
+      // D31L6 en −198% a un día del vencimiento, o TZV26 en +112%.
+      const DIAS_MIN = 4;
+      const diasHasta = (vto, liqStr) => {
+        if (!vto) return null;
+        const d = parseDate(String(vto).slice(0, 10));
+        return d && !isNaN(d) ? diasACT(parseDate(liqStr), d) : null;
+      };
+      const muyCerca = (vto, liqStr) => {
+        const n = diasHasta(vto, liqStr);
+        return n != null && n < DIAS_MIN;
+      };
       // Red de seguridad: una tasa de tres dígitos largos no es una cotización,
       // es un cálculo que se fue de escala. Mejor no guardarla que ensuciar el
       // eje de todos los gráficos con un solo punto.
@@ -257,17 +273,20 @@ async function serieByma(symbol) {
             for (const b of arr || []) {
               const v = p[b.ticker]; if (v == null) continue;
               if (!incluir(b.ticker)) continue;
+              if (muyCerca(b.vencimiento, liqStr)) continue;
               try {
                 const r = usdResCalcRow({ ...b, lastPrecio: v }, liqStr);
                 if (r.tir == null || isNaN(r.tir) || r.md == null || !sano(r.tir)) continue;
                 filas.push({ snapshot_date: fecha, ticker: b.ticker, sector, price: +v.toFixed(4),
-                             tir: +r.tir.toFixed(6), md: +r.md.toFixed(4), dias: null });
+                             tir: +r.tir.toFixed(6), md: +r.md.toFixed(4),
+                             dias: diasHasta(b.vencimiento, liqStr) });
               } catch (e) {}
             }
 
           for (const b of (typeof LECAPS !== 'undefined' ? LECAPS : [])) {
             const v = p[b.ticker]; if (v == null) continue;
-              if (!incluir(b.ticker)) continue;
+            if (!incluir(b.ticker)) continue;
+            if (muyCerca(b.vcto, liqStr)) continue;
             try {
               const e = enrich({ ...b, precio: v });
               if (!e || isNaN(e.tna) || !(e.dias > 0) || !sano(e.tna)) continue;
@@ -280,7 +299,8 @@ async function serieByma(symbol) {
 
           for (const b of (typeof CER_BONDS !== 'undefined' ? CER_BONDS : [])) {
             const v0 = p[b.ticker]; if (v0 == null) continue;
-              if (!incluir(b.ticker)) continue;
+            if (!incluir(b.ticker)) continue;
+            if (muyCerca(b.vcto, liqStr)) continue;
             // Los CER que amortizan necesitan que el precio se traiga a la base
             // del día. Ver el comentario de residualPct: la serie histórica
             // viene reexpresada al residual de hoy.
@@ -297,7 +317,8 @@ async function serieByma(symbol) {
 
           for (const b of (typeof TAMAR_BONDS !== 'undefined' ? TAMAR_BONDS : [])) {
             const v = p[b.ticker]; if (v == null) continue;
-              if (!incluir(b.ticker)) continue;
+            if (!incluir(b.ticker)) continue;
+            if (muyCerca(b.vcto, liqStr)) continue;
             try {
               const e = tamarEnrich({ ...b, precio: v });
               if (!e || isNaN(e.margenTNA) || !(e.dias > 0) || !sano(e.margenTNA)) continue;
@@ -310,7 +331,8 @@ async function serieByma(symbol) {
 
           for (const b of (typeof DLK_BONDS !== 'undefined' ? DLK_BONDS : [])) {
             const v = p[b.ticker]; if (v == null) continue;
-              if (!incluir(b.ticker)) continue;
+            if (!incluir(b.ticker)) continue;
+            if (muyCerca(b.vcto, liqStr)) continue;
             try {
               const e = dlkEnrich({ ...b, precio: v });
               if (!e || e.tna == null || isNaN(e.tna) || !(e.dias > 0) || !sano(e.tna)) continue;

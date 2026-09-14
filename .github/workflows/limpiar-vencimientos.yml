@@ -1,0 +1,30 @@
+name: Limpiar ruedas pegadas al vencimiento
+
+# Saca del histórico de curvas las filas a menos de CURVAS_DIAS_MIN días del
+# vencimiento, donde la tasa anualizada deja de decir algo sobre la curva.
+# Solo a mano: es una operación puntual sobre datos ya guardados. Las dos rutas
+# que escriben historia ya no las generan.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Solo simular, sin borrar'
+        type: boolean
+        default: true
+
+jobs:
+  limpiar:
+    name: Limpiar histórico
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm install playwright && npx playwright install --with-deps chromium
+
+      - run: node .github/scripts/limpiar-vencimientos.js
+        env:
+          SUPABASE_BOT_EMAIL: ${{ secrets.SUPABASE_BOT_EMAIL }}
+          SUPABASE_BOT_PASSWORD: ${{ secrets.SUPABASE_BOT_PASSWORD }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
