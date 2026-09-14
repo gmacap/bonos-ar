@@ -21,6 +21,11 @@ const check = (cond, label, detalle = '') => {
   if (cond) { ok++;  console.log(`  \x1b[32mOK\x1b[0m    ${label}`); }
   else      { bad++; console.log(`  \x1b[31mFALLA\x1b[0m ${label}${detalle ? '  → ' + detalle : ''}`); }
 };
+// Para lo que depende de que el mercado haya operado. Sin precios en vivo la
+// aserción no prueba nada, y hacerla fallar convertiría el domingo en un rojo
+// que nadie mira.
+const omitir = (label, motivo) =>
+  console.log(`  \x1b[33m--\x1b[0m    ${label}: ${motivo}`);
 
 (async () => {
   const browser = await chromium.launch();
@@ -1120,6 +1125,7 @@ const check = (cond, label, detalle = '') => {
     proyRenderChart('tcn');
     return {
       puntos: pts.length,
+      conPrecio: LECAPS.some(b => b.precio != null && b.vcto >= desde && b.vcto <= hasta),
       enFechaDeVto: pts.every(p => {
         const b = LECAPS.find(x => x.ticker === p.ticker);
         return b && parseDate(b.vcto).getTime() === p.x;
@@ -1130,12 +1136,18 @@ const check = (cond, label, detalle = '') => {
       topeHolgado: eje ? eje.max > Math.max(...pts.map(p => p.y)) * 2 : false,
     };
   });
-  check(lecaps.puntos > 0 && lecaps.dataset && lecaps.tipo === 'scatter',
-        'las LECAPs se pueden sumar al gráfico del dólar', JSON.stringify(lecaps));
-  check(lecaps.enFechaDeVto, 'cada LECAP va en su fecha de vencimiento');
-  check(lecaps.conTicker, 'cada punto trae ticker, TNA y TIR para el tooltip');
-  check(lecaps.eje === 'yPct' && lecaps.topeHolgado,
-        'las tasas van en su propio eje, abajo, sin tapar el precio');
+  if (!lecaps.conPrecio) {
+    // Sin precios no hay puntos que dibujar: la función filtra los bonos sin
+    // precio a propósito. Verificar acá sólo diría que el mercado está cerrado.
+    omitir('LECAPs en el gráfico del dólar', 'ninguna LECAP tiene precio ahora');
+  } else {
+    check(lecaps.puntos > 0 && lecaps.dataset && lecaps.tipo === 'scatter',
+          'las LECAPs se pueden sumar al gráfico del dólar', JSON.stringify(lecaps));
+    check(lecaps.enFechaDeVto, 'cada LECAP va en su fecha de vencimiento');
+    check(lecaps.conTicker, 'cada punto trae ticker, TNA y TIR para el tooltip');
+    check(lecaps.eje === 'yPct' && lecaps.topeHolgado,
+          'las tasas van en su propio eje, abajo, sin tapar el precio');
+  }
 
   console.log('\nResto de pestañas (no deben lanzar)');
   const antes = errores.length;
