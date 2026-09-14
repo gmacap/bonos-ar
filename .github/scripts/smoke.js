@@ -1005,11 +1005,10 @@ const omitir = (label, motivo) =>
       await new Promise(r => setTimeout(r, 400));
       const v = proyVentana(s);
       const ch = s === 'tamar' ? projTamarChart : projTcnChart;
-      // El de TAMAR va por mes, así que se cuentan etiquetas. El del dólar va
-      // por fecha: se comparan los extremos del eje con los de la ventana.
+      // Los dos van por fecha: se comparan los extremos del eje con los de la
+      // ventana elegida.
       let dibuja = false;
-      if (s === 'tamar') dibuja = !!ch && ch.data.labels.length === v.length;
-      else if (ch) {
+      if (ch) {
         const x = ch.options.scales.x;
         dibuja = x.min === parseDate(v[0].mes + '-01').getTime() &&
                  x.max === parseDate(proyUltDiaMes(v[v.length - 1].mes)).getTime();
@@ -1062,7 +1061,8 @@ const omitir = (label, motivo) =>
     const esc = projTamarChart.options.scales;
     // Las dos tasas van sobre la misma regla, con el cero a la vista.
     const mismoEje = ds.every(d => d.yAxisID === 'y') && !esc.yReal;
-    const conReal = { min: esc.y.min, valores: ds.flatMap(d => d.data).filter(v => v != null) };
+    const conReal = { min: esc.y.min,
+      valores: ds.flatMap(d => d.data).map(p => p && p.y).filter(v => v != null) };
     document.getElementById('proy-tamar-cb-real').checked = false;
     proyRenderChart('tamar');
     const soloTNA = projTamarChart.options.scales.y.min;
@@ -1108,25 +1108,59 @@ const omitir = (label, motivo) =>
         'escribir la tasa real despeja la TNA que la produce', JSON.stringify(inverso));
   check(inverso.esManual, 'la TNA despejada entra al sendero como override manual');
 
-  // Pasado y proyección tienen que distinguirse solos en el gráfico.
+  // Pasado y proyección tienen que distinguirse solos en el gráfico. El escalón
+  // mensual es una sola serie que cruza el corte, así que el punteado se decide
+  // por tramo: el de un mes cerrado va entero, el de un mes proyectado no.
   const corte = await page.evaluate(async () => {
     proySubtabGo('tamar');
     await new Promise(r => setTimeout(r, 500));
     const ch = projTamarChart;
-    const ds = ch.data.datasets[0];
-    const lista = proyVentana('tamar');
-    const iProy = lista.findIndex(p => p.origen !== 'real');
-    const seg = ds.segment && typeof ds.segment.borderDash === 'function';
+    const prom = ch.data.datasets.find(d => /promedio/i.test(d.label));
+    const iProy = prom ? prom.data.findIndex(p => p.proy) : -1;
+    const seg = prom && prom.segment && typeof prom.segment.borderDash === 'function';
     return {
       plugin: (ch.config.plugins || []).some(p => p.id === 'proyFuturo'),
-      punteaFuturo: seg && !!ds.segment.borderDash({ p1DataIndex: iProy }),
-      punteaPasado: seg && !!ds.segment.borderDash({ p1DataIndex: Math.max(0, iProy - 1) }),
+      hayEscalon: !!prom && prom.stepped === 'after',
+      punteaFuturo: !!seg && !!prom.segment.borderDash({ p0DataIndex: iProy }),
+      punteaPasado: !!seg && !!prom.segment.borderDash({ p0DataIndex: Math.max(0, iProy - 1) }),
       iProy,
     };
   });
   check(corte.plugin, 'el gráfico sombrea el tramo proyectado');
+  check(corte.hayEscalon, 'el promedio mensual se dibuja como escalón por mes');
   check(corte.punteaFuturo && !corte.punteaPasado,
-        'la línea va punteada desde el primer mes proyectado', JSON.stringify(corte));
+        'el escalón va punteado desde el primer mes proyectado', JSON.stringify(corte));
+
+  // El detalle diario y el promedio del mes son dos cosas distintas y las dos
+  // tienen que estar. El nivel del escalón de un mes cerrado es tamarPromMes de
+  // ese mes: si se separan, el gráfico dejó de decir contra qué se compara.
+  const dia = await page.evaluate(async () => {
+    proySubtabGo('tamar');
+    await new Promise(r => setTimeout(r, 400));
+    const ch = projTamarChart;
+    const diaria = ch.data.datasets.find(d => /diaria/i.test(d.label));
+    const prom = ch.data.datasets.find(d => /promedio/i.test(d.label));
+    const lista = proyVentana('tamar');
+    const cerrado = lista.find(p => p.origen === 'real' && p.v != null);
+    const punto = cerrado && prom ? prom.data.find(p => p.mes === cerrado.mes) : null;
+    const hoyTs = parseDate(fmtDate(TODAY)).getTime();
+    return {
+      ruedas: diaria ? diaria.data.length : 0,
+      meses: lista.length,
+      noPasaHoy: diaria ? diaria.data.every(p => p.x <= hoyTs) : null,
+      nivel: punto ? +punto.y.toFixed(4) : null,
+      promedio: cerrado ? +tamarPromMes(cerrado.mes).toFixed(4) : null,
+    };
+  });
+  if (!dia.ruedas) {
+    omitir('detalle diario de la TAMAR', 'el índice TAMAR no cargó ahora');
+  } else {
+    check(dia.ruedas > dia.meses, 'el gráfico muestra la TAMAR rueda por rueda',
+          `${dia.ruedas} ruedas en ${dia.meses} meses`);
+    check(dia.noPasaHoy === true, 'la serie diaria no se mete en el futuro');
+    check(dia.nivel != null && dia.nivel === dia.promedio,
+          'el escalón de un mes cerrado es su promedio', `${dia.nivel} vs ${dia.promedio}`);
+  }
 
   // Tablas: años enteros con corte anual.
   const anios = await page.evaluate(async () => {

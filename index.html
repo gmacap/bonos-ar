@@ -1632,9 +1632,13 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <button class="btn" style="margin:0 0 0 4px;padding:2px 8px;font-size:10px" onclick="proyRangoDefault('tamar')" title="4 meses de datos y 8 de proyección">12m</button>
         </div>
         <div style="display:flex;align-items:center;gap:12px;font-size:11px;">
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)">
-            <input type="checkbox" id="proy-tamar-cb-tna" checked onchange="proyRenderChart('tamar')">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#38bdf8"></span>TNA
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)" title="TNA de cada rueda publicada por el BCRA">
+            <input type="checkbox" id="proy-tamar-cb-diaria" checked onchange="proyRenderChart('tamar')">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#94a3b8"></span>Diaria
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)" title="Promedio de las ruedas de cada mes, y de ahí en adelante el sendero proyectado">
+            <input type="checkbox" id="proy-tamar-cb-prom" checked onchange="proyRenderChart('tamar')">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#38bdf8"></span>Promedio del mes
           </label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)">
             <input type="checkbox" id="proy-tamar-cb-real" onchange="proyRenderChart('tamar')">
@@ -7398,6 +7402,16 @@ function proyRenderChart(serie){
   if(serie==='tamar')proyRenderChartTamar();else proyRenderChartTcn();
 }
 
+// El gráfico de TAMAR va por fecha, no por mes: la TAMAR es una tasa diaria y
+// promediarla por mes esconde justamente el movimiento que interesa mirar. El
+// pasado son las ruedas del índice del BCRA; el escalón mensual va por encima
+// como referencia, y del mes en curso en adelante ese mismo escalón es el
+// sendero. Se dibujan las dos cosas porque miden distinto: el sendero se arma
+// con promedios mensuales, así que sin el escalón la línea diaria y la
+// proyección no se comparan contra nada en común.
+//
+// Eje lineal de timestamps, igual que el del dólar: con un eje de categorías,
+// cien ruedas de historia aplastarían los meses proyectados contra el borde.
 function proyRenderChartTamar(){
   const cv=document.getElementById('proy-tamar-chart');
   if(!cv||typeof Chart==='undefined')return;
@@ -7405,63 +7419,108 @@ function proyRenderChartTamar(){
   const lista=proyVentana('tamar');
   if(!lista.length)return;
   const cb=k=>document.getElementById('proy-tamar-cb-'+k)?.checked;
-  // Índice del primer mes proyectado: de ahí en adelante la línea va punteada
-  // y el fondo sombreado, para que no haya dudas de dónde termina el dato.
-  let iProy=lista.findIndex(p=>p.origen!=='real');
-  if(iProy<0)iProy=lista.length;
-  const dash=c=>c.p1DataIndex>=iProy?PROY_DASH:undefined;
-  const puntoColor=lista.map(p=>p.origen==='real'?'#94a3b8':'#38bdf8');
+  const ts=f=>parseDate(f).getTime();
+  const desdeF=lista[0].mes+'-01';
+  const hastaF=proyUltDiaMes(lista[lista.length-1].mes);
+  const hoyF=fmtDate(TODAY),hoyTs=ts(hoyF);
   const datasets=[];
 
-  if(cb('tna')!==false){
-    datasets.push({label:'TAMAR TNA %',
-      data:lista.map(p=>+p.v.toFixed(4)),
-      borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,.13)',
-      pointBackgroundColor:puntoColor,pointBorderColor:puntoColor,
-      borderWidth:2,pointRadius:2.5,pointHoverRadius:4,tension:.15,fill:true,
-      segment:{borderDash:dash},yAxisID:'y'});
+  if(cb('diaria')!==false){
+    const diario=TAMAR_INDEX
+      .filter(r=>r.fecha>=desdeF&&r.fecha<=hoyF&&r.fecha<=hastaF)
+      .map(r=>({x:ts(r.fecha),y:r.valor}));
+    if(diario.length){
+      datasets.push({label:'TAMAR diaria %',data:diario,
+        borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,.10)',
+        borderWidth:1.4,pointRadius:0,pointHoverRadius:3,tension:0,fill:true,yAxisID:'y'});
+    }
   }
+
+  // Un nivel por mes: arranca el día 1 y se sostiene hasta el mes siguiente.
+  // Con stepped el tramo horizontal es el del mes de su punto de arranque, así
+  // que el punteado se decide por p0, no por p1.
+  const esc=[];
+  if(cb('prom')!==false){
+    const meses=lista.filter(p=>p.v!=null);
+    meses.forEach(p=>esc.push({x:Math.max(ts(p.mes+'-01'),ts(desdeF)),y:+p.v.toFixed(4),
+      mes:p.mes,origen:p.origen,proy:p.origen!=='real'}));
+    if(meses.length){
+      const u=meses[meses.length-1];
+      esc.push({x:Math.min(ts(proyUltDiaMes(u.mes)),ts(hastaF)),y:+u.v.toFixed(4),
+        mes:u.mes,origen:u.origen,proy:u.origen!=='real'});
+    }
+    if(esc.length>1){
+      datasets.push({label:'Promedio del mes %',data:esc,
+        borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,.10)',
+        borderWidth:2,pointRadius:0,pointHoverRadius:4,stepped:'after',fill:false,
+        segment:{borderDash:c=>esc[c.p0DataIndex]&&esc[c.p0DataIndex].proy?PROY_DASH:undefined},
+        yAxisID:'y'});
+    }
+  }
+
   if(cb('real')){
-    const reales=lista.map(p=>{const r=tamarRealDe(p.mes,p.v);return r!=null?+r.toFixed(4):null;});
+    // La tasa real está definida por mes, no por rueda: necesita la inflación
+    // de ese mes. Va un punto por mes, al cierre.
+    const reales=[];
+    for(const p of lista){
+      if(p.v==null)continue;
+      const r=tamarRealDe(p.mes,p.v);
+      if(r==null)continue;
+      reales.push({x:Math.min(ts(proyUltDiaMes(p.mes)),ts(hastaF)),y:+r.toFixed(4),
+        mes:p.mes,origen:p.origen,proy:p.origen!=='real'});
+    }
     // Misma regla que la nominal: la distancia vertical entre las curvas es la
     // inflación. Con dos ejes cada una flotaba por su cuenta.
-    datasets.push({label:'TAMAR real %',data:reales,
-      borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.08)',
-      pointBackgroundColor:lista.map(p=>p.origen==='real'?'#94a3b8':'#22c55e'),
-      borderWidth:2,pointRadius:2,pointHoverRadius:4,tension:.15,fill:false,
-      spanGaps:false,segment:{borderDash:dash},yAxisID:'y'});
+    if(reales.length){
+      datasets.push({label:'TAMAR real %',data:reales,
+        borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.08)',
+        pointBackgroundColor:reales.map(p=>p.proy?'#22c55e':'#94a3b8'),
+        borderWidth:2,pointRadius:2,pointHoverRadius:4,tension:.15,fill:false,
+        segment:{borderDash:c=>reales[c.p1DataIndex]&&reales[c.p1DataIndex].proy?PROY_DASH:undefined},
+        yAxisID:'y'});
+    }
   }
   if(!datasets.length)return;
 
   // Base en cero. Un eje que empieza en 22% convierte medio punto de tasa en un
   // acantilado; con el cero a la vista los movimientos se ven en la proporción
   // que tienen. Sólo baja de cero si la tasa real es negativa.
-  const vals=datasets.flatMap(d=>d.data).filter(v=>v!=null&&isFinite(v));
+  const vals=datasets.flatMap(d=>d.data).map(p=>p&&p.y).filter(v=>v!=null&&isFinite(v));
   const minV=vals.length?Math.min(0,...vals):0;
 
   projTamarChart=new Chart(cv.getContext('2d'),{
     type:'line',
-    data:{labels:lista.map(p=>proyMesLabel(p.mes)),datasets},
+    data:{datasets},
     options:{responsive:true,maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
+      interaction:{mode:'nearest',axis:'x',intersect:false},
       plugins:{legend:{display:datasets.length>1,labels:{color:'#9ca3af',font:{size:10},boxWidth:10}},
         datalabels:{display:false},
         tooltip:{callbacks:{
-          afterTitle:c=>{const p=lista[c[0].dataIndex];return (PROY_ORIGEN_ESTILO[p.origen]||[p.origen])[0];},
-          label:c=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}%`}}},
+          title:c=>c.length?fmtDate(new Date(c[0].parsed.x)).split('-').reverse().join('/'):'',
+          label:c=>{
+            const p=c.raw,txt=`${c.dataset.label}: ${c.parsed.y.toFixed(2)}%`;
+            if(!p||!p.mes)return txt;
+            const or=(PROY_ORIGEN_ESTILO[p.origen]||[p.origen])[0];
+            return `${txt} · ${proyMesLabel(p.mes)}${or?' · '+or:''}`;
+          }}}},
       scales:{
-        x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:14},grid:{display:false}},
+        x:{type:'linear',min:ts(desdeF),max:ts(hastaF),
+          ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:false,
+            callback:v=>proyMesLabel(fmtDate(new Date(v)).substring(0,7))},
+          // Una marca por mes, pero sólo las que caen dentro de lo que se ve: si
+          // no, al ampliar el eje sigue rotulando meses que ya no están.
+          afterBuildTicks:ax=>{
+            ax.ticks=lista.map(p=>({value:ts(p.mes+'-01')}))
+              .filter(t=>t.value>=ax.min&&t.value<=ax.max);
+          },
+          grid:{display:false}},
         // Redondear no es cosmético: al ampliar, Chart.js elige valores de eje
         // que no son redondos y sin esto la etiqueta sale con quince decimales
         // y se come el ancho del dibujo.
         y:{position:'left',min:minV<0?Math.floor(minV/5)*5:0,
           ticks:{color:'#6b7280',font:{size:9},callback:v=>(+v).toFixed(1)+'%'},
           grid:{color:c=>c.tick&&c.tick.value===0?'rgba(107,114,128,.45)':'rgba(107,114,128,.12)'}}}},
-    plugins:[proyPluginFuturo(ch=>{
-      if(iProy<=0||iProy>=lista.length)return null;
-      const x=ch.scales.x;
-      return (x.getPixelForValue(iProy-1)+x.getPixelForValue(iProy))/2;
-    })]
+    plugins:[proyPluginFuturo(ch=>ch.scales.x.getPixelForValue(hoyTs))]
   });
 }
 
