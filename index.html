@@ -2314,6 +2314,146 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.2.0/chartjs-plugin-zoom.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════ GRÁFICOS INTERACTIVOS
+// Zoom y desplazamiento en todos los gráficos de la app, sin tocar las catorce
+// llamadas a `new Chart`: se envuelve el constructor y se inyecta la config.
+// Hacerlo a mano en cada lugar significaba catorce oportunidades de olvidarse
+// de uno, y varios se construyen con objetos inline de una sola línea.
+//
+//   arrastrar            → ampliar la zona seleccionada
+//   ctrl + rueda         → zoom sobre el puntero
+//   shift + arrastrar    → desplazar
+//   doble clic           → restablecer
+//
+// El zoom sobrevive a que el gráfico se vuelva a dibujar —el Resumen se
+// redibuja cada cinco minutos con los precios nuevos— pero sólo mientras los
+// datos sigan teniendo la misma forma. Si cambiás el rango o prendés otra
+// serie, la firma cambia y el zoom se suelta, que es lo que uno espera.
+(function(){
+  if(typeof Chart==='undefined')return;
+
+  const AYUDA='Arrastrá para ampliar una zona · Ctrl+rueda para zoom · '+
+              'Shift+arrastrar para desplazar · doble clic para restablecer';
+  const ZOOM_ESTADO={};
+
+  function zoomFirma(chart){
+    const d=chart.data||{};
+    const ds=d.datasets||[];
+    const largos=ds.map(x=>(x.data||[]).length).join(',');
+    const l=d.labels&&d.labels.length?d.labels[0]+'>'+d.labels[d.labels.length-1]:'';
+    return `${ds.length}:${largos}:${l}`;
+  }
+  function zoomGuardar(chart){
+    const id=chart.canvas&&chart.canvas.id;
+    if(!id)return;
+    const e={firma:zoomFirma(chart)};
+    ['x','y'].forEach(k=>{
+      const s=chart.scales&&chart.scales[k];
+      if(s&&isFinite(s.min)&&isFinite(s.max))e[k]={min:s.min,max:s.max};
+    });
+    if(e.x||e.y)ZOOM_ESTADO[id]=e;else delete ZOOM_ESTADO[id];
+  }
+  function zoomOlvidar(id){if(id)delete ZOOM_ESTADO[id];}
+  function zoomRestaurar(chart){
+    const id=chart.canvas&&chart.canvas.id;
+    if(!id)return;
+    const e=ZOOM_ESTADO[id];
+    if(!e||typeof chart.zoomScale!=='function')return;
+    if(e.firma!==zoomFirma(chart)){delete ZOOM_ESTADO[id];return;}
+    try{
+      if(e.x)chart.zoomScale('x',{min:e.x.min,max:e.x.max},'none');
+      if(e.y)chart.zoomScale('y',{min:e.y.min,max:e.y.max},'none');
+    }catch(err){delete ZOOM_ESTADO[id];}
+  }
+  window.chartZoomOlvidar=zoomOlvidar;
+  window.chartZoomEstado=ZOOM_ESTADO;
+
+  function zoomCfg(){
+    return{
+      pan:{enabled:true,mode:'xy',modifierKey:'shift',
+        onPanComplete:({chart})=>zoomGuardar(chart)},
+      zoom:{
+        wheel:{enabled:true,modifierKey:'ctrl',speed:.08},
+        pinch:{enabled:true},
+        // El umbral evita que un clic con un temblor de dos píxeles termine
+        // en un zoom absurdo del que después hay que salir.
+        drag:{enabled:true,threshold:8,
+          backgroundColor:'rgba(56,189,248,.15)',
+          borderColor:'rgba(56,189,248,.85)',borderWidth:1},
+        mode:'xy',
+        onZoomComplete:({chart})=>zoomGuardar(chart),
+      },
+    };
+  }
+
+  // Chip de "restablecer" dibujado sobre el propio canvas: aparece sólo cuando
+  // hay zoom, así no ocupa lugar ni hay que sumar un botón a cada panel.
+  const chipReset={
+    id:'zoomChipReset',
+    afterDraw(chart){
+      chart.$chipZoom=null;
+      if(typeof chart.isZoomedOrPanned!=='function'||!chart.isZoomedOrPanned())return;
+      const a=chart.chartArea;
+      if(!a)return;
+      const ctx=chart.ctx,txt='⟲ restablecer';
+      ctx.save();
+      ctx.font='10px ui-monospace,SFMono-Regular,monospace';
+      const w=ctx.measureText(txt).width+14,h=18;
+      const x=a.right-w-6,y=a.top+6;
+      ctx.fillStyle='rgba(12,20,28,.92)';
+      ctx.strokeStyle='rgba(56,189,248,.7)';
+      ctx.lineWidth=1;
+      if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,h,4);ctx.fill();ctx.stroke();}
+      else{ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);}
+      ctx.fillStyle='#38bdf8';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(txt,x+w/2,y+h/2+.5);
+      ctx.restore();
+      chart.$chipZoom={x,y,w,h};
+    },
+    afterEvent(chart,args){
+      const b=chart.$chipZoom,e=args&&args.event;
+      if(!e)return;
+      const dentro=!!b&&e.x>=b.x&&e.x<=b.x+b.w&&e.y>=b.y&&e.y<=b.y+b.h;
+      if(e.type==='mousemove'&&chart.canvas)chart.canvas.style.cursor=dentro?'pointer':'';
+      if(e.type==='click'&&dentro){
+        zoomOlvidar(chart.canvas&&chart.canvas.id);
+        try{chart.resetZoom();}catch(err){}
+      }
+    },
+  };
+  try{Chart.register(chipReset);}catch(e){}
+
+  const Base=Chart;
+  window.Chart=new Proxy(Base,{
+    construct(target,args){
+      const cfg=args[1];
+      if(cfg&&typeof cfg==='object'){
+        cfg.options=cfg.options||{};
+        const p=cfg.options.plugins=cfg.options.plugins||{};
+        if(!p.zoom)p.zoom=zoomCfg(); // una config propia gana
+      }
+      const chart=new target(...args);
+      const cv=chart.canvas;
+      if(cv){
+        cv.title=AYUDA;
+        if(!cv.$zoomDbl){
+          cv.$zoomDbl=true;
+          cv.addEventListener('dblclick',()=>{
+            const c=Base.getChart(cv);
+            if(!c)return;
+            zoomOlvidar(cv.id);
+            try{c.resetZoom();}catch(e){}
+          });
+        }
+      }
+      zoomRestaurar(chart);
+      return chart;
+    },
+  });
+})();
+</script>
 <script>
 // ══════════════════════════════════════════════════════════════ SUPABASE
 const SUPA_URL='https://hxkxyawsstivjsxmafge.supabase.co';
@@ -7282,8 +7422,11 @@ function proyRenderChartTamar(){
           label:c=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}%`}}},
       scales:{
         x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:14},grid:{display:false}},
+        // Redondear no es cosmético: al ampliar, Chart.js elige valores de eje
+        // que no son redondos y sin esto la etiqueta sale con quince decimales
+        // y se come el ancho del dibujo.
         y:{position:'left',min:minV<0?Math.floor(minV/5)*5:0,
-          ticks:{color:'#6b7280',font:{size:9},callback:v=>v+'%'},
+          ticks:{color:'#6b7280',font:{size:9},callback:v=>(+v).toFixed(1)+'%'},
           grid:{color:c=>c.tick&&c.tick.value===0?'rgba(107,114,128,.45)':'rgba(107,114,128,.12)'}}}},
     plugins:[proyPluginFuturo(ch=>{
       if(iProy<=0||iProy>=lista.length)return null;
@@ -7352,9 +7495,14 @@ function proyRenderChartTcn(){
     x:{type:'linear',min:ts(desdeF),max:ts(hastaF),
       ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:false,
         callback:v=>proyMesLabel(fmtDate(new Date(v)).substring(0,7))},
-      afterBuildTicks:ax=>{ax.ticks=lista.map(p=>({value:ts(p.mes+'-01')}));},
+      // Una marca por mes, pero sólo las que caen dentro de lo que se ve: si no,
+      // al ampliar el eje sigue rotulando meses que ya no están en pantalla.
+      afterBuildTicks:ax=>{
+        ax.ticks=lista.map(p=>({value:ts(p.mes+'-01')}))
+          .filter(t=>t.value>=ax.min&&t.value<=ax.max);
+      },
       grid:{display:false}},
-    y:{position:'left',ticks:{color:'#6b7280',font:{size:9},callback:v=>'$'+v},
+    y:{position:'left',ticks:{color:'#6b7280',font:{size:9},callback:v=>'$'+Math.round(v)},
       grid:{color:'rgba(107,114,128,.12)'}},
   };
 
@@ -7769,7 +7917,7 @@ function projRenderChart(){
           type:'linear',
           position:'left',
           display:showMensual,
-          ticks:{color:textColor,font:{size:10},callback:v=>v+'%'},
+          ticks:{color:textColor,font:{size:10},callback:v=>(+v).toFixed(1)+'%'},
           grid:{color:gridColor,drawBorder:false},
           title:{display:true,text:'Mensual',color:textColor,font:{size:10}},
         },
@@ -7777,7 +7925,7 @@ function projRenderChart(){
           type:'linear',
           position:'right',
           display:hasAcum,
-          ticks:{color:textColor,font:{size:10},callback:v=>v+'%'},
+          ticks:{color:textColor,font:{size:10},callback:v=>(+v).toFixed(1)+'%'},
           grid:{drawOnChartArea:false},
           title:{display:true,text:'12m / YTD',color:textColor,font:{size:10}},
         },

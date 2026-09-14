@@ -1195,6 +1195,129 @@ const omitir = (label, motivo) =>
         'quedan cientos de meses publicados, no sólo los de 2025',
         String(hist.publicados));
 
+  // ── Gráficos interactivos ─────────────────────────────────────────────────
+  console.log('\nGráficos: zoom y desplazamiento');
+
+  const zoomPlugin = await page.evaluate(() => ({
+    zoom: !!(Chart.registry && Chart.registry.plugins.get('zoom')),
+    chip: !!(Chart.registry && Chart.registry.plugins.get('zoomChipReset')),
+  }));
+  check(zoomPlugin.zoom, 'el plugin de zoom se carga desde el CDN');
+  check(zoomPlugin.chip, 'está registrado el chip de restablecer');
+
+  // Arrastra dentro del área de dibujo de un gráfico.
+  const arrastrar = async (canvasId) => {
+    const caja = await page.evaluate(id => {
+      const ch = Chart.getChart(document.getElementById(id));
+      if (!ch || !ch.chartArea) return null;
+      const r = ch.canvas.getBoundingClientRect();
+      const a = ch.chartArea;
+      const esc = ch.canvas.width / (r.width * (window.devicePixelRatio || 1));
+      return { rx: r.x, ry: r.y, l: a.left / esc, r2: a.right / esc,
+               t: a.top / esc, b: a.bottom / esc };
+    }, canvasId);
+    if (!caja) return false;
+    const x1 = caja.rx + caja.l + (caja.r2 - caja.l) * 0.30;
+    const x2 = caja.rx + caja.l + (caja.r2 - caja.l) * 0.65;
+    const y1 = caja.ry + caja.t + (caja.b - caja.t) * 0.25;
+    const y2 = caja.ry + caja.t + (caja.b - caja.t) * 0.75;
+    await page.mouse.move(x1, y1);
+    await page.mouse.down();
+    await page.mouse.move((x1 + x2) / 2, (y1 + y2) / 2, { steps: 6 });
+    await page.mouse.move(x2, y2, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(350);
+    return true;
+  };
+  const ejes = id => page.evaluate(i => {
+    const ch = Chart.getChart(document.getElementById(i));
+    if (!ch) return null;
+    return { x: ch.scales.x ? ch.scales.x.max - ch.scales.x.min : null,
+             y: ch.scales.y ? ch.scales.y.max - ch.scales.y.min : null,
+             zoom: typeof ch.isZoomedOrPanned === 'function' ? ch.isZoomedOrPanned() : null,
+             chip: !!ch.$chipZoom };
+  }, id);
+
+  // Un gráfico de cada solapa que el usuario pidió: proyecciones, resumen,
+  // curvas y series.
+  const paneles = [
+    ['proyecciones', () => { switchSection('pesos'); switchTab('proyecciones'); proySubtabGo('tcn'); }, 'proy-tcn-chart'],
+    ['resumen', () => { switchSection('pesos'); switchTab('breakeven'); }, 'be-chart-tf'],
+    ['curvas', () => { switchSection('pesos'); switchTab('curvas-ars'); }, 'curvas-ars-chart'],
+    ['series', () => { switchSection('pesos'); switchTab('series-ars'); }, 'series-ars-chart'],
+  ];
+  for (const [nombre, ir, id] of paneles) {
+    await page.evaluate(ir);
+    let hay = true;
+    try {
+      await page.waitForFunction(
+        i => { const c = Chart.getChart(document.getElementById(i)); return !!(c && c.chartArea); },
+        id, { timeout: 25000 });
+    } catch (e) { hay = false; }
+    if (!hay) { omitir(`zoom en ${nombre}`, 'el gráfico no tiene datos ahora'); continue; }
+    await page.waitForTimeout(400);
+
+    const cfg = await page.evaluate(i => {
+      const z = Chart.getChart(document.getElementById(i)).options.plugins.zoom;
+      return { drag: !!(z && z.zoom.drag.enabled), rueda: !!(z && z.zoom.wheel.enabled),
+               mod: z && z.zoom.wheel.modifierKey, pan: !!(z && z.pan.enabled) };
+    }, id);
+    check(cfg.drag && cfg.rueda && cfg.pan, `${nombre}: el gráfico acepta zoom y desplazamiento`,
+          JSON.stringify(cfg));
+    // La rueda pide Ctrl a propósito: si no, la página no se podría scrollear
+    // con el puntero encima de un gráfico.
+    check(cfg.mod === 'ctrl', `${nombre}: la rueda pide Ctrl`, String(cfg.mod));
+
+    const antesZ = await ejes(id);
+    await arrastrar(id);
+    const despues = await ejes(id);
+    const achico = antesZ && despues &&
+      ((antesZ.x != null && despues.x != null && despues.x < antesZ.x - 1e-9) ||
+       (antesZ.y != null && despues.y != null && despues.y < antesZ.y - 1e-9));
+    check(achico && despues.zoom === true, `${nombre}: arrastrar recorta el rango`,
+          JSON.stringify({ antes: antesZ, despues }));
+    check(despues.chip === true, `${nombre}: aparece el chip de restablecer`);
+
+    await page.dblclick(`#${id}`, { position: { x: 180, y: 80 } }).catch(() => {});
+    await page.waitForTimeout(350);
+    const reset = await ejes(id);
+    check(reset && reset.zoom === false, `${nombre}: el doble clic restablece`,
+          JSON.stringify(reset));
+  }
+
+  // El zoom sobrevive a un redibujo con los mismos datos y se suelta cuando la
+  // forma cambia. Sin lo primero, el refresco de precios del Resumen lo borraba
+  // cada cinco minutos.
+  await page.evaluate(() => { switchSection('pesos'); switchTab('proyecciones'); proySubtabGo('tamar'); });
+  await page.waitForTimeout(1200);
+  await arrastrar('proy-tamar-chart');
+  const persiste = await page.evaluate(async () => {
+    const leer = () => { const c = Chart.getChart(document.getElementById('proy-tamar-chart'));
+                         return [+c.scales.x.min.toFixed(4), +c.scales.x.max.toFixed(4)]; };
+    const antes = leer();
+    proyRenderChart('tamar');
+    await new Promise(r => setTimeout(r, 400));
+    const igual = leer();
+    document.getElementById('proy-tamar-cb-real').checked = true;
+    proyRenderChart('tamar');
+    await new Promise(r => setTimeout(r, 400));
+    const distinto = leer();
+    document.getElementById('proy-tamar-cb-real').checked = false;
+    proyRenderChart('tamar');
+    return { antes, igual, distinto,
+             sobrevive: igual[0] === antes[0] && igual[1] === antes[1],
+             seSuelta: !(distinto[0] === antes[0] && distinto[1] === antes[1]) };
+  });
+  check(persiste.sobrevive, 'el zoom sobrevive a un redibujo con los mismos datos',
+        JSON.stringify(persiste));
+  check(persiste.seSuelta, 'el zoom se suelta cuando cambia la forma de los datos',
+        JSON.stringify(persiste));
+
+  const ayudaZoom = await page.evaluate(() =>
+    (document.getElementById('proy-tamar-chart') || {}).title || '');
+  check(/arrastr/i.test(ayudaZoom) && /ctrl/i.test(ayudaZoom),
+        'el canvas explica los gestos al pasar el mouse', ayudaZoom.slice(0, 50));
+
   console.log('\nResto de pestañas (no deben lanzar)');
   const antes = errores.length;
   await page.evaluate(() => switchSection('usd'));
