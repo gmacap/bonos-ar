@@ -2615,6 +2615,11 @@ async function supaLoadSharedData(){
     loadPortfolio();
     tamarLoadBonds();
     dlkLoadBonds();
+    // La curva del MAE llega antes que las definiciones DLK, y sin ellas no hay
+    // vencimiento con el cual elegir el contrato: el volcado se va sin hacer
+    // nada. Recién ahora existen. Hasta acá eso sólo se recuperaba al entrar a
+    // Sintéticos, que es por qué los futuros parecían no actualizarse nunca.
+    if(typeof MAE_FUTUROS!=='undefined'&&MAE_FUTUROS.length)maeAplicarFuturos(MAE_FUTUROS);
     projLoadLs();
     proyLoadLs();
     // USD bonds
@@ -3664,7 +3669,10 @@ async function fetchPrices(){
 }
 
 // ── FETCH ALL PRICES (una sola llamada API, actualiza todos los arrays) ────────
-async function fetchAllPrices(){
+// `auto` lo pasa sólo el ciclo de refresco. Cambia una cosa: si la rueda del MAE
+// ya cerró, el ciclo no pide nada porque el último tick ya es el cierre, pero un
+// click o la tecla R sí lo traen, que es lo que espera quien aprieta un botón.
+async function fetchAllPrices(auto){
   const st=document.getElementById('api-status');
   st.textContent='cargando…';st.className='api-status loading';
   try{
@@ -3749,6 +3757,10 @@ async function fetchAllPrices(){
   }
   // siempre actualizar bonos USD también
   usdRefreshPrices();
+  // El MAE es una fuente aparte: data912 no trae ni el mayorista ni la curva de
+  // futuros. Sin esto, ↻ Precios los dejaba como estaban y había que ir hasta
+  // Sintéticos a apretar ↻ MAE para verlos moverse.
+  maeRefrescar(!auto);
 }
 
 // ── TABLA ─────────────────────────────────────────────────────────────────────
@@ -9632,14 +9644,11 @@ async function refrescoCiclo(){
   if(document.hidden)return;      // nadie está mirando
   if(!mercadoActivo())return;     // fin de semana, feriado o fuera de rueda
   _ultimoRefresco=Date.now();
-  try{await fetchAllPrices();}catch(e){}
+  // El MAE va adentro de fetchAllPrices, para que el ciclo automático y el botón
+  // ↻ Precios refresquen exactamente lo mismo. Antes eran dos caminos distintos
+  // y el del botón se había quedado sin el MAE.
+  try{await fetchAllPrices(true);}catch(e){}
   try{await usdFetch();}catch(e){}
-  // El mayorista y los futuros cierran a las 15:00, antes que la rueda de bonos:
-  // pasada esa hora el último tick ya es el cierre y no hay nada nuevo que pedir.
-  if(maeRuedaAbierta()){
-    try{await maeFetchSpot();a3500Repropagar();}catch(e){}
-    try{maeAplicarFuturos(await maeFetchFuturos());}catch(e){}
-  }
 }
 
 function refrescoIniciar(){
@@ -9649,11 +9658,10 @@ function refrescoIniciar(){
 refrescoIniciar();
 
 // Primer tiro del MAE al abrir la app: sin esto habría que esperar hasta cinco
-// minutos para ver el mayorista y los futuros del día.
-if(maeRuedaAbierta()){
-  maeFetchSpot().then(()=>a3500Repropagar()).catch(()=>{});
-  maeFetchFuturos().then(c=>maeAplicarFuturos(c)).catch(()=>{});
-}
+// minutos para ver el mayorista y los futuros del día. Va forzado porque al
+// arrancar no hay nada en memoria: si recargás la página a las seis de la tarde,
+// el cierre del MAE es justamente el dato que falta.
+maeRefrescar(true);
 
 // Al volver a la pestaña, si pasó más de un ciclo desde el último refresco,
 // actualizar ya en vez de esperar hasta 5 minutos.
@@ -11836,6 +11844,20 @@ function maeAplicarFuturos(curva){
     beRefreshIfVisible();
   }
   return actualizados;
+}
+
+// Mayorista y futuros en un solo pedido, que es como los usa todo el mundo: el
+// arranque, el ciclo de refresco y el botón ↻ Precios. Estaban repetidos en cada
+// lugar y el del botón directamente no existía.
+//
+// `forzar` sólo levanta la guarda de horario. El mayorista y los futuros cierran
+// a las 15:00, antes que la rueda de bonos, así que pasada esa hora el ciclo
+// automático no tiene nada nuevo que pedir. Un pedido explícito sí: o querés el
+// cierre, o acabás de recargar la página y no tenés nada en memoria.
+async function maeRefrescar(forzar){
+  if(!forzar&&!maeRuedaAbierta())return;
+  try{await maeFetchSpot();a3500Repropagar();}catch(e){console.warn('MAE spot:',e);}
+  try{maeAplicarFuturos(await maeFetchFuturos());}catch(e){console.warn('MAE futuros:',e);}
 }
 
 async function maeRefreshFuturos(){

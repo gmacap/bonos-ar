@@ -693,6 +693,40 @@ const omitir = (label, motivo) =>
   check(etiq.sintVuelca, 'abrir Sintéticos vuelca la curva de futuros');
   check(etiq.volcadoCargaBonos, 'el volcado carga los sintéticos si no están en memoria');
 
+  // ↻ Precios no pedía nada al MAE: el mayorista y los futuros quedaban como
+  // estaban y había que ir hasta Sintéticos a apretar ↻ MAE. Y al arrancar, la
+  // curva llegaba antes que las definiciones DLK, así que el volcado se iba sin
+  // hacer nada y sólo se recuperaba al abrir esa solapa.
+  const mae = await page.evaluate(async () => {
+    const bkSpot = maeFetchSpot, bkFut = maeFetchFuturos, bkRueda = maeRuedaAbierta;
+    let spots = 0, futs = 0;
+    try {
+      window.maeFetchSpot = async () => { spots++; return null; };
+      window.maeFetchFuturos = async () => { futs++; return []; };
+      window.maeRuedaAbierta = () => false;
+      await maeRefrescar(false);
+      const cerrado = spots + futs;
+      await maeRefrescar(true);
+      return {
+        cerrado, forzado: spots + futs,
+        enPrecios: /maeRefrescar/.test(fetchAllPrices.toString()),
+        enCiclo: /fetchAllPrices\(true\)/.test(refrescoCiclo.toString()),
+        trasSupabase: /maeAplicarFuturos/.test(supaLoadSharedData.toString()),
+      };
+    } finally {
+      window.maeFetchSpot = bkSpot;
+      window.maeFetchFuturos = bkFut;
+      window.maeRuedaAbierta = bkRueda;
+    }
+  });
+  check(mae.enPrecios, 'refrescar precios también pide el MAE');
+  check(mae.enCiclo, 'el ciclo automático refresca por el mismo camino que el botón');
+  check(mae.cerrado === 0, 'con la rueda cerrada el ciclo no pide nada al MAE',
+        `${mae.cerrado} pedidos`);
+  check(mae.forzado === 2, 'un pedido explícito trae el cierre igual',
+        `${mae.forzado} pedidos`);
+  check(mae.trasSupabase, 'al llegar las definiciones DLK se vuelca la curva pendiente');
+
   // IOL se eliminó por completo: no debe quedar ni el modal ni las credenciales.
   const iol = await page.evaluate(() => ({
     modal: !!document.getElementById('iol-creds-modal'),
