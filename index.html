@@ -1696,10 +1696,18 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <select id="proy-tcn-hasta" class="sbar-input" style="width:110px" onchange="proyRangoCambio('tcn')"></select>
           <button class="btn" style="margin:0 0 0 4px;padding:2px 8px;font-size:10px" onclick="proyRangoDefault('tcn')" title="4 meses de datos y 8 de proyección">12m</button>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;font-size:11px;">
+        <div style="display:flex;align-items:center;gap:12px;font-size:11px;flex-wrap:wrap;">
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)">
             <input type="checkbox" id="proy-tcn-cb-dev" onchange="proyRenderChart('tcn')">
             <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b"></span>Devaluación mensual
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)" title="Régimen de bandas del BCRA. Publicado hasta fin del mes que viene; más allá es estimación con la regla del régimen.">
+            <input type="checkbox" id="proy-tcn-cb-bandas" onchange="proyBandasToggle()">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#ef4444"></span>Bandas cambiarias
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)" title="Tasa efectiva mensual de cada LECAP en su fecha de vencimiento">
+            <input type="checkbox" id="proy-tcn-cb-lecaps" onchange="proyRenderChart('tcn')">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fbbf24"></span>LECAPs al vencimiento
           </label>
         </div>
       </div>
@@ -5621,6 +5629,7 @@ async function dlkFetchIndex(force=false){
         <pre style="color:var(--accent2);margin:2px 0">${JSON.stringify(DLK_INDEX[DLK_INDEX.length-1])}</pre>
       </div>`;
     try{localStorage.setItem(DLK_CACHE_KEY,JSON.stringify({ts:Date.now(),data:DLK_INDEX}));}catch(e){}
+    proyInvalidar();
     const last=DLK_INDEX[DLK_INDEX.length-1];
     const prev=DLK_INDEX[DLK_INDEX.length-2];
     const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
@@ -6367,6 +6376,100 @@ function dlkTCProy(fechaStr){
   const k=diasACT(parseDate(ult.fecha),parseDate(f));
   return ult.v*Math.pow(ult.v/pre.v,k/n);
 }
+// ── Bandas cambiarias ────────────────────────────────────────────────────────
+// Régimen vigente desde el 11/04/2025, arrancó en 1000–1400. Hasta el 31/12/2025
+// los límites se movían ±1% mensual. Desde el 01/01/2026 el ritmo de cada mes es
+// la inflación mensual del INDEC de dos meses antes, compuesta día a día sobre
+// los días de ese mes.
+//
+// La regla está verificada contra la serie publicada: el ritmo escalona el día 1
+// de cada mes y coincide con el IPC de M−2 en los siete meses de 2026 ya
+// cerrados (jul 2,03% con IPC may 2,1 sobre 31 días; sep 2,095% con IPC jul 2,1
+// sobre 30; oct 1,638% con IPC ago 1,7 sobre 31, y así).
+//
+// El BCRA publica el histórico y el mes siguiente. Más allá de eso proyectamos
+// con la misma regla sobre el sendero de inflación de la app, y va marcado como
+// estimación: no es un dato del BCRA.
+const BANDA_INF_ID=1187, BANDA_SUP_ID=1188;
+const BANDA_CACHE_KEY='bonosAR_bandas_v1';
+const BANDA_CACHE_TTL=23*60*60*1000;
+let BANDA_INDEX=[]; // [{fecha,inf,sup}] ascendente, sólo lo publicado
+
+async function bandaFetchSerie(id){
+  const url=`${WORKER_URL}?id=${id}&desde=2025-04-01&limit=3000&offset=0`;
+  const res=await fetch(url,{signal:AbortSignal.timeout(20000)});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const j=await res.json();
+  const det=(j.results&&j.results[0]&&j.results[0].detalle)||[];
+  return det.filter(r=>r.fecha&&r.valor!=null)
+    .map(r=>({fecha:(r.fecha||'').split('T')[0],valor:parseFloat(r.valor)}))
+    .filter(r=>r.fecha&&!isNaN(r.valor));
+}
+async function bandaFetchIndex(force=false){
+  if(!force){
+    try{
+      const c=localStorage.getItem(BANDA_CACHE_KEY);
+      if(c){
+        const{ts,data}=JSON.parse(c);
+        if(Date.now()-ts<BANDA_CACHE_TTL&&data&&data.length){BANDA_INDEX=data;return true;}
+      }
+    }catch(e){}
+  }
+  try{
+    const[inf,sup]=await Promise.all([bandaFetchSerie(BANDA_INF_ID),bandaFetchSerie(BANDA_SUP_ID)]);
+    const mi=new Map(inf.map(r=>[r.fecha,r.valor]));
+    BANDA_INDEX=sup.filter(r=>mi.has(r.fecha))
+      .map(r=>({fecha:r.fecha,inf:mi.get(r.fecha),sup:r.valor}))
+      .sort((a,b)=>a.fecha.localeCompare(b.fecha));
+    try{localStorage.setItem(BANDA_CACHE_KEY,JSON.stringify({ts:Date.now(),data:BANDA_INDEX}));}catch(e){}
+    proyInvalidar();
+    return BANDA_INDEX.length>0;
+  }catch(e){
+    console.warn('[Bandas] no se pudieron cargar:',e.message);
+    return false;
+  }
+}
+// Ritmo mensual de la banda: la inflación de dos meses antes.
+function bandaRitmoDe(mes,ritmos){
+  const r=ritmos.get(proyMesAdd(mes,-2));
+  return r!=null&&isFinite(r)?r:null;
+}
+// Extiende la banda día a día desde el último dato publicado hasta la fecha
+// pedida, con la regla del régimen sobre el sendero de inflación de la app.
+function bandaProyectar(hastaFecha){
+  if(!BANDA_INDEX.length)return[];
+  const ritmos=new Map();
+  try{if(typeof projCalcAcum==='function'&&PROJ_INFLACION.length)
+    projCalcAcum().forEach(r=>ritmos.set(r.mes,r.inflaEfectiva));}catch(e){}
+  const ult=BANDA_INDEX[BANDA_INDEX.length-1];
+  const fin=parseDate(hastaFecha);
+  if(!fin||parseDate(ult.fecha)>=fin)return[];
+  const out=[];
+  let inf=ult.inf,sup=ult.sup,ultimoRitmo=null;
+  const d=parseDate(ult.fecha);
+  let guarda=0;
+  while(guarda++<4000){
+    d.setDate(d.getDate()+1);
+    if(d>fin)break;
+    const f=fmtDate(d);
+    let r=bandaRitmoDe(f.substring(0,7),ritmos);
+    if(r==null)r=ultimoRitmo;
+    if(r==null)r=0;
+    ultimoRitmo=r;
+    const dias=projDiasMes(d.getFullYear(),d.getMonth());
+    sup*=Math.pow(1+r/100,1/dias);
+    inf*=Math.pow(1-r/100,1/dias);
+    out.push({fecha:f,inf,sup,proy:true});
+  }
+  return out;
+}
+// Banda completa —publicada más estimada— dentro de un rango de fechas.
+function bandaSerie(desdeFecha,hastaFecha){
+  const pub=BANDA_INDEX.filter(b=>b.fecha>=desdeFecha&&b.fecha<=hastaFecha);
+  const proy=bandaProyectar(hastaFecha).filter(b=>b.fecha>=desdeFecha);
+  return pub.concat(proy);
+}
+
 // ── Meses ya transcurridos ───────────────────────────────────────────────────
 // El sendero proyectado arranca en el mes actual. Para poder mirar de dónde
 // viene la serie se arma aparte el tramo realizado, que no se edita.
@@ -6389,10 +6492,14 @@ function dlkUltimoMes(mes){
 }
 function proyHistoriaLista(serie){
   const hoy=proyMesHoy(),out=[];
-  for(let k=PROY_MESES_ATRAS;k>=1;k--){
-    const mes=proyMesAdd(hoy,-k);
+  // Arranca en enero del año más viejo alcanzable, no en un mes cualquiera:
+  // así el primer año que se puede elegir en el rango ya viene completo y la
+  // tabla nunca queda con medio año en blanco por el borde de la ventana.
+  let mes=proyMesAdd(hoy,-PROY_MESES_ATRAS).substring(0,4)+'-01';
+  while(mes<hoy){
     const v=serie==='tamar'?tamarPromMes(mes):dlkUltimoMes(mes);
     if(v!=null&&isFinite(v))out.push({mes,v,origen:'real'});
+    mes=proyMesAdd(mes,1);
   }
   return out;
 }
@@ -6743,6 +6850,24 @@ function proySubtabGo(sub){
   projRecalc();
 }
 
+// Las bandas se bajan la primera vez que alguien las pide, no en el arranque:
+// es una solapa que no todo el mundo abre y son dos series diarias enteras.
+async function proyBandasToggle(){
+  const cbx=document.getElementById('proy-tcn-cb-bandas');
+  if(cbx&&cbx.checked&&!BANDA_INDEX.length){
+    const lbl=cbx.parentElement;
+    if(lbl)lbl.style.opacity='.5';
+    await bandaFetchIndex();
+    if(lbl)lbl.style.opacity='';
+    if(!BANDA_INDEX.length){
+      cbx.checked=false;
+      alert('No se pudieron traer las bandas cambiarias del BCRA. Probá de nuevo en un rato.');
+    }
+  }
+  proyRenderChart('tcn');
+  proyRenderTablaTcn();
+}
+
 async function remRefrescar(){
   await remFetch(true);
   proyInvalidar();
@@ -6865,6 +6990,29 @@ function proyRangoCambio(serie){
   proyRango[serie]={desde:sd.value,hasta:sh.value};
   proyRenderSerie(serie);
 }
+// La tabla siempre muestra años enteros: de enero del año en que arranca el
+// gráfico a diciembre del año en que termina. Los meses sin dato quedan como
+// fila vacía, para que el año se lea completo y no con huecos.
+function proyVentanaTabla(serie){
+  const v=proyVentana(serie);
+  if(!v.length)return[];
+  const y0=+v[0].mes.substring(0,4),y1=+v[v.length-1].mes.substring(0,4);
+  const todo=new Map(proySerieCompleta(serie).map(p=>[p.mes,p]));
+  const out=[];
+  for(let y=y0;y<=y1;y++)for(let m=1;m<=12;m++){
+    const mes=`${y}-${String(m).padStart(2,'0')}`;
+    out.push(todo.get(mes)||{mes,v:null,origen:null});
+  }
+  return out;
+}
+function proyFilaAnio(anio,cols,resumen){
+  return`<tr style="background:var(--surface2)">
+    <td colspan="${cols}" style="padding:5px 8px;text-align:left;border-top:1px solid var(--border2);border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:12px;color:var(--text2)">${anio}</span>
+      ${resumen?`<span style="font-size:10px;color:var(--text3);margin-left:10px;text-transform:uppercase;letter-spacing:.06em">${resumen}</span>`:''}
+    </td></tr>`;
+}
+
 // Los meses que hay que dibujar, ya filtrados por el rango elegido.
 function proyVentana(serie){
   const todo=proySerieCompleta(serie);
@@ -6881,10 +7029,25 @@ function proyRenderTablaTamar(){
   const tb=document.getElementById('proy-tamar-tbody');
   if(!tb)return;
   proyPintarRango('tamar');
-  const lista=proyVentana('tamar');
+  const lista=proyVentanaTabla('tamar');
   const ovr=new Map((PROJ_TAMAR||[]).map(o=>[o.mes,o.v]));
   const inp='background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:12px;outline:none;text-align:right';
-  tb.innerHTML=lista.map(p=>{
+  const vacio='<span style="color:var(--text3);font-size:12px">—</span>';
+  let html='',anioActual=null;
+  for(const p of lista){
+    const anio=p.mes.substring(0,4);
+    if(anio!==anioActual){
+      anioActual=anio;
+      const delAnio=lista.filter(r=>r.mes.startsWith(anio+'-')&&r.v!=null);
+      const prom=delAnio.length?delAnio.reduce((s,r)=>s+r.v,0)/delAnio.length:null;
+      html+=proyFilaAnio(anio,7,prom!=null?`TNA promedio ${prom.toFixed(2)}%`:'sin datos');
+    }
+    if(p.v==null){
+      html+=`<tr style="border-bottom:1px solid var(--border);opacity:.45">
+        <td style="padding:4px 8px;font-size:12px;font-family:var(--mono);color:var(--text3);text-align:left">${proyMesLabel(p.mes)}</td>
+        <td colspan="6" style="padding:4px 8px;text-align:left;font-size:11px;color:var(--text3)">sin dato</td></tr>`;
+      continue;
+    }
     const tem=tamarTEM(p.v);
     const real=tamarRealDe(p.mes,p.v);
     const i12=proyInfl12Mapa().get(p.mes);
@@ -6896,15 +7059,14 @@ function proyRenderTablaTamar(){
       :`<input type="number" step="0.01" min="0" max="500" value="${esManual?ovr.get(p.mes):p.v.toFixed(2)}"
           onchange="proySetValor('tamar','${p.mes}',this.value)"
           style="width:88px;${inp};color:${esManual?'var(--warn)':'var(--text)'}">`;
-    const celdaReal=(real==null)
-      ?'<span style="color:var(--text3);font-size:12px">—</span>'
+    const celdaReal=(real==null)?vacio
       :cerrado
         ?`<span style="font-family:var(--mono);font-size:12px;color:#22c55e">${real.toFixed(2)}</span>`
         :`<input type="number" step="0.01" value="${real.toFixed(2)}"
             onchange="proySetTamarReal('${p.mes}',this.value)"
             title="Escribí la tasa real y se despeja la TNA que la produce"
             style="width:88px;${inp};color:${esManual?'var(--warn)':'#22c55e'}">`;
-    return`<tr style="border-bottom:1px solid var(--border)">
+    html+=`<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:4px 8px;font-size:12px;font-family:var(--mono);color:var(--text2);text-align:left">${proyMesLabel(p.mes)}</td>
       <td style="padding:4px 8px;text-align:left">${proyBadge(p.origen)}</td>
       <td style="padding:4px 8px;text-align:right">${celdaTNA}</td>
@@ -6913,7 +7075,8 @@ function proyRenderTablaTamar(){
       <td style="padding:4px 8px;text-align:right">${celdaReal}</td>
       <td style="padding:4px 8px;text-align:center">${esManual?`<span onclick="proySetValor('tamar','${p.mes}','')" style="cursor:pointer;color:var(--text3);font-size:12px" title="Quitar el override">×</span>`:''}</td>
     </tr>`;
-  }).join('');
+  }
+  tb.innerHTML=html;
 
   const last=TAMAR_INDEX.length?TAMAR_INDEX[TAMAR_INDEX.length-1]:null;
   set('proy-tamar-ult',last?last.valor.toFixed(2)+'%':'—');
@@ -6941,11 +7104,34 @@ function proyRenderTablaTcn(){
   if(!tb)return;
   proyPintarRango('tcn');
   const todo=proySerieCompleta('tcn');
-  const lista=proyVentana('tcn');
+  const lista=proyVentanaTabla('tcn');
   const ovr=new Map((PROJ_TCN||[]).map(o=>[o.mes,o.v]));
   const spot=dlkTCHoy();
   const idx=new Map(todo.map((p,i)=>[p.mes,i]));
-  tb.innerHTML=lista.map(p=>{
+  let html='',anioActual=null;
+  for(const p of lista){
+    const anio=p.mes.substring(0,4);
+    if(anio!==anioActual){
+      anioActual=anio;
+      const delAnio=lista.filter(r=>r.mes.startsWith(anio+'-')&&r.v!=null);
+      let res='sin datos';
+      if(delAnio.length){
+        // Acumulado del año: contra diciembre anterior si lo hay, y si no
+        // contra el primer mes con dato, aclarando el tramo.
+        const dic=todo.find(r=>r.mes===`${+anio-1}-12`);
+        const base=dic?dic.v:delAnio[0].v;
+        const fin=delAnio[delAnio.length-1].v;
+        const ac=base>0?(fin/base-1)*100:null;
+        res=ac!=null?`acumulado ${ac>=0?'+':''}${ac.toFixed(1)}%${dic?'':` desde ${proyMesLabel(delAnio[0].mes)}`}`:'—';
+      }
+      html+=proyFilaAnio(anio,5,res);
+    }
+    if(p.v==null){
+      html+=`<tr style="border-bottom:1px solid var(--border);opacity:.45">
+        <td style="padding:4px 8px;font-size:12px;font-family:var(--mono);color:var(--text3);text-align:left">${proyMesLabel(p.mes)}</td>
+        <td colspan="4" style="padding:4px 8px;text-align:left;font-size:11px;color:var(--text3)">sin dato</td></tr>`;
+      continue;
+    }
     // La variación se mide contra el mes anterior de la serie completa, no del
     // recorte: si no, la primera fila de la ventana siempre saldría vacía.
     const i=idx.get(p.mes);
@@ -6958,14 +7144,15 @@ function proyRenderTablaTcn(){
       :`<input type="number" step="0.01" min="0" value="${esManual?ovr.get(p.mes):p.v.toFixed(2)}"
           onchange="proySetValor('tcn','${p.mes}',this.value)"
           style="width:100px;text-align:right;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:12px;color:${esManual?'var(--warn)':'var(--text)'};outline:none">`;
-    return`<tr style="border-bottom:1px solid var(--border)">
+    html+=`<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:4px 8px;font-size:12px;font-family:var(--mono);color:var(--text2);text-align:left">${proyMesLabel(p.mes)}</td>
       <td style="padding:4px 8px;text-align:left">${proyBadge(p.origen)}</td>
       <td style="padding:4px 8px;text-align:right">${celda}</td>
       <td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text3)">${dev!=null&&isFinite(dev)?dev.toFixed(2)+'%':'—'}</td>
       <td style="padding:4px 8px;text-align:center">${esManual?`<span onclick="proySetValor('tcn','${p.mes}','')" style="cursor:pointer;color:var(--text3);font-size:12px" title="Quitar el override">×</span>`:''}</td>
     </tr>`;
-  }).join('');
+  }
+  tb.innerHTML=html;
 
   set('proy-tcn-spot',spot!=null?'$'+spot.toFixed(2):'—');
   try{const f=dlkTCFuente();set('proy-tcn-spot-det',f&&f.etiqueta?f.etiqueta:'—');}catch(e){set('proy-tcn-spot-det','—');}
@@ -6983,90 +7170,252 @@ function proyRenderTablaTcn(){
   set('proy-tcn-fuente-det',det);
 }
 
-function proyRenderChart(serie){
-  const id=serie==='tamar'?'proy-tamar-chart':'proy-tcn-chart';
-  const cv=document.getElementById(id);
-  if(!cv||typeof Chart==='undefined')return;
-  const lista=proyVentana(serie);
-  const prev=serie==='tamar'?projTamarChart:projTcnChart;
-  if(prev)prev.destroy();
-  if(!lista.length)return;
-  const cb=k=>document.getElementById(`proy-${serie}-cb-${k}`)?.checked;
-  const color=serie==='tamar'?'#38bdf8':'#a855f7';
-  // El tramo realizado se distingue del proyectado por el punto, no por una
-  // segunda serie: así el eje y el tooltip siguen siendo uno solo.
-  const puntoColor=lista.map(p=>p.origen==='real'?'#94a3b8':color);
-  const datasets=[];
-  const escalas={
-    x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:14},grid:{display:false}},
-    y:{position:'left',ticks:{color:'#6b7280',font:{size:9},callback:v=>serie==='tamar'?v+'%':'$'+v},grid:{color:'rgba(107,114,128,.12)'}},
+// Sombreado del tramo proyectado. Va como plugin del propio gráfico porque
+// chartjs-plugin-annotation no está cargado y no vale la pena sumarlo.
+function proyPluginFuturo(pixelDelCorte){
+  return{
+    id:'proyFuturo',
+    beforeDatasetsDraw(chart){
+      const area=chart.chartArea;
+      if(!area)return;
+      let px;
+      try{px=pixelDelCorte(chart);}catch(e){return;}
+      if(px==null||!isFinite(px))return;
+      const desde=Math.max(area.left,Math.min(area.right,px));
+      const ctx=chart.ctx;
+      ctx.save();
+      ctx.fillStyle='rgba(245,158,11,.07)';
+      ctx.fillRect(desde,area.top,area.right-desde,area.bottom-area.top);
+      ctx.strokeStyle='rgba(245,158,11,.6)';
+      ctx.lineWidth=1;ctx.setLineDash([4,3]);
+      ctx.beginPath();ctx.moveTo(desde,area.top);ctx.lineTo(desde,area.bottom);ctx.stroke();
+      ctx.setLineDash([]);
+      // Las etiquetas llevan fondo: caen justo donde suele pasar alguna serie.
+      ctx.font='9px ui-monospace,SFMono-Regular,monospace';
+      const chip=(txt,x,alineacion,color)=>{
+        const w=ctx.measureText(txt).width;
+        const x0=alineacion==='left'?x:x-w;
+        ctx.fillStyle='rgba(10,15,20,.78)';
+        ctx.fillRect(x0-3,area.top+2,w+6,13);
+        ctx.fillStyle=color;ctx.textAlign='left';ctx.fillText(txt,x0,area.top+11);
+      };
+      if(area.right-desde>70)chip('proyectado',desde+5,'left','rgba(245,158,11,.95)');
+      if(desde-area.left>52)chip('datos',desde-5,'right','rgba(148,163,184,.95)');
+      ctx.restore();
+    }
   };
+}
+const PROY_DASH=[5,4];
 
-  if(serie!=='tamar'||cb('tna')!==false){
-    datasets.push({label:serie==='tamar'?'TAMAR TNA %':'$/USD fin de mes',
+function proyRenderChart(serie){
+  if(serie==='tamar')proyRenderChartTamar();else proyRenderChartTcn();
+}
+
+function proyRenderChartTamar(){
+  const cv=document.getElementById('proy-tamar-chart');
+  if(!cv||typeof Chart==='undefined')return;
+  if(projTamarChart)projTamarChart.destroy();
+  const lista=proyVentana('tamar');
+  if(!lista.length)return;
+  const cb=k=>document.getElementById('proy-tamar-cb-'+k)?.checked;
+  // Índice del primer mes proyectado: de ahí en adelante la línea va punteada
+  // y el fondo sombreado, para que no haya dudas de dónde termina el dato.
+  let iProy=lista.findIndex(p=>p.origen!=='real');
+  if(iProy<0)iProy=lista.length;
+  const dash=c=>c.p1DataIndex>=iProy?PROY_DASH:undefined;
+  const puntoColor=lista.map(p=>p.origen==='real'?'#94a3b8':'#38bdf8');
+  const datasets=[];
+
+  if(cb('tna')!==false){
+    datasets.push({label:'TAMAR TNA %',
       data:lista.map(p=>+p.v.toFixed(4)),
-      borderColor:color,backgroundColor:color+'22',
+      borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,.13)',
       pointBackgroundColor:puntoColor,pointBorderColor:puntoColor,
-      borderWidth:2,pointRadius:2.5,pointHoverRadius:4,tension:.15,fill:true,yAxisID:'y'});
+      borderWidth:2,pointRadius:2.5,pointHoverRadius:4,tension:.15,fill:true,
+      segment:{borderDash:dash},yAxisID:'y'});
   }
-  if(serie==='tamar'&&cb('real')){
+  if(cb('real')){
     const reales=lista.map(p=>{const r=tamarRealDe(p.mes,p.v);return r!=null?+r.toFixed(4):null;});
-    // Misma regla, mismo eje: nominal y real son las dos tasas anuales, y con
-    // una sola regla la distancia entre las curvas se lee como lo que es, la
-    // inflación. Con dos ejes cada una flota por su cuenta.
-    datasets.push({label:'TAMAR real %',
-      data:reales,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.08)',
+    // Misma regla que la nominal: la distancia vertical entre las curvas es la
+    // inflación. Con dos ejes cada una flotaba por su cuenta.
+    datasets.push({label:'TAMAR real %',data:reales,
+      borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.08)',
+      pointBackgroundColor:lista.map(p=>p.origen==='real'?'#94a3b8':'#22c55e'),
       borderWidth:2,pointRadius:2,pointHoverRadius:4,tension:.15,fill:false,
-      spanGaps:false,yAxisID:'y'});
-  }
-  if(serie==='tcn'&&cb('dev')){
-    const todo=proySerieCompleta('tcn');
-    const idx=new Map(todo.map((p,i)=>[p.mes,i]));
-    const spot=dlkTCHoy();
-    const devs=lista.map(p=>{
-      const i=idx.get(p.mes),ant=i>0?todo[i-1].v:spot;
-      return ant>0?+((p.v/ant-1)*100).toFixed(4):null;
-    });
-    datasets.push({label:'Devaluación mensual %',type:'bar',data:devs,
-      backgroundColor:'rgba(245,158,11,.28)',borderColor:'rgba(245,158,11,.7)',borderWidth:1,
-      borderRadius:2,yAxisID:'yDev',order:3});
-    escalas.yDev={position:'right',beginAtZero:true,
-      ticks:{color:'#f59e0b',font:{size:9},callback:v=>v+'%'},grid:{display:false}};
+      spanGaps:false,segment:{borderDash:dash},yAxisID:'y'});
   }
   if(!datasets.length)return;
 
-  // El gráfico de TAMAR arranca en cero. Un eje que empieza en 22% convierte
-  // medio punto de tasa en un acantilado; con el cero a la vista los
-  // movimientos se ven en la proporción que tienen. Sólo baja de cero cuando
-  // la tasa real es negativa, para no recortar la serie.
-  if(serie==='tamar'){
-    const vals=datasets.flatMap(d=>d.data).filter(v=>v!=null&&isFinite(v));
-    const minV=vals.length?Math.min(0,...vals):0;
-    escalas.y.min=minV<0?Math.floor(minV/5)*5:0;
-    escalas.y.grid={color:c=>c.tick&&c.tick.value===0?'rgba(107,114,128,.45)':'rgba(107,114,128,.12)'};
-  }
+  // Base en cero. Un eje que empieza en 22% convierte medio punto de tasa en un
+  // acantilado; con el cero a la vista los movimientos se ven en la proporción
+  // que tienen. Sólo baja de cero si la tasa real es negativa.
+  const vals=datasets.flatMap(d=>d.data).filter(v=>v!=null&&isFinite(v));
+  const minV=vals.length?Math.min(0,...vals):0;
 
-  const ch=new Chart(cv.getContext('2d'),{
+  projTamarChart=new Chart(cv.getContext('2d'),{
     type:'line',
     data:{labels:lista.map(p=>proyMesLabel(p.mes)),datasets},
     options:{responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:datasets.length>1,labels:{color:'#9ca3af',font:{size:10},boxWidth:10}},
-        // El plugin de etiquetas está registrado global: con doce puntos o más
-        // tapa la curva entera. El dato puntual va en el tooltip y en la tabla.
         datalabels:{display:false},
         tooltip:{callbacks:{
-          afterTitle:c=>{
-            const p=lista[c[0].dataIndex];
-            return (PROY_ORIGEN_ESTILO[p.origen]||[p.origen])[0];
-          },
+          afterTitle:c=>{const p=lista[c[0].dataIndex];return (PROY_ORIGEN_ESTILO[p.origen]||[p.origen])[0];},
+          label:c=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}%`}}},
+      scales:{
+        x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:14},grid:{display:false}},
+        y:{position:'left',min:minV<0?Math.floor(minV/5)*5:0,
+          ticks:{color:'#6b7280',font:{size:9},callback:v=>v+'%'},
+          grid:{color:c=>c.tick&&c.tick.value===0?'rgba(107,114,128,.45)':'rgba(107,114,128,.12)'}}}},
+    plugins:[proyPluginFuturo(ch=>{
+      if(iProy<=0||iProy>=lista.length)return null;
+      const x=ch.scales.x;
+      return (x.getPixelForValue(iProy-1)+x.getPixelForValue(iProy))/2;
+    })]
+  });
+}
+
+// El gráfico del dólar va por fecha, no por mes: el pasado son los fixes
+// diarios del A3500 y lo de adelante, un punto por cierre de mes proyectado.
+// Con eje lineal de timestamps el espaciado queda proporcional, que con un eje
+// de categorías no pasaría: ochenta días de historia aplastarían los ocho
+// meses de proyección contra el borde.
+function proyRenderChartTcn(){
+  const cv=document.getElementById('proy-tcn-chart');
+  if(!cv||typeof Chart==='undefined')return;
+  if(projTcnChart)projTcnChart.destroy();
+  const lista=proyVentana('tcn');
+  if(!lista.length)return;
+  const cb=k=>document.getElementById('proy-tcn-cb-'+k)?.checked;
+  const ts=f=>parseDate(f).getTime();
+  const desdeF=lista[0].mes+'-01';
+  const hastaF=proyUltDiaMes(lista[lista.length-1].mes);
+  const hoyF=fmtDate(TODAY),hoyTs=ts(hoyF);
+  const spot=dlkTCHoy();
+  const datasets=[];
+
+  const diario=DLK_INDEX.filter(r=>r.fecha>=desdeF&&r.fecha<=hoyF)
+    .map(r=>({x:ts(r.fecha),y:r.valor}));
+  if(spot!=null&&spot>0&&(!diario.length||diario[diario.length-1].x<hoyTs))
+    diario.push({x:hoyTs,y:spot});
+  if(diario.length){
+    datasets.push({label:'A3500 diario',data:diario,
+      borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,.10)',
+      borderWidth:1.6,pointRadius:0,pointHoverRadius:3,tension:0,fill:true,yAxisID:'y'});
+  }
+  // La proyección arranca en el spot de hoy para que las dos series se peguen.
+  const fut=[];
+  if(spot!=null&&spot>0)fut.push({x:hoyTs,y:spot});
+  lista.filter(p=>p.origen!=='real').forEach(p=>{
+    const f=proyUltDiaMes(p.mes);
+    if(f>hoyF&&f<=hastaF)fut.push({x:ts(f),y:+p.v.toFixed(4),mes:p.mes,origen:p.origen});
+  });
+  if(fut.length>1){
+    datasets.push({label:'$/USD proyectado',data:fut,
+      borderColor:'#a855f7',backgroundColor:'rgba(168,85,247,.13)',
+      borderWidth:2,pointRadius:2.5,pointHoverRadius:4,tension:.15,fill:true,
+      borderDash:PROY_DASH,yAxisID:'y'});
+  }
+
+  if(cb('bandas')&&BANDA_INDEX.length){
+    const b=bandaSerie(desdeF,hastaF);
+    if(b.length){
+      const linea=(k,label,color)=>({label,
+        data:b.map(r=>({x:ts(r.fecha),y:+r[k].toFixed(2)})),
+        borderColor:color,borderWidth:1.4,pointRadius:0,pointHoverRadius:3,
+        tension:0,fill:false,yAxisID:'y',
+        segment:{borderDash:c=>b[c.p1DataIndex]&&b[c.p1DataIndex].proy?PROY_DASH:undefined}});
+      datasets.push(linea('sup','Banda superior','#ef4444'));
+      datasets.push(linea('inf','Banda inferior','#38bdf8'));
+    }
+  }
+
+  const escalas={
+    x:{type:'linear',min:ts(desdeF),max:ts(hastaF),
+      ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:false,
+        callback:v=>proyMesLabel(fmtDate(new Date(v)).substring(0,7))},
+      afterBuildTicks:ax=>{ax.ticks=lista.map(p=>({value:ts(p.mes+'-01')}));},
+      grid:{display:false}},
+    y:{position:'left',ticks:{color:'#6b7280',font:{size:9},callback:v=>'$'+v},
+      grid:{color:'rgba(107,114,128,.12)'}},
+  };
+
+  let pct=false;
+  if(cb('dev')){
+    const todo=proySerieCompleta('tcn');
+    const idx=new Map(todo.map((p,i)=>[p.mes,i]));
+    const devs=lista.map(p=>{
+      const i=idx.get(p.mes),ant=i>0?todo[i-1].v:spot;
+      return ant>0?{x:ts(proyUltDiaMes(p.mes)),y:+((p.v/ant-1)*100).toFixed(4)}:null;
+    }).filter(Boolean);
+    datasets.push({label:'Devaluación mensual %',type:'bar',data:devs,
+      backgroundColor:'rgba(245,158,11,.28)',borderColor:'rgba(245,158,11,.7)',
+      borderWidth:1,borderRadius:2,yAxisID:'yPct',order:5,
+      barThickness:10});
+    pct=true;
+  }
+  if(cb('lecaps')){
+    const pts=proyLecapPuntos(desdeF,hastaF);
+    if(pts.length){
+      datasets.push({label:'LECAP · TEM %',type:'scatter',data:pts,
+        backgroundColor:'#fbbf24',borderColor:'#b45309',borderWidth:1,
+        pointRadius:4,pointHoverRadius:6,yAxisID:'yPct',order:0});
+      pct=true;
+    }
+  }
+  if(pct){
+    // Las barras y los puntos de porcentaje viven en el tercio de abajo, como
+    // el volumen debajo de un gráfico de precios. Si tomaran el alto completo,
+    // una barra de 5% taparía el sendero y las bandas.
+    const vals=datasets.filter(d=>d.yAxisID==='yPct')
+      .flatMap(d=>d.data.map(p=>p&&p.y)).filter(v=>v!=null&&isFinite(v));
+    const mx=vals.length?Math.max(...vals):1;
+    const mn=vals.length?Math.min(0,...vals):0;
+    const tope=(mx>0?mx:1)*3.2;
+    escalas.yPct={position:'right',min:mn,max:tope,
+      ticks:{color:'#f59e0b',font:{size:9},
+        callback:v=>v>mx*1.15?'':v.toFixed(1)+'%'},
+      grid:{display:false}};
+  }
+
+  if(!datasets.length)return;
+
+  projTcnChart=new Chart(cv.getContext('2d'),{
+    type:'line',
+    data:{datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'nearest',axis:'x',intersect:false},
+      plugins:{legend:{display:true,labels:{color:'#9ca3af',font:{size:10},boxWidth:10}},
+        datalabels:{display:false},
+        tooltip:{callbacks:{
+          title:c=>c.length?fmtDate(new Date(c[0].parsed.x)).split('-').reverse().join('/'):'',
           label:c=>{
-            const v=c.dataset.yAxisID==='y'&&serie==='tcn'?'$'+c.parsed.y.toFixed(2):c.parsed.y.toFixed(2)+'%';
+            const p=c.raw;
+            if(p&&p.ticker)return `${p.ticker} · TEM ${p.y.toFixed(2)}% · TNA ${p.tna.toFixed(2)}% · TIR ${p.tir.toFixed(2)}%`;
+            const v=c.dataset.yAxisID==='yPct'?c.parsed.y.toFixed(2)+'%':'$'+c.parsed.y.toFixed(2);
             return `${c.dataset.label}: ${v}`;
           }}}},
-      scales:escalas}
+      scales:escalas},
+    plugins:[proyPluginFuturo(ch=>ch.scales.x.getPixelForValue(hoyTs))]
   });
-  if(serie==='tamar')projTamarChart=ch;else projTcnChart=ch;
+}
+
+// Rendimiento de cada LECAP en su fecha de vencimiento, para leerlo contra el
+// sendero de devaluación: la distancia entre el punto y la barra del mes es,
+// en criollo, el carry.
+function proyLecapPuntos(desdeF,hastaF){
+  if(typeof LECAPS==='undefined'||!LECAPS.length)return[];
+  const out=[];
+  for(const b of LECAPS){
+    if(!b.vcto||b.precio==null)continue;
+    if(b.vcto<desdeF||b.vcto>hastaF)continue;
+    let c=null;
+    try{c=calcLecap(b);}catch(e){}
+    if(!c||c.tem==null||isNaN(c.tem))continue;
+    out.push({x:parseDate(b.vcto).getTime(),y:+c.tem.toFixed(4),
+      ticker:b.ticker,tna:c.tna,tir:c.tir});
+  }
+  return out.sort((a,b)=>a.x-b.x);
 }
 
 function projRellenarMeses(){

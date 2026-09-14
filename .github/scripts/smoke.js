@@ -896,11 +896,19 @@ const check = (cond, label, detalle = '') => {
       await new Promise(r => setTimeout(r, 400));
       const v = proyVentana(s);
       const ch = s === 'tamar' ? projTamarChart : projTcnChart;
+      // El de TAMAR va por mes, así que se cuentan etiquetas. El del dólar va
+      // por fecha: se comparan los extremos del eje con los de la ventana.
+      let dibuja = false;
+      if (s === 'tamar') dibuja = !!ch && ch.data.labels.length === v.length;
+      else if (ch) {
+        const x = ch.options.scales.x;
+        dibuja = x.min === parseDate(v[0].mes + '-01').getTime() &&
+                 x.max === parseDate(proyUltDiaMes(v[v.length - 1].mes)).getTime();
+      }
       out[s] = {
         total: v.length,
         reales: v.filter(p => p.origen === 'real').length,
-        filas: document.querySelectorAll(`#proy-${s}-tbody tr`).length,
-        puntos: ch ? ch.data.labels.length : -1,
+        dibuja,
         selectores: !!document.getElementById(`proy-${s}-desde`) &&
                     !!document.getElementById(`proy-${s}-hasta`),
       };
@@ -911,8 +919,8 @@ const check = (cond, label, detalle = '') => {
     check(rango[s].selectores, `${s}: hay selectores de mes inicial y final`);
     check(rango[s].total === 12 && rango[s].reales === 4,
           `${s}: por defecto 12 meses, 4 de datos y 8 de proyección`, JSON.stringify(rango[s]));
-    check(rango[s].filas === rango[s].total && rango[s].puntos === rango[s].total,
-          `${s}: tabla y gráfico muestran el mismo rango`, JSON.stringify(rango[s]));
+    check(rango[s].dibuja, `${s}: el gráfico dibuja la ventana elegida`,
+          JSON.stringify(rango[s]));
   }
 
   // TAMAR real: ida y vuelta exacta, y entra al gráfico.
@@ -978,6 +986,156 @@ const check = (cond, label, detalle = '') => {
   check(inverso.guardadaTNA != null && Math.abs(inverso.vuelve - 5) < 1e-3,
         'escribir la tasa real despeja la TNA que la produce', JSON.stringify(inverso));
   check(inverso.esManual, 'la TNA despejada entra al sendero como override manual');
+
+  // Pasado y proyección tienen que distinguirse solos en el gráfico.
+  const corte = await page.evaluate(async () => {
+    proySubtabGo('tamar');
+    await new Promise(r => setTimeout(r, 500));
+    const ch = projTamarChart;
+    const ds = ch.data.datasets[0];
+    const lista = proyVentana('tamar');
+    const iProy = lista.findIndex(p => p.origen !== 'real');
+    const seg = ds.segment && typeof ds.segment.borderDash === 'function';
+    return {
+      plugin: (ch.config.plugins || []).some(p => p.id === 'proyFuturo'),
+      punteaFuturo: seg && !!ds.segment.borderDash({ p1DataIndex: iProy }),
+      punteaPasado: seg && !!ds.segment.borderDash({ p1DataIndex: Math.max(0, iProy - 1) }),
+      iProy,
+    };
+  });
+  check(corte.plugin, 'el gráfico sombrea el tramo proyectado');
+  check(corte.punteaFuturo && !corte.punteaPasado,
+        'la línea va punteada desde el primer mes proyectado', JSON.stringify(corte));
+
+  // Tablas: años enteros con corte anual.
+  const anios = await page.evaluate(async () => {
+    const out = {};
+    for (const s of ['tamar', 'tcn']) {
+      proySubtabGo(s);
+      await new Promise(r => setTimeout(r, 500));
+      const v = proyVentana(s), t = proyVentanaTabla(s);
+      const filas = [...document.querySelectorAll(`#proy-${s}-tbody tr`)];
+      const cortes = filas.filter(tr => tr.querySelectorAll('td').length === 1);
+      out[s] = {
+        anioIni: v[0].mes.substring(0, 4), anioFin: v[v.length - 1].mes.substring(0, 4),
+        mesesTabla: t.length, arranca: t[0].mes, termina: t[t.length - 1].mes,
+        cortes: cortes.length, conResumen: cortes.every(tr => /%|sin datos/.test(tr.textContent)),
+      };
+    }
+    return out;
+  });
+  for (const s of ['tamar', 'tcn']) {
+    const a = anios[s];
+    const esperado = (+a.anioFin - +a.anioIni + 1) * 12;
+    check(a.arranca === a.anioIni + '-01' && a.termina === a.anioFin + '-12' && a.mesesTabla === esperado,
+          `${s}: la tabla muestra años enteros`, JSON.stringify(a));
+    check(a.cortes === +a.anioFin - +a.anioIni + 1 && a.conResumen,
+          `${s}: un corte por año, con su resumen`, JSON.stringify(a));
+  }
+
+  // El gráfico del dólar: diario en el pasado, mensual hacia adelante.
+  const tcnChart = await page.evaluate(async () => {
+    proySubtabGo('tcn');
+    await new Promise(r => setTimeout(r, 700));
+    const ch = projTcnChart;
+    const diario = ch.data.datasets.find(d => /diario/.test(d.label));
+    const proy = ch.data.datasets.find(d => /proyectado/.test(d.label));
+    // parseDate y new Date('YYYY-MM-DD') no dan lo mismo: el segundo interpreta
+    // UTC. Hay que comparar con el mismo parser que usa el gráfico.
+    const hoy = parseDate(fmtDate(TODAY)).getTime();
+    return {
+      xTipo: ch.options.scales.x.type,
+      diarios: diario ? diario.data.length : 0,
+      proyectados: proy ? proy.data.length : 0,
+      diarioTodoPasado: diario ? diario.data.every(p => p.x <= hoy) : false,
+      proyTodoFuturo: proy ? proy.data.slice(1).every(p => p.x > hoy) : false,
+      seEnganchan: !!(diario && proy) &&
+        Math.abs(diario.data[diario.data.length - 1].y - proy.data[0].y) < 1e-6,
+      tablaMensual: document.querySelectorAll('#proy-tcn-tbody tr').length,
+    };
+  });
+  check(tcnChart.xTipo === 'linear',
+        'el gráfico del dólar usa eje de fechas, no de meses', tcnChart.xTipo);
+  check(tcnChart.diarios > 30 && tcnChart.diarioTodoPasado,
+        'el pasado del dólar son los fixes diarios', JSON.stringify(tcnChart));
+  check(tcnChart.proyectados > 1 && tcnChart.proyTodoFuturo,
+        'hacia adelante va un punto por cierre de mes');
+  check(tcnChart.seEnganchan, 'la proyección arranca pegada al último dato');
+
+  // Bandas cambiarias: serie del BCRA y proyección con la regla del régimen.
+  const bandas = await page.evaluate(async () => {
+    const ok = await bandaFetchIndex(false);
+    if (!ok || !BANDA_INDEX.length) return { falla: true };
+    const u = BANDA_INDEX[BANDA_INDEX.length - 1];
+    const p = bandaProyectar(proyUltDiaMes(proyMesAdd(proyMesHoy(), 8)));
+    const m1 = proyMesAdd(u.fecha.substring(0, 7), 1);
+    const delMes = p.filter(r => r.fecha.substring(0, 7) === m1);
+    let ritmo = null;
+    if (delMes.length > 20) {
+      const a = delMes[0], b = delMes[delMes.length - 1];
+      const dias = (new Date(b.fecha) - new Date(a.fecha)) / 86400000;
+      ritmo = ((b.sup / a.sup) ** (30 / dias) - 1) * 100;
+    }
+    const infl = new Map(projCalcAcum().map(r => [r.mes, r.inflaEfectiva]));
+    const esperada = infl.get(proyMesAdd(m1, -2));
+    document.getElementById('proy-tcn-cb-bandas').checked = true;
+    await proyBandasToggle();
+    const lineas = projTcnChart.data.datasets.filter(d => /Banda/.test(d.label));
+    document.getElementById('proy-tcn-cb-bandas').checked = false;
+    proyRenderChart('tcn');
+    return {
+      puntos: BANDA_INDEX.length, hasta: u.fecha,
+      pisoDebajo: u.inf < u.sup, spotDentro: dlkTCHoy() > u.inf && dlkTCHoy() < u.sup,
+      ritmo, esperada, lineas: lineas.length,
+      // el techo sube y el piso baja al mismo ritmo
+      techoSube: p.length > 1 && p[p.length - 1].sup > p[0].sup,
+      pisoBaja: p.length > 1 && p[p.length - 1].inf < p[0].inf,
+    };
+  });
+  check(!bandas.falla && bandas.puntos > 300,
+        'se baja la serie de bandas del BCRA', JSON.stringify(bandas));
+  check(!bandas.falla && bandas.pisoDebajo && bandas.spotDentro,
+        'el mayorista está dentro de la banda publicada');
+  // La regla: el ritmo del mes M es la inflación de M−2. Verificada contra los
+  // siete meses de 2026 ya cerrados antes de programarla.
+  check(!bandas.falla && bandas.ritmo != null && bandas.esperada != null &&
+        Math.abs(bandas.ritmo - bandas.esperada) < 0.02,
+        'la banda proyectada se desliza a la inflación de dos meses antes',
+        `ritmo ${bandas.ritmo} vs IPC ${bandas.esperada}`);
+  check(!bandas.falla && bandas.techoSube && bandas.pisoBaja,
+        'el techo sube y el piso baja');
+  check(!bandas.falla && bandas.lineas === 2, 'las dos bandas entran al gráfico');
+
+  // LECAPs al vencimiento.
+  const lecaps = await page.evaluate(async () => {
+    const desde = proyMesHoy() + '-01';
+    const hasta = proyUltDiaMes(proyMesAdd(proyMesHoy(), 12));
+    const pts = proyLecapPuntos(desde, hasta);
+    document.getElementById('proy-tcn-cb-lecaps').checked = true;
+    proyRenderChart('tcn');
+    await new Promise(r => setTimeout(r, 500));
+    const ds = projTcnChart.data.datasets.find(d => /LECAP/.test(d.label));
+    const eje = projTcnChart.options.scales.yPct;
+    document.getElementById('proy-tcn-cb-lecaps').checked = false;
+    proyRenderChart('tcn');
+    return {
+      puntos: pts.length,
+      enFechaDeVto: pts.every(p => {
+        const b = LECAPS.find(x => x.ticker === p.ticker);
+        return b && parseDate(b.vcto).getTime() === p.x;
+      }),
+      conTicker: pts.every(p => !!p.ticker && p.tna != null && p.tir != null),
+      dataset: !!ds, tipo: ds ? ds.type : null, eje: ds ? ds.yAxisID : null,
+      // el eje de porcentaje deja las marcas en el tercio de abajo
+      topeHolgado: eje ? eje.max > Math.max(...pts.map(p => p.y)) * 2 : false,
+    };
+  });
+  check(lecaps.puntos > 0 && lecaps.dataset && lecaps.tipo === 'scatter',
+        'las LECAPs se pueden sumar al gráfico del dólar', JSON.stringify(lecaps));
+  check(lecaps.enFechaDeVto, 'cada LECAP va en su fecha de vencimiento');
+  check(lecaps.conTicker, 'cada punto trae ticker, TNA y TIR para el tooltip');
+  check(lecaps.eje === 'yPct' && lecaps.topeHolgado,
+        'las tasas van en su propio eje, abajo, sin tapar el precio');
 
   console.log('\nResto de pestañas (no deben lanzar)');
   const antes = errores.length;
