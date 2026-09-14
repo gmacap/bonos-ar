@@ -24,6 +24,10 @@ on:
         description: 'Pisar ruedas que ya tienen snapshot'
         type: boolean
         default: false
+      solo_tickers:
+        description: 'Solo estos tickers, separados por coma (vacío = todos)'
+        required: false
+        default: ''
 
 jobs:
   backfill:
@@ -44,3 +48,4 @@ jobs:
           HASTA: ${{ inputs.hasta }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
           SOBRESCRIBIR: ${{ inputs.sobrescribir && '1' || '0' }}
+          SOLO_TICKERS: ${{ inputs.solo_tickers }}
