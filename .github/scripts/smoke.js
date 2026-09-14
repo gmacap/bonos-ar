@@ -108,6 +108,43 @@ const omitir = (label, motivo) =>
   check(px.ars > 0, `LECAPS con precio: ${px.ars}/${px.arsTot}`);
   check(px.usd > 0, `bonos USD con precio: ${px.usd}`);
 
+  // El selector de moneda no puede tocar lo que se archiva. Viaja entre
+  // dispositivos por SUPA_SHARED_KEYS y el bot del snapshot lo hereda: el
+  // 03/09/2026 corrió en cable y guardó los 21 bonos en dólares ~4% abajo.
+  console.log('\nBase MEP del histórico USD');
+  const base = await page.evaluate(async () => {
+    const todos = () => [BOP_BONDS, BON_BONDS, GLO_BONDS].flat();
+    const foto = () => Object.fromEntries(todos()
+      .filter(b => b.lastPrecioMEP != null).map(b => [b.ticker, b.lastPrecioMEP]));
+    const prev = usdCurrency;
+    usdCurrency = 'MEP'; await usdRefreshPrices();
+    const mep = foto();
+    const coincide = todos().filter(b => b.lastPrecioMEP != null && b.lastPrecio != null)
+      .every(b => Math.abs(b.lastPrecioMEP - b.lastPrecio) < 0.011);
+    usdCurrency = 'Cable'; await usdRefreshPrices();
+    const cable = foto();
+    const tickers = Object.keys(mep).filter(t => cable[t] != null);
+    const estable = tickers.filter(t => Math.abs(mep[t] / cable[t] - 1) < 0.001).length;
+    const bajo = todos().filter(b => b.lastPrecio != null && b.lastPrecioMEP != null
+      && b.lastPrecio < b.lastPrecioMEP * 0.999).length;
+    const fila = curvasSnapshotFromMemory('GLO').find(r => cable[r.ticker] != null);
+    const archivaMEP = fila ? Math.abs(fila.price - cable[fila.ticker]) < 0.011 : null;
+    usdCurrency = prev; await usdRefreshPrices();
+    return { n: tickers.length, estable, coincide, bajo, archivaMEP };
+  });
+  if (!base.n) {
+    omitir('base MEP del histórico USD', 'data912 no devolvió precios ahora');
+  } else {
+    check(base.coincide, 'en MEP, el precio archivado es el de pantalla');
+    check(base.estable === base.n,
+          'cambiar a cable no mueve el precio que se archiva',
+          `${base.estable}/${base.n} tickers estables`);
+    check(base.bajo > 0, 'en cable el precio de pantalla sí baja',
+          `${base.bajo} bonos por debajo de su MEP`);
+    check(base.archivaMEP !== false,
+          'curvasSnapshotFromMemory devuelve el precio MEP aun en cable');
+  }
+
   console.log('\nFamilias USD: descriptor y envoltorios');
   const fam = await page.evaluate(() => {
     const r = {};
