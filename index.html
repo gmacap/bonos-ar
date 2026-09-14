@@ -9797,6 +9797,7 @@ function beCPEnrich(item){
   }
   if(tipo==='sint'){
     try{
+      sintCargarEstado();
       const sb=SINT_BONDS.find(b=>b.ticker===ticker);
       if(!sb)return null;
       const r=sintEnrich(sb);
@@ -10045,7 +10046,7 @@ function beRenderChartSintChips(){
   const el=document.getElementById('be-chart-sint-chips');
   if(!el)return;
   let bonds=[];
-  try{if(!SINT_BONDS.length)sintLoadBonds();bonds=SINT_BONDS||[];}catch(e){}
+  try{sintCargarEstado();bonds=SINT_BONDS||[];}catch(e){}
   if(!bonds.length){el.innerHTML='<span style="font-size:10px;color:var(--text3)">Sin sintéticos creados</span>';return;}
   el.innerHTML=bonds.map(sb=>{
     let name=sb.ticker;
@@ -10215,7 +10216,7 @@ function beRenderChartTF(){
   // Sintéticos (siempre visibles como capa adicional)
   let sintPts=[];
   try{
-    if(!SINT_BONDS.length)sintLoadBonds();
+    sintCargarEstado();
     sintPts=(SINT_BONDS||[]).filter(sb=>!beChartSintExcluded.has(sb.ticker)).map(sb=>{
       const r=sintEnrich(sb);
       if(!r||!r.diasFechaFixing||r.diasFechaFixing<=0)return null;
@@ -11411,6 +11412,21 @@ let sintEditingCell=null;
 function sintLoadBonds(){try{SINT_BONDS=JSON.parse(localStorage.getItem(SINT_BONDS_LS)||'[]');}catch(e){SINT_BONDS=[];}}
 function sintSaveBonds(){localStorage.setItem(SINT_BONDS_LS,JSON.stringify(SINT_BONDS));}
 
+// El estado de los sintéticos son dos cosas, no una: la lista de bonos y la tasa
+// de descuento con la que se lleva el futuro de su vencimiento a la fecha de
+// fixing. Los tres lugares que lo cargaban solos traían la lista y se olvidaban
+// de la tasa, que hasta acá sólo se leía al abrir la solapa Sintéticos. Al
+// recargar la página con el Resumen abierto, todos los sintéticos se calculaban
+// con descuento 0: el SintSEP26 daba 41,49% de TNA en vez de 15,05% y ese solo
+// punto estiraba el eje del gráfico de 14-30 a 20-45, aplastando el resto.
+let _sintCargado=false;
+function sintCargarEstado(forzar){
+  if(_sintCargado&&!forzar)return;
+  _sintCargado=true;
+  sintLoadBonds();
+  sintLoadTasaDesc();
+}
+
 function sintLoadTasaDesc(){
   try{const v=localStorage.getItem(SINT_TASA_DESC_LS);SINT_TASA_DESC=v!=null?parseFloat(v):null;}catch(e){}
   const inp=document.getElementById('sint-tasa-desc');
@@ -11430,8 +11446,7 @@ function sintSetTasaDesc(val){
 }
 
 function sintInit(){
-  sintLoadBonds();
-  sintLoadTasaDesc();
+  sintCargarEstado(true);
   // El primer pedido al MAE sale al abrir la app, cuando las definiciones de
   // bonos DLK todavía pueden no haber llegado de Supabase: en ese momento no hay
   // con qué aparear los contratos y el volcado no hace nada. Al entrar acá las
@@ -11814,7 +11829,7 @@ function maeAplicarFuturos(curva){
   // SINT_BONDS sólo se carga al abrir la solapa Sintéticos, pero el refresco
   // automático corre desde el arranque: sin esto el array está vacío y la curva
   // no se volcaba nunca hasta que alguien entraba a la pestaña.
-  if(!SINT_BONDS.length)sintLoadBonds();
+  sintCargarEstado();
   // Sin definiciones DLK no hay vencimiento con el cual elegir el contrato. Pasa
   // en el arranque, antes de que Supabase conteste; sintInit() reintenta después.
   if(!DLK_BONDS.length)return 0;
