@@ -1195,6 +1195,28 @@ const omitir = (label, motivo) =>
         'quedan cientos de meses publicados, no sólo los de 2025',
         String(hist.publicados));
 
+  // Las ruedas pegadas al vencimiento no entran al histórico: anualizar un
+  // plazo que tiende a cero convierte medio punto de precio en decenas de
+  // puntos de tasa, y eso ensuciaba el eje de todas las curvas.
+  const cortevto = await page.evaluate(() => {
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const mas = fmtDate(addHabiles(liq, 30));
+    const enTres = fmtDate(addHabiles(liq, 2));
+    return {
+      existe: typeof curvasMuyCerca === 'function' && typeof CURVAS_DIAS_MIN === 'number',
+      cortevto: typeof CURVAS_DIAS_MIN === 'number' ? CURVAS_DIAS_MIN : null,
+      cercaEsCerca: curvasMuyCerca(enTres, liq),
+      lejosNoEsCerca: !curvasMuyCerca(mas, liq),
+      sinVtoNoRompe: curvasMuyCerca(null, liq) === false,
+      dias: curvasDiasHasta(mas, liq),
+    };
+  });
+  check(cortevto.existe, 'existe la regla de corte por vencimiento');
+  check(cortevto.cortevto === 4, 'el corte deja afuera los últimos 3 días', String(cortevto.cortevto));
+  check(cortevto.cercaEsCerca && cortevto.lejosNoEsCerca,
+        'la regla distingue un bono por vencer de uno lejano', JSON.stringify(cortevto));
+  check(cortevto.sinVtoNoRompe, 'un bono sin vencimiento cargado no se descarta por esto');
+
   // ── Gráficos interactivos ─────────────────────────────────────────────────
   console.log('\nGráficos: zoom y desplazamiento');
 
