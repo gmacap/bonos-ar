@@ -1108,6 +1108,62 @@ const omitir = (label, motivo) =>
         'escribir la tasa real despeja la TNA que la produce', JSON.stringify(inverso));
   check(inverso.esManual, 'la TNA despejada entra al sendero como override manual');
 
+  // Las fuentes tienen que convivir. Antes el sendero manual se aplicaba pasara
+  // lo que pasara, así que en cuanto tocabas una celda el selector dejaba de
+  // tener efecto y no había forma de volver al REM sin borrar tu escenario.
+  // Y en inflación el selector directamente no lo leía nadie.
+  const fuentes = await page.evaluate(async () => {
+    const espera = () => new Promise(r => setTimeout(r, 250));
+    const bk = { infla: PROJ_FUENTE.infla, tamar: PROJ_FUENTE.tamar,
+                 man: JSON.parse(JSON.stringify(PROJ_INFLA_MANUAL)),
+                 tam: JSON.parse(JSON.stringify(PROJ_TAMAR)) };
+    const mes = proyMesAdd(proyMesHoy(), 4), sig = proyMesAdd(mes, 1);
+    const infla = m => (PROJ_INFLACION.find(r => r.mes === m) || {}).infla;
+    try {
+      proySubtabGo('infla');
+      PROJ_FUENTE.infla = 'manual';
+      inflaSetManual(mes, 9.99); projRecalc(); await espera();
+      const manual1 = infla(mes);
+      proySetFuente('infla', 'rem'); await espera();
+      const rem = infla(mes), remSig = infla(sig);
+      proySetFuente('infla', 'manual'); await espera();
+      const manual2 = infla(mes);
+      // Editar con el REM activo bifurca: copia el REM al almacén manual y el
+      // cambio se aplica ahí, así que el resto de los meses sigue siendo el REM.
+      proySetFuente('infla', 'rem'); await espera();
+      projSetInfla(mes, '7.77'); await espera();
+      const fork = { fuente: PROJ_FUENTE.infla, valor: infla(mes), sig: infla(sig) };
+      proySetFuente('infla', 'rem'); await espera();
+      const remIntacto = infla(mes);
+      // TAMAR: el sendero manual no puede ganarle a la fuente elegida.
+      PROJ_TAMAR = [{ mes, v: 44.4 }]; PROJ_FUENTE.tamar = 'manual';
+      proySaveLs(); proyInvalidar(); await espera();
+      const tManual = tamarSendero().mapa.get(mes).v;
+      proySetFuente('tamar', '5dias'); await espera();
+      const t5 = tamarSendero().mapa.get(mes).v;
+      proySetFuente('tamar', 'manual'); await espera();
+      return { manual1, rem, remSig, manual2, fork, remIntacto,
+               tManual, t5, prom5: +tamarProm5().toFixed(4),
+               tVuelve: tamarSendero().mapa.get(mes).v, mes };
+    } finally {
+      PROJ_INFLA_MANUAL = bk.man; PROJ_TAMAR = bk.tam;
+      PROJ_FUENTE.infla = bk.infla; PROJ_FUENTE.tamar = bk.tamar;
+      proySaveLs(); proyInvalidar(); projRecalc();
+    }
+  });
+  check(fuentes.rem != null, 'la fuente REM llena el sendero de inflación', String(fuentes.rem));
+  check(fuentes.manual1 === 9.99 && fuentes.manual2 === 9.99 && fuentes.rem !== 9.99,
+        'el selector de inflación cambia el sendero y vuelve', JSON.stringify(fuentes));
+  check(fuentes.fork.fuente === 'manual' && fuentes.fork.valor === 7.77
+        && fuentes.fork.sig === fuentes.remSig,
+        'editar con el REM activo bifurca y conserva el resto del REM',
+        JSON.stringify(fuentes.fork));
+  check(fuentes.remIntacto === fuentes.rem, 'el REM queda intacto después de editar',
+        `${fuentes.remIntacto} vs ${fuentes.rem}`);
+  check(fuentes.tManual === 44.4 && fuentes.t5 === fuentes.prom5 && fuentes.tVuelve === 44.4,
+        'el sendero manual de TAMAR sólo se aplica con la fuente manual',
+        JSON.stringify(fuentes));
+
   // Pasado y proyección tienen que distinguirse solos en el gráfico. El escalón
   // mensual es una sola serie que cruza el corte, así que el punteado se decide
   // por tramo: el de un mes cerrado va entero, el de un mes proyectado no.

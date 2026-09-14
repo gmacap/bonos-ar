@@ -1576,7 +1576,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Sendero de inflación mensual</div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span data-proy-sel="infla"></span>
-          <button class="btn" style="margin:0;padding:3px 9px;font-size:11px" onclick="proyAplicarREM('infla')" title="Copia las medianas del REM a los meses no publicados">← REM</button>
+          <button class="btn" style="margin:0;padding:3px 9px;font-size:11px" onclick="proyAplicarREM('infla')" title="Copia el REM al sendero manual como punto de partida y pasa a esa fuente">← REM</button>
+          <button class="btn" style="margin:0;padding:3px 9px;font-size:11px" onclick="proyLimpiar('infla')" title="Borra el sendero manual de inflación">Limpiar</button>
           <select id="proj-tabla-desde" class="sbar-input" style="width:80px" onchange="projRenderTabla()"></select>
           <div style="font-size:11px;color:var(--text3)" id="proj-last-pub"></div>
         </div>
@@ -2595,7 +2596,7 @@ async function authAction(){
 // Keys que van a Supabase por usuario
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1'];
 // Keys que van a Supabase compartidas
-const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
+const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
 async function supaLoadUserData(){
   if(!SUPA_USER)return;
@@ -6201,27 +6202,44 @@ let CER_PROJ=new Map();
 
 const MESES_ES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-// ── Senderos proyectados de TAMAR y dólar ───────────────────────────────────
-// Mismo molde que el sendero de inflación: un valor por mes, una fuente que lo
-// llena sola, y overrides manuales por celda que ganan siempre.
+// ── Senderos proyectados ────────────────────────────────────────────────────
+// Las tres series se arman igual: un valor por mes y una fuente que lo llena.
 //
-//   TAMAR → TNA % del mes         fuentes: 5dias · rem · manual
-//   Dólar → $/USD a fin de mes    fuentes: futuros · rem · manual
+//   Inflación → var. % mensual    fuentes: manual · rem
+//   TAMAR     → TNA % del mes     fuentes: 5dias · rem · manual
+//   Dólar     → $/USD a fin de mes fuentes: futuros · rem · manual
+//
+// Las fuentes CONVIVEN: cada una guarda lo suyo y el selector elige cuál se
+// usa, sin pisar a las otras. Lo que escribís a mano vive en su propio almacén
+// y sólo se aplica cuando la fuente activa es 'manual'. Antes los overrides se
+// aplicaban siempre, así que una vez que tocabas una celda el selector dejaba
+// de tener efecto y no había forma de volver al REM sin borrar tu escenario.
+//
+// Editar una celda con otra fuente activa no la pisa: bifurca. El sendero que
+// estabas viendo se copia al almacén manual, el cambio se aplica ahí y la
+// fuente original queda intacta para cuando vuelvas a elegirla.
 //
 // El método de 5 días no es un camino aparte: es el sendero plano en el
 // promedio de las últimas 5 observaciones. Por eso elegir '5dias' devuelve
 // exactamente los números de siempre, hasta el último decimal.
 const PROY_TAMAR_LS='bonosAR_proy_tamar_v1';
 const PROY_TCN_LS='bonosAR_proy_tcn_v1';
+const PROY_INFLA_MAN_LS='bonosAR_proy_infla_manual_v1';
 const PROY_FUENTE_LS='bonosAR_proy_fuente_v1';
 const REM_LS='bonosAR_rem_v1';
 const REM_URL='rem.json';
 const REM_TTL_MS=24*60*60*1000;
 const PROY_MESES=72; // 6 años: cubre con margen el TAMAR/DLK más largo
 
-// Overrides manuales: [{mes:'YYYY-MM', v:number}]. Vacío = sin override.
+// Senderos manuales: [{mes:'YYYY-MM', v:number}]. Sólo se aplican con la
+// fuente 'manual' activa; con otra fuente quedan guardados esperando.
 let PROJ_TAMAR=[];
 let PROJ_TCN=[];
+// El de inflación vive aparte de PROJ_INFLACION porque ese array mezcla dos
+// cosas: los meses publicados, que son dato del INDEC vía CER y no los toca
+// ninguna fuente, y los proyectados, que sí. PROJ_INFLACION queda como el
+// sendero ya resuelto, que es lo que consume el CER y todo lo demás.
+let PROJ_INFLA_MANUAL=[];
 let PROJ_FUENTE={infla:'manual',tamar:'5dias',tcn:'futuros',dlkModo:'usd'};
 let REM_DATA=null;
 let projTamarChart=null,projTcnChart=null;
@@ -6348,17 +6366,90 @@ function proySaveLs(){
   try{
     localStorage.setItem(PROY_TAMAR_LS,JSON.stringify(PROJ_TAMAR));
     localStorage.setItem(PROY_TCN_LS,JSON.stringify(PROJ_TCN));
+    localStorage.setItem(PROY_INFLA_MAN_LS,JSON.stringify(PROJ_INFLA_MANUAL));
     localStorage.setItem(PROY_FUENTE_LS,JSON.stringify(PROJ_FUENTE));
   }catch(e){}
 }
 function proyLoadLs(){
   try{const r=localStorage.getItem(PROY_TAMAR_LS);const p=r?JSON.parse(r):null;if(Array.isArray(p))PROJ_TAMAR=p;}catch(e){}
   try{const r=localStorage.getItem(PROY_TCN_LS);const p=r?JSON.parse(r):null;if(Array.isArray(p))PROJ_TCN=p;}catch(e){}
+  try{const r=localStorage.getItem(PROY_INFLA_MAN_LS);const p=r?JSON.parse(r):null;if(Array.isArray(p))PROJ_INFLA_MANUAL=p;}catch(e){}
   try{
     const r=localStorage.getItem(PROY_FUENTE_LS);const p=r?JSON.parse(r):null;
     if(p&&typeof p==='object')PROJ_FUENTE={...PROJ_FUENTE,...p};
   }catch(e){}
   proyInvalidar();
+}
+
+// El sendero manual de inflación vivía mezclado dentro de PROJ_INFLACION. Se
+// copia una sola vez al almacén nuevo, para que nadie pierda lo que cargó.
+// Corre después de projDetectarPublicados, que es quien fija los tipos.
+function proyMigrarInflaManual(){
+  if(localStorage.getItem(PROY_INFLA_MAN_LS)!=null)return;
+  PROJ_INFLA_MANUAL=PROJ_INFLACION
+    .filter(r=>r&&r.tipo!=='publicado'&&r.infla!=null&&isFinite(r.infla))
+    .map(r=>({mes:r.mes,v:+r.infla}));
+  proySaveLs();
+}
+
+// ── Sendero de inflación: los meses no publicados salen de la fuente activa ──
+// Devuelve Map<mes,{v,origen}> sólo con lo que la fuente cubre. Los meses que
+// no cubre quedan en null y projCalcAcum los arrastra con el último valor, que
+// es el relleno automático de siempre.
+function inflaFuenteMapa(){
+  const m=new Map();
+  const fuente=PROJ_FUENTE.infla||'manual';
+  if(fuente==='rem'){
+    if(!REM_DATA||!REM_DATA.ipc||!REM_DATA.ipc.length)return m;
+    const hasta=PROJ_INFLACION.length
+      ?PROJ_INFLACION[PROJ_INFLACION.length-1].mes
+      :proyMesAdd(proyMesHoy(),PROY_MESES);
+    proyExtender(REM_DATA.ipc,(REM_DATA.anclas||{}).ipc,'ipc',hasta)
+      .forEach(p=>m.set(p.mes,{v:+(+p.v).toFixed(4),origen:p.origen}));
+    return m;
+  }
+  (PROJ_INFLA_MANUAL||[]).forEach(o=>{
+    if(o&&o.mes&&o.v!=null&&isFinite(+o.v))m.set(o.mes,{v:+o.v,origen:'manual'});
+  });
+  return m;
+}
+// Vuelca la fuente activa sobre PROJ_INFLACION sin tocar los meses publicados.
+function projResolverInflacion(){
+  const mapa=inflaFuenteMapa();
+  PROJ_INFLACION.forEach(r=>{
+    if(!r||r.tipo==='publicado')return;
+    const p=mapa.get(r.mes);
+    r.infla=p?p.v:null;
+    r.origen=p?p.origen:null;
+  });
+}
+// Copiar lo que se está viendo al almacén manual y pasarse a esa fuente. Es lo
+// que hace editar una celda con otra fuente activa.
+function inflaBifurcarAManual(){
+  const mapa=inflaFuenteMapa();
+  PROJ_INFLA_MANUAL=PROJ_INFLACION
+    .filter(r=>r&&r.tipo!=='publicado'&&mapa.has(r.mes))
+    .map(r=>({mes:r.mes,v:mapa.get(r.mes).v}));
+  PROJ_FUENTE.infla='manual';
+  proySaveLs();
+}
+function inflaSetManual(mes,v){
+  const i=PROJ_INFLA_MANUAL.findIndex(o=>o&&o.mes===mes);
+  if(v==null){if(i>=0)PROJ_INFLA_MANUAL.splice(i,1);}
+  else if(i>=0)PROJ_INFLA_MANUAL[i]={mes,v};
+  else PROJ_INFLA_MANUAL.push({mes,v});
+  PROJ_INFLA_MANUAL.sort((a,b)=>a.mes.localeCompare(b.mes));
+  proySaveLs();
+}
+// Lo mismo para TAMAR y dólar: se congela el sendero visible como manual.
+function proyBifurcarAManual(serie){
+  if(serie!=='tamar'&&serie!=='tcn')return;
+  const lista=serie==='tamar'?tamarSenderoLista():dlkSenderoLista();
+  const destino=lista.filter(p=>p&&p.v!=null&&isFinite(p.v))
+    .map(p=>({mes:p.mes,v:+(+p.v).toFixed(4)}));
+  if(serie==='tamar')PROJ_TAMAR=destino;else PROJ_TCN=destino;
+  PROJ_FUENTE[serie]='manual';
+  proySaveLs();proyInvalidar();
 }
 
 // ── Sendero de TAMAR ─────────────────────────────────────────────────────────
@@ -6390,15 +6481,17 @@ function tamarSenderoLista(){
     ultimo=p.v;
     out.push({mes,v:p.v,origen:p.origen});
   }
-  const idx=new Map(out.map((p,i)=>[p.mes,i]));
-  (PROJ_TAMAR||[]).forEach(o=>{
-    if(!o||!o.mes||o.v==null||!isFinite(+o.v))return;
-    const i=idx.get(o.mes);
-    if(i!=null)out[i]={mes:o.mes,v:+o.v,origen:'manual'};
-  });
-  // Un override manual arrastra a los meses siguientes que nadie fijó, igual
-  // que hace la tabla de inflación con su relleno automático.
+  // El sendero manual sólo entra si es la fuente elegida. Aplicarlo siempre era
+  // lo que hacía que, después de tocar una celda, el selector no cambiara nada.
   if(fuente==='manual'){
+    const idx=new Map(out.map((p,i)=>[p.mes,i]));
+    (PROJ_TAMAR||[]).forEach(o=>{
+      if(!o||!o.mes||o.v==null||!isFinite(+o.v))return;
+      const i=idx.get(o.mes);
+      if(i!=null)out[i]={mes:o.mes,v:+o.v,origen:'manual'};
+    });
+    // Un valor manual arrastra a los meses siguientes que nadie fijó, igual
+    // que hace la tabla de inflación con su relleno automático.
     let arrastre=null;
     for(const p of out){
       if(p.origen==='manual')arrastre=p.v;
@@ -6479,13 +6572,14 @@ function dlkSenderoLista(){
     if(p){ultimo=p.v;out.push({mes,v:p.v,origen:p.origen});}
     else out.push({mes,v:ultimo,origen:'auto'});
   }
-  const idx=new Map(out.map((p,i)=>[p.mes,i]));
-  (PROJ_TCN||[]).forEach(o=>{
-    if(!o||!o.mes||o.v==null||!isFinite(+o.v))return;
-    const i=idx.get(o.mes);
-    if(i!=null)out[i]={mes:o.mes,v:+o.v,origen:'manual'};
-  });
+  // Igual que en TAMAR: el sendero manual sólo entra si es la fuente elegida.
   if(fuente==='manual'){
+    const idx=new Map(out.map((p,i)=>[p.mes,i]));
+    (PROJ_TCN||[]).forEach(o=>{
+      if(!o||!o.mes||o.v==null||!isFinite(+o.v))return;
+      const i=idx.get(o.mes);
+      if(i!=null)out[i]={mes:o.mes,v:+o.v,origen:'manual'};
+    });
     let arrastre=null;
     for(const p of out){
       if(p.origen==='manual')arrastre=p.v;
@@ -6760,6 +6854,12 @@ function proySetFuente(serie,val){
   proySaveLs();
   proyInvalidar();
   proyPintarSelectores();
+  // Cambiar la fuente de inflación cambia el CER proyectado, y de ahí cuelga la
+  // valuación de todos los CER. Hay que rehacerlo aunque no estés en la solapa.
+  if(serie==='infla'){
+    try{projRecalc();}catch(e){}
+    try{beRecalc();}catch(e){}
+  }
   proyRepropagar();
 }
 
@@ -7009,6 +7109,7 @@ function projInit(){
   // rellenar meses faltantes en el sendero (gaps o extensión hasta horizonte)
   projRellenarMeses();
   projDetectarPublicados();
+  proyMigrarInflaManual();
   projRecalc();
 }
 
@@ -7076,19 +7177,19 @@ function proyPintarSello(){
 function proyAplicarREM(serie){
   if(!REM_DATA){alert('El REM todavía no se descargó. Probá con ↻ REM.');return;}
   const hasta=proyMesAdd(proyMesHoy(),PROY_MESES);
+  // Este botón copia el REM al sendero MANUAL y se pasa a esa fuente: es el
+  // punto de partida para armar un escenario propio. La fuente REM no se toca,
+  // así que volver a ella es elegirla en el selector.
   if(serie==='infla'){
     const path=proyExtender(REM_DATA.ipc,(REM_DATA.anclas||{}).ipc,'ipc',hasta);
-    const byMes=new Map(path.map(p=>[p.mes,p.v]));
-    let n=0;
-    PROJ_INFLACION.forEach(r=>{
-      if(r.tipo==='publicado')return;
-      const v=byMes.get(r.mes);
-      if(v!=null&&isFinite(v)){r.infla=+v.toFixed(4);n++;}
-    });
-    projSaveLs();projRecalc();
+    const publicados=new Set(PROJ_INFLACION.filter(r=>r.tipo==='publicado').map(r=>r.mes));
+    PROJ_INFLA_MANUAL=path.filter(p=>!publicados.has(p.mes))
+      .map(p=>({mes:p.mes,v:+(+p.v).toFixed(4)}));
+    PROJ_FUENTE.infla='manual';
+    proySaveLs();proyPintarSelectores();projRecalc();
     try{beRecalc();}catch(e){}
     proyRepropagar();
-    alert(`${n} meses cargados con el REM del ${remRelevamiento()}.`);
+    alert(`${PROJ_INFLA_MANUAL.length} meses copiados al sendero manual con el REM del ${remRelevamiento()}.`);
     return;
   }
   const src=serie==='tamar'?REM_DATA.tamar:REM_DATA.tcn;
@@ -7102,10 +7203,17 @@ function proyAplicarREM(serie){
   proyPintarSelectores();projRecalc();proyRepropagar();
 }
 function proyLimpiar(serie){
-  if(serie==='tamar')PROJ_TAMAR=[];else if(serie==='tcn')PROJ_TCN=[];else return;
+  if(serie==='tamar')PROJ_TAMAR=[];
+  else if(serie==='tcn')PROJ_TCN=[];
+  else if(serie==='infla')PROJ_INFLA_MANUAL=[];
+  else return;
   proySaveLs();proyInvalidar();projRecalc();proyRepropagar();
 }
 function proySetValor(serie,mes,val){
+  // Con otra fuente activa, editar no la pisa: congela lo que estás viendo como
+  // tu sendero manual y el cambio se aplica ahí. La fuente original sigue
+  // intacta y volvés a ella con el selector.
+  if((PROJ_FUENTE[serie]||'')!=='manual')proyBifurcarAManual(serie);
   const v=parseFloat(val);
   const arr=serie==='tamar'?PROJ_TAMAR:PROJ_TCN;
   const i=arr.findIndex(o=>o&&o.mes===mes);
@@ -7693,6 +7801,9 @@ function projRellenarMeses(){
 }
 
 function projRecalc(){
+  // Antes de cualquier cuenta, el sendero de los meses no publicados se vuelve
+  // a leer de la fuente activa. Es lo que hace que el selector tenga efecto.
+  projResolverInflacion();
   let ultimaInfla=3;
   PROJ_INFLACION.forEach(r=>{if(r.infla!=null)ultimaInfla=r.infla;});
 
@@ -8155,12 +8266,15 @@ async function projExportarExcel(){
 function projSetInfla(mes, val){
   const r=PROJ_INFLACION.find(r=>r.mes===mes);
   if(!r||r.tipo==='publicado')return;
+  // Con el REM activo, editar no lo pisa: congela el sendero que estás viendo
+  // como tu sendero manual y el cambio se aplica ahí. El REM sigue entero.
+  if((PROJ_FUENTE.infla||'manual')!=='manual'){
+    inflaBifurcarAManual();
+    proyPintarSelectores();
+  }
   const n=parseFloat(val);
-  const inflaAnterior=r.infla;
-  r.infla=isNaN(n)||val===''?null:n;
-  // si cambió de null a valor o viceversa, actualizar el badge (tipo cambia a 'proy')
-  if(r.infla!=null&&r.tipo!=='publicado') r.tipo='proyectado'; // marcar como proy explícito
-  else if(r.infla==null&&r.tipo==='proyectado') r.tipo='proyectado'; // sigue siendo proyectado (auto)
+  inflaSetManual(mes,isNaN(n)||val===''?null:n);
+  projResolverInflacion();
   projSaveLs();
 
   // recalcular último valor efectivo para rellenar autos
