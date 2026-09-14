@@ -15,18 +15,26 @@
 // ya vienen con su historia completa desde el BCRA, así que la valuación de una
 // rueda de 2025 usa el índice de esa rueda y no el de hoy.
 //
-// Fuente de precios: BYMA, no data912. El histórico de data912 sólo cubre bonos
-// viejos (DICP, TX26, GD30) y no tiene LECAPs, TAMAR, DLK ni Bopreales. BYMA
-// tiene todo desde septiembre de 2024, que alcanza de sobra para 2025 y 2026.
+// ── Fuente de precios: data912 primero, BYMA de respaldo ──────────────────
+// Las dos sirven, pero NO son equivalentes para los bonos que amortizan.
 //
-// ── Bonos que amortizan ────────────────────────────────────────────────────
-// BYMA y data912 reexpresan la serie histórica al residual de HOY, como un
-// precio de acción ajustado por split. Verificado: el precio de TX26 no cae en
-// ninguna de sus cuatro amortizaciones, y las dos fuentes coinciden al centavo.
-// La app, en cambio, valúa con el residual de CADA fecha. Antes de detectarlo,
-// eso producía TIR de hasta 1,3e13% en TX26 y un 48% real sostenido en TX28,
-// y los tres bonos afectados quedaban excluidos del histórico.
-// La corrección está en cerAjustePrecio, más abajo.
+// BYMA reexpresa la serie histórica al residual de hoy, como un precio de
+// acción ajustado por split: el precio no cae en las amortizaciones. data912
+// la devuelve como se cotizó, con la caída en la fecha ex. Comparado el mismo
+// día, 08/07/2025: data912 marca AL30D en −11,94% y BYMA no se mueve.
+//
+// Eso importa porque la app valúa con el residual de CADA fecha. Con precios de
+// BYMA, el desfasaje se anualiza y salían TIR imposibles: AL30 en 38,83% en
+// julio de 2025 contra un 13,07% real, AL29 y GD29 con saltos de 22 puntos en
+// cada fecha de pago, y TX26 llegando a 1,3e13%.
+//
+// data912 cubre unos catorce bonos —los viejos: AL, GD, TX26, TX28, DICP— que
+// son justamente los que amortizan. Para LECAPs, TAMAR, DLK y Bopreales no
+// tiene datos, pero esos no amortizan, así que BYMA alcanza.
+//
+// cerAjustePrecio queda como red por si aparece un bono que amortice y data912
+// no cubra: reescala por la razón de residuales. Es una aproximación —deja
+// saltos de 3 a 5 puntos— así que sólo se aplica a precios de BYMA.
 //
 // Requiere los secrets SUPABASE_BOT_EMAIL y SUPABASE_BOT_PASSWORD.
 
@@ -54,8 +62,36 @@ const LOTE     = 500;    // filas por upsert
 const dormir = ms => new Promise(r => setTimeout(r, ms));
 const fatal = m => { console.error(`\n✗ ${m}\n`); process.exit(1); };
 
+// Serie diaria de cierres tal como se cotizaron, sin reexpresar. Es la fuente
+// preferida para todo lo que amortiza: data912 refleja la caída del precio en
+// la fecha ex, que es el día hábil anterior al pago. Verificado sobre AL30D
+// (−11,94% el 08/07/2025), TX26 (−25,97% el 08/05/2025, con el residual pasando
+// de 80% a 60%) y TX28 (−13,73%, de 80% a 70%).
+//
+// Cubre unos catorce bonos, justamente los viejos — los AL, GD, TX26, TX28 y
+// DICP — que son los que amortizan. Para el resto no hay nada que corregir.
+async function serie912(symbol) {
+  const r = await fetch(`https://data912.com/historical/bonds/${encodeURIComponent(symbol)}`,
+                        { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  if (!r.ok) return [];
+  const d = await r.json();
+  if (!Array.isArray(d)) return [];
+  const out = [];
+  for (const x of d) {
+    const fecha = String(x.date || '').slice(0, 10);
+    const c = x.c;
+    if (!(c > 0) || fecha < DESDE || fecha > HASTA) continue;
+    out.push({ fecha, cierre: c });
+  }
+  return out;
+}
+
 // Serie diaria de cierres. Los timestamps caen siempre en día hábil leyéndolos
 // en UTC — verificado contra GD30D: 410 ruedas, ningún sábado ni domingo.
+//
+// ⚠ BYMA REEXPRESA la serie histórica al residual de hoy, como un precio de
+// acción ajustado por split: el precio no cae en las amortizaciones. Sirve para
+// los bonos que no amortizan; para los que sí, usar serie912.
 async function serieByma(symbol) {
   const from = Math.floor(Date.parse(DESDE + 'T00:00:00Z') / 1000) - 86400 * 5;
   const to   = Math.floor(Date.parse(HASTA + 'T00:00:00Z') / 1000) + 86400 * 2;
@@ -128,16 +164,25 @@ async function serieByma(symbol) {
     return out.filter(o => o.symbol && !vistos.has(o.symbol) && vistos.add(o.symbol));
   });
 
-  console.log(`→ ${objetivo.length} símbolos a pedir a BYMA (~${Math.round(objetivo.length * PAUSA_MS / 1000)}s)\n`);
+  console.log(`→ ${objetivo.length} símbolos a pedir (~${Math.round(objetivo.length * PAUSA_MS / 1000)}s)\n`);
 
   // precios[fecha][ticker] = cierre
   const precios = {};
-  let conDatos = 0;
+  // De dónde salió cada ticker. Importa para saber si hay que corregir el
+  // precio de los que amortizan: data912 ya viene bien, BYMA no.
+  const fuente = {};
+  let conDatos = 0, de912 = 0;
   const sinDatos = [];
   for (const o of objetivo) {
     let serie = [];
-    try { serie = await serieByma(o.symbol); }
-    catch (e) { sinDatos.push(`${o.ticker} (${o.symbol}): ${e.message}`); await dormir(PAUSA_MS); continue; }
+    // data912 primero: trae el precio como se cotizó. BYMA sólo si no lo tiene.
+    try { serie = await serie912(o.symbol); } catch (e) { serie = []; }
+    if (serie.length > 20) { fuente[o.ticker] = '912'; de912++; }
+    else {
+      try { serie = await serieByma(o.symbol); }
+      catch (e) { sinDatos.push(`${o.ticker} (${o.symbol}): ${e.message}`); await dormir(PAUSA_MS); continue; }
+      fuente[o.ticker] = 'byma';
+    }
     await dormir(PAUSA_MS);
     if (!serie.length) { sinDatos.push(`${o.ticker} (${o.symbol}): sin ruedas`); continue; }
     conDatos++;
@@ -146,7 +191,8 @@ async function serieByma(symbol) {
     }
     process.stdout.write(`  ${o.ticker} ${serie.length}\r`);
   }
-  console.log(`  ${conDatos} series traídas · ${sinDatos.length} sin datos          `);
+  console.log(`  ${conDatos} series traídas (${de912} de data912, ${conDatos - de912} de BYMA)`
+              + ` · ${sinDatos.length} sin datos          `);
   if (sinDatos.length) for (const s of sinDatos.slice(0, 12)) console.log(`    · ${s}`);
 
   let fechas = Object.keys(precios).sort();
@@ -179,7 +225,7 @@ async function serieByma(symbol) {
     const px = {};
     for (const f of delMes) px[f] = precios[f];
 
-    const res = await page.evaluate(async ({ delMes, px, dry, solo }) => {
+    const res = await page.evaluate(async ({ delMes, px, dry, solo, fuente }) => {
       const bkLiq = G_LIQ, bkTC = dlkTCOverride;
       const filas = [];
       const omitidos = {};
@@ -248,7 +294,10 @@ async function serieByma(symbol) {
         return vn;
       };
       const hoyStr = fmtDate(TODAY);
+      // Sólo hace falta con precios de BYMA. Si el precio vino de data912 ya
+      // trae la caída de la amortización y reescalarlo sería corromperlo.
       const cerAjustePrecio = (b, liqStr) => {
+        if (fuente[b.ticker] !== 'byma') return 1;
         const tieneCuotas = (b.amortSchedule || []).length > 0 || (b.amortAuto && b.amortAuto.first);
         if (!tieneCuotas) return 1;
         const rt = residualPct(b, liqStr), rHoy = residualPct(b, hoyStr);
@@ -360,7 +409,7 @@ async function serieByma(symbol) {
         guardadas += lote.length;
       }
       return { filas: filas.length, guardadas, error: null, omitidos };
-    }, { delMes, px, dry: DRY, solo: SOLO });
+    }, { delMes, px, dry: DRY, solo: SOLO, fuente });
 
     totalFilas += res.filas;
     totalGuardadas += res.guardadas;
