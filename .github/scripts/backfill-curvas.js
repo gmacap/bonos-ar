@@ -196,7 +196,34 @@ async function serieByma(symbol) {
   if (sinDatos.length) for (const s of sinDatos.slice(0, 12)) console.log(`    · ${s}`);
 
   let fechas = Object.keys(precios).sort();
-  if (!fechas.length) fatal('BYMA no devolvió ninguna rueda en el rango.');
+  if (!fechas.length) fatal('No se obtuvo ninguna rueda en el rango.');
+
+  // Huecos interiores de data912. Tiene una rueda que BYMA no —y al revés—: al
+  // 14/09/2026 le falta sólo el 20/11/2025, en los ocho bonos a la vez. Si se
+  // deja el hueco, la fila vieja de ese día sobrevive al SOBRESCRIBIR y queda
+  // una rueda con otra base en el medio de la serie: AL29 marcaba 49,33 entre
+  // dos ruedas de 68, o sea un salto de 25 puntos de tasa y vuelta.
+  //
+  // Se arrastra el último cierre, que es lo que significa que un bono no
+  // imprima precio ese día. Sólo hacia adentro: no se extiende ni antes del
+  // primer dato ni después del último, porque eso sí sería inventar.
+  let rellenados = 0;
+  for (const [tk, f] of Object.entries(fuente)) {
+    if (f !== '912') continue;
+    const conDato = fechas.filter(d => precios[d] && precios[d][tk] != null);
+    if (conDato.length < 2) continue;
+    const primera = conDato[0], ultima = conDato[conDato.length - 1];
+    let anterior = null;
+    for (const d of fechas) {
+      if (d < primera || d > ultima) continue;
+      const v = precios[d] && precios[d][tk];
+      if (v != null) { anterior = v; continue; }
+      if (anterior == null) continue;
+      (precios[d] || (precios[d] = {}))[tk] = anterior;
+      rellenados++;
+    }
+  }
+  if (rellenados) console.log(`  ${rellenados} huecos rellenados con el cierre anterior`);
 
   // No pisar lo que ya guardó el snapshot diario, que se tomó con precios en
   // vivo. Se recorta el backfill hasta la primera fecha existente.
