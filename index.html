@@ -14080,7 +14080,11 @@ async function curvasFetchSnapshot(dateStr,sector){
     // Memoria vacía (precios no cargados) → fallback a Supabase
   }
   try{
-    let q=supa.from('bond_price_snapshots').select('ticker,tir,md,dias,sector,price').eq('snapshot_date',dateStr);
+    // Las ruedas pegadas al vencimiento no se leen: ver CURVAS_DIAS_MIN. El
+    // filtro va acá y no en un borrado porque la tabla no tiene policy de
+    // DELETE a propósito — es el dato que no se puede reconstruir.
+    let q=supa.from('bond_price_snapshots').select('ticker,tir,md,dias,sector,price')
+      .eq('snapshot_date',dateStr).or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`);
     if(sector&&sector!=='ALL') q=q.eq('sector',sector);
     const{data,error}=await q;
     if(error||!data)return[];
@@ -14415,6 +14419,7 @@ async function seriesTraerFwd(sector,desde,hasta){
   const{data,error}=await supa.from('bond_price_snapshots')
     .select('snapshot_date,ticker,tir,md,dias')
     .eq('sector',sector).gte('snapshot_date',desde).lte('snapshot_date',hasta)
+    .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
     .order('snapshot_date',{ascending:true});
   if(error)throw error;
   const esUsd=sector==='BON'||sector==='GLO'||sector==='BOP';
@@ -14694,6 +14699,7 @@ async function seriesTraerSector(sector,desde,hasta){
   const{data,error}=await supa.from('bond_price_snapshots')
     .select('snapshot_date,ticker,tir')
     .eq('sector',sector).gte('snapshot_date',desde).lte('snapshot_date',hasta)
+    .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
     .order('snapshot_date',{ascending:true});
   if(error)throw error;
   const fechas=[...new Set((data||[]).map(r=>r.snapshot_date))].sort();
