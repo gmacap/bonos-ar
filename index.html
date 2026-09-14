@@ -1697,17 +1697,13 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <button class="btn" style="margin:0 0 0 4px;padding:2px 8px;font-size:10px" onclick="proyRangoDefault('tcn')" title="4 meses de datos y 8 de proyección">12m</button>
         </div>
         <div style="display:flex;align-items:center;gap:12px;font-size:11px;flex-wrap:wrap;">
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)">
-            <input type="checkbox" id="proy-tcn-cb-dev" onchange="proyRenderChart('tcn')">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b"></span>Devaluación mensual
-          </label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)" title="Régimen de bandas del BCRA. Publicado hasta fin del mes que viene; más allá es estimación con la regla del régimen.">
             <input type="checkbox" id="proy-tcn-cb-bandas" onchange="proyBandasToggle()">
             <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#ef4444"></span>Bandas cambiarias
           </label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)" title="Tasa efectiva mensual de cada LECAP en su fecha de vencimiento">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)" title="A cuánto tiene que estar el dólar al vencimiento para empatar con haber comprado esa LECAP hoy en vez de dólares">
             <input type="checkbox" id="proy-tcn-cb-lecaps" onchange="proyRenderChart('tcn')">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fbbf24"></span>LECAPs al vencimiento
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fbbf24"></span>Dólar breakeven · LECAPs
           </label>
         </div>
       </div>
@@ -5802,7 +5798,11 @@ async function cerFetchIndex(force=false){
     cerRenderIndexStrip();
     updateIndexBanners();
     // actualizar proyecciones y tabla CER si están cargadas
+    // Con la serie ya en memoria se puede saber hasta dónde llega el histórico
+    // derivable, y projRellenarMeses estira el sendero hasta ahí.
+    proyInvalidar();
     if(!PROJ_INFLACION.length) projInit(); // auto-init if not loaded yet
+    else projRellenarMeses();
     projDetectarPublicados();
     projCalcularCER();
     if(currentTab==='proyecciones'){projRenderSummary();projRenderTabla();projRenderChart();}
@@ -6076,7 +6076,8 @@ let _proySendero={tamar:null,tcn:null};
 // Declarado acá y no junto a proyInfl12Mapa: proyInvalidar() lo escribe y se
 // llama desde el arranque, así que la declaración tiene que verse antes.
 let _proyInfl12=null;
-function proyInvalidar(){_proySendero={tamar:null,tcn:null};_proyInfl12=null;}
+let _projHistStart=null;
+function proyInvalidar(){_proySendero={tamar:null,tcn:null};_proyInfl12=null;_projHistStart=null;}
 
 function proyMesAdd(mesStr,n){
   const[y,m]=mesStr.split('-').map(Number);
@@ -6682,9 +6683,26 @@ function projLoadLs(){
   projInitDefault();
 }
 
+// Primer mes que el CER del BCRA permite derivar. La inflación del mes M se
+// lee entre el 15 de M+1 y el 15 de M+2, así que arranca un par de meses
+// después del primer dato de la serie. Sin CER cargado todavía, el default
+// viejo, y proyInvalidar lo recalcula cuando la serie llega.
+function projHistStart(){
+  if(_projHistStart)return _projHistStart;
+  if(!CER_INDEX.length)return '2025-01';
+  let m=proyMesAdd(CER_INDEX[0].fecha.substring(0,7),-1);
+  for(let i=0;i<24;i++){
+    if(projInflaRealDeMes(m)!=null){_projHistStart=m;return m;}
+    m=proyMesAdd(m,1);
+  }
+  _projHistStart='2025-01';
+  return _projHistStart;
+}
+
 function projInitDefault(){
   PROJ_INFLACION=[];
-  let año=2025, mes=1; // Jan 2025, 1-based
+  const ini=projHistStart();
+  let año=+ini.substring(0,4), mes=+ini.substring(5,7);
   const endAño=TODAY.getFullYear()+PROJ_HORIZONTE_AÑOS;
   const endMes=TODAY.getMonth()+1; // 1-based
   while(año<endAño||(año===endAño&&mes<=endMes+1)){
@@ -7340,42 +7358,15 @@ function proyRenderChartTcn(){
       grid:{color:'rgba(107,114,128,.12)'}},
   };
 
-  let pct=false;
-  if(cb('dev')){
-    const todo=proySerieCompleta('tcn');
-    const idx=new Map(todo.map((p,i)=>[p.mes,i]));
-    const devs=lista.map(p=>{
-      const i=idx.get(p.mes),ant=i>0?todo[i-1].v:spot;
-      return ant>0?{x:ts(proyUltDiaMes(p.mes)),y:+((p.v/ant-1)*100).toFixed(4)}:null;
-    }).filter(Boolean);
-    datasets.push({label:'Devaluación mensual %',type:'bar',data:devs,
-      backgroundColor:'rgba(245,158,11,.28)',borderColor:'rgba(245,158,11,.7)',
-      borderWidth:1,borderRadius:2,yAxisID:'yPct',order:5,
-      barThickness:10});
-    pct=true;
-  }
   if(cb('lecaps')){
     const pts=proyLecapPuntos(desdeF,hastaF);
     if(pts.length){
-      datasets.push({label:'LECAP · TEM %',type:'scatter',data:pts,
+      // Van sobre el eje de pesos, junto al sendero y las bandas: el breakeven
+      // es un precio del dólar, y ahí la comparación se lee de una.
+      datasets.push({label:'Dólar BE · LECAPs',type:'scatter',data:pts,
         backgroundColor:'#fbbf24',borderColor:'#b45309',borderWidth:1,
-        pointRadius:4,pointHoverRadius:6,yAxisID:'yPct',order:0});
-      pct=true;
+        pointRadius:4.5,pointHoverRadius:7,yAxisID:'y',order:0});
     }
-  }
-  if(pct){
-    // Las barras y los puntos de porcentaje viven en el tercio de abajo, como
-    // el volumen debajo de un gráfico de precios. Si tomaran el alto completo,
-    // una barra de 5% taparía el sendero y las bandas.
-    const vals=datasets.filter(d=>d.yAxisID==='yPct')
-      .flatMap(d=>d.data.map(p=>p&&p.y)).filter(v=>v!=null&&isFinite(v));
-    const mx=vals.length?Math.max(...vals):1;
-    const mn=vals.length?Math.min(0,...vals):0;
-    const tope=(mx>0?mx:1)*3.2;
-    escalas.yPct={position:'right',min:mn,max:tope,
-      ticks:{color:'#f59e0b',font:{size:9},
-        callback:v=>v>mx*1.15?'':v.toFixed(1)+'%'},
-      grid:{display:false}};
   }
 
   if(!datasets.length)return;
@@ -7391,29 +7382,51 @@ function proyRenderChartTcn(){
           title:c=>c.length?fmtDate(new Date(c[0].parsed.x)).split('-').reverse().join('/'):'',
           label:c=>{
             const p=c.raw;
-            if(p&&p.ticker)return `${p.ticker} · TEM ${p.y.toFixed(2)}% · TNA ${p.tna.toFixed(2)}% · TIR ${p.tir.toFixed(2)}%`;
-            const v=c.dataset.yAxisID==='yPct'?c.parsed.y.toFixed(2)+'%':'$'+c.parsed.y.toFixed(2);
-            return `${c.dataset.label}: ${v}`;
+            if(p&&p.ticker){
+              const l=[`${p.ticker}: BE $${p.y.toFixed(2)} · ${p.dev>=0?'+':''}${p.dev.toFixed(1)}% vs hoy`];
+              if(p.proy!=null)l.push(`   sendero $${p.proy.toFixed(2)} · la tasa fija ${p.vs>=0?'gana':'pierde'} ${Math.abs(p.vs).toFixed(1)}%`);
+              return l;
+            }
+            return `${c.dataset.label}: $${c.parsed.y.toFixed(2)}`;
           }}}},
       scales:escalas},
     plugins:[proyPluginFuturo(ch=>ch.scales.x.getPixelForValue(hoyTs))]
   });
 }
 
-// Rendimiento de cada LECAP en su fecha de vencimiento, para leerlo contra el
-// sendero de devaluación: la distancia entre el punto y la barra del mes es,
-// en criollo, el carry.
+// Dólar breakeven de cada LECAP en su vencimiento.
+//
+// La pregunta: si hoy vendo dólares y con esos pesos compro la LECAP, ¿a qué
+// precio tengo que poder recomprar los dólares al vencimiento para quedar
+// igual? Como la LECAP multiplica los pesos por VF/precio, el breakeven es
+//
+//   BE = A3500 de hoy × VF / precio
+//
+// Por encima de esa línea convenía haberse quedado en dólares; por debajo,
+// la tasa fija. Por eso el punto va sobre el eje de pesos, al lado del
+// sendero proyectado y de las bandas.
 function proyLecapPuntos(desdeF,hastaF){
   if(typeof LECAPS==='undefined'||!LECAPS.length)return[];
+  const spot=dlkTCHoy();
+  if(spot==null||!(spot>0))return[];
   const out=[];
   for(const b of LECAPS){
-    if(!b.vcto||b.precio==null)continue;
+    if(!b.vcto||b.precio==null||!(b.precio>0))continue;
     if(b.vcto<desdeF||b.vcto>hastaF)continue;
     let c=null;
     try{c=calcLecap(b);}catch(e){}
-    if(!c||c.tem==null||isNaN(c.tem))continue;
-    out.push({x:parseDate(b.vcto).getTime(),y:+c.tem.toFixed(4),
-      ticker:b.ticker,tna:c.tna,tir:c.tir});
+    if(!c||!(c.vf>0))continue;
+    const be=spot*c.vf/b.precio;
+    if(!isFinite(be)||be<=0)continue;
+    let proy=null,vs=null;
+    try{
+      proy=dlkTCProy(b.vcto);
+      if(proy!=null&&proy>0)vs=(be/proy-1)*100;
+    }catch(e){}
+    out.push({x:parseDate(b.vcto).getTime(),y:+be.toFixed(4),
+      ticker:b.ticker,dev:(be/spot-1)*100,
+      proy:proy!=null?+proy.toFixed(4):null,vs,
+      tem:c.tem,tna:c.tna,tir:c.tir});
   }
   return out.sort((a,b)=>a.x-b.x);
 }
@@ -7421,8 +7434,8 @@ function proyLecapPuntos(desdeF,hastaF){
 function projRellenarMeses(){
   if(!PROJ_INFLACION.length){projInitDefault();return;}
   const existentes=new Set(PROJ_INFLACION.map(r=>r.mes));
-  // asegurar que el rango empieza desde al menos 2025-01
-  const HIST_START='2025-01';
+  // asegurar que el rango empieza donde llega el CER del BCRA
+  const HIST_START=projHistStart();
   const first=PROJ_INFLACION[0].mes<HIST_START?PROJ_INFLACION[0].mes:HIST_START;
   const [fy,fm]=first.split('-').map(Number);
   const endAño=TODAY.getFullYear()+PROJ_HORIZONTE_AÑOS;
