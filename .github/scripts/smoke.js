@@ -620,10 +620,15 @@ const omitir = (label, motivo) =>
   // El ciclo automático tiene que VOLCAR la curva sobre los sintéticos, no sólo
   // traerla. Traerla sin volcarla dejaba el precio del futuro viejo y era la
   // diferencia entre "se actualiza solo" y "hay que apretar el botón".
+  // El pedido al MAE vive en maeRefrescar, que es por donde entran el arranque,
+  // el ciclo y el botón ↻ Precios. La cadena que se verifica acá es
+  // refrescoCiclo → fetchAllPrices → maeRefrescar → maeAplicarFuturos.
   const auto = await page.evaluate(() => ({
     existe: typeof maeAplicarFuturos === 'function',
-    enCiclo: /maeAplicarFuturos/.test(refrescoCiclo.toString()),
-    spotEnCiclo: /maeFetchSpot/.test(refrescoCiclo.toString()),
+    enCiclo: /maeAplicarFuturos/.test(maeRefrescar.toString())
+          && /maeRefrescar/.test(fetchAllPrices.toString())
+          && /fetchAllPrices/.test(refrescoCiclo.toString()),
+    spotEnCiclo: /maeFetchSpot/.test(maeRefrescar.toString()),
   }));
   check(auto.existe, 'existe el volcado de la curva a los sintéticos');
   check(auto.enCiclo, 'el ciclo automático aplica la curva, no sólo la trae');
