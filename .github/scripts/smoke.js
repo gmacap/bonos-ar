@@ -1111,43 +1111,89 @@ const omitir = (label, motivo) =>
         'el techo sube y el piso baja');
   check(!bandas.falla && bandas.lineas === 2, 'las dos bandas entran al gráfico');
 
-  // LECAPs al vencimiento.
+  // Dólar breakeven de las LECAPs: vender dólares hoy, comprar tasa fija y
+  // recomprarlos al vencimiento. BE = spot × VF / precio.
   const lecaps = await page.evaluate(async () => {
     const desde = proyMesHoy() + '-01';
     const hasta = proyUltDiaMes(proyMesAdd(proyMesHoy(), 12));
     const pts = proyLecapPuntos(desde, hasta);
+    const spot = dlkTCHoy();
     document.getElementById('proy-tcn-cb-lecaps').checked = true;
     proyRenderChart('tcn');
     await new Promise(r => setTimeout(r, 500));
-    const ds = projTcnChart.data.datasets.find(d => /LECAP/.test(d.label));
-    const eje = projTcnChart.options.scales.yPct;
+    const ds = projTcnChart.data.datasets.find(d => /BE/.test(d.label));
     document.getElementById('proy-tcn-cb-lecaps').checked = false;
     proyRenderChart('tcn');
+    // Recalcular el breakeven a mano, sin pasar por proyLecapPuntos
+    const aMano = pts.map(p => {
+      const b = LECAPS.find(x => x.ticker === p.ticker);
+      const c = calcLecap(b);
+      return { t: p.ticker, esperado: spot * c.vf / b.precio, obtenido: p.y,
+               enFecha: parseDate(b.vcto).getTime() === p.x };
+    });
     return {
-      puntos: pts.length,
+      puntos: pts.length, spot,
       conPrecio: LECAPS.some(b => b.precio != null && b.vcto >= desde && b.vcto <= hasta),
-      enFechaDeVto: pts.every(p => {
-        const b = LECAPS.find(x => x.ticker === p.ticker);
-        return b && parseDate(b.vcto).getTime() === p.x;
-      }),
-      conTicker: pts.every(p => !!p.ticker && p.tna != null && p.tir != null),
+      cierraLaCuenta: aMano.every(r => Math.abs(r.esperado - r.obtenido) < 0.01),
+      enFechaDeVto: aMano.every(r => r.enFecha),
+      // el BE tiene que estar por encima del spot: la tasa fija es positiva
+      porEncimaDelSpot: pts.every(p => p.y > spot),
+      creceConElPlazo: pts.every((p, i) => i === 0 || p.y >= pts[i - 1].y - 1e-9),
+      conContexto: pts.every(p => p.dev != null && p.proy != null && p.vs != null),
       dataset: !!ds, tipo: ds ? ds.type : null, eje: ds ? ds.yAxisID : null,
-      // el eje de porcentaje deja las marcas en el tercio de abajo
-      topeHolgado: eje ? eje.max > Math.max(...pts.map(p => p.y)) * 2 : false,
+      muestra: aMano.slice(0, 2),
     };
   });
   if (!lecaps.conPrecio) {
     // Sin precios no hay puntos que dibujar: la función filtra los bonos sin
     // precio a propósito. Verificar acá sólo diría que el mercado está cerrado.
-    omitir('LECAPs en el gráfico del dólar', 'ninguna LECAP tiene precio ahora');
+    omitir('dólar breakeven de las LECAPs', 'ninguna LECAP tiene precio ahora');
   } else {
     check(lecaps.puntos > 0 && lecaps.dataset && lecaps.tipo === 'scatter',
-          'las LECAPs se pueden sumar al gráfico del dólar', JSON.stringify(lecaps));
+          'el dólar breakeven de las LECAPs entra al gráfico', JSON.stringify(lecaps));
+    check(lecaps.cierraLaCuenta,
+          'el breakeven es el spot por VF sobre precio', JSON.stringify(lecaps.muestra));
     check(lecaps.enFechaDeVto, 'cada LECAP va en su fecha de vencimiento');
-    check(lecaps.conTicker, 'cada punto trae ticker, TNA y TIR para el tooltip');
-    check(lecaps.eje === 'yPct' && lecaps.topeHolgado,
-          'las tasas van en su propio eje, abajo, sin tapar el precio');
+    check(lecaps.eje === 'y',
+          'el breakeven va en el eje de pesos, junto al sendero y las bandas', lecaps.eje);
+    check(lecaps.porEncimaDelSpot && lecaps.creceConElPlazo,
+          'el breakeven supera al spot y crece con el plazo', JSON.stringify(lecaps));
+    check(lecaps.conContexto,
+          'cada punto trae la devaluación implícita y el sendero para comparar');
   }
+
+  // La opción de barras de devaluación se sacó: no aportaba nada.
+  const sinBarras = await page.evaluate(() => ({
+    checkbox: !!document.getElementById('proy-tcn-cb-dev'),
+    eje: !!(projTcnChart && projTcnChart.options.scales.yPct),
+  }));
+  check(!sinBarras.checkbox && !sinBarras.eje,
+        'ya no está la opción de barras de devaluación', JSON.stringify(sinBarras));
+
+  // El histórico de inflación llega hasta donde llega el CER del BCRA.
+  const hist = await page.evaluate(() => {
+    const ini = projHistStart();
+    const primeroCer = CER_INDEX.length ? CER_INDEX[0].fecha : null;
+    return {
+      ini, primeroCer, cer: CER_INDEX.length,
+      primerMes: PROJ_INFLACION.length ? PROJ_INFLACION[0].mes : null,
+      meses: PROJ_INFLACION.length,
+      publicados: PROJ_INFLACION.filter(r => r.tipo === 'publicado').length,
+      // el mes de arranque tiene que ser derivable y el anterior no
+      derivable: projInflaRealDeMes(ini),
+      anteriorNoDerivable: projInflaRealDeMes(proyMesAdd(ini, -1)) == null,
+    };
+  });
+  check(hist.cer > 0 && hist.ini < '2005-01',
+        'el histórico de inflación arranca donde arranca el CER del BCRA',
+        JSON.stringify({ ini: hist.ini, primeroCer: hist.primeroCer }));
+  check(hist.primerMes === hist.ini,
+        'el sendero se rellena desde ese mes', JSON.stringify(hist));
+  check(hist.derivable != null && hist.anteriorNoDerivable,
+        'el mes de arranque es el primero que el CER permite derivar', JSON.stringify(hist));
+  check(hist.publicados > 200,
+        'quedan cientos de meses publicados, no sólo los de 2025',
+        String(hist.publicados));
 
   console.log('\nResto de pestañas (no deben lanzar)');
   const antes = errores.length;
