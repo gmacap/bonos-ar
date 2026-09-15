@@ -69,6 +69,7 @@ body.theme-light #usd-bar{background:#e4ebe4;border-color:#9ab09a;}
 body.theme-light #usd-mep-bid,body.theme-light #usd-mep-ask{color:#145e10;font-weight:500;}
 body.theme-light #usd-ccl-bid,body.theme-light #usd-ccl-ask{color:#6a3a00;font-weight:500;}
 body.theme-light #usd-canje-bid,body.theme-light #usd-canje-ask{color:#08406e;font-weight:500;}
+body.theme-light #usd-brecha-bid,body.theme-light #usd-brecha-ask{color:#7a1010;font-weight:500;}
 body.theme-light .modal{background:#f2f6f2;border-color:#7a9a7a;box-shadow:0 4px 24px rgba(0,0,0,0.18);}
 body.theme-light .modal-title{color:#0a140a;font-weight:500;}
 body.theme-light .field label{color:#3a5e3a;font-weight:500;}
@@ -402,6 +403,12 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <span id="usd-canje-bid" style="color:var(--info)">—</span>
   <span style="color:var(--border2);margin:0 3px">/</span>
   <span id="usd-canje-ask" style="color:var(--info)">—</span>
+  <span style="width:1px;background:var(--border);height:16px;margin:0 12px;flex-shrink:0;"></span>
+  <!-- BRECHA -->
+  <span style="color:var(--text3);margin-right:5px" title="MEP contra el A3500 oficial">BRECHA</span>
+  <span id="usd-brecha-bid" style="color:var(--danger)">—</span>
+  <span style="color:var(--border2);margin:0 3px">/</span>
+  <span id="usd-brecha-ask" style="color:var(--danger)">—</span>
   <span style="width:1px;background:var(--border);height:16px;margin:0 12px;flex-shrink:0;"></span>
   <span id="usd-ts" style="color:var(--text3);font-size:10px">—</span>
   <button onclick="usdFetch()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;margin-left:6px;padding:0">↻</button>
@@ -10657,6 +10664,21 @@ function setTheme(t){
 }());
 
 // ══════════════════════════════════════════════════════════════ USD BAR
+// La brecha es la única lectura de la barra que cruza dos fuentes: el MEP sale
+// de data912 cada cinco minutos y el A3500 de dlkTCHoy(), que cambia solo con el
+// MAE en vivo y también cuando lo escribís a mano. Por eso el último MEP se
+// guarda acá y el pintado se llama desde los dos lados: si dependiera sólo de
+// usdFetch, editar el oficial dejaría la brecha vieja en pantalla.
+let _usdMep={bid:0,ask:0};
+function brechaPintar(){
+  const bid=document.getElementById('usd-brecha-bid');
+  const ask=document.getElementById('usd-brecha-ask');
+  if(!bid||!ask)return;
+  const of=typeof dlkTCHoy==='function'?dlkTCHoy():null;
+  const f=v=>(of>0&&v>0)?(v/of-1>=0?'+':'')+((v/of-1)*100).toFixed(2)+'%':'—';
+  bid.textContent=f(_usdMep.bid);
+  ask.textContent=f(_usdMep.ask);
+}
 async function usdFetch(){
   try{
     const ts=Date.now();
@@ -10684,6 +10706,8 @@ async function usdFetch(){
     document.getElementById('usd-ccl-ask').textContent  = fmt(cclAsk);
     document.getElementById('usd-canje-bid').textContent= fmtP(canjeBid);
     document.getElementById('usd-canje-ask').textContent= fmtP(canjeAsk);
+    _usdMep={bid:mepBid,ask:mepAsk};
+    brechaPintar();
     const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('usd-ts').textContent=now;
   }catch(e){
@@ -12061,6 +12085,7 @@ function dlkOnA3500Change(val){
   const manual=dlkTCOverride!=null;
   const lbl=document.getElementById('usd-a3500-label');
   if(lbl) lbl.textContent=manual?'(manual)':'';
+  brechaPintar();
   proyInvalidar(); // el sendero del dólar arranca en el spot
   if(currentTab==='dlk'){
     DLK_DATA=DLK_BONDS.map(b=>dlkVista(dlkEnrich(b)));
@@ -12943,6 +12968,7 @@ function a3500Pintar(){
   if(lbl)lbl.textContent=f.etiqueta;
   const el=document.getElementById('sint-a3500-display');
   if(el)el.textContent=val!=null?'$'+val.toFixed(4):'—';
+  if(typeof brechaPintar==='function')brechaPintar();
 }
 
 function a3500Repropagar(){
