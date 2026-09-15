@@ -394,42 +394,94 @@ const omitir = (label, motivo) =>
   check(slegSerie.bonos > 0, 'usd: Spread Leg. como serie', `${slegSerie.bonos} pares: ${slegSerie.pares.join(', ')}`);
   check(/Spread/.test(slegSerie.ejeY), 'usd: eje Y del spread', slegSerie.ejeY);
 
-  // Monedas: cinco series armadas en el momento con el A3500 del BCRA y el
-  // AL30 de data912, no con el histórico de curvas. Dos unidades conviviendo,
-  // así que dos ejes: un canje de 4% al lado de un MEP de 1534 sobre la misma
-  // regla queda pegado al piso.
+  // Monedas: siete series armadas en el momento con el BCRA y data912, más un
+  // breakeven por LECAP. Dos unidades que no se pueden leer sobre la misma
+  // regla, así que dos paneles apilados, y cada uno aparece sólo si tiene algo.
   const fx = await page.evaluate(async () => {
+    const d1 = document.getElementById('series-usd-d1');
+    if (d1) d1.value = '2026-04-01';
     seriesSetSector('usd', 'FX');
-    await new Promise(r => setTimeout(r, 7000));
-    const st = seriesEstado.usd, ch = st.chart;
-    const f = st.cache.fechas[st.cache.fechas.length - 1];
-    const v = k => { const m = st.cache.porBono.get(k); return m && m.has(f) ? m.get(f) : null; };
+    await new Promise(r => setTimeout(r, 12000));
+    const st = seriesEstado.usd;
+    // La última rueda del rango puede ser la de hoy: el BCRA ya publicó las
+    // bandas y el mercado todavía no cerró. Se busca la última completa.
+    const tiene = (k, d) => { const m = st.cache.porBono.get(k); return !!(m && m.has(d)); };
+    const f = [...st.cache.fechas].reverse()
+      .find(d => ['A3500', 'MEP', 'Cable'].every(k => tiene(k, d))) || st.cache.fechas[0];
+    const v = (k, d) => { const m = st.cache.porBono.get(k); return m && m.has(d || f) ? m.get(d || f) : null; };
+    const paneles = () => {
+      const w1 = document.getElementById('series-usd-wrap1');
+      const w2 = document.getElementById('series-usd-wrap2');
+      return { p1: w1.style.display !== 'none', p2: w2.style.display !== 'none',
+               ds1: st.chart ? st.chart.data.datasets.map(x => x.label) : null,
+               ds2: st.chart2 ? st.chart2.data.datasets.map(x => x.label) : null };
+    };
+    const claves = [...st.cache.porBono.keys()];
+    const be = claves.filter(k => k.startsWith('BE '));
     const mep = v('MEP'), cable = v('Cable'), of = v('A3500'),
           canje = v('Canje'), brecha = v('Brecha');
-    return {
-      series: [...st.cache.porBono.keys()], ruedas: st.cache.fechas.length,
-      f, mep, cable, of, canje, brecha,
-      canjeOk: mep && cable && canje != null
-        ? Math.abs((cable / mep - 1) * 100 - canje) < 1e-9 : null,
-      brechaOk: mep && of && brecha != null
-        ? Math.abs((mep / of - 1) * 100 - brecha) < 1e-9 : null,
-      asigna: ch ? Object.fromEntries(ch.data.datasets.map(d => [d.label, d.yAxisID])) : {},
-      ejeY: ch ? ch.options.scales.y.title.text : '',
-      ejeY2: ch && ch.options.scales.y2 ? ch.options.scales.y2.title.text : '',
+    const ambos = paneles();
+    const ejeY = st.chart ? st.chart.options.scales.y.title.text : '';
+    // Sólo niveles
+    seriesTodos('usd', false);
+    ['A3500', 'MEP', 'Cable', 'Banda inf.', 'Banda sup.'].forEach(t => seriesToggle('usd', t));
+    await new Promise(r => setTimeout(r, 600));
+    const soloNivel = paneles();
+    // Sólo porcentajes
+    seriesTodos('usd', false);
+    ['Canje', 'Brecha'].forEach(t => seriesToggle('usd', t));
+    await new Promise(r => setTimeout(r, 600));
+    const soloPct = paneles();
+    // Un breakeven contra su aritmética, en la última rueda que lo tenga
+    let bePrueba = null;
+    for (const k of be) {
+      const m = st.cache.porBono.get(k);
+      const fb = [...m.keys()].sort().pop();
+      const t = k.slice(3), bo = LECAPS.find(x => x.ticker === t);
+      const mepB = v('MEP', fb);
+      if (!bo || !mepB) continue;
+      const { data } = await supa.from('bond_price_snapshots')
+        .select('price').eq('sector', 'TF').eq('ticker', t).eq('snapshot_date', fb);
+      const px = data && data[0] && data[0].price;
+      if (!(px > 0)) continue;
+      const vf = calcVF(bo.tem_emision, parseDate(bo.emision), parseDate(bo.vcto));
+      bePrueba = { k, fb, be: m.get(fb), esperado: mepB * vf / px };
+      break;
+    }
+    return { claves, be: be.length, f, mep, cable, of, canje, brecha,
+      canjeOk: mep && cable && canje != null ? Math.abs((cable / mep - 1) * 100 - canje) < 1e-9 : null,
+      brechaOk: mep && of && brecha != null ? Math.abs((mep / of - 1) * 100 - brecha) < 1e-9 : null,
+      ambos, soloNivel, soloPct, bePrueba, ejeY,
+      apagados: be.every(k => ambos.ds1 == null || !ambos.ds1.includes(k)),
     };
   });
-  if (!fx.ruedas) {
+  if (!fx.claves.length) {
     omitir('usd: serie de monedas', 'el BCRA o data912 no respondieron ahora');
   } else {
-    check(fx.series.length === 5, 'usd: las cinco monedas', fx.series.join(', '));
+    check(['A3500', 'MEP', 'Cable', 'Canje', 'Brecha', 'Banda inf.', 'Banda sup.']
+            .every(k => fx.claves.includes(k)),
+          'usd: las cinco monedas y las dos bandas', fx.claves.slice(0, 7).join(', '));
     check(fx.of > 0 && fx.mep > 0 && fx.cable > 0, 'usd: oficial, MEP y cable en niveles',
           `${fx.f}: A3500 ${fx.of} · MEP ${fx.mep} · cable ${fx.cable}`);
     check(fx.canjeOk === true, 'usd: el canje es cable sobre MEP', String(fx.canje));
     check(fx.brechaOk === true, 'usd: la brecha es MEP sobre el oficial', String(fx.brecha));
-    check(fx.asigna.MEP === 'y' && fx.asigna.Canje === 'y2' && fx.asigna.Brecha === 'y2',
-          'usd: niveles y porcentajes en ejes distintos', JSON.stringify(fx.asigna));
-    check(/\$/.test(fx.ejeY) && /%/.test(fx.ejeY2), 'usd: cada eje dice su unidad',
-          `${fx.ejeY} | ${fx.ejeY2}`);
+    check(fx.ambos.p1 && fx.ambos.p2
+          && fx.ambos.ds1.includes('MEP') && fx.ambos.ds2.includes('Canje')
+          && !fx.ambos.ds1.includes('Canje'),
+          'usd: niveles arriba y porcentajes abajo, en paneles separados',
+          JSON.stringify(fx.ambos));
+    check(fx.soloNivel.p1 && !fx.soloNivel.p2, 'usd: sólo niveles deja un panel',
+          JSON.stringify(fx.soloNivel));
+    check(!fx.soloPct.p1 && fx.soloPct.p2, 'usd: sólo porcentajes deja un panel',
+          JSON.stringify(fx.soloPct));
+    check(/\$/.test(fx.ejeY), 'usd: el panel de niveles se mide en pesos', fx.ejeY);
+    if (!fx.be) {
+      omitir('usd: breakeven de las LECAPs', 'no hay histórico de tasa fija en el rango');
+    } else {
+      check(fx.apagados, 'usd: los breakeven arrancan apagados', `${fx.be} LECAPs`);
+      check(fx.bePrueba && Math.abs(fx.bePrueba.be - fx.bePrueba.esperado) < 1e-6,
+            'usd: el breakeven es MEP por VF sobre precio', JSON.stringify(fx.bePrueba));
+    }
   }
 
   // Las monedas no son una tasa con duración: en forwards no se pueden elegir.
