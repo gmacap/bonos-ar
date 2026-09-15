@@ -1,0 +1,48 @@
+name: Sembrar el monto operado
+
+# Completa la columna `monto` de las filas que ya existen en el histórico de
+# curvas, con el volumen de las últimas ~72 ruedas que publica BYMA.
+#
+# Sólo actualiza: no inserta filas nuevas. Una rueda que no esté en el histórico
+# no se crea desde acá, porque sin price ni tir no sería una valuación.
+#
+# Conviene una primera pasada con "solo simular" para ver cuántas filas saldrían.
+on:
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: 'Fecha inicial (YYYY-MM-DD, vacío = 150 días atrás)'
+        required: false
+        default: ''
+      hasta:
+        description: 'Fecha final (YYYY-MM-DD, vacío = hoy)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Solo simular, sin escribir'
+        type: boolean
+        default: true
+      solo_tickers:
+        description: 'Solo estos tickers, separados por coma (vacío = todos)'
+        required: false
+        default: ''
+
+jobs:
+  volumen:
+    name: Completar el monto
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm install playwright && npx playwright install --with-deps chromium
+
+      - run: node .github/scripts/backfill-volumen.js
+        env:
+          SUPABASE_BOT_EMAIL: ${{ secrets.SUPABASE_BOT_EMAIL }}
+          SUPABASE_BOT_PASSWORD: ${{ secrets.SUPABASE_BOT_PASSWORD }}
+          DESDE: ${{ inputs.desde }}
+          HASTA: ${{ inputs.hasta }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          SOLO_TICKERS: ${{ inputs.solo_tickers }}
