@@ -14775,6 +14775,8 @@ const SERIES_CFG={
       {v:'CER',   l:'CER',           c:'#4ade80', y:'TIR real (%)',   yf:'Forward TIR real (%)'},
       {v:'TAMAR', l:'TAMAR',         c:'#38bdf8', y:'Margen TNA (%)', yf:'Forward Margen TNA (%)'},
       {v:'DLK',   l:'Dollar Linked', c:'#a855f7', y:'TNA (%)',        yf:'Forward TNA (%)'},
+      // El dinero no es un bono con duración: no admite forwards.
+      {v:'DINERO',l:'Dinero',        c:'#22d3ee', y:'TNA (%)', fwd:false},
     ],
   },
   usd:{
@@ -15115,8 +15117,9 @@ async function seriesCargar(sec){
       seriesFwdRenderControles(sec);
       st.cache=seriesFwdDerivar(sec);
     }else{
-      st.cache=st.sector==='SLEG' ? await seriesTraerSpread(desde,hasta)
-             : st.sector==='FX'   ? await seriesTraerFX(desde,hasta)
+      st.cache=st.sector==='SLEG'   ? await seriesTraerSpread(desde,hasta)
+             : st.sector==='FX'     ? await seriesTraerFX(desde,hasta)
+             : st.sector==='DINERO' ? await seriesTraerDinero(desde,hasta)
              : await seriesTraerSector(st.sector,desde,hasta);
       st.filtro=null;   // al cambiar el rango, arrancan todos seleccionados
     }
@@ -15380,6 +15383,100 @@ async function seriesTraerFX(desde,hasta){
   };
 }
 
+// ── Costo del dinero en pesos ───────────────────────────────────────────────
+// El mapa del tramo corto: lo que cuesta fondearse a un día, lo que se prestan
+// los bancos entre sí, la TAMAR y lo que rinde la letra más corta que cotiza.
+// Las cuatro en TNA, que es la unidad en la que se operan, así que van juntas.
+//
+// De dónde sale cada una, que acá importa: BYMA publica la rueda de cauciones
+// del día y nada de historia. El BCRA sí publica el mismo mercado —pases entre
+// terceros a un día, diario desde 2008— y las dos cotizan pegadas: el 11/09 el
+// BCRA marcó 20,21% y la caución de BYMA, 20,80%. Eso sale con dos días de
+// rezago, y la nota del gráfico lo dice.
+const DINERO_ID_PASES=150, DINERO_ID_BAIBAR=146;
+const DINERO_NOTA='Caución 1d: pases entre terceros del BCRA, el mismo mercado, con dos ruedas de rezago';
+const DINERO_SERIES=[
+  {l:'Caución 1d',  c:'#22d3ee'},
+  {l:'BAIBAR',      c:'#94a3b8'},
+  {l:'TAMAR',       c:'#38bdf8'},
+  {l:'LECAP ~30d',  c:'#fbbf24'},
+];
+
+// Serie diaria del BCRA por id. El Worker acepta cualquier id numérico, así que
+// sumar una serie es sumar un número: no hay que redeployar nada.
+const _bcraCache=new Map();
+async function bcraSerieDiaria(id,desde){
+  const clave=id+'|'+desde;
+  const hit=_bcraCache.get(clave);
+  if(hit&&Date.now()-hit.ts<6*60*60*1000)return hit.data;
+  const m=new Map();
+  try{
+    for(let offset=0;offset<=15000;offset+=3000){
+      const res=await fetch(`${WORKER_URL}?id=${id}&desde=${desde}&limit=3000&offset=${offset}`,
+        {signal:AbortSignal.timeout(20000)});
+      if(!res.ok)throw new Error('BCRA HTTP '+res.status);
+      const j=await res.json();
+      const det=(j.results&&j.results[0]&&j.results[0].detalle)||[];
+      for(const x of det){
+        const f=String((x&&x.fecha)||'').slice(0,10),v=+((x||{}).valor);
+        if(f&&isFinite(v))m.set(f,v);
+      }
+      if(det.length<3000)break;
+    }
+  }catch(e){console.warn('[bcra '+id+']',e.message);return m;}
+  if(m.size)_bcraCache.set(clave,{ts:Date.now(),data:m});
+  return m;
+}
+
+async function seriesTraerDinero(desde,hasta){
+  const[pases,baibar]=await Promise.all([
+    bcraSerieDiaria(DINERO_ID_PASES,desde),
+    bcraSerieDiaria(DINERO_ID_BAIBAR,desde),
+  ]);
+  if(!TAMAR_INDEX.length){try{await tamarFetchIndex();}catch(e){}}
+  const val=new Map(DINERO_SERIES.map(s=>[s.l,new Map()]));
+  const fechas=new Set();
+  const poner=(k,f,v)=>{
+    if(!f||f<desde||f>hasta||!isFinite(v)||!(v>0))return;
+    val.get(k).set(f,v);fechas.add(f);
+  };
+  for(const[f,v]of pases)poner('Caución 1d',f,v);
+  for(const[f,v]of baibar)poner('BAIBAR',f,v);
+  for(const t of TAMAR_INDEX||[])poner('TAMAR',t.fecha,t.valor);
+
+  // La letra de alrededor de un mes, no la más corta. A pocos días del
+  // vencimiento medio punto de precio mueve la tasa anualizada varios puntos, y
+  // esa línea era ruido, no nivel. Treinta días además es el plazo de la TAMAR,
+  // así que las dos se leen una contra otra sin corregir nada.
+  const DINERO_TENOR=30, DINERO_TENOR_MIN=10, DINERO_TENOR_MAX=60;
+  try{
+    const{data,error}=await supa.from('bond_price_snapshots')
+      .select('snapshot_date,tir,dias')
+      .eq('sector','TF').gte('snapshot_date',desde).lte('snapshot_date',hasta)
+      .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
+      .order('snapshot_date',{ascending:true});
+    if(error)throw error;
+    const cerca=new Map();
+    for(const r of data||[]){
+      if(r.tir==null||!(r.dias>=DINERO_TENOR_MIN)||r.dias>DINERO_TENOR_MAX)continue;
+      const d=Math.abs(r.dias-DINERO_TENOR);
+      const a=cerca.get(r.snapshot_date);
+      if(!a||d<a.d)cerca.set(r.snapshot_date,{d,tna:r.tir});
+    }
+    for(const[f,o]of cerca)poner('LECAP ~30d',f,o.tna);
+  }catch(e){console.warn('[dinero] letra de un mes:',e.message);}
+
+  const porBono=new Map();
+  for(const s of DINERO_SERIES){const m=val.get(s.l);if(m.size)porBono.set(s.l,m);}
+  return{
+    fechas:[...fechas].sort(),
+    porBono,
+    orden:DINERO_SERIES.map(s=>s.l).filter(l=>porBono.has(l)),
+    colores:new Map(DINERO_SERIES.map(s=>[s.l,s.c])),
+    nota:DINERO_NOTA,
+  };
+}
+
 function seriesToggle(sec,ticker){
   const st=seriesEstado[sec];
   const todos=[...st.cache.porBono.keys()];
@@ -15466,7 +15563,8 @@ function seriesDibujar(sec,error){
   const puntos=vis.reduce((n,t)=>n+porBono.get(t).size,0);
   if(msg)msg.textContent=esFwd
     ? `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length} combinaci${vis.length===1?'ón':'ones'} · ${puntos} puntos`
-    : `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length}/${tickers.length} ${unidades?'series':'bonos'} · ${puntos} puntos`;
+    : `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length}/${tickers.length} ${unidades||st.cache.nota?'series':'bonos'} · ${puntos} puntos`
+      + (st.cache.nota?` · ${st.cache.nota}`:'');
   if(!vis.length)return;
 
   const etiquetas=fechas.map(curvasFmtDate);

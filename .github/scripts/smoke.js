@@ -515,6 +515,70 @@ const omitir = (label, motivo) =>
   check(fxFwd.antes !== 'FX' && fxFwd.despues !== 'FX',
         'usd: monedas no es elegible en forwards', JSON.stringify(fxFwd));
 
+  // Dinero: el costo de fondearse en pesos, que hasta ahora no estaba en
+  // ninguna serie. La caución sale de los pases entre terceros del BCRA porque
+  // BYMA publica la rueda del día y nada de historia.
+  console.log('\nSeries de pesos: Dinero');
+  const din = await page.evaluate(async () => {
+    switchSection('pesos'); switchTab('series-ars');
+    await new Promise(r => setTimeout(r, 2000));
+    const d1 = document.getElementById('series-ars-d1');
+    if (d1) d1.value = '2026-03-01';
+    seriesSetSector('ars', 'DINERO');
+    await new Promise(r => setTimeout(r, 14000));
+    const st = seriesEstado.ars, ch = st.chart;
+    const claves = [...st.cache.porBono.keys()];
+    const par = (a, b) => {
+      const ma = st.cache.porBono.get(a), mb = st.cache.porBono.get(b);
+      if (!ma || !mb) return null;
+      const d = [...ma.keys()].filter(f => mb.has(f)).map(f => Math.abs(ma.get(f) - mb.get(f)));
+      if (!d.length) return null;
+      d.sort((x, y) => x - y);
+      return d[Math.floor(d.length / 2)];
+    };
+    return {
+      claves, ruedas: st.cache.fechas.length,
+      cobertura: Object.fromEntries(claves.map(k => [k, st.cache.porBono.get(k).size])),
+      // Caución y BAIBAR son el mismo dinero a un día: tienen que ir pegadas.
+      difCauBaibar: par('Caución 1d', 'BAIBAR'),
+      ejeY: ch ? ch.options.scales.y.title.text : null,
+      tipoX: ch ? (ch.options.scales.x.type || 'category') : null,
+      panel2: (document.getElementById('series-ars-wrap2') || {}).style.display,
+      nota: st.cache.nota || '',
+      msg: (document.getElementById('series-ars-msg') || {}).textContent || '',
+      positivas: claves.every(k => [...st.cache.porBono.get(k).values()].every(v => v > 0 && v < 300)),
+    };
+  });
+  if (!din.ruedas) {
+    omitir('series de dinero', 'el BCRA no devolvió las series ahora');
+  } else {
+    check(din.claves.length === 4, 'las cuatro series del costo del dinero', din.claves.join(', '));
+    check(din.positivas, 'todas las tasas son plausibles', JSON.stringify(din.cobertura));
+    check(din.difCauBaibar != null && din.difCauBaibar < 2,
+          'caución y BAIBAR van pegadas: es el mismo dinero a un día',
+          din.difCauBaibar + ' puntos de diferencia mediana');
+    check(/TNA/.test(din.ejeY) && din.tipoX === 'category' && din.panel2 === 'none',
+          'una sola unidad, un solo panel', din.ejeY + ' · ' + din.tipoX + ' · panel2 ' + din.panel2);
+    check(din.nota && din.msg.indexOf(din.nota) >= 0,
+          'la nota dice de dónde sale la caución', din.nota.slice(0, 60));
+  }
+
+  // El dinero no es un bono con duración: en forwards no se puede elegir.
+  const dinFwd = await page.evaluate(async () => {
+    seriesSetModo('ars', 'fwd');
+    await new Promise(r => setTimeout(r, 2500));
+    const antes = seriesEstado.ars.sector;
+    seriesSetSector('ars', 'DINERO');
+    await new Promise(r => setTimeout(r, 500));
+    const despues = seriesEstado.ars.sector;
+    seriesSetModo('ars', 'tasas');
+    await new Promise(r => setTimeout(r, 2500));
+    return { antes, despues };
+  });
+  check(dinFwd.antes !== 'DINERO' && dinFwd.despues !== 'DINERO',
+        'dinero no es elegible en forwards', JSON.stringify(dinFwd));
+
+
   console.log('\nForwards históricos');
   for (const [sec, tab, ir] of [
     ['ars', 'series-ars', 'switchTab'],
