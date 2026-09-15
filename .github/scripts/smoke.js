@@ -124,7 +124,10 @@ const omitir = (label, motivo) =>
     usdCurrency = 'Cable'; await usdRefreshPrices();
     const cable = foto();
     const tickers = Object.keys(mep).filter(t => cable[t] != null);
-    const estable = tickers.filter(t => Math.abs(mep[t] / cable[t] - 1) < 0.001).length;
+    // Tolerancia de 1%: las dos fotos son dos pedidos distintos y durante la
+    // rueda los precios se mueven entre uno y otro. El spread MEP/cable ronda el
+    // 4%, así que sigue distinguiendo "misma base" de "se archivó el cable".
+    const estable = tickers.filter(t => Math.abs(mep[t] / cable[t] - 1) < 0.01).length;
     const bajo = todos().filter(b => b.lastPrecio != null && b.lastPrecioMEP != null
       && b.lastPrecio < b.lastPrecioMEP * 0.999).length;
     const fila = curvasSnapshotFromMemory('GLO').find(r => cable[r.ticker] != null);
@@ -422,6 +425,16 @@ const omitir = (label, motivo) =>
           canje = v('Canje'), brecha = v('Brecha');
     const ambos = paneles();
     const ejeY = st.chart ? st.chart.options.scales.y.title.text : '';
+    const pts = st.cache.puntos || [];
+    const dsBE = st.chart && st.chart.data.datasets.find(dd => /BE/.test(dd.label));
+    const ultimo = pts.length ? parseDate(pts[pts.length - 1].vcto).getTime() : null;
+    const grafico = {
+      tipoBE: dsBE ? dsBE.type : null,
+      ejeTipo: st.chart ? st.chart.options.scales.x.type : null,
+      enVcto: !!(dsBE && pts.length && dsBE.data.every((q, j) =>
+        q.x === parseDate(pts[j].vcto).getTime() && q.ticker === pts[j].ticker)),
+      llegaAlUltimo: !!(st.chart && ultimo && st.chart.options.scales.x.max >= ultimo),
+    };
     // Sólo niveles
     seriesTodos('usd', false);
     ['A3500', 'MEP', 'Cable', 'Banda inf.', 'Banda sup.'].forEach(t => seriesToggle('usd', t));
@@ -432,27 +445,23 @@ const omitir = (label, motivo) =>
     ['Canje', 'Brecha'].forEach(t => seriesToggle('usd', t));
     await new Promise(r => setTimeout(r, 600));
     const soloPct = paneles();
-    // Un breakeven contra su aritmética, en la última rueda que lo tenga
+    // Un breakeven contra su aritmética. Cada punto trae el precio y el MEP con
+    // los que se calculó, que pueden ser los de hoy o los del último cierre.
     let bePrueba = null;
-    for (const k of be) {
-      const m = st.cache.porBono.get(k);
-      const fb = [...m.keys()].sort().pop();
-      const t = k.slice(3), bo = LECAPS.find(x => x.ticker === t);
-      const mepB = v('MEP', fb);
-      if (!bo || !mepB) continue;
-      const { data } = await supa.from('bond_price_snapshots')
-        .select('price').eq('sector', 'TF').eq('ticker', t).eq('snapshot_date', fb);
-      const px = data && data[0] && data[0].price;
-      if (!(px > 0)) continue;
+    for (const x of pts) {
+      const bo = LECAPS.find(b => b.ticker === x.ticker);
+      if (!bo) continue;
       const vf = calcVF(bo.tem_emision, parseDate(bo.emision), parseDate(bo.vcto));
-      bePrueba = { k, fb, be: m.get(fb), esperado: mepB * vf / px };
+      bePrueba = { t: x.ticker, be: x.be, esperado: x.mep * vf / x.precio,
+                   vence: x.vcto > fmtDate(TODAY) };
       break;
     }
     return { claves, be: be.length, f, mep, cable, of, canje, brecha,
+      nPuntos: pts.length, ...grafico,
+      vivas: pts.every(x => x.vcto > fmtDate(TODAY)),
       canjeOk: mep && cable && canje != null ? Math.abs((cable / mep - 1) * 100 - canje) < 1e-9 : null,
       brechaOk: mep && of && brecha != null ? Math.abs((mep / of - 1) * 100 - brecha) < 1e-9 : null,
       ambos, soloNivel, soloPct, bePrueba, ejeY,
-      apagados: be.every(k => ambos.ds1 == null || !ambos.ds1.includes(k)),
     };
   });
   if (!fx.claves.length) {
@@ -475,10 +484,17 @@ const omitir = (label, motivo) =>
     check(!fx.soloPct.p1 && fx.soloPct.p2, 'usd: sólo porcentajes deja un panel',
           JSON.stringify(fx.soloPct));
     check(/\$/.test(fx.ejeY), 'usd: el panel de niveles se mide en pesos', fx.ejeY);
-    if (!fx.be) {
-      omitir('usd: breakeven de las LECAPs', 'no hay histórico de tasa fija en el rango');
+    check(fx.ejeTipo === 'linear', 'usd: el panel de niveles va por fecha, no por rueda',
+          String(fx.ejeTipo));
+    if (!fx.nPuntos) {
+      omitir('usd: breakeven de las letras', 'ninguna LECAP tiene precio ahora');
     } else {
-      check(fx.apagados, 'usd: los breakeven arrancan apagados', `${fx.be} LECAPs`);
+      check(fx.be === 1 && fx.tipoBE === 'scatter',
+            'usd: los breakeven son una nube de puntos, no una serie por letra',
+            `${fx.be} serie · ${fx.nPuntos} puntos · ${fx.tipoBE}`);
+      check(fx.vivas, 'usd: sólo entran letras que no vencieron');
+      check(fx.enVcto, 'usd: cada punto cae en el vencimiento de su letra');
+      check(fx.llegaAlUltimo, 'usd: el eje llega hasta el último vencimiento');
       check(fx.bePrueba && Math.abs(fx.bePrueba.be - fx.bePrueba.esperado) < 1e-6,
             'usd: el breakeven es MEP por VF sobre precio', JSON.stringify(fx.bePrueba));
     }

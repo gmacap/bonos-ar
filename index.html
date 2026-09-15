@@ -14952,9 +14952,7 @@ async function seriesCargar(sec){
       st.cache=st.sector==='SLEG' ? await seriesTraerSpread(desde,hasta)
              : st.sector==='FX'   ? await seriesTraerFX(desde,hasta)
              : await seriesTraerSector(st.sector,desde,hasta);
-      // Al cambiar el rango arrancan todos seleccionados, salvo que la serie
-      // traiga su propio arranque porque son demasiadas para prenderlas juntas.
-      st.filtro=st.cache.filtroInicial?new Set(st.cache.filtroInicial):null;
+      st.filtro=null;   // al cambiar el rango, arrancan todos seleccionados
     }
     seriesDibujar(sec);
   }catch(e){
@@ -15071,56 +15069,78 @@ async function seriesHist912(sym){
   return m;
 }
 
-// LECAPs medidas al MEP: el dólar al que habría que poder comprar el día del
-// vencimiento para que comprar la letra hoy y quedarse en dólares den lo mismo.
+// LECAPs medidas al MEP: un punto por letra, en su vencimiento.
 //
-//   BE(t) = MEP(t) × VF / precio(t)
+//   BE = MEP de hoy × VF / precio de hoy
 //
-// Es el mismo breakeven que dibuja la solapa del dólar proyectado, pero contra
-// el MEP en vez del A3500 y rueda por rueda en lugar de sólo hoy: así se ve
-// cómo se movió el dólar que la curva de tasa fija viene descontando.
+// Es el dólar al que habría que poder comprar el día que vence la letra para
+// que comprarla hoy y quedarse en dólares den lo mismo. Por encima de ese valor
+// convenía el dólar; por debajo, la letra. Un punto, no una serie: la pregunta
+// es qué descuenta la curva HOY para cada vencimiento, no cómo se movió eso.
 //
-// El VF sale de la definición del bono y no depende de la fecha, así que se
-// calcula una vez. Los precios salen del mismo histórico que alimenta Curvas,
-// con el mismo corte de los últimos días antes del vencimiento: a tres días del
-// pago el breakeven se vuelve aritmética de dividir por un plazo que tiende a
-// cero.
-async function seriesLecapBE(desde,hasta,mepPorFecha){
-  if(typeof LECAPS==='undefined'||!LECAPS.length||!mepPorFecha.size)return[];
-  const def=new Map();
-  for(const b of LECAPS||[]){
+// Sale de los precios en vivo, los mismos que ves en la tabla de tasa fija, y
+// del VF que surge de la definición del bono. Las letras ya vencidas no entran.
+//
+// Fuera de la rueda hay letras sin precio en vivo —data912 deja de listarlas—,
+// y ahí se usa su último cierre guardado. En ese caso el MEP también es el de
+// esa misma rueda: mezclar el MEP de hoy con un precio de ayer daría un
+// breakeven que nadie pudo operar nunca.
+function seriesLecapBEHoy(mepHoy,cierres,mepDe){
+  if(typeof LECAPS==='undefined'||!LECAPS.length)return[];
+  const hoy=fmtDate(TODAY);
+  const out=[];
+  for(const b of LECAPS){
     if(!b||!b.ticker||!b.vcto||!b.emision||!(b.tem_emision>0))continue;
+    const vcto=String(b.vcto).slice(0,10);
+    if(vcto<=hoy)continue;
+    let precio=b.precio>0?b.precio:null, mep=b.precio>0?mepHoy:null, cierre=null;
+    if(!(precio>0)&&cierres){
+      const c=cierres.get(b.ticker);
+      const m=c?mepDe(c.fecha):null;
+      if(c&&c.price>0&&m>0){precio=c.price;mep=m;cierre=c.fecha;}
+    }
+    if(!(precio>0)||!(mep>0))continue;
     let vf=null;
-    try{vf=calcVF(b.tem_emision,parseDate(b.emision),parseDate(b.vcto));}catch(e){}
-    if(vf>0)def.set(b.ticker,{vf,vcto:String(b.vcto).slice(0,10)});
+    try{vf=calcVF(b.tem_emision,parseDate(b.emision),parseDate(vcto));}catch(e){}
+    if(!(vf>0))continue;
+    const be=mep*vf/precio;
+    if(!isFinite(be)||be<=0)continue;
+    out.push({ticker:b.ticker,vcto,be,dev:(be/mep-1)*100,precio,mep,cierre});
   }
-  if(!def.size)return[];
+  return out.sort((a,b)=>a.vcto.localeCompare(b.vcto));
+}
+
+// Último cierre guardado de cada letra, para las que hoy no cotizan. Sólo
+// cuentan las ruedas que además tengan MEP: el par precio/MEP tiene que ser del
+// mismo día. La rueda de hoy suele tener snapshot antes de que data912 publique
+// su cierre, y ese caso hay que descartarlo, no emparejarlo con el MEP de ayer.
+async function seriesLecapCierres(mepDe){
+  // Días de calendario, no hábiles: addHabiles sólo cuenta hacia adelante y con
+  // un n negativo devuelve el mismo día, así que el rango quedaba vacío.
+  const d0=new Date(TODAY);d0.setDate(d0.getDate()-15);
+  const desde=fmtDate(d0);
   const{data,error}=await supa.from('bond_price_snapshots')
     .select('snapshot_date,ticker,price')
-    .eq('sector','TF').gte('snapshot_date',desde).lte('snapshot_date',hasta)
-    .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
+    .eq('sector','TF').gte('snapshot_date',desde)
     .order('snapshot_date',{ascending:true});
   if(error)throw error;
-  const porBono=new Map();
-  for(const r of data||[]){
-    const d=def.get(r.ticker);
-    if(!d||!(r.price>0))continue;
-    const mep=mepPorFecha.get(r.snapshot_date);
-    if(!(mep>0))continue;
-    const be=mep*d.vf/r.price;
-    if(!isFinite(be)||be<=0)continue;
-    if(!porBono.has(r.ticker))porBono.set(r.ticker,{vcto:d.vcto,serie:new Map()});
-    porBono.get(r.ticker).serie.set(r.snapshot_date,be);
-  }
-  const lista=[...porBono.entries()].sort((a,b)=>a[1].vcto.localeCompare(b[1].vcto));
-  // Familia aparte a propósito: menos saturadas que las cinco monedas, para que
-  // se lean como un grupo y no compitan con el MEP y el cable.
-  return lista.map(([t,o],i)=>({
-    l:'BE '+t,
-    c:`hsl(${Math.round(i*360/Math.max(lista.length,1))},45%,58%)`,
-    u:'$',
-    serie:o.serie,
-  }));
+  const m=new Map();
+  for(const r of data||[])
+    if(r.price>0&&mepDe(r.snapshot_date)>0)m.set(r.ticker,{fecha:r.snapshot_date,price:r.price});
+  return m;
+}
+
+// El MEP de hoy para medir las letras: el vivo si el mercado está operando, y
+// si no el último cierre que haya. No se limita al rango del gráfico: mirar
+// abril no cambia a qué dólar cotiza la letra hoy.
+async function seriesMepHoy(ars,d){
+  try{
+    const{map}=await usdFetchPriceMap();
+    if(map&&map['AL30']>0&&map['AL30D']>0)return map['AL30']/map['AL30D'];
+  }catch(e){}
+  const comunes=[...ars.keys()].filter(f=>d.get(f)>0).sort();
+  const f=comunes[comunes.length-1];
+  return f?ars.get(f)/d.get(f):null;
 }
 
 async function seriesTraerFX(desde,hasta){
@@ -15159,11 +15179,26 @@ async function seriesTraerFX(desde,hasta){
   }
   const porBono=new Map();
   for(const s of FX_SERIES){const m=val.get(s.l);if(m.size)porBono.set(s.l,m);}
-  // Las monedas siempre; los breakeven de las LECAPs se suman si hay histórico.
-  let lecaps=[];
-  try{lecaps=await seriesLecapBE(desde,hasta,val.get('MEP'));}catch(e){console.warn('[fx] lecaps:',e.message);}
-  for(const x of lecaps)if(x.serie.size)porBono.set(x.l,x.serie);
-  const todas=FX_SERIES.concat(lecaps);
+
+  // Los breakeven de las letras: un punto por vencimiento, con la tasa de hoy.
+  // Van en el mismo panel que el MEP y el cable porque son un dólar, y a la
+  // derecha de todo porque sus fechas son futuras.
+  const BE_L='BE letras';
+  const etiquetasPunto=new Map();
+  let puntos=[];
+  try{
+    const mepHoy=await seriesMepHoy(ars,d);
+    const mepDe=f=>{const a=ars.get(f),b=d.get(f);return a>0&&b>0?a/b:null;};
+    let cierres=null;
+    try{cierres=await seriesLecapCierres(mepDe);}catch(e){console.warn('[fx] cierres:',e.message);}
+    puntos=seriesLecapBEHoy(mepHoy,cierres,mepDe);
+  }catch(e){console.warn('[fx] breakeven de letras:',e.message);}
+  if(puntos.length){
+    const m=new Map();
+    for(const x of puntos){m.set(x.vcto,x.be);etiquetasPunto.set(x.vcto,x.ticker);}
+    porBono.set(BE_L,m);
+  }
+  const todas=FX_SERIES.concat(puntos.length?[{l:BE_L,c:'#fbbf24',u:'$'}]:[]);
   return{
     fechas:[...fechas].sort(),
     porBono,
@@ -15171,9 +15206,11 @@ async function seriesTraerFX(desde,hasta){
     unidades:new Map(todas.map(s=>[s.l,s.u])),
     colores:new Map(todas.map(s=>[s.l,s.c])),
     trazos:new Map(todas.filter(s=>s.dash).map(s=>[s.l,s.dash])),
-    // Veinte breakeven prendidos de entrada tapan el gráfico. Arrancan apagados
-    // y se prenden con su chip, que es lo mismo que hace el resto de la solapa.
-    filtroInicial:FX_SERIES.map(s=>s.l).filter(l=>porBono.has(l)),
+    // Los breakeven son nubes de puntos, no líneas: cada uno vive en su propio
+    // vencimiento y no hay nada que unir entre uno y el siguiente.
+    dispersion:new Set(puntos.length?[BE_L]:[]),
+    etiquetasPunto,
+    puntos,
   };
 }
 
@@ -15214,6 +15251,8 @@ function seriesDibujar(sec,error){
   const unidades=!esFwd&&st.cache.unidades?st.cache.unidades:null;
   const paleta=!esFwd&&st.cache.colores?st.cache.colores:null;
   const trazos=!esFwd&&st.cache.trazos?st.cache.trazos:null;
+  const dispersion=!esFwd&&st.cache.dispersion?st.cache.dispersion:null;
+  const etqPunto=!esFwd&&st.cache.etiquetasPunto?st.cache.etiquetasPunto:null;
   const tickers=esFwd?[...porBono.keys()]
     :orden?orden.filter(t=>porBono.has(t))
     :ordenarPorVencimiento([...porBono.keys()]);
@@ -15265,13 +15304,32 @@ function seriesDibujar(sec,error){
   if(!vis.length)return;
 
   const etiquetas=fechas.map(curvasFmtDate);
+  // Las monedas van por fecha real, no por categoría: los breakeven de las
+  // letras caen en vencimientos futuros, que no son ninguna de las ruedas del
+  // rango. Con un eje de categorías no habría dónde ponerlos.
+  const tiempo=!!unidades;
+  const ts=f=>parseDate(f).getTime();
   const dsDe=t=>{
     const i=tickers.indexOf(t), col=colDe(t,i);
     const serie=porBono.get(t);
     const punteada=trazos&&trazos.get(t);
+    if(dispersion&&dispersion.has(t)){
+      const pts=[...serie.entries()].sort((a,b)=>a[0].localeCompare(b[0]))
+        .map(([f,v])=>({x:ts(f),y:+v.toFixed(4),ticker:(etqPunto&&etqPunto.get(f))||''}));
+      return{
+        label:t, type:'scatter', data:pts, showLine:false,
+        backgroundColor:col, borderColor:col, borderWidth:1,
+        pointRadius:5, pointHoverRadius:8,
+        datalabels:{display:true,formatter:(_,c)=>(pts[c.dataIndex]||{}).ticker||'',
+          color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},
+          anchor:'end',align:'top',offset:4},
+      };
+    }
     return{
       label:t,
-      data:fechas.map(f=>serie.has(f)?+serie.get(f).toFixed(4):null),
+      data:tiempo
+        ?fechas.map(f=>({x:ts(f),y:serie.has(f)?+serie.get(f).toFixed(4):null}))
+        :fechas.map(f=>serie.has(f)?+serie.get(f).toFixed(4):null),
       borderColor:col, backgroundColor:col,
       pointBackgroundColor:col, pointBorderColor:col,
       borderWidth:1.8, pointRadius:punteada?0:(fechas.length>40?0:3), pointHoverRadius:5,
@@ -15289,25 +15347,35 @@ function seriesDibujar(sec,error){
   // Config completa de un panel. Va factorizada porque las monedas dibujan dos,
   // y dos objetos de opciones que hay que mantener iguales a mano se
   // desincronizan el día que alguien toca uno solo.
-  const armar=(cv,ds,tituloY,esPesos,ejeX)=>new Chart(cv,{
+  const armar=(cv,ds,tituloY,esPesos,ejeX,xMax)=>new Chart(cv,{
     type:'line',
-    data:{labels:etiquetas,datasets:ds},
+    data:tiempo?{datasets:ds}:{labels:etiquetas,datasets:ds},
     options:{
       responsive:true,maintainAspectRatio:false,animation:{duration:200},
       interaction:{mode:'nearest',axis:'x',intersect:false},
       plugins:{
         legend:{display:ds.length<=12,labels:{color:textColor,font:{size:10},boxWidth:12,padding:10}},
         datalabels:{display:false},
-        tooltip:{callbacks:{label:i=>{
-          const v=i.parsed.y;
-          if(esPesos)return `${i.dataset.label} — ${v!=null?'$'+v.toFixed(2):'—'}`;
-          return `${i.dataset.label} — ${v!=null?v.toFixed(2):'—'}%`;
-        }}},
+        tooltip:{callbacks:{
+          title:tiempo?(c=>c.length?curvasFmtDate(fmtDate(new Date(c[0].parsed.x))):''):undefined,
+          label:i=>{
+            const v=i.parsed.y, p=i.raw;
+            const quien=p&&p.ticker?`${p.ticker} · ${i.dataset.label}`:i.dataset.label;
+            if(esPesos)return `${quien} — ${v!=null?'$'+v.toFixed(2):'—'}`;
+            return `${quien} — ${v!=null?v.toFixed(2):'—'}%`;
+          }}},
       },
       scales:{
-        x:{title:{display:ejeX,text:'Fecha',color:textColor,font:{size:10}},
-           grid:{color:gridColor},
-           ticks:{display:ejeX,color:textColor,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:12}},
+        x:tiempo
+          ?{type:'linear',min:ts(fechas[0]),max:xMax,
+            title:{display:ejeX,text:'Fecha',color:textColor,font:{size:10}},
+            grid:{color:gridColor},
+            ticks:{display:ejeX,color:textColor,font:{size:10},maxRotation:0,
+              autoSkip:true,maxTicksLimit:12,
+              callback:v=>curvasFmtDate(fmtDate(new Date(v)))}}
+          :{title:{display:ejeX,text:'Fecha',color:textColor,font:{size:10}},
+            grid:{color:gridColor},
+            ticks:{display:ejeX,color:textColor,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:12}},
         y:{title:{display:true,text:tituloY,color:textColor,font:{size:10}},
            grid:{color:gridColor},
            ticks:{color:textColor,font:{size:10},callback:esPesos?fmtPesos:fmtPct}},
@@ -15327,10 +15395,21 @@ function seriesDibujar(sec,error){
   const niveles=vis.filter(t=>uni(t)==='$');
   const pcts=vis.filter(t=>uni(t)!=='$');
   const hayDos=niveles.length>0&&pcts.length>0;
+  // Los dos paneles comparten el eje de fechas, y se estira hasta el último
+  // vencimiento con breakeven visible: si no, los puntos caen fuera del dibujo.
+  let xMax=ts(fechas[fechas.length-1]);
+  let hayPuntos=false;
+  if(dispersion)for(const t of vis){
+    if(!dispersion.has(t))continue;
+    for(const f of porBono.get(t).keys()){xMax=Math.max(xMax,ts(f));hayPuntos=true;}
+  }
+  // Aire a la derecha: el último vencimiento cae justo en el borde y su etiqueta
+  // queda cortada por la mitad.
+  if(hayPuntos)xMax+=Math.max(10,(xMax-ts(fechas[0]))*0.04);
   mostrar(wrap1,niveles.length>0);
   mostrar(wrap2,pcts.length>0);
-  if(niveles.length)st.chart=armar(canvas,niveles.map(dsDe),opt.y||'$ / USD',true,!hayDos);
-  if(pcts.length)st.chart2=armar(canvas2,pcts.map(dsDe),opt.y2||'%',false,true);
+  if(niveles.length)st.chart=armar(canvas,niveles.map(dsDe),opt.y||'$ / USD',true,!hayDos,xMax);
+  if(pcts.length)st.chart2=armar(canvas2,pcts.map(dsDe),opt.y2||'%',false,true,xMax);
 }
 
 // ══════════════════════════════════════════════════════════════ CURVAS USD
