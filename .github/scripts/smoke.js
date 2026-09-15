@@ -193,6 +193,76 @@ const omitir = (label, motivo) =>
       && supaSaveSharedKey.toString().indexOf(k + ':null') >= 0));
   check(noViaja, 'el libro no se sincroniza: es dato de mercado, no definición');
 
+  // Volumen en las series: barras bajo la línea de la tasa, con un solo bono
+  // elegido. Las columnas pueden no existir todavía en la tabla, así que la
+  // prueba simula el monto: lo que se verifica es el dibujo, no el dato.
+  const vol = await page.evaluate(async () => {
+    switchSection('pesos'); switchTab('series-ars');
+    await new Promise(r => setTimeout(r, 6000));
+    const st = seriesEstado.ars;
+    const ts = [...st.cache.porBono.keys()];
+    if (!ts.length) return { sinDatos: true };
+    const m = new Map();
+    st.cache.fechas.forEach((f, i) => m.set(f, 1e9 * (1 + (i % 5) / 4)));
+    st.cache.montos = new Map([[ts[0], m]]);
+    const barras = () => {
+      const d = st.chart && st.chart.data.datasets.find(x => x.type === 'bar');
+      return d ? d.data.filter(v => v != null).length : 0;
+    };
+    seriesVolumen = true;
+    seriesTodos('ars', false); seriesToggle('ars', ts[0]);
+    await new Promise(r => setTimeout(r, 700));
+    const uno = barras();
+    const tope = st.chart.scales.yv ? st.chart.scales.yv.max : null;
+    const mayor = Math.max(...[...m.values()]);
+    const ejeTasa = st.chart.scales.y.max;
+    if (ts[1]) seriesToggle('ars', ts[1]);
+    await new Promise(r => setTimeout(r, 700));
+    const dos = barras();
+    seriesTodos('ars', false); seriesToggle('ars', ts[0]);
+    await new Promise(r => setTimeout(r, 500));
+    seriesToggleVolumen();
+    await new Promise(r => setTimeout(r, 500));
+    const apagado = barras();
+    seriesToggleVolumen();
+    await new Promise(r => setTimeout(r, 500));
+    // Se deja como estaba: el monto simulado y el filtro no pueden quedar
+    // puestos para las pruebas que vienen después.
+    st.cache.montos = new Map();
+    seriesTodos('ars', true);
+    await new Promise(r => setTimeout(r, 500));
+    return { uno, dos, apagado, tope, mayor, ejeTasa, ruedas: st.cache.fechas.length };
+  });
+  if (vol.sinDatos) {
+    omitir('volumen en las series', 'no hay ruedas en el rango ahora');
+  } else {
+    check(vol.uno > 0, 'con un bono elegido aparecen las barras de monto', vol.uno + ' barras');
+    check(vol.dos === 0, 'con dos bonos no: el monto de dos bonos no se compara en una escala');
+    check(vol.apagado === 0, 'el botón de volumen las saca');
+    check(vol.tope != null && Math.abs(vol.tope - vol.mayor * 4) < 1,
+          'el eje del volumen se estira a cuatro veces la barra más alta',
+          vol.tope + ' vs ' + vol.mayor);
+  }
+
+  // Las páginas de pantalla completa descontaban un encabezado más chico que el
+  // real y se pasaban del borde inferior. Con barras eso tapaba su base.
+  const altos = [];
+  for (const [sec, tab, id] of [
+    ['pesos', 'series-ars', 'page-series-ars'], ['usd', 'usd-series', 'page-usd-series'],
+    ['pesos', 'curvas-ars', 'page-curvas-ars'], ['usd', 'usd-curvas', 'page-usd-curvas'],
+  ]) {
+    await page.evaluate(([s, t]) => { switchSection(s); (s === 'usd' ? switchUsdTab : switchTab)(t); }, [sec, tab]);
+    await page.waitForTimeout(1800);
+    const d = await page.evaluate(i => {
+      const e = document.getElementById(i).getBoundingClientRect();
+      return Math.round(e.bottom - window.innerHeight);
+    }, id);
+    altos.push({ id, d });
+  }
+  check(altos.every(a => a.d <= 0), 'las páginas de pantalla completa entran en la ventana',
+        altos.map(a => a.id.replace('page-', '') + ' ' + a.d).join(' · '));
+
+
 
   // El selector de moneda no puede tocar lo que se archiva. Viaja entre
   // dispositivos por SUPA_SHARED_KEYS y el bot del snapshot lo hereda: el
@@ -427,7 +497,8 @@ const omitir = (label, motivo) =>
         fechas: st.cache.fechas.length,
         bonos: st.cache.porBono.size,
         chips: chips ? chips.querySelectorAll('button').length : 0,
-        series: st.chart ? st.chart.data.datasets.length : -1,
+        // Las barras de volumen son un dataset más y no una línea por bono.
+        series: st.chart ? st.chart.data.datasets.filter(d => d.type !== 'bar').length : -1,
         ejeY: st.chart ? st.chart.options.scales.y.title.text : '',
         d1: d1 ? d1.value : '', d2: d2 ? d2.value : '',
       };
@@ -448,9 +519,10 @@ const omitir = (label, motivo) =>
       const st = seriesEstado[s];
       if (!st.chart || !st.cache.porBono.size) return { sinDatos: true };
       const t = [...st.cache.porBono.keys()].sort()[0];
-      const antes = st.chart.data.datasets.length;
+      const lineas = () => st.chart ? st.chart.data.datasets.filter(d => d.type !== 'bar').length : -1;
+      const antes = lineas();
       seriesToggle(s, t);
-      return { t, antes, despues: st.chart ? st.chart.data.datasets.length : -1 };
+      return { t, antes, despues: lineas() };
     }, sec);
     check(!tog.sinDatos && tog.despues === tog.antes - 1, `${sec}: destildar quita la línea`,
           tog.sinDatos ? 'sin ruedas: no se armó el gráfico' : `${tog.t}: ${tog.antes} → ${tog.despues}`);
