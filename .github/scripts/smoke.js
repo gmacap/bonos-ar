@@ -1682,6 +1682,46 @@ const omitir = (label, motivo) =>
   check(errores.length === antes, 'ninguna pestaña lanzó errores',
         errores.slice(antes).slice(0, 3).join(' | '));
 
+  // Los ajustes manuales tienen que sobrevivir a una recarga. Va último porque
+  // recarga la página de verdad y resetea el estado de todo lo anterior.
+  //
+  // Dos cosas los perdían. Los senderos manuales eran claves compartidas, y
+  // escribir en shared_data exige ser admin: para cualquier otra persona el
+  // ajuste quedaba sólo en localStorage y la hidratación siguiente lo pisaba
+  // con la copia compartida. Y aun cuando sobrevivía, nadie recalculaba después
+  // de la hidratación: el valor estaba guardado y no se veía.
+  console.log('\nProyecciones: los ajustes manuales sobreviven a la recarga');
+  const puesto = await page.evaluate(async () => {
+    const mes = proyMesAdd(proyMesHoy(), 3);
+    switchSection('pesos'); switchTab('proyecciones');
+    proySubtabGo('tamar'); proySetValor('tamar', mes, '77.7');
+    proySubtabGo('infla'); projSetInfla(mes, '8.88');
+    await new Promise(r => setTimeout(r, 800));
+    return { mes,
+      tamar: (PROJ_TAMAR.find(o => o.mes === mes) || {}).v,
+      infla: (PROJ_INFLA_MANUAL.find(o => o.mes === mes) || {}).v };
+  });
+  check(puesto.tamar === 77.7 && puesto.infla === 8.88,
+        'el ajuste manual entra en su almacén', JSON.stringify(puesto));
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof proySetValor === 'function', null, { timeout: 60000 });
+  await page.waitForTimeout(16000);
+  const tras = await page.evaluate(mes => ({
+    tamar: (PROJ_TAMAR.find(o => o.mes === mes) || {}).v,
+    infla: (PROJ_INFLA_MANUAL.find(o => o.mes === mes) || {}).v,
+    // Guardado no alcanza: tiene que estar aplicado en el sendero que se usa.
+    senderoTamar: (tamarSendero().mapa.get(mes) || {}).v,
+    senderoInfla: (PROJ_INFLACION.find(r => r.mes === mes) || {}).infla,
+    fuentes: { infla: PROJ_FUENTE.infla, tamar: PROJ_FUENTE.tamar },
+  }), puesto.mes);
+  check(tras.tamar === 77.7 && tras.infla === 8.88,
+        'el ajuste manual sigue guardado tras recargar', JSON.stringify(tras));
+  check(tras.senderoTamar === 77.7 && tras.senderoInfla === 8.88,
+        'y queda aplicado en el sendero, no sólo guardado', JSON.stringify(tras));
+  check(tras.fuentes.infla === 'manual' && tras.fuentes.tamar === 'manual',
+        'la fuente elegida también sobrevive', JSON.stringify(tras.fuentes));
+
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
   check(undef.length === 0, 'sin peticiones a /undefined', undef.join(', '));

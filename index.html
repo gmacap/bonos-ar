@@ -2593,10 +2593,16 @@ async function authAction(){
 }
 
 // ── SUPABASE DATA SYNC ────────────────────────────────────────────────────────
-// Keys que van a Supabase por usuario
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1'];
+// Keys que van a Supabase por usuario.
+//
+// Los senderos manuales de proyección viven acá y no en las compartidas. Son un
+// escenario propio, no una definición de bono que el equipo comparte, y escribir
+// en shared_data exige ser admin: para cualquier otra persona el ajuste se
+// guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
+// compartida. Había que volver a cargarlo en cada recarga de la página.
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1'];
 // Keys que van a Supabase compartidas
-const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
+const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
 async function supaLoadUserData(){
   if(!SUPA_USER)return;
@@ -2604,6 +2610,7 @@ async function supaLoadUserData(){
     const{data,error}=await supa.from('user_data').select('key,value').eq('user_id',SUPA_USER.id);
     if(error)throw error;
     data.forEach(row=>{
+      if(!SUPA_USER_KEYS.includes(row.key))return;
       try{_origSetItem(row.key,JSON.stringify(row.value));}catch(e){}
     });
   }catch(e){console.warn('supaLoadUserData:',e);}
@@ -2614,6 +2621,10 @@ async function supaLoadSharedData(){
     const{data,error}=await supa.from('shared_data').select('key,value');
     if(error)throw error;
     data.forEach(row=>{
+      // Sólo lo que hoy está declarado como compartido. Una key que dejó de
+      // serlo deja filas viejas en la tabla, y sin este filtro seguirían
+      // pisando el localStorage con un valor que ya no manda nadie.
+      if(!SUPA_SHARED_KEYS.includes(row.key))return;
       try{_origSetItem(row.key,JSON.stringify(row.value));}catch(e){}
     });
     // Reload all bond data from localStorage
@@ -2642,10 +2653,16 @@ async function supaLoadSharedData(){
     if(currentTab==='cer'){cerRenderTable();if(CER_INDEX.length)cerRenderTabChart();}
     if(currentTab==='tamar'){tamarRenderTable();if(TAMAR_INDEX.length)tamarRenderTabChart();}
     if(currentTab==='dlk'){DLK_DATA=DLK_BONDS.map(dlkEnrich);dlkRenderTable();}
+    // Los senderos se rearman desde lo que acaba de llegar. Sin esto, el sendero
+    // manual quedaba cargado en memoria y en localStorage pero PROJ_INFLACION
+    // seguía con los valores que trajo la hidratación: el ajuste estaba
+    // guardado y no se veía, que desde afuera es igual a haberlo perdido.
+    try{if(typeof projRecalc==='function')projRecalc();}catch(e){console.warn('[supa] projRecalc:',e.message);}
     if(currentTab==='breakeven') beInit();
     if(currentTab==='forwards') fwdRecalc();
     if(currentTab==='calendario') calInit();
     // Re-render current USD tab if visible
+    try{if(typeof proyRepropagar==='function')proyRepropagar();}catch(e){}
     if(currentTab==='usd'){
       if(currentUsdTab==='usd-bopreales'&&typeof bopRenderSummary==='function') bopRenderSummary();
       if(currentUsdTab==='usd-globales'&&typeof gloRenderSummary==='function') gloRenderSummary();
