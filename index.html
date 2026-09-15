@@ -3667,6 +3667,19 @@ function libroSpread(bid,ask){
 // se cotizan por cada 100 nominales, de ahí el /100. Los tickers en dólares se
 // pasan a pesos para que el corte del semáforo sea el mismo en las dos
 // secciones: comparar plata contra plata, no nominales de distinta lámina.
+// Se usa el último precio y no el VWAP, que sería lo correcto en teoría: el
+// volumen se operó a lo largo del día y no al cierre. Se evaluó y se descartó.
+//
+// El VWAP existe sólo en el panel public-bonds de BYMA, que hoy devuelve 189
+// ítems, todos soberanos hard dollar: no cubre LECAP, CER, TAMAR, DLK ni
+// BOPREAL. data912 no lo manda y el histórico de BYMA tampoco. Usarlo donde
+// está dejaría dos métodos distintos en la misma columna.
+//
+// Medido sobre los 86 bonos que hoy tienen las dos cosas, el error de usar el
+// último contra el VWAP real es 0,088% de mediana, 0,395% en el percentil 90 y
+// 2,10% en el peor caso. Los cortes del semáforo están en órdenes de magnitud
+// —mil millones y diez millones—, así que haría falta un error de cien veces
+// para cambiarle el color a un bono.
 function libroMonto(vol,precio,tcPesos){
   if(!(vol>0)||!(precio>0))return null;
   const m=vol*precio/100;
