@@ -124,7 +124,10 @@ const omitir = (label, motivo) =>
     usdCurrency = 'Cable'; await usdRefreshPrices();
     const cable = foto();
     const tickers = Object.keys(mep).filter(t => cable[t] != null);
-    const estable = tickers.filter(t => Math.abs(mep[t] / cable[t] - 1) < 0.001).length;
+    // Tolerancia de 1%: las dos fotos son dos pedidos distintos y durante la
+    // rueda los precios se mueven entre uno y otro. El spread MEP/cable ronda el
+    // 4%, así que sigue distinguiendo "misma base" de "se archivó el cable".
+    const estable = tickers.filter(t => Math.abs(mep[t] / cable[t] - 1) < 0.01).length;
     const bajo = todos().filter(b => b.lastPrecio != null && b.lastPrecioMEP != null
       && b.lastPrecio < b.lastPrecioMEP * 0.999).length;
     const fila = curvasSnapshotFromMemory('GLO').find(r => cable[r.ticker] != null);
