@@ -4473,6 +4473,7 @@ function switchSection(s){
 
 function switchUsdTab(tab){
   currentUsdTab=tab;
+  setTimeout(ajustarAltos,0);   // después de que la página se muestre
   USD_TABS.forEach(t=>{
     const b=document.getElementById('nav-'+t);
     if(b) b.classList.toggle('active', t===tab);
@@ -4491,6 +4492,7 @@ function switchUsdTab(tab){
 }
 
 function switchTab(tab){
+  setTimeout(ajustarAltos,0);
   currentTab=tab;
   document.querySelectorAll('.nav-tab:not(.disabled)').forEach(b=>{
     b.classList.toggle('active', b.id==='nav-'+tab);
@@ -14405,6 +14407,31 @@ let _curvasSnapRunning=false;
 // que tiende a cero. Quedaban cosas como D31L6 en −198% a un día del vencimiento
 // y TZV26 en +112%. Lo usan las dos rutas que escriben historia.
 const CURVAS_DIAS_MIN=4;
+
+// Las columnas de libro se agregaron después de las primeras 19.701 filas. Si
+// todavía no están, el upsert entero falla y se pierde la rueda completa, así
+// que se prueba una vez por sesión y si no están se mandan las filas sin ellas.
+// Lo que se archiva del libro: el monto tal cual y el spread derivado de las
+// dos puntas. Se calcula acá y no al leer, porque las puntas del cierre no se
+// guardan: lo que queda es el resultado.
+function curvasLibroDe(bid,ask,monto){
+  const sp=libroSpread(bid,ask);
+  const o={};
+  if(monto>0)o.monto=+(+monto).toFixed(2);
+  if(sp!=null)o.spread=+sp.toFixed(4);
+  return o;
+}
+
+let _curvasLibroOK=null;
+async function curvasSoportaLibro(){
+  if(_curvasLibroOK!=null)return _curvasLibroOK;
+  try{
+    const{error}=await supa.from('bond_price_snapshots').select('monto,spread').limit(1);
+    _curvasLibroOK=!error;
+    if(error)console.warn('[curvas] la tabla todavía no tiene monto/spread:',error.message);
+  }catch(e){_curvasLibroOK=false;}
+  return _curvasLibroOK;
+}
 function curvasDiasHasta(vto,liq){
   if(!vto)return null;
   const d=parseDate(String(vto).slice(0,10));
@@ -14465,7 +14492,8 @@ async function _curvasSnapshotTodayImpl(){
         b.lastPrecio=px;
         const r=usdResCalcRow(b,liq);
         if(r.tir==null||isNaN(r.tir)||r.md==null)return;
-        rows.push({snapshot_date:today,ticker:b.ticker,sector,price:+px.toFixed(4),tir:+r.tir.toFixed(6),md:+r.md.toFixed(4),dias:curvasDiasHasta(b.vencimiento,liq)});
+        rows.push({snapshot_date:today,ticker:b.ticker,sector,price:+px.toFixed(4),tir:+r.tir.toFixed(6),md:+r.md.toFixed(4),dias:curvasDiasHasta(b.vencimiento,liq),
+          ...curvasLibroDe(b.lastBid,b.lastAsk,b.lastMonto)});
       }catch(e){}
       finally{b.lastPrecio=bk;}
     });
@@ -14489,7 +14517,8 @@ async function _curvasSnapshotTodayImpl(){
         const e=enrich(b);
         if(!e||isNaN(e.tna)||!e.dias)return;
         const mdTF=(!isNaN(e.modDuration)&&e.modDuration>0)?+e.modDuration.toFixed(4):null;
-        rows.push({snapshot_date:today,ticker:b.ticker,sector:'TF',price:+b.precio.toFixed(4),tir:+e.tna.toFixed(6),md:mdTF,dias:e.dias});
+        rows.push({snapshot_date:today,ticker:b.ticker,sector:'TF',price:+b.precio.toFixed(4),tir:+e.tna.toFixed(6),md:mdTF,dias:e.dias,
+          ...curvasLibroDe(b.bid,b.ask,b.monto)});
       }catch(ex){}
     });
   }
@@ -14504,7 +14533,8 @@ async function _curvasSnapshotTodayImpl(){
         const e=cerEnrich(b);
         if(!e||isNaN(e.tir)||!e.dias)return;
         const mdCER=(!isNaN(e.modDuration)&&e.modDuration>0)?+e.modDuration.toFixed(4):null;
-        rows.push({snapshot_date:today,ticker:b.ticker,sector:'CER',price:+b.precio.toFixed(4),tir:+e.tir.toFixed(6),md:mdCER,dias:e.dias});
+        rows.push({snapshot_date:today,ticker:b.ticker,sector:'CER',price:+b.precio.toFixed(4),tir:+e.tir.toFixed(6),md:mdCER,dias:e.dias,
+          ...curvasLibroDe(b.bid,b.ask,b.monto)});
       }catch(ex){}
     });
   }
@@ -14518,7 +14548,8 @@ async function _curvasSnapshotTodayImpl(){
         const e=tamarEnrich(b);
         if(!e||isNaN(e.margenTNA)||!e.dias)return;
         const mdTAMAR=(!isNaN(e.modDuration)&&e.modDuration>0)?+e.modDuration.toFixed(4):null;
-        rows.push({snapshot_date:today,ticker:b.ticker,sector:'TAMAR',price:+b.precio.toFixed(4),tir:+e.margenTNA.toFixed(6),md:mdTAMAR,dias:e.dias});
+        rows.push({snapshot_date:today,ticker:b.ticker,sector:'TAMAR',price:+b.precio.toFixed(4),tir:+e.margenTNA.toFixed(6),md:mdTAMAR,dias:e.dias,
+          ...curvasLibroDe(b.bid,b.ask,b.monto)});
       }catch(ex){}
     });
   }
@@ -14532,7 +14563,8 @@ async function _curvasSnapshotTodayImpl(){
         const e=dlkEnrich(b);
         if(!e||e.tna==null||!e.dias)return;
         const mdDLK=(e.dias>0&&!isNaN(e.tna))?+(e.dias/365/(1+e.tna/100)).toFixed(4):null;
-        rows.push({snapshot_date:today,ticker:b.ticker,sector:'DLK',price:+b.precio.toFixed(4),tir:+e.tna.toFixed(6),md:mdDLK,dias:e.dias});
+        rows.push({snapshot_date:today,ticker:b.ticker,sector:'DLK',price:+b.precio.toFixed(4),tir:+e.tna.toFixed(6),md:mdDLK,dias:e.dias,
+          ...curvasLibroDe(b.bid,b.ask,b.monto)});
       }catch(ex){}
     });
   }
@@ -14546,6 +14578,8 @@ async function _curvasSnapshotTodayImpl(){
   }
   const ts=new Date().toISOString();
   const fallos=[];
+  if(!await curvasSoportaLibro())
+    for(const r of rows){delete r.monto;delete r.spread;}
   for(const[sector,sRows]of bySector){
     const deduped=[...new Map(sRows.map(r=>[r.ticker,r])).values()];
     try{
@@ -14925,6 +14959,7 @@ const SERIES_CFG={
 // Estado por sección. El filtro en null significa "todos".
 // chart2 es el panel de abajo: sólo lo usan las monedas, que mezclan niveles
 // de tipo de cambio con porcentajes y no se pueden leer sobre la misma regla.
+let seriesVolumen=true;   // barras de monto operado bajo la tasa
 const seriesEstado={
   ars:{sector:'TF',  modo:'tasas', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
   usd:{sector:'BON', modo:'tasas', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
@@ -15181,6 +15216,8 @@ async function seriesInit(sec){
     <div id="series-${sec}-todos" style="display:${modo==='fwd'?'none':'flex'};gap:4px;margin-left:4px">
       <button class="btn" style="padding:3px 8px;font-size:10px" onclick="seriesTodos('${sec}',true)">Todos</button>
       <button class="btn" style="padding:3px 8px;font-size:10px" onclick="seriesTodos('${sec}',false)">Ninguno</button>
+      <button class="btn" id="series-${sec}-vol" style="padding:3px 8px;font-size:10px" onclick="seriesToggleVolumen()"
+        title="Monto operado como barras, bajo la tasa. Se dibuja cuando queda un solo bono elegido.">volumen</button>
     </div>
     <div id="series-${sec}-msg" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:auto"></div>
   </div>
@@ -15204,6 +15241,8 @@ async function seriesInit(sec){
   </div>
   </div>`;
   seriesFwdAjustarSector(sec);
+  seriesPintarVolumen(sec);
+  ajustarAlto(cfg.pagina);
   seriesCargar(sec);
 }
 
@@ -15264,20 +15303,27 @@ async function seriesCargar(sec){
 
 // Serie normal: una línea por bono, con su tasa en cada rueda.
 async function seriesTraerSector(sector,desde,hasta){
+  // El monto se pide junto a la tasa. Si la tabla todavía no tiene la columna,
+  // la consulta falla entera, así que se prueba primero.
+  const conLibro=await curvasSoportaLibro();
   const{data,error}=await supa.from('bond_price_snapshots')
-    .select('snapshot_date,ticker,tir')
+    .select('snapshot_date,ticker,tir'+(conLibro?',monto':''))
     .eq('sector',sector).gte('snapshot_date',desde).lte('snapshot_date',hasta)
     .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
     .order('snapshot_date',{ascending:true});
   if(error)throw error;
   const fechas=[...new Set((data||[]).map(r=>r.snapshot_date))].sort();
-  const porBono=new Map();
+  const porBono=new Map(),montos=new Map();
   for(const r of data||[]){
     if(r.tir==null)continue;
     if(!porBono.has(r.ticker))porBono.set(r.ticker,new Map());
     porBono.get(r.ticker).set(r.snapshot_date,r.tir);
+    if(r.monto>0){
+      if(!montos.has(r.ticker))montos.set(r.ticker,new Map());
+      montos.get(r.ticker).set(r.snapshot_date,+r.monto);
+    }
   }
-  return{fechas,porBono};
+  return{fechas,porBono,montos};
 }
 
 // Spread de legislación: una línea por par Global/Bonar.
@@ -15617,6 +15663,34 @@ function seriesToggle(sec,ticker){
   seriesDibujar(sec);
 }
 
+// Las barras se dibujan sólo con un bono elegido: veinte series de barras
+// apiladas sobre las líneas no se leen, y el monto de dos bonos distintos no se
+// suma ni se compara en la misma escala.
+function seriesToggleVolumen(){
+  seriesVolumen=!seriesVolumen;
+  ['ars','usd'].forEach(s=>{seriesPintarVolumen(s);if(seriesEstado[s].chart)seriesDibujar(s);});
+}
+// Las páginas de pantalla completa descuentan 200px de encabezado, pero el
+// encabezado real mide 249: la página se pasaba 49px del borde inferior y lo que
+// quedaba abajo se cortaba. Con líneas apenas se notaba; con barras, que nacen
+// en cero, desaparecía la base. Se mide el alto que queda de verdad.
+function ajustarAlto(id){
+  const el=document.getElementById(id);
+  if(!el||el.style.display==='none')return;
+  const top=el.getBoundingClientRect().top;
+  if(top>0)el.style.height=Math.max(280,window.innerHeight-top-6)+'px';
+}
+const ALTO_COMPLETO=['page-series-ars','page-usd-series','page-curvas-ars','page-usd-curvas'];
+function ajustarAltos(){ALTO_COMPLETO.forEach(ajustarAlto);}
+window.addEventListener('resize',ajustarAltos);
+
+function seriesPintarVolumen(sec){
+  const b=document.getElementById(`series-${sec}-vol`);
+  if(!b)return;
+  b.style.color=seriesVolumen?'var(--accent2)':'';
+  b.style.borderColor=seriesVolumen?'var(--accent2)':'';
+}
+
 function seriesTodos(sec,activar){
   const st=seriesEstado[sec];
   st.filtro=activar?null:new Set();
@@ -15741,7 +15815,7 @@ function seriesDibujar(sec,error){
   // Config completa de un panel. Va factorizada porque las monedas dibujan dos,
   // y dos objetos de opciones que hay que mantener iguales a mano se
   // desincronizan el día que alguien toca uno solo.
-  const armar=(cv,ds,tituloY,esPesos,ejeX,xMax)=>new Chart(cv,{
+  const armar=(cv,ds,tituloY,esPesos,ejeX,xMax,topeVol)=>new Chart(cv,{
     type:'line',
     data:tiempo?{datasets:ds}:{labels:etiquetas,datasets:ds},
     options:{
@@ -15773,12 +15847,37 @@ function seriesDibujar(sec,error){
         y:{title:{display:true,text:tituloY,color:textColor,font:{size:10}},
            grid:{color:gridColor},
            ticks:{color:textColor,font:{size:10},callback:esPesos?fmtPesos:fmtPct}},
+        // Las barras viven en el cuarto de abajo: el máximo del eje se estira a
+        // cuatro veces el monto más grande, así el volumen se lee sin taparle
+        // el dibujo a la tasa, que es lo que se vino a mirar.
+        ...(topeVol?{yv:{position:'right',beginAtZero:true,max:topeVol,
+          grid:{display:false},
+          title:{display:true,text:'Monto operado',color:textColor,font:{size:10}},
+          ticks:{color:textColor,font:{size:9},callback:v=>libroMontoFmt(v)}}}:{}),
       },
     },
   });
 
   if(!unidades){
-    st.chart=armar(canvas,vis.map(dsDe),esFwd&&opt.yf?opt.yf:opt.y,false,true);
+    const ds=vis.map(dsDe);
+    // Volumen: barras del monto operado bajo la tasa, en su propio eje a la
+    // derecha. Sólo con un bono elegido, y sólo si ese bono tiene monto
+    // guardado: las ruedas anteriores a que existiera la columna van en null.
+    let topeVol=null;
+    if(seriesVolumen&&!esFwd&&vis.length===1&&st.cache.montos){
+      const m=st.cache.montos.get(vis[0]);
+      if(m&&m.size){
+        const barras=fechas.map(f=>m.has(f)?+m.get(f).toFixed(2):null);
+        const mayor=Math.max(...barras.filter(v=>v!=null));
+        // Cuatro veces la barra más alta: el volumen queda en el cuarto de
+        // abajo y la tasa, que es lo que se vino a mirar, se queda con el resto.
+        if(mayor>0)topeVol=mayor*4;
+        ds.push({label:'Monto operado',type:'bar',data:barras,yAxisID:'yv',
+          backgroundColor:'rgba(56,189,248,.22)',borderColor:'rgba(56,189,248,.45)',
+          borderWidth:1,order:99,datalabels:{display:false}});
+      }
+    }
+    st.chart=armar(canvas,ds,esFwd&&opt.yf?opt.yf:opt.y,false,true,null,topeVol);
     return;
   }
 
