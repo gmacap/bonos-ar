@@ -14617,8 +14617,9 @@ const SERIES_CFG={
       {v:'BON',  l:'Bonares',     c:'#d4a843', y:'TIR (%)', yf:'Forward TIR (%)'},
       {v:'GLO',  l:'Globales',    c:'#6baed6', y:'TIR (%)', yf:'Forward TIR (%)'},
       {v:'BOP',  l:'Bopreales',   c:'#74c4a0', y:'TIR (%)', yf:'Forward TIR (%)'},
-      // El spread no es una tasa con duración: no admite forwards.
+      // Ni el spread ni las monedas son tasas con duración: no admiten forwards.
       {v:'SLEG', l:'Spread Leg.', c:'#c9807a', y:'Spread de legislación (%)', fwd:false},
+      {v:'FX',   l:'Monedas',     c:'#e8b04b', y:'$ / USD', y2:'Canje y brecha (%)', fwd:false},
     ],
   },
 };
@@ -14755,7 +14756,7 @@ function seriesFwdAjustarSector(sec){
     el.disabled=bloqueado;
     el.style.opacity=bloqueado?'.35':'1';
     el.style.cursor=bloqueado?'not-allowed':'pointer';
-    el.title=bloqueado?'El spread no tiene duración: no se puede armar un forward':'';
+    el.title=bloqueado?`${o.l} no es una tasa con duración: no se puede armar un forward`:'';
   });
   const act=cfg.sectores.find(o=>o.v===st.sector);
   if(st.modo==='fwd'&&act&&act.fwd===false){
@@ -14941,9 +14942,9 @@ async function seriesCargar(sec){
       seriesFwdRenderControles(sec);
       st.cache=seriesFwdDerivar(sec);
     }else{
-      st.cache=st.sector==='SLEG'
-        ? await seriesTraerSpread(desde,hasta)
-        : await seriesTraerSector(st.sector,desde,hasta);
+      st.cache=st.sector==='SLEG' ? await seriesTraerSpread(desde,hasta)
+             : st.sector==='FX'   ? await seriesTraerFX(desde,hasta)
+             : await seriesTraerSector(st.sector,desde,hasta);
       st.filtro=null;   // al cambiar el rango, arrancan todos seleccionados
     }
     seriesDibujar(sec);
@@ -15000,6 +15001,87 @@ async function seriesTraerSpread(desde,hasta){
   return{fechas,porBono};
 }
 
+// ── Monedas ─────────────────────────────────────────────────────────────────
+// Cinco series que no salen del histórico de curvas, se arman en el momento:
+//
+//   A3500   mayorista del BCRA, la misma serie que valúa los dollar linked
+//   MEP     AL30 en pesos sobre AL30D
+//   Cable   AL30 en pesos sobre AL30C
+//   Canje   lo que cuesta pasar de MEP a cable: cable/MEP − 1
+//   Brecha  el MEP contra el oficial: MEP/A3500 − 1
+//
+// No se guardan en bond_price_snapshots a propósito. El BCRA tiene el A3500
+// desde 2003 y data912 el AL30 y sus especies desde 2021, así que la historia
+// entera se reconstruye en cada consulta sin costo. Archivarlas habría hecho
+// que la serie arrancara el día que se implementó esto.
+//
+// La reexpresión de las series históricas no molesta acá: MEP y cable son
+// cocientes entre dos especies del MISMO bono, que amortizan igual, así que
+// el factor se cancela. Por eso alcanza con los cierres tal como vienen.
+const FX_SERIES=[
+  {l:'A3500',  c:'#94a3b8', u:'$'},
+  {l:'MEP',    c:'#4ade80', u:'$'},
+  {l:'Cable',  c:'#a855f7', u:'$'},
+  {l:'Canje',  c:'#fbbf24', u:'%'},
+  {l:'Brecha', c:'#f87171', u:'%'},
+];
+const FX_HIST_TTL=6*60*60*1000;
+const _fxHist=new Map();
+
+// Cierres diarios de data912. Mismo proveedor que los precios en vivo: sin
+// proxy ni clave. Se cachea porque las tres especies se piden juntas y cambiar
+// el rango de fechas no cambia la serie que devuelve el proveedor.
+async function seriesHist912(sym){
+  const hit=_fxHist.get(sym);
+  if(hit&&Date.now()-hit.ts<FX_HIST_TTL)return hit.data;
+  const r=await fetch(`https://data912.com/historical/bonds/${sym}`,
+    {cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
+  if(!r.ok)throw new Error('data912 HTTP '+r.status);
+  const raw=await r.json();
+  const m=new Map();
+  for(const x of raw||[]){
+    const f=String((x&&x.date)||'').slice(0,10);
+    const c=+((x||{}).c);
+    if(f&&isFinite(c)&&c>0)m.set(f,c);
+  }
+  _fxHist.set(sym,{ts:Date.now(),data:m});
+  return m;
+}
+
+async function seriesTraerFX(desde,hasta){
+  if(!DLK_INDEX.length){try{await dlkFetchIndex();}catch(e){}}
+  const[ars,d,c]=await Promise.all([
+    seriesHist912('AL30'),seriesHist912('AL30D'),seriesHist912('AL30C')]);
+  const val=new Map(FX_SERIES.map(s=>[s.l,new Map()]));
+  const fechas=new Set();
+  const oficial=new Map();
+  for(const r of DLK_INDEX||[]){
+    if(!r||r.fecha<desde||r.fecha>hasta||!(r.valor>0))continue;
+    oficial.set(r.fecha,r.valor);
+    val.get('A3500').set(r.fecha,r.valor);
+    fechas.add(r.fecha);
+  }
+  for(const[f,px]of ars){
+    if(f<desde||f>hasta||!(px>0))continue;
+    const pd=d.get(f),pc=c.get(f);
+    const mep=pd>0?px/pd:null,cable=pc>0?px/pc:null;
+    if(mep!=null){val.get('MEP').set(f,mep);fechas.add(f);}
+    if(cable!=null){val.get('Cable').set(f,cable);fechas.add(f);}
+    if(mep!=null&&cable!=null)val.get('Canje').set(f,(cable/mep-1)*100);
+    const of=oficial.get(f);
+    if(mep!=null&&of>0)val.get('Brecha').set(f,(mep/of-1)*100);
+  }
+  const porBono=new Map();
+  for(const s of FX_SERIES){const m=val.get(s.l);if(m.size)porBono.set(s.l,m);}
+  return{
+    fechas:[...fechas].sort(),
+    porBono,
+    orden:FX_SERIES.map(s=>s.l).filter(l=>porBono.has(l)),
+    unidades:new Map(FX_SERIES.map(s=>[s.l,s.u])),
+    colores:new Map(FX_SERIES.map(s=>[s.l,s.c])),
+  };
+}
+
 function seriesToggle(sec,ticker){
   const st=seriesEstado[sec];
   const todos=[...st.cache.porBono.keys()];
@@ -15031,7 +15113,18 @@ function seriesDibujar(sec,error){
   // sacarlas; se listan desde los pares guardados, no desde los datos, para
   // que un par sin datos en el rango también se pueda quitar.
   const esFwd=st.modo==='fwd';
-  const tickers=esFwd?[...porBono.keys()]:ordenarPorVencimiento([...porBono.keys()]);
+  // Las monedas traen su propio orden, sus colores y su unidad: no son bonos,
+  // no tienen vencimiento por el cual ordenarlas y no todas se miden en %.
+  const orden=!esFwd&&st.cache.orden&&st.cache.orden.length?st.cache.orden:null;
+  const unidades=!esFwd&&st.cache.unidades?st.cache.unidades:null;
+  const paleta=!esFwd&&st.cache.colores?st.cache.colores:null;
+  const tickers=esFwd?[...porBono.keys()]
+    :orden?orden.filter(t=>porBono.has(t))
+    :ordenarPorVencimiento([...porBono.keys()]);
+  const colDe=(t,i)=>(paleta&&paleta.get(t))||seriesColor(i,tickers.length);
+  // Un hex no admite el truco de hsl→hsla para el fondo translúcido.
+  const colBg=c=>c.charAt(0)==='#'?c+'22':c.replace('hsl','hsla').replace(')',',.15)');
+  const uni=t=>unidades?(unidades.get(t)||'%'):'%';
   if(chipsDiv){
     if(esFwd){
       const lista=seriesFwdLista(sec,st.sector);
@@ -15039,8 +15132,8 @@ function seriesDibujar(sec,error){
         ? lista.map(([c,l])=>{
             const label=c+'\u2192'+l;
             const i=tickers.indexOf(label), hay=i>=0;
-            const col=hay?seriesColor(i,tickers.length):null;
-            const s=`font-family:var(--mono);font-size:9px;padding:2px 6px 2px 8px;border-radius:2px;cursor:pointer;transition:all .1s;border:1px solid ${hay?col:'var(--border2)'};background:${hay?col.replace('hsl','hsla').replace(')',',.15)'):'transparent'};color:${hay?col:'var(--text3)'}`;
+            const col=hay?colDe(label,i):null;
+            const s=`font-family:var(--mono);font-size:9px;padding:2px 6px 2px 8px;border-radius:2px;cursor:pointer;transition:all .1s;border:1px solid ${hay?col:'var(--border2)'};background:${hay?colBg(col):'transparent'};color:${hay?col:'var(--text3)'}`;
             const ti=hay?'Sacar del gráfico':'Sin datos en el rango \u2014 click para sacarlo';
             return `<button style="${s}" title="${ti}" onclick="seriesFwdQuitar('${sec}','${c}','${l}')">${label} <span style="opacity:.55">\u2715</span></button>`;
           }).join('')
@@ -15049,8 +15142,8 @@ function seriesDibujar(sec,error){
       chipsDiv.innerHTML=tickers.length
         ? tickers.map((t,i)=>{
             const sel=!st.filtro||st.filtro.has(t);
-            const col=seriesColor(i,tickers.length);
-            const s=`font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:2px;cursor:pointer;border:1px solid ${sel?col:'var(--border2)'};background:${sel?col.replace('hsl','hsla').replace(')',',.15)'):'transparent'};color:${sel?col:'var(--text3)'};transition:all .1s`;
+            const col=colDe(t,i);
+            const s=`font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:2px;cursor:pointer;border:1px solid ${sel?col:'var(--border2)'};background:${sel?colBg(col):'transparent'};color:${sel?col:'var(--text3)'};transition:all .1s`;
             return `<button style="${s}" onclick="seriesToggle('${sec}','${t}')">${t}</button>`;
           }).join('')
         : `<span style="font-family:var(--mono);font-size:10px;color:var(--text3)">Sin bonos con datos en el rango</span>`;
@@ -15066,15 +15159,16 @@ function seriesDibujar(sec,error){
   const puntos=vis.reduce((n,t)=>n+porBono.get(t).size,0);
   if(msg)msg.textContent=esFwd
     ? `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length} combinaci${vis.length===1?'ón':'ones'} · ${puntos} puntos`
-    : `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length}/${tickers.length} bonos · ${puntos} puntos`;
+    : `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length}/${tickers.length} ${unidades?'series':'bonos'} · ${puntos} puntos`;
   if(!vis.length)return;
 
   const datasets=vis.map(t=>{
-    const i=tickers.indexOf(t), col=seriesColor(i,tickers.length);
+    const i=tickers.indexOf(t), col=colDe(t,i);
     const serie=porBono.get(t);
     return{
       label:t,
       data:fechas.map(f=>serie.has(f)?+serie.get(f).toFixed(4):null),
+      yAxisID:unidades&&uni(t)!=='$'?'y2':'y',
       borderColor:col, backgroundColor:col,
       pointBackgroundColor:col, pointBorderColor:col,
       borderWidth:1.8, pointRadius:fechas.length>40?0:3, pointHoverRadius:5,
@@ -15095,15 +15189,28 @@ function seriesDibujar(sec,error){
       plugins:{
         legend:{display:vis.length<=12,labels:{color:textColor,font:{size:10},boxWidth:12,padding:10}},
         datalabels:{display:false},
-        tooltip:{callbacks:{label:i=>`${i.dataset.label} — ${i.parsed.y!=null?i.parsed.y.toFixed(2):'—'}%`}},
+        tooltip:{callbacks:{label:i=>{
+          const t=i.dataset.label,v=i.parsed.y;
+          if(unidades&&uni(t)==='$')return `${t} — ${v!=null?'$'+v.toFixed(2):'—'}`;
+          return `${t} — ${v!=null?v.toFixed(2):'—'}%`;
+        }}},
       },
       scales:{
         x:{title:{display:true,text:'Fecha',color:textColor,font:{size:10}},
            grid:{color:gridColor},
            ticks:{color:textColor,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:12}},
-        y:{title:{display:true,text:esFwd&&opt.yf?opt.yf:opt.y,color:textColor,font:{size:10}},
+        // Con unidades mezcladas hacen falta dos reglas: los niveles del dólar
+        // a la izquierda y los porcentajes a la derecha. Sobre un solo eje, un
+        // canje de 4% al lado de un MEP de 1534 queda pegado al piso.
+        y:{display:!unidades||vis.some(t=>uni(t)==='$'),
+           title:{display:true,text:unidades?(opt.y||'$'):(esFwd&&opt.yf?opt.yf:opt.y),color:textColor,font:{size:10}},
            grid:{color:gridColor},
-           ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}},
+           ticks:{color:textColor,font:{size:10},
+             callback:unidades?(v=>'$'+Math.round(v).toLocaleString('es-AR')):(v=>v.toFixed(1)+'%')}},
+        ...(unidades?{y2:{position:'right',display:vis.some(t=>uni(t)==='%'),
+           title:{display:true,text:opt.y2||'%',color:textColor,font:{size:10}},
+           grid:{display:false},
+           ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}:{}),
       },
     },
   });

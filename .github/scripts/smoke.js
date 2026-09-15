@@ -394,6 +394,59 @@ const omitir = (label, motivo) =>
   check(slegSerie.bonos > 0, 'usd: Spread Leg. como serie', `${slegSerie.bonos} pares: ${slegSerie.pares.join(', ')}`);
   check(/Spread/.test(slegSerie.ejeY), 'usd: eje Y del spread', slegSerie.ejeY);
 
+  // Monedas: cinco series armadas en el momento con el A3500 del BCRA y el
+  // AL30 de data912, no con el histórico de curvas. Dos unidades conviviendo,
+  // así que dos ejes: un canje de 4% al lado de un MEP de 1534 sobre la misma
+  // regla queda pegado al piso.
+  const fx = await page.evaluate(async () => {
+    seriesSetSector('usd', 'FX');
+    await new Promise(r => setTimeout(r, 7000));
+    const st = seriesEstado.usd, ch = st.chart;
+    const f = st.cache.fechas[st.cache.fechas.length - 1];
+    const v = k => { const m = st.cache.porBono.get(k); return m && m.has(f) ? m.get(f) : null; };
+    const mep = v('MEP'), cable = v('Cable'), of = v('A3500'),
+          canje = v('Canje'), brecha = v('Brecha');
+    return {
+      series: [...st.cache.porBono.keys()], ruedas: st.cache.fechas.length,
+      f, mep, cable, of, canje, brecha,
+      canjeOk: mep && cable && canje != null
+        ? Math.abs((cable / mep - 1) * 100 - canje) < 1e-9 : null,
+      brechaOk: mep && of && brecha != null
+        ? Math.abs((mep / of - 1) * 100 - brecha) < 1e-9 : null,
+      asigna: ch ? Object.fromEntries(ch.data.datasets.map(d => [d.label, d.yAxisID])) : {},
+      ejeY: ch ? ch.options.scales.y.title.text : '',
+      ejeY2: ch && ch.options.scales.y2 ? ch.options.scales.y2.title.text : '',
+    };
+  });
+  if (!fx.ruedas) {
+    omitir('usd: serie de monedas', 'el BCRA o data912 no respondieron ahora');
+  } else {
+    check(fx.series.length === 5, 'usd: las cinco monedas', fx.series.join(', '));
+    check(fx.of > 0 && fx.mep > 0 && fx.cable > 0, 'usd: oficial, MEP y cable en niveles',
+          `${fx.f}: A3500 ${fx.of} · MEP ${fx.mep} · cable ${fx.cable}`);
+    check(fx.canjeOk === true, 'usd: el canje es cable sobre MEP', String(fx.canje));
+    check(fx.brechaOk === true, 'usd: la brecha es MEP sobre el oficial', String(fx.brecha));
+    check(fx.asigna.MEP === 'y' && fx.asigna.Canje === 'y2' && fx.asigna.Brecha === 'y2',
+          'usd: niveles y porcentajes en ejes distintos', JSON.stringify(fx.asigna));
+    check(/\$/.test(fx.ejeY) && /%/.test(fx.ejeY2), 'usd: cada eje dice su unidad',
+          `${fx.ejeY} | ${fx.ejeY2}`);
+  }
+
+  // Las monedas no son una tasa con duración: en forwards no se pueden elegir.
+  const fxFwd = await page.evaluate(async () => {
+    seriesSetModo('usd', 'fwd');
+    await new Promise(r => setTimeout(r, 2500));
+    const antes = seriesEstado.usd.sector;
+    seriesSetSector('usd', 'FX');
+    await new Promise(r => setTimeout(r, 500));
+    const despues = seriesEstado.usd.sector;
+    seriesSetModo('usd', 'tasas');
+    await new Promise(r => setTimeout(r, 2500));
+    return { antes, despues };
+  });
+  check(fxFwd.antes !== 'FX' && fxFwd.despues !== 'FX',
+        'usd: monedas no es elegible en forwards', JSON.stringify(fxFwd));
+
   console.log('\nForwards históricos');
   for (const [sec, tab, ir] of [
     ['ars', 'series-ars', 'switchTab'],
