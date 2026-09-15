@@ -354,6 +354,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab" id="nav-sintetico" onclick="switchTab('sintetico')">Sintético ARS</button>
   <button class="nav-tab" id="nav-calendario" onclick="switchTab('calendario')">Calendario</button>
   <button class="nav-tab" id="nav-proyecciones" onclick="switchTab('proyecciones')">Proyecciones</button>
+  <button class="nav-tab" id="nav-escenarios" onclick="switchTab('escenarios')">Escenarios</button>
   <button class="nav-tab" id="nav-curvas-ars" onclick="switchTab('curvas-ars')">Curvas</button>
   <button class="nav-tab" id="nav-series-ars" onclick="switchTab('series-ars')">Series</button>
   <button class="nav-tab" id="nav-feriados" onclick="switchTab('feriados')" style="margin-left:auto">Feriados</button>
@@ -1750,6 +1751,71 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════ ESCENARIOS PAGE -->
+<div id="page-escenarios" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:2rem 2.5rem;">
+  <div style="max-width:1180px;margin:0 auto;">
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem;gap:1rem;flex-wrap:wrap;">
+      <div>
+        <div style="font-family:var(--serif);font-size:20px;font-weight:300;font-style:italic;color:var(--accent)">Escenarios</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">Valuación de toda la curva de pesos a una fecha, con supuestos propios de inflación, TAMAR y dólar</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="api-status" id="esc-status"></span>
+        <button class="btn" style="margin:0;padding:6px 14px;font-size:12px" onclick="escRecalc()">↻ Recalcular</button>
+      </div>
+    </div>
+
+    <!-- BARRA DE ESCENARIO -->
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:.7rem 1rem;margin-bottom:1.25rem;">
+      <span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Escenario</span>
+      <select id="esc-guardados" class="sbar-input" style="width:190px" onchange="escCargar(this.value)"></select>
+      <input id="esc-nombre" class="sbar-input" style="width:190px" placeholder="Nombre del escenario" oninput="escSetNombre(this.value)">
+      <button class="btn primary" style="margin:0;padding:4px 12px;font-size:11px" onclick="escGuardar()">Guardar</button>
+      <button class="btn" style="margin:0;padding:4px 12px;font-size:11px" onclick="escDuplicar()">Duplicar</button>
+      <button class="btn" id="esc-borrar" style="margin:0;padding:4px 12px;font-size:11px" onclick="escBorrar()">Borrar</button>
+      <button class="btn" style="margin:0;padding:4px 12px;font-size:11px" onclick="escLimpiar()" title="Saca todas las palancas y vuelve a los senderos de Proyecciones">Limpiar</button>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Horizonte</span>
+        <input type="number" id="esc-horizonte" class="sbar-input" style="width:62px;text-align:right" min="1" max="120" step="1" oninput="escSetHorizonte(this.value)">
+        <span style="font-size:11px;color:var(--text3)">meses</span>
+      </div>
+    </div>
+
+    <!-- PALANCAS -->
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:.6rem">Palancas · vacías usan el sendero activo de Proyecciones</div>
+    <div id="esc-palancas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:.75rem;margin-bottom:1.5rem;"></div>
+
+    <!-- TILES -->
+    <div id="esc-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:7px;overflow:hidden;margin-bottom:1.5rem;"></div>
+
+    <!-- GRÁFICO -->
+    <div style="margin-bottom:1.5rem;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:.6rem">Rendimiento anualizado al horizonte</div>
+      <div style="position:relative;height:290px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;">
+        <canvas id="esc-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- TABLA -->
+    <div style="margin-bottom:1rem;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:.6rem">Detalle por bono</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead id="esc-thead"></thead>
+          <tbody id="esc-tbody"></tbody>
+        </table>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:.75rem;line-height:1.6">
+        Todo se valúa al horizonte con la misma tasa: los cupones y vencimientos anteriores se capitalizan a la TAMAR de esa fecha, y lo que sigue vivo después se descuenta a esa misma tasa — los bonos marcados con <span style="color:var(--warn)">*</span>.
+        <span style="color:var(--text3)">Real</span> es el retorno deflactado por el CER del escenario. <span style="color:var(--text3)">vs TAMAR</span> compara contra quedarse renovando todo el horizonte.
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════ FERIADOS PAGE -->
 <div id="page-feriados" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:2rem 2.5rem;">
   <div style="max-width:700px;margin:0 auto;">
@@ -2610,7 +2676,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -2648,6 +2714,7 @@ async function supaLoadSharedData(){
     if(typeof MAE_FUTUROS!=='undefined'&&MAE_FUTUROS.length)maeAplicarFuturos(MAE_FUTUROS);
     projLoadLs();
     proyLoadLs();
+    escLoadLs();
     // USD bonds
     if(typeof bopLoad==='function') bopLoad();
     if(typeof gloLoad==='function') gloLoad();
@@ -4464,7 +4531,8 @@ const USD_TABS=['usd-resumen','usd-forwards','usd-spreadleg','usd-bonares','usd-
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
-    'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars'];
+    'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
+    'page-escenarios'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -4536,6 +4604,9 @@ function switchTab(tab){
     document.getElementById('page-proyecciones').style.display='block';
     projInit();
     proySubtabGo(projSubtab);
+  } else if(tab==='escenarios'){
+    document.getElementById('page-escenarios').style.display='block';
+    escInit();
   } else if(tab==='forwards'){
     document.getElementById('page-forwards').style.display='block';
     fwdRecalc();
@@ -6150,6 +6221,7 @@ async function cerFetchIndex(force=false){
     projDetectarPublicados();
     projCalcularCER();
     if(currentTab==='proyecciones'){projRenderSummary();projRenderTabla();projRenderChart();}
+    if(currentTab==='escenarios'&&typeof escRecalc==='function')escRecalc();
     if(CER_BONDS.length) cerRenderTable();
     // re-render forwards y gráfico CER si están abiertos
     if(currentTab==='forwards') fwdRecalc();
@@ -8502,6 +8574,625 @@ function projDeleteMes(mes){
   projSaveLs();
   projRecalc();
 }
+
+// ══════════════════════════════════════════════════════════════ ESCENARIOS
+// Un escenario es un "y si": se fija a mano a dónde van la inflación, la TAMAR
+// y el dólar, y se valúa toda la curva de pesos a una fecha horizonte con esos
+// supuestos. La pregunta que contesta es una sola — cuánto vale cada bono ese
+// día, y cuáles le ganan a quedarse renovando a TAMAR.
+//
+// ── Cómo se aplica ──────────────────────────────────────────────────────────
+// No hay un motor de valuación paralelo. El escenario PISA los senderos
+// proyectados con los suyos, corre las mismas funciones de enrich que usa toda
+// la app, y después restaura. Así el CER proyectado, la TAMAR devengada y el
+// tipo de cambio de los DLK salen del mismo código que se ve en Proyecciones,
+// y un escenario no se puede desincronizar del resto del programa.
+//
+// ── Las palancas ────────────────────────────────────────────────────────────
+// Cada palanca es {modo, tramos:[{hasta, v}]} y no un número suelto:
+//
+//   tramos   una tasa por período. `hasta` es la cantidad de meses desde hoy
+//            que cubre el tramo; el último, con hasta:null, llega hasta el
+//            final. Un solo tramo es el caso degenerado y es con lo que arranca
+//            la pantalla, pero el resolutor ya recorre N.
+//
+//   modo     'nominal' o 'real'. En real la palanca se define CONTRA la
+//            inflación del propio escenario: la TAMAR real usa tamarRealAtna y
+//            la devaluación real compone (1+d)(1+i). Por eso la inflación se
+//            resuelve primero y no tiene modo: es el numerario.
+//
+//   v:null   sin override. La palanca no se toca y queda el sendero que esté
+//            activo en Proyecciones. Un escenario que sólo mueve el dólar no
+//            obliga a inventar una inflación.
+//
+// Las tres se escriben ANUALIZADAS — TEA para inflación, TNA para TAMAR,
+// devaluación anual para el dólar — porque es como se piensan. Adentro se
+// bajan a mensual.
+//
+// La estructura entra completa desde el día uno aunque la pantalla muestre un
+// solo tramo: sumar filas al formulario después es barato, migrar escenarios
+// ya guardados no.
+const ESC_LS='bonosAR_escenarios_v1';
+let ESCENARIOS=[];          // [{id,nombre,horizonte,palancas}]
+let ESC=null;               // el que está en pantalla, guardado o no
+let escChart=null;
+let escOrdenCol='tea', escOrdenAsc=false;
+let _escRes=null;           // último cálculo, para la tabla y el gráfico
+
+function escPalancaVacia(){return{modo:'nominal',tramos:[{hasta:null,v:null}]};}
+function escNuevo(nombre){
+  return{id:'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    nombre:nombre||'',horizonte:12,
+    palancas:{infl:escPalancaVacia(),tamar:escPalancaVacia(),tcn:escPalancaVacia()}};
+}
+// Todo lo que entra de localStorage o de Supabase pasa por acá, así el resto
+// del módulo puede asumir la forma sin defenderse en cada lectura.
+function escNormalizar(e){
+  const o=escNuevo(e&&e.nombre);
+  if(e&&e.id)o.id=String(e.id);
+  if(e&&+e.horizonte>0)o.horizonte=Math.min(120,Math.max(1,Math.round(+e.horizonte)));
+  ['infl','tamar','tcn'].forEach(k=>{
+    const p=e&&e.palancas&&e.palancas[k];
+    if(!p)return;
+    const modo=(k!=='infl'&&p.modo==='real')?'real':'nominal';
+    let tramos=Array.isArray(p.tramos)?p.tramos:[];
+    tramos=tramos.map(t=>({
+      hasta:(t&&t.hasta!=null&&isFinite(+t.hasta)&&+t.hasta>0)?Math.round(+t.hasta):null,
+      v:(t&&t.v!=null&&isFinite(+t.v))?+t.v:null}));
+    if(!tramos.length)tramos=[{hasta:null,v:null}];
+    tramos[tramos.length-1].hasta=null;   // el último siempre cierra el horizonte
+    o.palancas[k]={modo,tramos};
+  });
+  return o;
+}
+function escSaveLs(){
+  try{localStorage.setItem(ESC_LS,JSON.stringify({lista:ESCENARIOS,actual:ESC}));}catch(e){}
+}
+function escLoadLs(){
+  try{
+    const r=localStorage.getItem(ESC_LS);
+    const p=r?JSON.parse(r):null;
+    if(p&&Array.isArray(p.lista))ESCENARIOS=p.lista.map(escNormalizar);
+    if(p&&p.actual)ESC=escNormalizar(p.actual);
+  }catch(e){}
+  if(!ESC)ESC=escNuevo('');
+}
+
+// ── Resolución de las palancas ──────────────────────────────────────────────
+// Valor del tramo que cubre el mes k, contando k=0 como el mes en curso.
+function escPalancaEn(p,k){
+  if(!p||!p.tramos)return null;
+  for(const t of p.tramos){
+    if(k<(t.hasta==null?Infinity:t.hasta))
+      return(t&&t.v!=null&&isFinite(t.v))?+t.v:null;
+  }
+  return null;
+}
+function escPalancaActiva(p){
+  return!!(p&&p.tramos&&p.tramos.some(t=>t&&t.v!=null&&isFinite(t.v)));
+}
+// La palanca mes a mes con los huecos rellenados: hacia atrás con el primer
+// valor cargado y hacia adelante con el último. Con un solo tramo es ese valor
+// repetido, que es lo que hace la pantalla de hoy.
+function escPalancaSerie(p,n){
+  const raw=[];
+  for(let k=0;k<=n;k++)raw.push(escPalancaEn(p,k));
+  const prim=raw.find(v=>v!=null);
+  if(prim==null)return null;
+  let ult=prim;
+  return raw.map(v=>{if(v!=null)ult=v;return ult;});
+}
+
+// Inflación: la palanca es TEA %, el sendero es var. % mensual.
+function escSenderoInfla(esc){
+  const s=escPalancaSerie(esc.palancas.infl,PROY_MESES);
+  if(!s)return null;
+  const hoy=proyMesHoy();
+  return s.map((tea,k)=>({mes:proyMesAdd(hoy,k),v:(Math.pow(1+tea/100,1/12)-1)*100}));
+}
+// TAMAR: la palanca es TNA % en nominal, o tasa real % en real. La inversa
+// real→nominal ya existe y está asertada, es tamarRealAtna.
+function escSenderoTamar(esc){
+  const s=escPalancaSerie(esc.palancas.tamar,PROY_MESES);
+  if(!s)return null;
+  const hoy=proyMesHoy(),real=esc.palancas.tamar.modo==='real',out=[];
+  s.forEach((v,k)=>{
+    const mes=proyMesAdd(hoy,k);
+    const tna=real?tamarRealAtna(mes,v):v;
+    if(tna!=null&&isFinite(tna))out.push({mes,v:+tna.toFixed(4)});
+  });
+  return out.length?out:null;
+}
+// Dólar: la palanca es devaluación anual %, el sendero son niveles $/USD a fin
+// de mes compuestos desde el spot. En real, la nominal del mes sale de componer
+// la real con la inflación de ese mes: (1+dn) = (1+dr)(1+i).
+function escSenderoTcn(esc){
+  const s=escPalancaSerie(esc.palancas.tcn,PROY_MESES);
+  if(!s)return null;
+  const spot=dlkTCHoy();
+  if(!(spot>0))return null;
+  const hoy=proyMesHoy(),real=esc.palancas.tcn.modo==='real';
+  const im=real?proyInflMesMapa():null;
+  // El mes en curso va prorrateado: del spot de hoy al cierre faltan los días
+  // que quedan, no un mes entero.
+  const finMes=proyUltDiaMes(hoy);
+  const dm=parseInt(finMes.slice(8),10)||30;
+  const frac0=Math.max(0,Math.min(1,diasACT(TODAY,parseDate(finMes))/dm));
+  const out=[];let v=spot;
+  s.forEach((anual,k)=>{
+    const mes=proyMesAdd(hoy,k);
+    let m=Math.pow(1+anual/100,1/12)-1;
+    if(real){
+      const i=im?im.get(mes):null;
+      if(i!=null&&isFinite(i))m=(1+m)*(1+i/100)-1;
+    }
+    v=v*Math.pow(1+m,k===0?frac0:1);
+    out.push({mes,v:+v.toFixed(4)});
+  });
+  return out;
+}
+
+// ── Aplicar y restaurar ─────────────────────────────────────────────────────
+// Corre fn() con los senderos del escenario puestos y restaura pase lo que
+// pase. Nada de lo que el escenario toca sobrevive a la llamada: si esto se
+// filtrara, un rato mirando escenarios cambiaría los números del Resumen.
+function escCon(esc,fn){
+  const bkInfla=PROJ_INFLACION.map(r=>({...r}));
+  const bkTamar=PROJ_TAMAR,bkTcn=PROJ_TCN,bkFuente={...PROJ_FUENTE},bkCer=CER_PROJ;
+  try{
+    // 1. La inflación primero: es el numerario contra el que se definen las
+    //    otras dos palancas cuando están en modo real.
+    projResolverInflacion();
+    const si=escSenderoInfla(esc);
+    if(si){
+      // Sólo de este mes en adelante. Los meses ya pasados que el INDEC todavía
+      // no publicó son casi un dato: pisarlos con un supuesto a futuro sería
+      // peor proyección que dejarlos como están.
+      const desde=proyMesHoy();
+      const mapa=new Map(si.map(p=>[p.mes,p.v]));
+      PROJ_INFLACION.forEach(r=>{
+        if(!r||r.tipo==='publicado'||r.mes<desde)return;
+        const v=mapa.get(r.mes);
+        if(v!=null&&isFinite(v)){r.infla=+v.toFixed(4);r.origen='escenario';}
+      });
+    }
+    proyInvalidar();
+    projCalcularCER();
+    // 2. TAMAR y dólar, que recién ahora pueden leer la inflación del escenario.
+    const st=escSenderoTamar(esc);
+    if(st){PROJ_TAMAR=st;PROJ_FUENTE.tamar='manual';}
+    const sd=escSenderoTcn(esc);
+    if(sd){PROJ_TCN=sd;PROJ_FUENTE.tcn='manual';}
+    proyInvalidar();
+    return fn();
+  }finally{
+    PROJ_INFLACION=bkInfla;
+    PROJ_TAMAR=bkTamar;PROJ_TCN=bkTcn;PROJ_FUENTE=bkFuente;
+    proyInvalidar();
+    CER_PROJ=bkCer;
+  }
+}
+
+// ── Valuación ───────────────────────────────────────────────────────────────
+// Los flujos futuros de un bono, en pesos del día en que se cobran y bajo los
+// senderos que estén puestos. Se llama siempre adentro de escCon().
+function escFlujos(b,tipo,liq){
+  try{
+    if(tipo==='tf'){
+      const c=calcLecap(b);
+      return(c&&c.vf>0)?[{fecha:b.vcto,monto:c.vf}]:null;
+    }
+    if(tipo==='cer'){
+      const factor=b.emision?cerFactor(b.emision):null;
+      if(!factor||b.precio==null)return null;
+      const f=cerBuildFlujosProy(b,b.precio,factor);
+      if(!f||f.length<2)return null;
+      return f.slice(1).map(x=>({fecha:fmtDate(x.fecha),monto:x.monto}));
+    }
+    if(tipo==='tamar'){
+      const e=tamarEnrich(b);
+      return(e&&e.vpvProy>0)?[{fecha:b.vcto,monto:e.vpvProy}]:null;
+    }
+    if(tipo==='dlk'){
+      const r=dlkBuildFF(b,liq);
+      if(!r||!r.ff||!r.ff.length)return null;
+      return r.ff.map(ev=>({fecha:ev.fecha,monto:ev.cf*dlkTCProy(ev.fecha)}))
+                 .filter(x=>x.monto>0);
+    }
+  }catch(e){}
+  return null;
+}
+
+// Renovar a TAMAR desde la liquidación hasta el horizonte, mes a mes con el
+// sendero del escenario. Es la línea contra la que se mide todo lo demás: si un
+// bono no le gana a esto, no hay razón para comprarlo en este escenario.
+function escRollTamar(liq,H){
+  let acum=1,d=new Date(liq),guarda=0;
+  while(d<H&&guarda++<400){
+    const mes=fmtDate(d).substring(0,7);
+    const finMes=parseDate(proyUltDiaMes(mes));
+    const corte=finMes<H?finMes:new Date(H);
+    const dm=parseInt(proyUltDiaMes(mes).slice(8),10)||30;
+    const n=diasACT(d,corte);
+    if(n>0){
+      const tem=tamarTEM(tamarTNAProy(mes+'-15'))/100;
+      if(isFinite(tem))acum*=Math.pow(1+tem,n/dm);
+    }
+    d=new Date(corte);d.setDate(d.getDate()+1);
+  }
+  return acum-1;
+}
+
+// El CER de una fecha, sin el desfasaje de fixing: acá interesa la inflación del
+// período y no lo que le toca cobrar a un bono. cerIndexGet arrastra el último
+// valor real hacia adelante para siempre, así que el corte entre real y
+// proyectado hay que ponerlo a mano: sin eso el acumulado del escenario daba
+// casi cero, porque las dos puntas caían en el mismo CER publicado.
+function escCerDe(fechaStr){
+  const ult=CER_INDEX.length?CER_INDEX[CER_INDEX.length-1]:null;
+  if(ult&&fechaStr<=ult.fecha){
+    const r=cerIndexGet(fechaStr);
+    if(r!=null)return r;
+  }
+  const p=CER_PROJ.get(fechaStr);
+  if(p!=null)return p;
+  return ult?ult.valor:null;
+}
+
+function escHorizonteFecha(esc){
+  return new Date(TODAY.getFullYear(),TODAY.getMonth()+(+esc.horizonte||12),TODAY.getDate());
+}
+
+function escCalcular(esc){
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  const H=escHorizonteFecha(esc),Hs=fmtDate(H);
+  const dias=diasACT(liq,H);
+  if(dias<=0)return null;
+  const anual=x=>Math.pow(1+x,365/dias)-1;
+
+  return escCon(esc,()=>{
+    // Una sola tasa para las dos puntas, por decisión: lo que se cobra antes del
+    // horizonte se capitaliza a la TAMAR del horizonte, y lo que sigue vivo
+    // después se descuenta a esa misma tasa. Sale de la misma fórmula: el signo
+    // del exponente lo pone la fecha del flujo.
+    const tnaH=tamarTNAProy(Hs);
+    const teaH=tamarTEAde(tnaH)/100;
+    const items=[];
+    const agregar=(b,tipo)=>{
+      if(!b||!b.vcto||b.precio==null)return;
+      const vcto=parseDate(b.vcto);
+      if(diasACT(liq,vcto)<=0)return;
+      const costo=tipo==='tamar'?b.precio/(b.tcInicial||1):b.precio;
+      if(!(costo>0))return;
+      const fl=escFlujos(b,tipo,liq);
+      if(!fl||!fl.length)return;
+      let vh=0;
+      for(const f of fl){
+        if(!(f.monto>0))continue;
+        vh+=f.monto*Math.pow(1+teaH,diasACT(parseDate(f.fecha),H)/365);
+      }
+      if(!(vh>0))return;
+      const tot=vh/costo-1;
+      items.push({ticker:b.ticker,tipo,vcto:b.vcto,precio:costo,vh,
+        tot:tot*100,tea:anual(tot)*100,vive:vcto>H});
+    };
+    (typeof LECAPS!=='undefined'?LECAPS:[]).forEach(b=>agregar(b,'tf'));
+    (typeof CER_BONDS!=='undefined'?CER_BONDS:[]).forEach(b=>agregar(b,'cer'));
+    (typeof TAMAR_BONDS!=='undefined'?TAMAR_BONDS:[]).forEach(b=>agregar(b,'tamar'));
+    (typeof DLK_BONDS!=='undefined'?DLK_BONDS:[]).forEach(b=>agregar(b,'dlk'));
+
+    const roll=escRollTamar(liq,H);
+    // Inflación acumulada hasta el horizonte, del mismo CER que valúa los bonos.
+    const cerL=escCerDe(fmtDate(liq)),cerH=escCerDe(Hs);
+    const infl=(cerL>0&&cerH>0)?cerH/cerL-1:null;
+    const tcHoy=dlkTCHoy(),tcH=dlkTCProy(Hs);
+    const dev=(tcHoy>0&&tcH>0)?tcH/tcHoy-1:null;
+
+    items.forEach(it=>{
+      it.real=infl!=null?((1+it.tot/100)/(1+infl)-1)*100:null;
+      it.teaReal=it.real!=null?anual(it.real/100)*100:null;
+      it.vsRoll=roll!=null?it.tot-roll*100:null;
+    });
+
+    // Lectura cruzada del escenario: si pusiste la TAMAR en real, acá se ve la
+    // nominal que implica, y al revés. Sin esto se pierde la referencia contra
+    // la que se mira el mercado todos los días.
+    const mesH=Hs.substring(0,7);
+    return{horizonte:Hs,dias,items,
+      tnaH,teaH:teaH*100,tamarRealH:tamarRealDe(mesH,tnaH),
+      inflTeaH:proyInflTEA(mesH),
+      roll:roll!=null?roll*100:null,rollTea:roll!=null?anual(roll)*100:null,
+      infl:infl!=null?infl*100:null,inflTea:infl!=null?anual(infl)*100:null,
+      tcHoy,tcH,
+      dev:dev!=null?dev*100:null,
+      devTea:dev!=null?anual(dev)*100:null,
+      devReal:(dev!=null&&infl!=null)?((1+anual(dev))/(1+anual(infl))-1)*100:null};
+  });
+}
+
+// ── Pantalla ────────────────────────────────────────────────────────────────
+const ESC_PAL=[
+  {k:'infl', t:'Inflación',    u:'% TEA',   ayuda:'Es el numerario: se resuelve primero y las otras dos palancas en modo real se definen contra ella.'},
+  {k:'tamar',t:'TAMAR',        u:'% TNA',   ayuda:'Mueve la tasa devengada de los bonos TAMAR, la reinversión y la tasa de salida del horizonte.'},
+  {k:'tcn',  t:'Dólar A3500',  u:'% anual', ayuda:'Devaluación anual desde el spot de hoy. Mueve el tipo de cambio con el que se cobran los DLK.'},
+];
+const ESC_TIPO_LABEL={tf:'Tasa fija',cer:'CER',tamar:'TAMAR',dlk:'DLK'};
+
+function escInit(){
+  escLoadLs();
+  escRenderCabecera();
+  escRenderPalancas();
+  escRecalc();
+}
+
+function escRenderCabecera(){
+  const sel=document.getElementById('esc-guardados');
+  if(sel){
+    const act=ESCENARIOS.some(e=>e.id===ESC.id)?ESC.id:'';
+    sel.innerHTML='<option value="">— sin guardar —</option>'+
+      ESCENARIOS.map(e=>`<option value="${e.id}"${e.id===act?' selected':''}>${escEsc(e.nombre||'(sin nombre)')}</option>`).join('');
+  }
+  const nom=document.getElementById('esc-nombre');
+  if(nom&&document.activeElement!==nom)nom.value=ESC.nombre||'';
+  const hor=document.getElementById('esc-horizonte');
+  if(hor&&document.activeElement!==hor)hor.value=ESC.horizonte;
+  const del=document.getElementById('esc-borrar');
+  if(del)del.style.display=ESCENARIOS.some(e=>e.id===ESC.id)?'':'none';
+}
+
+function escEsc(s){
+  return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function escRenderPalancas(){
+  const wrap=document.getElementById('esc-palancas');
+  if(!wrap)return;
+  wrap.innerHTML=ESC_PAL.map(cfg=>{
+    const p=ESC.palancas[cfg.k];
+    const t=p.tramos[p.tramos.length-1];
+    const activa=escPalancaActiva(p);
+    const unidad=(cfg.k!=='infl'&&p.modo==='real')?'% real':cfg.u;
+    const modos=cfg.k==='infl'?'':`
+      <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:5px;overflow:hidden">
+        ${['nominal','real'].map(m=>`<button onclick="escSetModo('${cfg.k}','${m}')" style="padding:2px 9px;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;border:none;cursor:pointer;background:${p.modo===m?'var(--accent)':'transparent'};color:${p.modo===m?'var(--bg)':'var(--text3)'}">${m}</button>`).join('')}
+      </div>`;
+    return `<div style="background:var(--surface);border:1px solid ${activa?'var(--accent)':'var(--border)'};border-radius:7px;padding:.85rem 1rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:.6rem">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">${cfg.t}</div>
+        ${modos}
+      </div>
+      <div style="display:flex;align-items:baseline;gap:6px">
+        <input type="number" step="0.1" class="sbar-input" style="width:92px;font-size:17px;font-family:var(--mono);text-align:right"
+          id="esc-in-${cfg.k}" value="${t.v!=null?t.v:''}" placeholder="—"
+          oninput="escSetValor('${cfg.k}',this.value)">
+        <span style="font-size:11px;color:var(--text3)">${unidad}</span>
+        ${activa?`<button class="btn" style="margin:0 0 0 auto;padding:1px 7px;font-size:10px" onclick="escSetValor('${cfg.k}','')" title="Volver al sendero activo de Proyecciones">✕</button>`:''}
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:.5rem;line-height:1.45" id="esc-lect-${cfg.k}">${activa?'':'Sin dato: usa el sendero activo de Proyecciones.'}</div>
+    </div>`;
+  }).join('');
+}
+
+function escSetValor(k,val){
+  const p=ESC.palancas[k];
+  const t=p.tramos[p.tramos.length-1];
+  const v=String(val).trim();
+  t.v=(v===''||!isFinite(+v))?null:+v;
+  escTocado();
+}
+function escSetModo(k,m){
+  if(!ESC.palancas[k])return;
+  ESC.palancas[k].modo=m==='real'?'real':'nominal';
+  escTocado();escRenderPalancas();
+}
+function escSetHorizonte(v){
+  const n=Math.round(+v);
+  if(!isFinite(n)||n<1)return;
+  ESC.horizonte=Math.min(120,n);
+  escTocado();
+}
+function escSetNombre(v){ESC.nombre=String(v);escSaveLs();}
+
+// Tocar una palanca desvincula el borrador del escenario guardado, igual que
+// editar una celda de Proyecciones bifurca a manual: lo guardado no se pisa
+// hasta que se aprieta Guardar.
+function escTocado(){
+  escSaveLs();
+  escRecalc();
+}
+
+function escGuardar(){
+  const nom=(document.getElementById('esc-nombre')||{}).value||ESC.nombre||'';
+  if(!nom.trim()){alert('Poné un nombre para guardar el escenario.');return;}
+  ESC.nombre=nom.trim();
+  const i=ESCENARIOS.findIndex(e=>e.id===ESC.id);
+  const copia=escNormalizar(JSON.parse(JSON.stringify(ESC)));
+  if(i>=0)ESCENARIOS[i]=copia;else ESCENARIOS.push(copia);
+  escSaveLs();escRenderCabecera();
+}
+function escCargar(id){
+  if(!id){ESC=escNuevo('');}
+  else{
+    const e=ESCENARIOS.find(x=>x.id===id);
+    if(!e)return;
+    ESC=escNormalizar(JSON.parse(JSON.stringify(e)));
+  }
+  escSaveLs();escRenderCabecera();escRenderPalancas();escRecalc();
+}
+function escDuplicar(){
+  const c=escNormalizar(JSON.parse(JSON.stringify(ESC)));
+  c.id=escNuevo().id;
+  c.nombre=(ESC.nombre||'Escenario')+' (copia)';
+  ESC=c;ESCENARIOS.push(escNormalizar(JSON.parse(JSON.stringify(c))));
+  escSaveLs();escRenderCabecera();escRenderPalancas();escRecalc();
+}
+function escBorrar(){
+  const e=ESCENARIOS.find(x=>x.id===ESC.id);
+  if(!e)return;
+  if(!confirm(`¿Borrar el escenario "${e.nombre||'(sin nombre)'}"?`))return;
+  ESCENARIOS=ESCENARIOS.filter(x=>x.id!==ESC.id);
+  ESC=escNuevo('');
+  escSaveLs();escRenderCabecera();escRenderPalancas();escRecalc();
+}
+function escLimpiar(){
+  const id=ESC.id,nom=ESC.nombre,hor=ESC.horizonte;
+  ESC=escNuevo(nom);ESC.id=id;ESC.horizonte=hor;
+  escSaveLs();escRenderPalancas();escRecalc();
+}
+
+function escRecalc(){
+  const st=document.getElementById('esc-status');
+  let r=null;
+  try{r=escCalcular(ESC);}
+  catch(e){if(st)st.textContent='error: '+e.message;console.error('escCalcular:',e);}
+  _escRes=r;
+  if(st&&r)st.textContent=r.items.length?`${r.items.length} bonos`:'sin bonos con precio';
+  escRenderLecturas(r);
+  escRenderTiles(r);
+  escRenderTabla();
+  escRenderChart();
+}
+
+const escF=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
+const escPct=(v,d)=>v==null||!isFinite(v)?'—':(v>0?'+':'')+(+v).toFixed(d==null?2:d)+'%';
+
+// La lectura cruzada, debajo de cada palanca.
+function escRenderLecturas(r){
+  const put=(k,html)=>{const el=document.getElementById('esc-lect-'+k);if(el)el.innerHTML=html;};
+  if(!r)return;
+  const p=ESC.palancas;
+  if(escPalancaActiva(p.infl)){
+    const m=escPalancaSerie(p.infl,0);
+    put('infl',`≡ ${escF((Math.pow(1+m[0]/100,1/12)-1)*100)}% mensual · acumulada al horizonte ${escF(r.infl)}%`);
+  }
+  if(escPalancaActiva(p.tamar)){
+    put('tamar',p.tamar.modo==='real'
+      ?`≡ ${escF(r.tnaH)}% TNA nominal contra la inflación de este escenario`
+      :`≡ ${escF(r.tamarRealH)}% real contra la inflación de este escenario`);
+  }
+  if(escPalancaActiva(p.tcn)){
+    put('tcn',p.tcn.modo==='real'
+      ?`≡ ${escF(r.devTea)}% de devaluación nominal anual · $${escF(r.tcH)} al horizonte`
+      :`≡ ${escF(r.devReal)}% real anual · $${escF(r.tcH)} al horizonte`);
+  }
+}
+
+function escRenderTiles(r){
+  const el=document.getElementById('esc-tiles');
+  if(!el)return;
+  const tile=(t,v,s,c)=>`<div style="background:var(--surface);padding:.75rem 1rem;">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:4px">${t}</div>
+    <div style="font-size:17px;font-family:var(--mono);color:${c||'var(--text2)'}">${v}</div>
+    <div style="font-size:10px;color:var(--text3);margin-top:2px">${s}</div></div>`;
+  if(!r){el.innerHTML=tile('Horizonte','—','sin datos');return;}
+  const f=r.horizonte.split('-').reverse().join('/');
+  el.innerHTML=
+    tile('Horizonte',f,`${ESC.horizonte} meses · ${r.dias} días`,'var(--accent)')+
+    tile('Inflación acum.',escF(r.infl)+'%',`${escF(r.inflTea)}% anualizada`)+
+    tile('TAMAR al horizonte',escF(r.tnaH)+'%',`TNA · ${escF(r.tamarRealH)}% real`,'#38bdf8')+
+    tile('Dólar al horizonte','$'+escF(r.tcH),`${escPct(r.devTea)} anual · ${escPct(r.devReal)} real`,'#a855f7')+
+    tile('Renovar a TAMAR',escF(r.roll)+'%',`${escF(r.rollTea)}% anualizada · es la referencia`,'var(--warn)');
+}
+
+const ESC_COLS=[
+  {k:'ticker',t:'Ticker',a:'left'},
+  {k:'tipo',  t:'Tipo',  a:'left'},
+  {k:'vcto',  t:'Vcto',  a:'left'},
+  {k:'precio',t:'Precio',a:'right'},
+  {k:'vh',    t:'Valor al horiz.',a:'right'},
+  {k:'tot',   t:'Retorno',a:'right'},
+  {k:'tea',   t:'TEA',   a:'right'},
+  {k:'real',  t:'Real',  a:'right'},
+  {k:'vsRoll',t:'vs TAMAR',a:'right'},
+];
+function escSortBy(col){
+  if(escOrdenCol===col)escOrdenAsc=!escOrdenAsc;
+  else{escOrdenCol=col;escOrdenAsc=(col==='ticker'||col==='vcto'||col==='tipo');}
+  escRenderTabla();escRenderChart();
+}
+function escOrdenar(items){
+  const c=escOrdenCol,s=escOrdenAsc?1:-1;
+  return[...items].sort((a,b)=>{
+    const x=a[c],y=b[c];
+    if(x==null&&y==null)return 0;
+    if(x==null)return 1;
+    if(y==null)return-1;
+    if(typeof x==='string')return s*x.localeCompare(y);
+    return s*(x-y);
+  });
+}
+function escRenderTabla(){
+  const th=document.getElementById('esc-thead'),tb=document.getElementById('esc-tbody');
+  if(!th||!tb)return;
+  th.innerHTML='<tr class="bb2">'+ESC_COLS.map(c=>
+    `<th onclick="escSortBy('${c.k}')" style="text-align:${c.a};padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:${escOrdenCol===c.k?'var(--accent)':'var(--text3)'};font-weight:400;cursor:pointer;white-space:nowrap">${c.t}${escOrdenCol===c.k?(escOrdenAsc?' ↑':' ↓'):''}</th>`).join('')+'</tr>';
+  const items=_escRes?_escRes.items:[];
+  if(!items.length){
+    tb.innerHTML=`<tr><td colspan="${ESC_COLS.length}" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:12px">No hay bonos con precio para valuar. Refrescá los precios y volvé.</td></tr>`;
+    return;
+  }
+  const td='padding:4px 8px;font-family:var(--mono);font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;';
+  tb.innerHTML=escOrdenar(items).map(it=>{
+    const ac=(CP_COLORS[it.tipo]||{}).accent||'var(--text)';
+    const bg=(CP_COLORS[it.tipo]||{}).bg||'';
+    const col=v=>v==null?'var(--text3)':(v>=0?'var(--accent)':'var(--danger)');
+    return`<tr style="background:${bg}">
+      <td style="${td}text-align:left;color:${ac};font-weight:600">${escEsc(it.ticker)}</td>
+      <td style="${td}text-align:left;color:var(--text3);font-size:11px">${ESC_TIPO_LABEL[it.tipo]||it.tipo}</td>
+      <td style="${td}text-align:left;color:var(--text3)">${it.vcto.split('-').reverse().join('/')}${it.vive?'<span title="Vence después del horizonte: se descuenta a la TAMAR del horizonte" style="color:var(--warn)"> *</span>':''}</td>
+      <td style="${td}text-align:right;color:var(--text3)">${escF(it.precio)}</td>
+      <td style="${td}text-align:right;color:var(--text2)">${escF(it.vh)}</td>
+      <td style="${td}text-align:right;color:${col(it.tot)}">${escF(it.tot)}%</td>
+      <td style="${td}text-align:right;color:${col(it.tea)};font-weight:600">${escF(it.tea)}%</td>
+      <td style="${td}text-align:right;color:${col(it.real)}">${escF(it.real)}%</td>
+      <td style="${td}text-align:right;color:${col(it.vsRoll)}">${escPct(it.vsRoll)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function escRenderChart(){
+  const cv=document.getElementById('esc-chart');
+  if(!cv||typeof Chart==='undefined')return;
+  if(escChart){escChart.destroy();escChart=null;}
+  const items=_escRes?_escRes.items:[];
+  if(!items.length)return;
+  const orden=[...items].sort((a,b)=>b.tea-a.tea);
+  const veces=items.reduce((a,i)=>(a[i.ticker]=(a[i.ticker]||0)+1,a),{});
+  const etiqueta=i=>veces[i.ticker]>1?`${i.ticker}·${(ESC_TIPO_LABEL[i.tipo]||i.tipo).toUpperCase()}`:i.ticker;
+  const textColor=getComputedStyle(document.body).getPropertyValue('--text3').trim()||'#888';
+  const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#333';
+  const roll=_escRes.rollTea;
+  escChart=new Chart(cv.getContext('2d'),{
+    data:{
+      labels:orden.map(etiqueta),
+      datasets:[
+        {type:'bar',label:'TEA del escenario',
+         data:orden.map(i=>i.tea),
+         backgroundColor:orden.map(i=>(CP_COLORS[i.tipo]||{}).accent||'#888'),
+         borderWidth:0,borderRadius:2,order:2},
+        ...(roll!=null?[{type:'line',label:`Renovar a TAMAR (${escF(roll)}%)`,
+         data:orden.map(()=>roll),
+         borderColor:'#fbbf24',borderWidth:1.5,borderDash:[5,4],
+         pointRadius:0,fill:false,order:1}]:[]),
+      ],
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:'top',labels:{color:textColor,font:{size:11},boxWidth:12,padding:12}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${escF(ctx.parsed.y)}%`}},
+        datalabels:{display:false},
+      },
+      scales:{
+        x:{ticks:{color:textColor,font:{size:10},maxRotation:60,minRotation:0},grid:{display:false}},
+        y:{ticks:{color:textColor,font:{size:10},callback:v=>(+v).toFixed(0)+'%'},
+           grid:{color:gridColor,drawBorder:false},
+           title:{display:true,text:'TEA al horizonte (%)',color:textColor,font:{size:10}}},
+      },
+    },
+  });
+}
 // ══════════════════════════════════════════════════════════════ TAMAR TAB
 const LS_TAMAR='bonosAR_tamar_bonds_v1';
 let TAMAR_BONDS=[];
@@ -8618,6 +9309,10 @@ function tamarEnrich(r){
 
   return{...r,dias:DIAS,modDuration,tir:TIR,tna:TNA,tem:TEM_MERCADO,margenTNA:MARGEN_TNA,
     tirProy:proy.tir,tnaProy:proy.tna,temProy:proy.tem,margenTNAProy:proy.margenTNA,
+    // Valor al vencimiento por cada 100 de VN, con el sendero activo. Es lo que
+    // el bono paga, y con eso lo valúa el panel de escenarios. vpv queda con la
+    // definición congelada de 5 días, igual que tir/tna/margenTNA.
+    vpv:VPV,vpvProy:proy.vpv,
     fuenteTamar:_fuenteTamar,_debug};
 }
 
@@ -9050,6 +9745,7 @@ function beTamarExclSaveLs(){
 }
 
 function beRefreshIfVisible(){
+  if(currentTab==='escenarios'){try{escRecalc();}catch(e){}return;}
   if(currentTab!=='breakeven')return;
   beRecalc();
   beTamarRecalc();
@@ -9615,6 +10311,7 @@ function importarPortfolio(event){
 document.getElementById('g-fecha-op').value=fmtDate(TODAY);
 updateSettlement();
 loadPortfolio();
+escLoadLs();
 tamarLoadBonds();
 proyLoadLs();
 remFetch();

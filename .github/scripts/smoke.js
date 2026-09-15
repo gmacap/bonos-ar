@@ -792,7 +792,7 @@ const omitir = (label, motivo) =>
       const l = document.getElementById(`series-${s}-fwd-largo`).value;
       seriesFwdAgregar(s);
       const ds = st.chart ? st.chart.data.datasets : [];
-      const serie = st.cache.porBono.get(c + '\u2192' + l);
+      const serie = st.cache.porBono.get(c + '→' + l);
       const vals = serie ? [...serie.values()] : [];
       // Recálculo del forward sobre la primera rueda con datos en ambos bonos:
       // confirma que la línea salió de ESTE par y no de otro.
@@ -816,7 +816,7 @@ const omitir = (label, motivo) =>
       };
     }, sec);
     check(add.lineas === 1, `${sec}: agregar dibuja una línea`, `${add.lineas}`);
-    check(add.label === `${add.c}\u2192${add.l}`, `${sec}: la serie se llama por el par`, add.label);
+    check(add.label === `${add.c}→${add.l}`, `${sec}: la serie se llama por el par`, add.label);
     check(add.finitos, `${sec}: la serie tiene puntos finitos`, `${add.puntos} puntos`);
     check(add.esperado !== null && Math.abs(add.esperado - add.obtenido) < 1e-9,
           `${sec}: el forward graficado es el del par elegido`, `${add.esperado} vs ${add.obtenido}`);
@@ -841,7 +841,7 @@ const omitir = (label, motivo) =>
 
     const quit = await page.evaluate(s => {
       const st = seriesEstado[s];
-      const [c, l] = [...st.cache.porBono.keys()][0].split('\u2192');
+      const [c, l] = [...st.cache.porBono.keys()][0].split('→');
       seriesFwdQuitar(s, c, l);
       return { pares: st.cache.porBono.size, lineas: st.chart ? st.chart.data.datasets.length : 0 };
     }, sec);
@@ -1982,6 +1982,88 @@ const omitir = (label, motivo) =>
   // ajuste quedaba sólo en localStorage y la hidratación siguiente lo pisaba
   // con la copia compartida. Y aun cuando sobrevivía, nadie recalculaba después
   // de la hidratación: el valor estaba guardado y no se veía.
+  console.log('\nEscenarios');
+  const esc = await page.evaluate(() => {
+    switchSection('pesos'); switchTab('escenarios');
+    const mk = () => escNormalizar({ horizonte: 12 });
+    const con = (k, v, modo) => { const e = mk(); e.palancas[k].tramos[0].v = v; if (modo) e.palancas[k].modo = modo; return e; };
+
+    // El invariante que hace seguro todo el panel: un escenario no puede dejar
+    // rastro en los senderos que usa el resto de la app.
+    const foto = () => JSON.stringify([PROJ_INFLACION, PROJ_TAMAR, PROJ_TCN, PROJ_FUENTE,
+      CER_PROJ.size, [...CER_PROJ.values()].slice(0, 5)]);
+    const antes = foto();
+    const base = escCalcular(mk());
+    escCalcular(con('infl', 90));
+    escCalcular(con('tamar', 70));
+    escCalcular(con('tcn', 85));
+    const despues = foto();
+
+    // Cada palanca mueve lo suyo y nada más.
+    const tea = (r, t) => { const i = r && r.items.find(x => x.ticker === t); return i ? i.tea : null; };
+    const unTf = (LECAPS.find(b => b.precio > 0) || {}).ticker;
+    const inflAlta = escCalcular(con('infl', 90));
+    const rollAlto = escCalcular(con('tamar', 60)).roll;
+    const rollBajo = escCalcular(con('tamar', 10)).roll;
+
+    // TAMAR real: poner la nominal que implica tiene que dar el mismo real.
+    const eR = con('tamar', 5, 'real'); eR.palancas.infl.tramos[0].v = 25;
+    const real = escCalcular(eR);
+    const eN = escNormalizar(JSON.parse(JSON.stringify(eR)));
+    eN.palancas.tamar.modo = 'nominal'; eN.palancas.tamar.tramos[0].v = real.tnaH;
+    const nominal = escCalcular(eN);
+
+    // Un tramo es el caso degenerado de N tramos.
+    const uno = mk(); uno.palancas.tamar.tramos = [{ hasta: null, v: 30 }];
+    const dos = mk(); dos.palancas.tamar.tramos = [{ hasta: 6, v: 30 }, { hasta: null, v: 30 }];
+    const baja = mk(); baja.palancas.tamar.tramos = [{ hasta: 6, v: 30 }, { hasta: null, v: 15 }];
+
+    // Guardar con nombre y recuperarlo.
+    ESCENARIOS = []; ESC = escNuevo('');
+    ESC.palancas.tamar.tramos[0].v = 33; ESC.palancas.tamar.modo = 'real'; ESC.horizonte = 18;
+    document.getElementById('esc-nombre').value = 'Smoke';
+    escGuardar();
+    const id = ESC.id;
+    escCargar(''); const vacio = ESC.palancas.tamar.tramos[0].v;
+    escCargar(id);
+
+    return {
+      nBonos: base ? base.items.length : 0,
+      filas: document.querySelectorAll('#esc-tbody tr').length,
+      intacto: antes === despues,
+      roll: base ? base.roll : null,
+      inflSube: base && inflAlta && inflAlta.infl > base.infl,
+      rollAlto, rollBajo,
+      tfIgual: unTf && base ? Math.abs(tea(inflAlta, unTf) - tea(base, unTf)) < 1e-6 : null,
+      realLeido: real.tamarRealH, realIdaVuelta: nominal.tamarRealH,
+      unoRoll: escCalcular(uno).roll, dosRoll: escCalcular(dos).roll, bajaRoll: escCalcular(baja).roll,
+      guardados: ESCENARIOS.length, nombre: (ESCENARIOS[0] || {}).nombre,
+      vacio, vuelto: ESC.palancas.tamar.tramos[0].v, modo: ESC.palancas.tamar.modo, hor: ESC.horizonte,
+      tiles: (document.getElementById('esc-tiles') || {}).textContent || '',
+      grafico: !!escChart,
+    };
+  });
+  check(esc.nBonos > 3 && esc.filas > 3, 'valúa la curva al horizonte',
+        `${esc.nBonos} bonos · ${esc.filas} filas`);
+  check(esc.intacto, 'un escenario no deja rastro en los senderos de la app');
+  check(esc.roll > 0, 'la referencia de renovar a TAMAR sale', String(esc.roll));
+  check(esc.rollAlto > esc.rollBajo, 'la palanca de TAMAR mueve la reinversión',
+        `${esc.rollAlto} vs ${esc.rollBajo}`);
+  check(esc.inflSube === true, 'la palanca de inflación mueve el acumulado');
+  check(esc.tfIgual === true, 'una tasa fija no se mueve con la inflación');
+  check(Math.abs(esc.realLeido - 5) < 0.02, 'TAMAR real 5% se lee como 5% real', String(esc.realLeido));
+  check(Math.abs(esc.realIdaVuelta - esc.realLeido) < 0.02,
+        'real → nominal → real cierra', `${esc.realIdaVuelta} vs ${esc.realLeido}`);
+  check(Math.abs(esc.unoRoll - esc.dosRoll) < 1e-9, 'un tramo es el caso degenerado de dos iguales');
+  check(esc.bajaRoll < esc.unoRoll, 'el segundo tramo cambia el resultado',
+        `${esc.bajaRoll} vs ${esc.unoRoll}`);
+  check(esc.guardados === 1 && esc.nombre === 'Smoke' && esc.vacio === null,
+        'el escenario se guarda con nombre', JSON.stringify([esc.guardados, esc.nombre, esc.vacio]));
+  check(esc.vuelto === 33 && esc.modo === 'real' && esc.hor === 18,
+        'volver a cargarlo recupera palancas, modo y horizonte',
+        JSON.stringify([esc.vuelto, esc.modo, esc.hor]));
+  check(esc.tiles.includes('Renovar a TAMAR') && esc.grafico, 'se pintan los tiles y el gráfico');
+
   console.log('\nProyecciones: los ajustes manuales sobreviven a la recarga');
   const puesto = await page.evaluate(async () => {
     const mes = proyMesAdd(proyMesHoy(), 3);
