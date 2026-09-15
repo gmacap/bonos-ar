@@ -881,6 +881,76 @@ const omitir = (label, motivo) =>
   check(sintTasa.trasTabla === 30, 'la tabla del Resumen también la carga', String(sintTasa.trasTabla));
   check(sintTasa.trasMae === 30, 'el volcado del MAE también la carga', String(sintTasa.trasMae));
 
+  // Caución: el tramo corto de la curva de pesos, que hasta ahora arrancaba en
+  // la LECAP más corta. Sale de BYMA directo del navegador, sin pasar por el
+  // Worker, porque manda la cabecera CORS con el origen que la pide.
+  console.log('\nCaución en pesos');
+  const cau = await page.evaluate(async () => {
+    await caucionFetch(true);
+    const bk = SINT_TASA_DESC;
+    try {
+      SINT_TASA_DESC = null;
+      const auto = sintTasaDescEfectiva();
+      SINT_TASA_DESC = 44.4;
+      const manual = sintTasaDescEfectiva();
+      SINT_TASA_DESC = null;
+      return {
+        n: CAUCION_ARS.length,
+        corta: caucionCorta(),
+        primera: CAUCION_ARS[0] || null,
+        creciente: CAUCION_ARS.every((c, i) => i === 0 || c.dias > CAUCION_ARS[i - 1].dias),
+        sinCeros: CAUCION_ARS.every(c => c.tna > 0 && c.dias > 0),
+        auto, manual,
+      };
+    } finally { SINT_TASA_DESC = bk; sintPintarTasaDesc(); }
+  });
+  if (!cau.n) {
+    omitir('caución en pesos', 'BYMA no devolvió la rueda de cauciones ahora');
+  } else {
+    check(cau.n >= 3, 'trae la curva de caución en pesos', cau.n + ' plazos');
+    check(cau.creciente && cau.sinCeros, 'ordenada por plazo y sin tasas en cero',
+          JSON.stringify(cau.primera));
+    check(cau.corta > 0 && cau.corta < 200, 'la más corta es una tasa plausible',
+          cau.corta + '% TNA a ' + cau.primera.dias + ' día(s)');
+    check(cau.auto === cau.corta, 'sin tasa escrita, el sintético descuenta a la caución',
+          cau.auto + ' vs ' + cau.corta);
+    check(cau.manual === 44.4, 'con tasa escrita, manda la tuya', String(cau.manual));
+
+    const capa = await page.evaluate(async () => {
+      switchSection('pesos'); switchTab('breakeven');
+      await new Promise(r => setTimeout(r, 2500));
+      const dsCau = () => (beChartTF && beChartTF.data.datasets.find(x => /cauci/i.test(x.label))) || null;
+      const bk = beChartCaucion;
+      beChartCaucion = true; beRenderChartTF();
+      await new Promise(r => setTimeout(r, 400));
+      const d = dsCau();
+      const pts = d ? d.data : [];
+      const con = pts.length;
+      beChartCaucion = false; beRenderChartTF();
+      await new Promise(r => setTimeout(r, 400));
+      const sin = dsCau() ? dsCau().data.length : 0;
+      beChartCaucion = bk; beRenderChartTF();
+      await new Promise(r => setTimeout(r, 400));
+      const tf = ((beChartTF.data.datasets.find(x => x.label === 'tf')) || {}).data || [];
+      return {
+        con, sin,
+        xCau: pts.length ? Math.min.apply(null, pts.map(p => p.x)) : null,
+        xTf: tf.length ? Math.min.apply(null, tf.map(p => p.x)) : null,
+        montos: pts.every(p => p.monto >= 1e9),
+      };
+    });
+    check(capa.con > 0 && capa.sin === 0, 'la capa entra al gráfico y el botón la saca',
+          capa.con + ' puntos con, ' + capa.sin + ' sin');
+    check(capa.montos, 'sólo entran los plazos con monto operado');
+    if (capa.xTf == null) {
+      omitir('la caución cierra el tramo corto', 'no hay LECAPs con precio ahora');
+    } else {
+      check(capa.xCau < capa.xTf, 'la caución cierra el tramo que las letras no cubren',
+            'caución desde ' + capa.xCau + ' días, letras desde ' + capa.xTf);
+    }
+  }
+
+
   // IOL se eliminó por completo: no debe quedar ni el modal ni las credenciales.
   const iol = await page.evaluate(() => ({
     modal: !!document.getElementById('iol-creds-modal'),
