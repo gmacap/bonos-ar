@@ -14625,9 +14625,11 @@ const SERIES_CFG={
 };
 
 // Estado por sección. El filtro en null significa "todos".
+// chart2 es el panel de abajo: sólo lo usan las monedas, que mezclan niveles
+// de tipo de cambio con porcentajes y no se pueden leer sobre la misma regla.
 const seriesEstado={
-  ars:{sector:'TF',  modo:'tasas', filtro:null, chart:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
-  usd:{sector:'BON', modo:'tasas', filtro:null, chart:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
+  ars:{sector:'TF',  modo:'tasas', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
+  usd:{sector:'BON', modo:'tasas', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
 };
 
 // ── Forwards históricos ─────────────────────────────────────────────────────
@@ -14894,8 +14896,13 @@ async function seriesInit(sec){
     <button class="btn" style="padding:3px 8px;font-size:10px" onclick="seriesFwdLimpiar('${sec}')">Limpiar</button>
   </div>
   <div id="series-${sec}-chips" style="padding:5px 14px;border-bottom:1px solid var(--border);flex-shrink:0;min-height:28px;background:var(--surface2);display:flex;flex-wrap:wrap;align-items:center;gap:3px"></div>
-  <div style="flex:1;min-height:0;position:relative;padding:8px">
-    <canvas id="series-${sec}-chart"></canvas>
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:8px">
+    <div id="series-${sec}-wrap1" style="flex:1;min-height:0;position:relative">
+      <canvas id="series-${sec}-chart"></canvas>
+    </div>
+    <div id="series-${sec}-wrap2" style="flex:1;min-height:0;position:relative;display:none">
+      <canvas id="series-${sec}-chart2"></canvas>
+    </div>
   </div>
   </div>`;
   seriesFwdAjustarSector(sec);
@@ -14945,7 +14952,9 @@ async function seriesCargar(sec){
       st.cache=st.sector==='SLEG' ? await seriesTraerSpread(desde,hasta)
              : st.sector==='FX'   ? await seriesTraerFX(desde,hasta)
              : await seriesTraerSector(st.sector,desde,hasta);
-      st.filtro=null;   // al cambiar el rango, arrancan todos seleccionados
+      // Al cambiar el rango arrancan todos seleccionados, salvo que la serie
+      // traiga su propio arranque porque son demasiadas para prenderlas juntas.
+      st.filtro=st.cache.filtroInicial?new Set(st.cache.filtroInicial):null;
     }
     seriesDibujar(sec);
   }catch(e){
@@ -15019,11 +15028,13 @@ async function seriesTraerSpread(desde,hasta){
 // cocientes entre dos especies del MISMO bono, que amortizan igual, así que
 // el factor se cancela. Por eso alcanza con los cierres tal como vienen.
 const FX_SERIES=[
-  {l:'A3500',  c:'#94a3b8', u:'$'},
-  {l:'MEP',    c:'#4ade80', u:'$'},
-  {l:'Cable',  c:'#a855f7', u:'$'},
-  {l:'Canje',  c:'#fbbf24', u:'%'},
-  {l:'Brecha', c:'#f87171', u:'%'},
+  {l:'Banda sup.', c:'#ef4444', u:'$', dash:[5,4]},
+  {l:'A3500',      c:'#94a3b8', u:'$'},
+  {l:'Banda inf.', c:'#38bdf8', u:'$', dash:[5,4]},
+  {l:'MEP',        c:'#4ade80', u:'$'},
+  {l:'Cable',      c:'#a855f7', u:'$'},
+  {l:'Canje',      c:'#fbbf24', u:'%'},
+  {l:'Brecha',     c:'#f87171', u:'%'},
 ];
 const FX_HIST_TTL=6*60*60*1000;
 const _fxHist=new Map();
@@ -15031,25 +15042,92 @@ const _fxHist=new Map();
 // Cierres diarios de data912. Mismo proveedor que los precios en vivo: sin
 // proxy ni clave. Se cachea porque las tres especies se piden juntas y cambiar
 // el rango de fechas no cambia la serie que devuelve el proveedor.
+//
+// El timeout es más largo que el de los precios en vivo porque esto son cinco
+// años de ruedas y no está en el camino del refresco de cada cinco minutos.
+//
+// Un fallo no propaga: devuelve vacío. El A3500 y las bandas vienen del BCRA y
+// no tienen por qué desaparecer del gráfico porque se haya caído data912.
+const FX_HIST_TIMEOUT_MS=25000;
 async function seriesHist912(sym){
   const hit=_fxHist.get(sym);
   if(hit&&Date.now()-hit.ts<FX_HIST_TTL)return hit.data;
-  const r=await fetch(`https://data912.com/historical/bonds/${sym}`,
-    {cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
-  if(!r.ok)throw new Error('data912 HTTP '+r.status);
-  const raw=await r.json();
   const m=new Map();
-  for(const x of raw||[]){
-    const f=String((x&&x.date)||'').slice(0,10);
-    const c=+((x||{}).c);
-    if(f&&isFinite(c)&&c>0)m.set(f,c);
+  try{
+    const r=await fetch(`https://data912.com/historical/bonds/${sym}`,
+      {cache:'no-store',signal:AbortSignal.timeout(FX_HIST_TIMEOUT_MS)});
+    if(!r.ok)throw new Error('data912 HTTP '+r.status);
+    const raw=await r.json();
+    for(const x of raw||[]){
+      const f=String((x&&x.date)||'').slice(0,10);
+      const c=+((x||{}).c);
+      if(f&&isFinite(c)&&c>0)m.set(f,c);
+    }
+  }catch(e){
+    console.warn('[fx] histórico de',sym+':',e.message);
+    return m;   // sin cachear: el próximo intento vuelve a pedirlo
   }
   _fxHist.set(sym,{ts:Date.now(),data:m});
   return m;
 }
 
+// LECAPs medidas al MEP: el dólar al que habría que poder comprar el día del
+// vencimiento para que comprar la letra hoy y quedarse en dólares den lo mismo.
+//
+//   BE(t) = MEP(t) × VF / precio(t)
+//
+// Es el mismo breakeven que dibuja la solapa del dólar proyectado, pero contra
+// el MEP en vez del A3500 y rueda por rueda en lugar de sólo hoy: así se ve
+// cómo se movió el dólar que la curva de tasa fija viene descontando.
+//
+// El VF sale de la definición del bono y no depende de la fecha, así que se
+// calcula una vez. Los precios salen del mismo histórico que alimenta Curvas,
+// con el mismo corte de los últimos días antes del vencimiento: a tres días del
+// pago el breakeven se vuelve aritmética de dividir por un plazo que tiende a
+// cero.
+async function seriesLecapBE(desde,hasta,mepPorFecha){
+  if(typeof LECAPS==='undefined'||!LECAPS.length||!mepPorFecha.size)return[];
+  const def=new Map();
+  for(const b of LECAPS||[]){
+    if(!b||!b.ticker||!b.vcto||!b.emision||!(b.tem_emision>0))continue;
+    let vf=null;
+    try{vf=calcVF(b.tem_emision,parseDate(b.emision),parseDate(b.vcto));}catch(e){}
+    if(vf>0)def.set(b.ticker,{vf,vcto:String(b.vcto).slice(0,10)});
+  }
+  if(!def.size)return[];
+  const{data,error}=await supa.from('bond_price_snapshots')
+    .select('snapshot_date,ticker,price')
+    .eq('sector','TF').gte('snapshot_date',desde).lte('snapshot_date',hasta)
+    .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
+    .order('snapshot_date',{ascending:true});
+  if(error)throw error;
+  const porBono=new Map();
+  for(const r of data||[]){
+    const d=def.get(r.ticker);
+    if(!d||!(r.price>0))continue;
+    const mep=mepPorFecha.get(r.snapshot_date);
+    if(!(mep>0))continue;
+    const be=mep*d.vf/r.price;
+    if(!isFinite(be)||be<=0)continue;
+    if(!porBono.has(r.ticker))porBono.set(r.ticker,{vcto:d.vcto,serie:new Map()});
+    porBono.get(r.ticker).serie.set(r.snapshot_date,be);
+  }
+  const lista=[...porBono.entries()].sort((a,b)=>a[1].vcto.localeCompare(b[1].vcto));
+  // Familia aparte a propósito: menos saturadas que las cinco monedas, para que
+  // se lean como un grupo y no compitan con el MEP y el cable.
+  return lista.map(([t,o],i)=>({
+    l:'BE '+t,
+    c:`hsl(${Math.round(i*360/Math.max(lista.length,1))},45%,58%)`,
+    u:'$',
+    serie:o.serie,
+  }));
+}
+
 async function seriesTraerFX(desde,hasta){
   if(!DLK_INDEX.length){try{await dlkFetchIndex();}catch(e){}}
+  // Las bandas se bajan la primera vez que alguien las pide, como en la solapa
+  // del dólar proyectado: son dos series diarias enteras del BCRA.
+  if(!BANDA_INDEX.length){try{await bandaFetchIndex();}catch(e){}}
   const[ars,d,c]=await Promise.all([
     seriesHist912('AL30'),seriesHist912('AL30D'),seriesHist912('AL30C')]);
   const val=new Map(FX_SERIES.map(s=>[s.l,new Map()]));
@@ -15060,6 +15138,14 @@ async function seriesTraerFX(desde,hasta){
     oficial.set(r.fecha,r.valor);
     val.get('A3500').set(r.fecha,r.valor);
     fechas.add(r.fecha);
+  }
+  // Sólo lo publicado: el rango del gráfico es histórico y la proyección de la
+  // banda es otra cosa, que vive en la solapa de proyecciones del dólar.
+  for(const b of BANDA_INDEX||[]){
+    if(!b||b.fecha<desde||b.fecha>hasta)continue;
+    if(b.inf>0)val.get('Banda inf.').set(b.fecha,b.inf);
+    if(b.sup>0)val.get('Banda sup.').set(b.fecha,b.sup);
+    if(b.inf>0||b.sup>0)fechas.add(b.fecha);
   }
   for(const[f,px]of ars){
     if(f<desde||f>hasta||!(px>0))continue;
@@ -15073,12 +15159,21 @@ async function seriesTraerFX(desde,hasta){
   }
   const porBono=new Map();
   for(const s of FX_SERIES){const m=val.get(s.l);if(m.size)porBono.set(s.l,m);}
+  // Las monedas siempre; los breakeven de las LECAPs se suman si hay histórico.
+  let lecaps=[];
+  try{lecaps=await seriesLecapBE(desde,hasta,val.get('MEP'));}catch(e){console.warn('[fx] lecaps:',e.message);}
+  for(const x of lecaps)if(x.serie.size)porBono.set(x.l,x.serie);
+  const todas=FX_SERIES.concat(lecaps);
   return{
     fechas:[...fechas].sort(),
     porBono,
-    orden:FX_SERIES.map(s=>s.l).filter(l=>porBono.has(l)),
-    unidades:new Map(FX_SERIES.map(s=>[s.l,s.u])),
-    colores:new Map(FX_SERIES.map(s=>[s.l,s.c])),
+    orden:todas.map(s=>s.l).filter(l=>porBono.has(l)),
+    unidades:new Map(todas.map(s=>[s.l,s.u])),
+    colores:new Map(todas.map(s=>[s.l,s.c])),
+    trazos:new Map(todas.filter(s=>s.dash).map(s=>[s.l,s.dash])),
+    // Veinte breakeven prendidos de entrada tapan el gráfico. Arrancan apagados
+    // y se prenden con su chip, que es lo mismo que hace el resto de la solapa.
+    filtroInicial:FX_SERIES.map(s=>s.l).filter(l=>porBono.has(l)),
   };
 }
 
@@ -15118,6 +15213,7 @@ function seriesDibujar(sec,error){
   const orden=!esFwd&&st.cache.orden&&st.cache.orden.length?st.cache.orden:null;
   const unidades=!esFwd&&st.cache.unidades?st.cache.unidades:null;
   const paleta=!esFwd&&st.cache.colores?st.cache.colores:null;
+  const trazos=!esFwd&&st.cache.trazos?st.cache.trazos:null;
   const tickers=esFwd?[...porBono.keys()]
     :orden?orden.filter(t=>porBono.has(t))
     :ordenarPorVencimiento([...porBono.keys()]);
@@ -15150,7 +15246,13 @@ function seriesDibujar(sec,error){
     }
   }
 
+  const canvas2=document.getElementById(`series-${sec}-chart2`);
+  const wrap1=document.getElementById(`series-${sec}-wrap1`);
+  const wrap2=document.getElementById(`series-${sec}-wrap2`);
+  const mostrar=(el,v)=>{if(el)el.style.display=v?'':'none';};
   if(st.chart){st.chart.destroy();st.chart=null;}
+  if(st.chart2){st.chart2.destroy();st.chart2=null;}
+  mostrar(wrap1,true);mostrar(wrap2,false);
   if(error){if(msg)msg.textContent='';return;}
   if(!fechas.length){if(msg)msg.textContent='Sin datos en el rango elegido';return;}
   if(esFwd&&!tickers.length){if(msg)msg.textContent='Agregá una combinación para ver su histórico';return;}
@@ -15162,58 +15264,73 @@ function seriesDibujar(sec,error){
     : `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length}/${tickers.length} ${unidades?'series':'bonos'} · ${puntos} puntos`;
   if(!vis.length)return;
 
-  const datasets=vis.map(t=>{
+  const etiquetas=fechas.map(curvasFmtDate);
+  const dsDe=t=>{
     const i=tickers.indexOf(t), col=colDe(t,i);
     const serie=porBono.get(t);
+    const punteada=trazos&&trazos.get(t);
     return{
       label:t,
       data:fechas.map(f=>serie.has(f)?+serie.get(f).toFixed(4):null),
-      yAxisID:unidades&&uni(t)!=='$'?'y2':'y',
       borderColor:col, backgroundColor:col,
       pointBackgroundColor:col, pointBorderColor:col,
-      borderWidth:1.8, pointRadius:fechas.length>40?0:3, pointHoverRadius:5,
+      borderWidth:1.8, pointRadius:punteada?0:(fechas.length>40?0:3), pointHoverRadius:5,
       tension:0, fill:false, spanGaps:false,   // un hueco es un hueco, no se interpola
       datalabels:{display:false},
+      ...(punteada?{borderDash:punteada}:{}),
     };
-  });
+  };
 
   if(window.ChartDataLabels)Chart.register(ChartDataLabels);
   const textColor=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#e0e0e0';
   const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a302a';
-  st.chart=new Chart(canvas,{
+  const fmtPesos=v=>'$'+Math.round(v).toLocaleString('es-AR');
+  const fmtPct=v=>v.toFixed(1)+'%';
+  // Config completa de un panel. Va factorizada porque las monedas dibujan dos,
+  // y dos objetos de opciones que hay que mantener iguales a mano se
+  // desincronizan el día que alguien toca uno solo.
+  const armar=(cv,ds,tituloY,esPesos,ejeX)=>new Chart(cv,{
     type:'line',
-    data:{labels:fechas.map(curvasFmtDate),datasets},
+    data:{labels:etiquetas,datasets:ds},
     options:{
       responsive:true,maintainAspectRatio:false,animation:{duration:200},
       interaction:{mode:'nearest',axis:'x',intersect:false},
       plugins:{
-        legend:{display:vis.length<=12,labels:{color:textColor,font:{size:10},boxWidth:12,padding:10}},
+        legend:{display:ds.length<=12,labels:{color:textColor,font:{size:10},boxWidth:12,padding:10}},
         datalabels:{display:false},
         tooltip:{callbacks:{label:i=>{
-          const t=i.dataset.label,v=i.parsed.y;
-          if(unidades&&uni(t)==='$')return `${t} — ${v!=null?'$'+v.toFixed(2):'—'}`;
-          return `${t} — ${v!=null?v.toFixed(2):'—'}%`;
+          const v=i.parsed.y;
+          if(esPesos)return `${i.dataset.label} — ${v!=null?'$'+v.toFixed(2):'—'}`;
+          return `${i.dataset.label} — ${v!=null?v.toFixed(2):'—'}%`;
         }}},
       },
       scales:{
-        x:{title:{display:true,text:'Fecha',color:textColor,font:{size:10}},
+        x:{title:{display:ejeX,text:'Fecha',color:textColor,font:{size:10}},
            grid:{color:gridColor},
-           ticks:{color:textColor,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:12}},
-        // Con unidades mezcladas hacen falta dos reglas: los niveles del dólar
-        // a la izquierda y los porcentajes a la derecha. Sobre un solo eje, un
-        // canje de 4% al lado de un MEP de 1534 queda pegado al piso.
-        y:{display:!unidades||vis.some(t=>uni(t)==='$'),
-           title:{display:true,text:unidades?(opt.y||'$'):(esFwd&&opt.yf?opt.yf:opt.y),color:textColor,font:{size:10}},
+           ticks:{display:ejeX,color:textColor,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:12}},
+        y:{title:{display:true,text:tituloY,color:textColor,font:{size:10}},
            grid:{color:gridColor},
-           ticks:{color:textColor,font:{size:10},
-             callback:unidades?(v=>'$'+Math.round(v).toLocaleString('es-AR')):(v=>v.toFixed(1)+'%')}},
-        ...(unidades?{y2:{position:'right',display:vis.some(t=>uni(t)==='%'),
-           title:{display:true,text:opt.y2||'%',color:textColor,font:{size:10}},
-           grid:{display:false},
-           ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}:{}),
+           ticks:{color:textColor,font:{size:10},callback:esPesos?fmtPesos:fmtPct}},
       },
     },
   });
+
+  if(!unidades){
+    st.chart=armar(canvas,vis.map(dsDe),esFwd&&opt.yf?opt.yf:opt.y,false,true);
+    return;
+  }
+
+  // Monedas: dos paneles apilados, uno por unidad. Un canje de 4% al lado de un
+  // MEP de 1534 sobre la misma regla queda pegado al piso. Si sólo hay series
+  // de un grupo seleccionadas, ese panel ocupa todo el alto y el otro no se
+  // dibuja; con los dos, el eje de fechas va una sola vez, abajo de todo.
+  const niveles=vis.filter(t=>uni(t)==='$');
+  const pcts=vis.filter(t=>uni(t)!=='$');
+  const hayDos=niveles.length>0&&pcts.length>0;
+  mostrar(wrap1,niveles.length>0);
+  mostrar(wrap2,pcts.length>0);
+  if(niveles.length)st.chart=armar(canvas,niveles.map(dsDe),opt.y||'$ / USD',true,!hayDos);
+  if(pcts.length)st.chart2=armar(canvas2,pcts.map(dsDe),opt.y2||'%',false,true);
 }
 
 // ══════════════════════════════════════════════════════════════ CURVAS USD
