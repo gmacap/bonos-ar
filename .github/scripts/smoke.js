@@ -1982,6 +1982,34 @@ const omitir = (label, motivo) =>
   // ajuste quedaba sólo en localStorage y la hidratación siguiente lo pisaba
   // con la copia compartida. Y aun cuando sobrevivía, nadie recalculaba después
   // de la hidratación: el valor estaba guardado y no se veía.
+  console.log('\nBarra USD: la brecha contra el oficial');
+  const br = await page.evaluate(() => {
+    const leer = id => (document.getElementById(id) || {}).textContent || '';
+    const num = t => parseFloat(String(t).replace('%', ''));
+    const of = dlkTCHoy();
+    const mepBid = parseFloat(leer('usd-mep-bid'));
+    const antes = leer('usd-brecha-bid');
+    // Editar el oficial a mano tiene que recalcularla: es el único camino que no
+    // pasa por a3500Pintar, y sería el que dejara el valor viejo en pantalla.
+    dlkOnA3500Change('1000');
+    const conManual = leer('usd-brecha-bid');
+    dlkResetA3500();
+    return { of, mepBid, antes, conManual, vuelta: leer('usd-brecha-bid'),
+      esperado: of > 0 && mepBid > 0 ? (mepBid / of - 1) * 100 : null,
+      esperadoManual: mepBid > 0 ? (mepBid / 1000 - 1) * 100 : null,
+      antesNum: num(antes), manualNum: num(conManual) };
+  });
+  if (!(br.esperado != null && br.mepBid > 0)) {
+    omitir('la brecha se pinta en la barra', 'sin MEP en vivo');
+  } else {
+    check(Math.abs(br.antesNum - br.esperado) < 0.01,
+          'la brecha es MEP / A3500 − 1', `${br.antes} vs ${br.esperado.toFixed(2)}%`);
+    check(Math.abs(br.manualNum - br.esperadoManual) < 0.01,
+          'editar el oficial a mano la recalcula', `${br.conManual} vs ${br.esperadoManual.toFixed(2)}%`);
+    check(br.vuelta === br.antes, 'el ↺ la devuelve al automático',
+          `${br.vuelta} vs ${br.antes}`);
+  }
+
   console.log('\nEscenarios');
   const esc = await page.evaluate(() => {
     switchSection('pesos'); switchTab('escenarios');
