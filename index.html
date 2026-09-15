@@ -488,6 +488,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <th onclick="sortBy('modDuration')" id="th-modDuration">MD</th>
           <th onclick="sortBy('precio')" id="th-precio">Precio $</th>
           <th onclick="sortBy('pct_change')" id="th-pct_change">Var%</th>
+          <th onclick="sortBy('spread')" id="th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
+          <th onclick="sortBy('monto')"  id="th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
           <th onclick="sortBy('tna')"    id="th-tna">TNA</th>
           <th onclick="sortBy('tir')"    id="th-tir">TIR</th>
           <th onclick="sortBy('tem')"    id="th-tem">TEM</th>
@@ -670,6 +672,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="cerSortBy('modDuration')" id="cer-th-modDuration">MD</th>
             <th onclick="cerSortBy('precio')" id="cer-th-precio">Precio $</th>
             <th onclick="cerSortBy('pct_change')" id="cer-th-pct_change">Var%</th>
+            <th onclick="cerSortBy('spread')" id="cer-th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
+            <th onclick="cerSortBy('monto')"  id="cer-th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th onclick="cerSortBy('tir')"    id="cer-th-tir">TIR real</th>
             <th onclick="cerSortBy('tirProy')" id="cer-th-tirProy" style="color:var(--warn)">TIR c/proy</th>
             <th onclick="cerSortBy('tnaProy')" id="cer-th-tnaProy" style="color:var(--warn)">TNA c/proy</th>
@@ -946,6 +950,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="tamarSortBy('modDuration')" id="tamar-th-modDuration">MD</th>
             <th onclick="tamarSortBy('precio')" id="tamar-th-precio">Precio $</th>
             <th onclick="tamarSortBy('pct_change')" id="tamar-th-pct_change">Var%</th>
+            <th onclick="tamarSortBy('spread')" id="tamar-th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
+            <th onclick="tamarSortBy('monto')"  id="tamar-th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th onclick="tamarSortBy('margenTNA')" id="tamar-th-margenTNA">Margen TNA</th>
             <th onclick="tamarSortBy('tir')"    id="tamar-th-tir">TIR</th>
             <th onclick="tamarSortBy('tna')"    id="tamar-th-tna">TNA</th>
@@ -1059,6 +1065,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th>Días</th>
             <th>Precio $</th>
             <th>Var%</th>
+            <th title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
+            <th title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th>Paridad</th>
             <th id="dlk-th-tir">TIR</th>
             <th id="dlk-th-tna">TNA</th>
@@ -2695,10 +2703,10 @@ async function supaSaveSharedKey(key){
     let value=JSON.parse(raw);
     // No guardar precios en Supabase — son datos de mercado en tiempo real
     if(key==='bonosAR_lecaps_v1'||key==='bonosAR_cer_bonds_v1'||key==='bonosAR_tamar_bonds_v1'||key==='bonosAR_dlk_bonds_v1'){
-      value=value.map(b=>({...b,precio:null,pct_change:null}));
+      value=value.map(b=>({...b,precio:null,pct_change:null,bid:null,ask:null,vol:null,ops:null,monto:null}));
     }
     if(key==='bonosAR_bop_v1'||key==='bonosAR_glo_v1'||key==='bonosAR_bon_v1'){
-      value=value.map(b=>({...b,lastPrecio:null,lastPrecioMEP:null,lastPctChange:null,lastBid:null,lastAsk:null,lastLiq:null}));
+      value=value.map(b=>({...b,lastPrecio:null,lastPrecioMEP:null,lastPctChange:null,lastBid:null,lastAsk:null,lastVol:null,lastOps:null,lastMonto:null,lastLiq:null}));
     }
     console.log(`[Supa] guardando ${key} → ${value.length ?? JSON.stringify(value).length} items`,value);
     const{error}=await supa.from('shared_data').upsert({key,value,updated_at:new Date().toISOString()},{onConflict:'key'});
@@ -3637,6 +3645,77 @@ let DATA=LECAPS.map(enrich);
 
 // ── API FETCH ─────────────────────────────────────────────────────────────────
 // Mejor precio disponible de la API: cierre > 0, sino mid bid/ask, sino ask, sino bid
+// ── Libro: puntas y volumen ──────────────────────────────────────────────────
+// data912 manda seis campos por instrumento y la app usaba uno solo, el último
+// operado. Las puntas dicen lo que cuesta entrar y salir; el volumen, si vas a
+// poder. Ya venían en la misma respuesta: no hay fuente nueva ni un pedido más.
+//
+// Cobertura hoy sobre 215 instrumentos: 207 con punta compradora, 209 con
+// vendedora, 174 con volumen.
+
+// Spread de punta a punta, en % del medio. Es la ida y vuelta completa.
+function libroSpread(bid,ask){
+  if(!(bid>0)||!(ask>0)||ask<bid)return null;
+  const medio=(ask+bid)/2;
+  return medio>0?(ask-bid)/medio*100:null;
+}
+
+// Monto operado en pesos.
+//
+// El campo `v` viene en NOMINALES, no en plata: AL30 marcó 49,6 millones de
+// nominales, que a 850,50 por nominal son 42 mil millones de pesos. Los precios
+// se cotizan por cada 100 nominales, de ahí el /100. Los tickers en dólares se
+// pasan a pesos para que el corte del semáforo sea el mismo en las dos
+// secciones: comparar plata contra plata, no nominales de distinta lámina.
+function libroMonto(vol,precio,tcPesos){
+  if(!(vol>0)||!(precio>0))return null;
+  const m=vol*precio/100;
+  return tcPesos>0?m*tcPesos:m;
+}
+
+// Semáforo por monto operado. Los cortes salen de cruzar el volumen de las
+// últimas ~72 ruedas contra el spread del día en 78 bonos: la correlación entre
+// el logaritmo del volumen y el spread es −0,50, y lo que decide no es la
+// mediana sino el peor caso. Ninguno de los verdes cotiza con más de 0,31%
+// entre puntas; el peor de los rojos llega a 2,28%.
+const LIQ_VERDE=1e9, LIQ_AMARILLO=1e7;
+const LIQ_COLOR={verde:'#4ade80',amarillo:'#fbbf24',rojo:'#f87171'};
+function libroSemaforo(monto){
+  if(!(monto>0))return null;
+  return monto>=LIQ_VERDE?'verde':monto>=LIQ_AMARILLO?'amarillo':'rojo';
+}
+
+// Monto en la escala en que se lee de un vistazo.
+function libroMontoFmt(m){
+  if(!(m>0))return '—';
+  if(m>=1e12)return (m/1e12).toFixed(1)+' B';
+  if(m>=1e9) return (m/1e9).toFixed(1)+' MM';
+  if(m>=1e6) return (m/1e6).toFixed(1)+' M';
+  return Math.round(m/1e3)+' k';
+}
+
+// Celda de spread: el número con el color del semáforo del monto, que es lo que
+// dice si ese spread se puede pagar. Sin monto, el número va en gris.
+function libroSpreadHTML(spread,monto){
+  if(spread==null)return '<span style="color:var(--text3)">—</span>';
+  const c=LIQ_COLOR[libroSemaforo(monto)]||'var(--text2)';
+  return `<span style="color:${c};font-variant-numeric:tabular-nums">${spread.toFixed(2)}%</span>`;
+}
+function libroMontoHTML(monto){
+  if(!(monto>0))return '<span style="color:var(--text3)">—</span>';
+  const c=LIQ_COLOR[libroSemaforo(monto)]||'var(--text2)';
+  return `<span style="color:${c};font-variant-numeric:tabular-nums">${libroMontoFmt(monto)}</span>`;
+}
+
+// Los campos de libro que se quedan del item. El monto se calcula acá, con el
+// precio de ese mismo item: `v` viene en nominales y sin el precio no dice nada.
+function libroDe(api){
+  if(!api)return{bid:null,ask:null,vol:null,ops:null,monto:null};
+  const bid=api.px_bid>0?+api.px_bid:null, ask=api.px_ask>0?+api.px_ask:null;
+  const vol=api.v>0?+api.v:null, ops=api.q_op>0?+api.q_op:null;
+  return{bid,ask,vol,ops,monto:libroMonto(vol,apiBestPrice(api),null)};
+}
+
 function apiBestPrice(api){
   if(!api)return null;
   if(api.c>0)return api.c;
@@ -3668,7 +3747,7 @@ async function fetchPrices(){
       const px=apiBestPrice(api);
       if(px){
         updated++;
-        return{...r,precio:px,pct_change:api.pct_change??null,manualOverride:false};
+        return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};
       }
       // solo reportar sin precio si el bono no está vencido
       const liq=G_LIQ||addHabiles(TODAY,1);
@@ -3714,7 +3793,7 @@ async function fetchAllPrices(auto){
     if(LECAPS.length){
       LECAPS=LECAPS.map(r=>{
         const api=map.get(r.ticker);const px=apiBestPrice(api);
-        if(px){total++;return{...r,precio:px,pct_change:api.pct_change??null,manualOverride:false};}
+        if(px){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
         if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
         return r;
       });
@@ -3726,7 +3805,7 @@ async function fetchAllPrices(auto){
     if(CER_BONDS.length){
       CER_BONDS=CER_BONDS.map(r=>{
         const api=map.get(r.ticker);
-        if(api){const px=apiBestPrice(api);if(px>0){total++;return{...r,precio:px,pct_change:api.pct_change??null,manualOverride:false};}}
+        if(api){const px=apiBestPrice(api);if(px>0){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}}
         if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
         return r;
       });
@@ -3738,7 +3817,7 @@ async function fetchAllPrices(auto){
     if(TAMAR_BONDS.length){
       TAMAR_BONDS=TAMAR_BONDS.map(r=>{
         const api=map.get(r.ticker);const px=apiBestPrice(api);
-        if(px){total++;return{...r,precio:px,pct_change:api.pct_change??null,manualOverride:false};}
+        if(px){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
         if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
         return r;
       });
@@ -3750,7 +3829,7 @@ async function fetchAllPrices(auto){
       const updatedDlk=new Set();
       DLK_BONDS=DLK_BONDS.map(b=>{
         const api=map.get(b.ticker);const px=apiBestPrice(api);
-        if(px){total++;updatedDlk.add(b.ticker);return{...b,precio:px,pct_change:api.pct_change??null,manualOverride:false};}
+        if(px){total++;updatedDlk.add(b.ticker);return{...b,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
         return b;
       });
       // Acá se restauraba el último cierre en cada refresco: borraba el tipo de
@@ -3794,10 +3873,17 @@ async function fetchAllPrices(auto){
 // ── TABLA ─────────────────────────────────────────────────────────────────────
 let sortCol='vcto',sortAsc=true,selectedTicker=null,panelMode='precio',editingCell=null;
 
-const TH_COLS=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','tna','tir','tem','vf'];
+const TH_COLS=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tna','tir','tem','vf'];
 function sortBy(col){
   sortAsc=sortCol===col?!sortAsc:(col==='vcto'||col==='ticker');
   sortCol=col;renderTable();
+}
+// El spread no es un campo del bono, sale de las dos puntas. Se calcula al
+// ordenar para que la columna sea ordenable como cualquier otra.
+function filaValor(r,col){
+  if(col==='spread')return libroSpread(r.bid,r.ask);
+  if(col==='monto') return r.monto;
+  return r[col];
 }
 
 function renderTable(){
@@ -3805,7 +3891,7 @@ function renderTable(){
   const showV=document.getElementById('show-vencidas').checked;
   let rows=DATA.filter(r=>(showV||r.dias>0)&&(!q||r.ticker.toLowerCase().includes(q)));
   rows.sort((a,b)=>{
-    let av=a[sortCol],bv=b[sortCol];
+    let av=filaValor(a,sortCol),bv=filaValor(b,sortCol);
     // string sort for ticker and vcto (vcto is ISO string → lexicographic = chronological)
     if(sortCol==='ticker'||sortCol==='vcto'){
       av=av||''; bv=bv||'';
@@ -3822,7 +3908,7 @@ function renderTable(){
     th.classList.toggle('sorted',c===sortCol);
   });
   const tbody=document.getElementById('table-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="10" class="no-rows">Sin resultados. Agregá letras con + Nueva y actualizá precios.</td></tr>';set('st-count','0 letras');renderChart();return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="13" class="no-rows">Sin resultados. Agregá letras con + Nueva y actualizá precios.</td></tr>';set('st-count','0 letras');renderChart();return;}
   // cache heat ranges for visible rows
   window._heatRanges={
     tna:heatRange('tna'),
@@ -3891,6 +3977,8 @@ function buildRow(r){
     <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
     <td>${cellContent('precio')}</td>
     <td><div class="cv no-edit" style="justify-content:flex-end">${chgStr}</div></td>
+    <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
+    <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
     <td>${cellContent('tna')}</td>
     <td>${cellContent('tir')}</td>
     <td>${cellContent('tem')}</td>
@@ -4987,7 +5075,7 @@ async function cerFetchPrices(){
     let updated=0,notFound=[];
     CER_BONDS=CER_BONDS.map(r=>{
       const api=map.get(r.ticker);
-      if(api){const px=apiBestPrice(api);if(px>0){updated++;return{...r,precio:px,pct_change:api.pct_change??null,manualOverride:false};}}
+      if(api){const px=apiBestPrice(api);if(px>0){updated++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}}
       const liq=G_LIQ||addHabiles(TODAY,1);
       if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
       return r;
@@ -5008,7 +5096,7 @@ async function cerFetchPrices(){
 }
 
 // ── CER TABLE ─────────────────────────────────────────────────────────────────
-const CER_TH=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','tir','tirProy','tnaProy','temProy'];
+const CER_TH=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tir','tirProy','tnaProy','temProy'];
 function cerSortBy(col){
   cerSortAsc=cerSortCol===col?!cerSortAsc:(col==='vcto'||col==='ticker');
   cerSortCol=col;cerRenderTable();
@@ -5046,7 +5134,7 @@ function cerRenderTable(){
   });
   const tbody=document.getElementById('cer-table-body');
   const hasProy=CER_PROJ.size>0;
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="${hasProy?11:11}" class="no-rows">Agregá bonos CER con + Nueva y actualizá precios.</td></tr>`;set('st-count','0 bonos');return;}
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="${hasProy?13:13}" class="no-rows">Agregá bonos CER con + Nueva y actualizá precios.</td></tr>`;set('st-count','0 bonos');return;}
 
   tbody.innerHTML=rows.map(r=>{
     const v=r.dias<=0;
@@ -5090,6 +5178,8 @@ function cerRenderTable(){
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
       <td>${cerc('precio')}</td>
       <td><div class="cv no-edit">${chgStr}</div></td>
+      <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
+      <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td>${cerc('tir')}</td>
       <td>${cercProy(r.tirProy)}</td>
       <td>${cercProy(r.tnaProy)}</td>
@@ -8402,7 +8492,7 @@ const LS_TAMAR='bonosAR_tamar_bonds_v1';
 let TAMAR_BONDS=[];
 let TAMAR_DATA=[];
 let tamarSortCol='vcto', tamarSortAsc=true;
-const TAMAR_TH=['ticker','vcto','dias','modDuration','precio','pct_change','margenTNA','tir','tna','tem'];
+const TAMAR_TH=['ticker','vcto','dias','modDuration','precio','pct_change','spread','monto','margenTNA','tir','tna','tem'];
 
 // ── TAMAR ENRICH ─────────────────────────────────────────────────────────────
 function tamarEnrich(r){
@@ -8554,7 +8644,7 @@ function tamarRenderTable(){
   });
   const tbody=document.getElementById('tamar-table-body');
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="11" class="no-rows">Agregá bonos TAMAR con + Nueva y actualizá precios.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="13" class="no-rows">Agregá bonos TAMAR con + Nueva y actualizá precios.</td></tr>`;
     document.getElementById('tamar-st-count').textContent='0 bonos';return;
   }
   tbody.innerHTML=rows.map(r=>{
@@ -8575,6 +8665,8 @@ function tamarRenderTable(){
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
       <td>${pxCell}</td>
       <td><div class="cv no-edit">${chgStr}</div></td>
+      <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
+      <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td><div class="cv no-edit c-amber">${f(r.margenTNA,4)}</div></td>
       <td><div class="cv no-edit c-amber">${f(r.tir,4)}</div></td>
       <td><div class="cv no-edit c-muted">${f(r.tna,4)}</div></td>
@@ -8839,7 +8931,7 @@ async function tamarFetchPrices(){
     TAMAR_BONDS=TAMAR_BONDS.map(r=>{
       const api=map.get(r.ticker);
       const px=apiBestPrice(api);
-      if(px){updated++;return{...r,precio:px,pct_change:api.pct_change??null,manualOverride:false};}
+      if(px){updated++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
       const liq=G_LIQ||addHabiles(TODAY,1);
       if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
       return r;
@@ -11142,7 +11234,7 @@ function dlkRenderTable(){
   const tbody=document.getElementById('dlk-table-body');
   if(!tbody)return;
   if(!DLK_BONDS.length){
-    tbody.innerHTML=`<tr><td colspan="9" class="no-rows">Agregá bonos DLK con + Nueva.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="11" class="no-rows">Agregá bonos DLK con + Nueva.</td></tr>`;
     return;
   }
   const liq=G_LIQ||addHabiles(TODAY,1);
@@ -11164,6 +11256,8 @@ function dlkRenderTable(){
       <td><div class="cv no-edit c-muted">${r.dias}</div></td>
       <td>${pxCell}</td>
       <td><div class="cv no-edit">${chgStr}</div></td>
+      <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
+      <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td><div class="cv no-edit c-amber">${parStr}</div></td>
       <td><div class="cv no-edit c-blue">${f2(r.tir)}</div></td>
       <td><div class="cv no-edit c-amber">${f2(r.tna)}</div></td>
@@ -11371,7 +11465,7 @@ async function dlkFetchPrices(){
     DLK_BONDS=DLK_BONDS.map(b=>{
       const api=map.get(b.ticker);
       const px=apiBestPrice(api);
-      if(px){updatedDlk.add(b.ticker);return{...b,precio:px,pct_change:api.pct_change??null,manualOverride:false};}
+      if(px){updatedDlk.add(b.ticker);return{...b,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
       return b;
     });
     dlkSaveBonds();
@@ -12682,16 +12776,17 @@ async function usdFetchPriceMap(){
   // Mismo timeout que el resto de los precios: sin esto la pestana de
   // dolares quedaba colgada cuando data912 no responde.
   const data=await fetchData912('arg_bonds');
-  const map={},pctMap={},bidMap={},askMap={};
+  const map={},pctMap={},bidMap={},askMap={},crudo={};
   for(const item of data)if(item.symbol&&item.c!=null){
     map[item.symbol]=+item.c;
+    crudo[item.symbol]=item;
     if(item.pct_change!=null)pctMap[item.symbol]=+item.pct_change;
     const bid=item.px_bid;
     const ask=item.px_ask;
     if(bid!=null)bidMap[item.symbol]=+bid;
     if(ask!=null)askMap[item.symbol]=+ask;
   }
-  return{map,pctMap,bidMap,askMap};
+  return{map,pctMap,bidMap,askMap,crudo};
 }
 
 function usdNextHabil(){
@@ -12704,7 +12799,7 @@ async function usdRefreshPrices(){
   const statusEl=document.getElementById('usd-price-status');
   if(statusEl)statusEl.textContent='Actualizando...';
   try{
-    const{map,pctMap,bidMap,askMap}=await usdFetchPriceMap();
+    const{map,pctMap,bidMap,askMap,crudo}=await usdFetchPriceMap();
     const mepRate=(map['AL30']&&map['AL30D'])?map['AL30']/map['AL30D']:null;
     // El histórico de curvas se archiva SIEMPRE en base MEP, mire lo que mire
     // el selector de moneda. El selector es una preferencia de pantalla, pero
@@ -12714,6 +12809,21 @@ async function usdRefreshPrices(){
     // Contra los cierres del ticker C daba +0,01%. El backfill ya usa MEP
     // (EQUIV_DATA.mep), así que esto es lo que pone a las dos rutas en la
     // misma base. El precio de pantalla sigue siendo el que elegiste.
+    // Libro del ticker que se está mirando. El monto va en pesos: el volumen
+    // viene en nominales del ticker en dólares, así que hay que pasarlo por el
+    // precio y por el MEP para comparar contra el corte de la otra sección.
+    const enPesos=usdCurrency==='ARS';
+    const libroUsd=sym=>{
+      const it=sym?crudo[sym]:null;
+      if(!it)return{lastVol:null,lastOps:null,lastMonto:null};
+      const vol=it.v>0?+it.v:null;
+      return{
+        lastVol:vol,
+        lastOps:it.q_op>0?+it.q_op:null,
+        // El ticker en pesos ya cotiza en pesos; el de dólares pasa por el MEP.
+        lastMonto:libroMonto(vol,map[sym],enPesos?null:mepRate),
+      };
+    };
     const pxMEP=row=>{
       const d=map[row.mep];
       if(d!=null)return +(+d).toFixed(4);
@@ -12738,7 +12848,18 @@ async function usdRefreshPrices(){
         const raw=map[row.cable];
         if(raw!=null){usdPrecio=raw;sym=row.cable;}
       }
-      if(usdPrecio!=null){bond.lastPrecio=+usdPrecio.toFixed(4);bond.lastPrecioMEP=pxMEP(row);bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+usdPrecio.toFixed(2);bond.lastPctChange=sym&&pctMap[sym]!=null?pctMap[sym]:null;if(!bond.lastLiq)bond.lastLiq=liq;bond.manualOverride=false;updated++;}
+      if(usdPrecio!=null){
+        bond.lastPrecio=+usdPrecio.toFixed(4);bond.lastPrecioMEP=pxMEP(row);
+        bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+usdPrecio.toFixed(2);
+        bond.lastPctChange=sym&&pctMap[sym]!=null?pctMap[sym]:null;
+        if(sym){
+          const rb=bidMap[sym],ra=askMap[sym];
+          bond.lastBid=rb!=null?(enPesos&&mepRate?rb/mepRate:+rb):null;
+          bond.lastAsk=ra!=null?(enPesos&&mepRate?ra/mepRate:+ra):null;
+        }
+        Object.assign(bond,libroUsd(sym));
+        if(!bond.lastLiq)bond.lastLiq=liq;bond.manualOverride=false;updated++;
+      }
     }
 
     if(updated)bopSave();
@@ -12770,6 +12891,7 @@ async function usdRefreshPrices(){
           bond.lastBid=rb!=null?(usdCurrency==='ARS'?rb/mepRate:+rb):null;
           bond.lastAsk=ra!=null?(usdCurrency==='ARS'?ra/mepRate:+ra):null;
         }
+        Object.assign(bond,libroUsd(gloSym));
         gloUpdated++;
       }
     }
@@ -12801,6 +12923,7 @@ async function usdRefreshPrices(){
           bond.lastBid=rb!=null?(usdCurrency==='ARS'?rb/mepRate:+rb):null;
           bond.lastAsk=ra!=null?(usdCurrency==='ARS'?ra/mepRate:+ra):null;
         }
+        Object.assign(bond,libroUsd(bonSym));
         bonUpdated++;
       }
     }
@@ -12842,6 +12965,8 @@ const USD_SUM_COLS=[
   {key:'ticker',     label:'TICKER',  align:'left'},
   {key:'precio',     label:'PRECIO',  align:'right'},
   {key:'var',        label:'VAR.',    align:'right'},
+  {key:'spread',     label:'SPREAD',  align:'right'},
+  {key:'monto',      label:'MONTO',   align:'right'},
   {key:'md',         label:'MD',      align:'right'},
   {key:'vencimiento',label:'VTO',     align:'right'},
   {key:'paridad',    label:'PARIDAD', align:'right'},
@@ -12885,6 +13010,9 @@ function usdSumSort(enriched,col,asc){
       case'ticker':      va=a.b.ticker;              vz=z.b.ticker;              break;
       case'precio':      va=a.b.lastPrecio??-Infinity;vz=z.b.lastPrecio??-Infinity;break;
       case'var':         va=a.b.lastPctChange??-Infinity;vz=z.b.lastPctChange??-Infinity;break;
+      case'spread':      va=libroSpread(a.b.lastBid,a.b.lastAsk)??Infinity;
+                         vz=libroSpread(z.b.lastBid,z.b.lastAsk)??Infinity;      break;
+      case'monto':       va=a.b.lastMonto??-Infinity;  vz=z.b.lastMonto??-Infinity;break;
       case'md':          va=a.md??-Infinity;          vz=z.md??-Infinity;         break;
       case'vencimiento': va=a.b.vencimiento??'';      vz=z.b.vencimiento??'';    break;
       case'paridad':     va=a.par??-Infinity;         vz=z.par??-Infinity;        break;
@@ -12923,6 +13051,8 @@ function usdSumRowHtml(e,isSel,onClickFn,group){
     <td style="padding:9px 14px;color:var(--accent);font-weight:600">${b.ticker}</td>
     <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="Click para editar precio" style="padding:9px 12px;text-align:right;color:${ovr?'var(--warn)':'var(--text)'};font-variant-numeric:tabular-nums;cursor:text;${ovrStyle}">${precioStr}${ovrMark}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--text3)">${varStr}</td>
+    <td style="padding:9px 12px;text-align:right">${libroSpreadHTML(libroSpread(b.lastBid,b.lastAsk),b.lastMonto)}</td>
+    <td style="padding:9px 12px;text-align:right"${b.lastOps?` title="${b.lastOps} operaciones"`:''}>${libroMontoHTML(b.lastMonto)}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--warn);font-variant-numeric:tabular-nums">${mdStr}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--text2)">${bopFmtDateDisp(b.vencimiento)}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--text);font-variant-numeric:tabular-nums">${parStr}</td>
