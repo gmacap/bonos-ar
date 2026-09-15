@@ -418,8 +418,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <span style="color:var(--text3);margin-right:5px;font-size:10px;text-transform:uppercase;letter-spacing:.06em">T.Desc</span>
   <input type="number" id="sint-tasa-desc" step="0.1" min="0" max="9999"
     style="width:60px;background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--warn);font-family:var(--mono);font-size:11px;padding:0 2px;outline:none;text-align:right;"
-    placeholder="—" title="Tasa de descuento para sintéticos (%)" onchange="sintSetTasaDesc(this.value)">
+    placeholder="—" title="Tasa de descuento para sintéticos (%). Vacío usa la caución más corta de BYMA." onchange="sintSetTasaDesc(this.value)">
   <span style="color:var(--text3);font-size:10px;margin-left:2px">%</span>
+  <span id="sint-tdesc-fuente" style="color:var(--text3);font-size:10px;margin-left:5px;font-family:var(--mono)"></span>
 </div>
 
 <!-- SETTLEMENT BAR -->
@@ -1402,6 +1403,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <button class="btn" style="padding:1px 5px;font-size:10px" onclick="beToggleChartSelector('tf')">bonos ▾</button>
             <div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
               <button class="btn" style="padding:2px 5px;font-size:10px" onclick="beToggleChartSintSelector()">sint ▾</button>
+              <button class="btn" id="be-chart-caucion-btn" style="padding:2px 5px;font-size:10px" onclick="beToggleCaucion()" title="Curva de caución en pesos de BYMA: el tramo corto que la curva de bonos no cubre">caución</button>
               <div class="mode-row" style="margin-left:2px">
                 <button class="mode-btn active" id="be-chart-tf-tna" onclick="beChartTFSetMode('tna')">TNA</button>
                 <button class="mode-btn" id="be-chart-tf-tir" onclick="beChartTFSetMode('tir')">TIR</button>
@@ -3238,6 +3240,7 @@ let beChartExcluded={
 };
 let beChartSintVisible=true;
 let beChartSintExcluded=new Set();
+let beChartCaucion=true;   // el tramo corto, encendido por defecto
 let beChartTFSelectedTipos=new Set(['tf']);
 let beChartCERSelectedTipos=new Set(['cer']);
 let beChartCERMode='tirReal';
@@ -3783,6 +3786,9 @@ async function fetchAllPrices(auto){
   // futuros. Sin esto, ↻ Precios los dejaba como estaban y había que ir hasta
   // Sintéticos a apretar ↻ MAE para verlos moverse.
   maeRefrescar(!auto);
+  // Y la caución es una tercera: alimenta el tramo corto de la curva y la tasa
+  // con la que descuentan los sintéticos.
+  caucionRefrescar(!auto);
 }
 
 // ── TABLA ─────────────────────────────────────────────────────────────────────
@@ -5609,6 +5615,65 @@ function maeTickerFromVcto(vcto){
   const d=parseDate(vcto);
   if(!d||isNaN(d))return null;
   return `DLR${String(d.getMonth()+1).padStart(2,'0')}${d.getFullYear()}`;
+}
+
+// ══════════════════════════════════════════════════════════════════ CAUCIÓN
+// El tramo más corto de la curva de pesos. Abajo de la LECAP más corta la app
+// no tenía nada, y ahí es donde se fondea todo el mundo: la caución es el punto
+// cero real de la curva. Hoy operan 25 plazos en pesos, con el grueso del monto
+// a un día y un segundo nodo a siete.
+//
+// Sale de BYMA, que manda la cabecera CORS con el origen del deploy, así que va
+// directo del navegador sin pasar por el Worker. settlementPrice es la TNA de
+// la rueda; volumeAmount, el monto operado.
+//
+// Sólo entran los plazos que operaron. La mayoría de los largos figura con tasa
+// cero y monto cero, y un cero dibujado en el gráfico sería una tasa que nadie
+// ofreció nunca.
+const CAUCION_URL='https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cauciones';
+const CAUCION_TTL=10*60*1000;
+let CAUCION_ARS=[];   // [{dias,tna,monto,ops}] ascendente por plazo
+let _caucionTs=0;
+
+async function caucionFetch(forzar){
+  if(!forzar&&CAUCION_ARS.length&&Date.now()-_caucionTs<CAUCION_TTL)return CAUCION_ARS;
+  try{
+    const res=await fetch(CAUCION_URL,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({T1:false,T0:true}),
+      signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
+    if(!res.ok)throw new Error('BYMA HTTP '+res.status);
+    const crudo=await res.json();
+    const arr=Array.isArray(crudo)?crudo:((crudo&&crudo.data)||[]);
+    const lista=arr
+      .filter(x=>x&&x.denominationCcy==='ARS'&&x.settlementPrice>0&&x.daysToMaturity>0)
+      .map(x=>({dias:+x.daysToMaturity,tna:+x.settlementPrice,
+                monto:+(x.volumeAmount||0),ops:+(x.numberOfOrders||0)}))
+      .sort((a,b)=>a.dias-b.dias);
+    if(lista.length){CAUCION_ARS=lista;_caucionTs=Date.now();}
+  }catch(e){console.warn('[caución]',e.message);}
+  return CAUCION_ARS;
+}
+
+// La tasa del dinero al plazo más corto que haya operado. Es la que descuenta
+// el sintético entre la fecha de fixing y el vencimiento del futuro.
+function caucionCorta(){
+  const c=CAUCION_ARS.find(x=>x.tna>0);
+  return c?c.tna:null;
+}
+
+// Trae la curva y repinta lo que la usa. Va junto al refresco de precios.
+async function caucionRefrescar(forzar){
+  const antes=CAUCION_ARS.length?CAUCION_ARS[0].tna:null;
+  await caucionFetch(forzar);
+  const ahora=CAUCION_ARS.length?CAUCION_ARS[0].tna:null;
+  try{if(typeof sintPintarTasaDesc==='function')sintPintarTasaDesc();}catch(e){}
+  // La tasa de descuento entra en la valuación de los sintéticos, y los
+  // sintéticos se grafican en el Resumen.
+  if(antes!==ahora){
+    try{if(typeof sintRecalcular==='function')sintRecalcular();}catch(e){}
+    try{if(typeof beRefreshIfVisible==='function')beRefreshIfVisible();}catch(e){}
+  }
 }
 
 // El fix oficial del día, si el BCRA ya lo publicó. Es lo que manda sobre el
@@ -9869,6 +9934,7 @@ refrescoIniciar();
 // arrancar no hay nada en memoria: si recargás la página a las seis de la tarde,
 // el cierre del MAE es justamente el dato que falta.
 maeRefrescar(true);
+caucionRefrescar(true);
 
 // Al volver a la pestaña, si pasó más de un ciclo desde el último refresco,
 // actualizar ya en vez de esperar hasta 5 minutos.
@@ -10237,6 +10303,24 @@ function beChartTFSetMode(m){
   beRenderChartTF();
 }
 
+function beToggleCaucion(){
+  beChartCaucion=!beChartCaucion;
+  beChartSelSaveLs();
+  bePintarCaucion();
+  beRenderChartTF();
+}
+function bePintarCaucion(){
+  const b=document.getElementById('be-chart-caucion-btn');
+  if(!b)return;
+  const hay=typeof CAUCION_ARS!=='undefined'&&CAUCION_ARS.length>0;
+  b.style.color=beChartCaucion&&hay?'#22d3ee':'';
+  b.style.borderColor=beChartCaucion&&hay?'#0e7490':'';
+  b.style.opacity=hay?'1':'.5';
+  b.title=hay
+    ? `Caución en pesos de BYMA · ${CAUCION_ARS.length} plazos · la más corta a ${CAUCION_ARS[0].dias} día${CAUCION_ARS[0].dias===1?'':'s'} en ${CAUCION_ARS[0].tna.toFixed(2)}% TNA`
+    : 'Caución de BYMA: todavía no cargó';
+}
+
 function beToggleChartSintSelector(){
   const sel=document.getElementById('be-chart-sint-selector');
   if(sel)sel.style.display=sel.style.display==='none'?'flex':'none';
@@ -10312,6 +10396,7 @@ function beChartSelLoadLs(){
   try{
     const r=localStorage.getItem(LS_CHART_SEL);
     if(r){const p=JSON.parse(r);
+      if(typeof p.caucion==='boolean')beChartCaucion=p.caucion;
       if(p.exByChart){
         ['tf','cer'].forEach(c=>{
           ['tf','cer','tamar','dlk'].forEach(t=>{
@@ -10339,7 +10424,7 @@ function beChartSelSaveLs(){
   try{localStorage.setItem(LS_CHART_SEL,JSON.stringify({
     exByChart:{tf:ser('tf'),cer:ser('cer')},
     tfTipos:[...beChartTFSelectedTipos],cerTipos:[...beChartCERSelectedTipos],
-    cerMode:beChartCERMode
+    cerMode:beChartCERMode,caucion:beChartCaucion
   }));}catch(e){}
 }
 
@@ -10394,6 +10479,7 @@ function beRenderChartTF(){
 
   beRenderTipoChips('tf');
   beRenderChartSintChips();
+  bePintarCaucion();
 
   if(beChartTF){beChartTF.destroy();beChartTF=null;}
 
@@ -10436,6 +10522,32 @@ function beRenderChartTF(){
     }).filter(Boolean);
   }catch(e){}
   if(sintPts.length) datasets.push({label:'sint',data:sintPts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker})),backgroundColor:'#f59e0b',borderColor:'#d97706',pointRadius:6,pointStyle:'triangle',pointHoverRadius:8,order:20});
+
+  // Caución: el tramo que la curva de bonos no tiene. Se corta en 45 días
+  // porque más allá los plazos figuran listados pero casi no operan, y un punto
+  // sin monto detrás no es una tasa de mercado.
+  //
+  // La caución se publica en TNA. Para leerla contra los bonos en TIR o TEM hay
+  // que llevarla a la misma unidad, que es la conversión de siempre.
+  // Corte por monto: veinticinco plazos figuran listados pero la mitad operó
+  // por menos de mil millones, y esos puntos son ruido, no curva. Con el corte
+  // quedan los nodos donde el mercado realmente se fondea.
+  const CAUCION_MONTO_MIN=1e9;
+  if(beChartCaucion&&typeof CAUCION_ARS!=='undefined'&&CAUCION_ARS.length){
+    const cpts=CAUCION_ARS.filter(c=>c.dias<=45&&c.monto>=CAUCION_MONTO_MIN).map(c=>{
+      const tir=calcTIR(c.tna,c.dias);
+      const val=beChartTFMode==='tir'?tir:beChartTFMode==='tem'?calcTEM(tir):c.tna;
+      return isFinite(val)?{x:c.dias,y:+val.toFixed(2),ticker:c.dias+'d',monto:c.monto}:null;
+    }).filter(Boolean);
+    // Sólo se rotulan los nodos gruesos: con varios plazos en cuarenta días las
+    // etiquetas se pisan entre sí y tapan el arranque de la curva de letras.
+    const cGrueso=cpts.length?Math.max(1e10,Math.max.apply(null,cpts.map(p=>p.monto))/50):0;
+    if(cpts.length) datasets.push({label:'caución',data:cpts,
+      backgroundColor:'#22d3ee',borderColor:'#0e7490',borderWidth:1,
+      pointRadius:cpts.map(p=>p.monto>=1e11?7:p.monto>=1e10?5:3.5),
+      pointStyle:'rectRot',pointHoverRadius:9,order:19,
+      datalabels:{display:ctx=>(cpts[ctx.dataIndex]||{}).monto>=cGrueso}});
+  }
 
   if(!datasets.length)return;
 
@@ -11636,8 +11748,43 @@ function sintCargarEstado(forzar){
 
 function sintLoadTasaDesc(){
   try{const v=localStorage.getItem(SINT_TASA_DESC_LS);SINT_TASA_DESC=v!=null?parseFloat(v):null;}catch(e){}
+  sintPintarTasaDesc();
+}
+
+// La tasa con la que el sintético descuenta entre el fixing y el vencimiento
+// del futuro. Si escribiste una, manda la tuya; si no, la caución al plazo más
+// corto, que es exactamente esa tasa y cotiza todos los días. Antes, sin nada
+// escrito, el sintético descontaba al 0%.
+function sintTasaDescEfectiva(){
+  if(SINT_TASA_DESC!=null&&isFinite(SINT_TASA_DESC))return SINT_TASA_DESC;
+  const c=(typeof caucionCorta==='function')?caucionCorta():null;
+  return c!=null?c:0;
+}
+function sintPintarTasaDesc(){
   const inp=document.getElementById('sint-tasa-desc');
-  if(inp)inp.value=SINT_TASA_DESC!=null?SINT_TASA_DESC:'';
+  const lbl=document.getElementById('sint-tdesc-fuente');
+  const manual=SINT_TASA_DESC!=null&&isFinite(SINT_TASA_DESC);
+  const cau=(typeof caucionCorta==='function')?caucionCorta():null;
+  if(inp){
+    inp.value=manual?SINT_TASA_DESC:'';
+    // Con la caución de fondo, el valor efectivo va de placeholder: se lee sin
+    // ocupar el campo, que sigue vacío y listo para tu número.
+    inp.placeholder=(!manual&&cau!=null)?cau.toFixed(2):'—';
+    inp.style.color=manual?'var(--warn)':'var(--text2)';
+  }
+  if(lbl){
+    const dias=cau!=null&&CAUCION_ARS.length?CAUCION_ARS[0].dias:null;
+    lbl.textContent=manual?'manual':(cau!=null?`caución ${dias}d`:'');
+    lbl.style.color=manual?'var(--warn)':'var(--text3)';
+  }
+}
+function sintRecalcular(){
+  if(!SINT_BONDS.length)return;
+  SINT_DATA=SINT_BONDS.map(sintEnrich);
+  if(currentTab==='sintetico'){
+    sintRenderTable();
+    if(sintSelectedTicker){const r=SINT_DATA.find(x=>x.ticker===sintSelectedTicker);if(r)sintRenderPanelBody(r);}
+  }
 }
 
 function sintSetTasaDesc(val){
@@ -11647,9 +11794,11 @@ function sintSetTasaDesc(val){
     if(SINT_TASA_DESC!=null)localStorage.setItem(SINT_TASA_DESC_LS,SINT_TASA_DESC);
     else localStorage.removeItem(SINT_TASA_DESC_LS);
   }catch(e){}
+  sintPintarTasaDesc();
   SINT_DATA=SINT_BONDS.map(sintEnrich);
   sintRenderTable();
   if(sintSelectedTicker){const r=SINT_DATA.find(x=>x.ticker===sintSelectedTicker);if(r)sintRenderPanelBody(r);}
+  try{beRefreshIfVisible();}catch(e){}
 }
 
 function sintInit(){
@@ -11716,7 +11865,7 @@ function sintEnrich(sb){
   const precioDLKEfectivo=sb.precioDLK!=null?sb.precioDLK:dlkBond.precio;
   let tasaDirecta=null,tna=null,tea=null,tem=null,precioAjDLK=null,precioAjFuturo=null;
   if(a3500&&sb.precioFuturo&&precioDLKEfectivo&&diasFuturo>0&&diasFechaFixing>0){
-    const tasaDesc=SINT_TASA_DESC!=null?SINT_TASA_DESC/100:0;
+    const tasaDesc=sintTasaDescEfectiva()/100;
     const diasVtoFixing=diasFuturo-diasFechaFixing;
     const factor=Math.pow(1+tasaDesc,diasVtoFixing/365);
     precioAjDLK=(precioDLKEfectivo/100)*factor;
@@ -11863,7 +12012,7 @@ function sintRenderPanelBody(r){
       <tr class="mu"><td>A3500 (spot)</td><td>${a3500!=null?'$'+a3500.toFixed(4):'—'}</td></tr>
       <tr class="mu"><td>Precio Futuro</td><td>${r.precioFuturo!=null?'$'+r.precioFuturo.toFixed(2):'—'}</td></tr>
       <tr class="mu"><td>Precio DLK (c/100 VN)</td><td style="color:${r.precioDLK!=null?'var(--warn)':'inherit'}">${r.precioDLKEfectivo!=null?r.precioDLKEfectivo.toFixed(4):'—'}${r.precioDLK!=null?' <span style="font-size:10px;color:var(--text3)">(manual)</span>':''}</td></tr>
-      <tr class="mu"><td>Tasa Descuento</td><td style="color:var(--warn)">${SINT_TASA_DESC!=null?SINT_TASA_DESC.toFixed(2)+'%':'—'}</td></tr>
+      <tr class="mu"><td>Tasa Descuento</td><td style="color:var(--warn)">${sintTasaDescEfectiva().toFixed(2)}%<span style="color:var(--text3);font-size:10px;margin-left:5px">${SINT_TASA_DESC!=null?'manual':'caución'}</span></td></tr>
     </table>
     <div class="section-label">Fechas</div>
     <table class="res-table" style="margin-bottom:12px">
