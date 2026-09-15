@@ -108,6 +108,92 @@ const omitir = (label, motivo) =>
   check(px.ars > 0, `LECAPS con precio: ${px.ars}/${px.arsTot}`);
   check(px.usd > 0, `bonos USD con precio: ${px.usd}`);
 
+  // Libro: puntas y volumen. data912 mandaba seis campos por instrumento y la
+  // app usaba uno. El monto es lo que decide si un spread se puede pagar.
+  console.log('\nLibro: spread y volumen');
+  const libro = await page.evaluate(async () => {
+    await fetchAllPrices();
+    await new Promise(r => setTimeout(r, 6000));
+    const pesos = [LECAPS, CER_BONDS, TAMAR_BONDS, DLK_BONDS].flat();
+    const usd = [BOP_BONDS, GLO_BONDS, BON_BONDS].flat();
+    const conLibro = pesos.filter(b => b.bid > 0 && b.ask > 0);
+    const conMonto = pesos.filter(b => b.monto > 0);
+    // El spread es (ask − bid) sobre el medio, y el monto es nominales por
+    // precio sobre 100: el campo crudo viene en láminas, no en plata.
+    const x = conMonto[0] || null;
+    return {
+      pesos: pesos.length, conLibro: conLibro.length, conMonto: conMonto.length,
+      usdConLibro: usd.filter(b => b.lastBid > 0 && b.lastAsk > 0).length,
+      usdConMonto: usd.filter(b => b.lastMonto > 0).length,
+      spreadOk: conLibro.every(b => {
+        const s = libroSpread(b.bid, b.ask);
+        return s == null || Math.abs(s - (b.ask - b.bid) / ((b.ask + b.bid) / 2) * 100) < 1e-9;
+      }),
+      montoOk: x ? Math.abs(x.monto - x.vol * x.precio / 100) < 1e-6 : null,
+      montoDistintoDeVol: x ? x.monto !== x.vol : null,
+      // Los cortes del semáforo, contra los que se pintan los colores.
+      sem: [libroSemaforo(2e9), libroSemaforo(5e7), libroSemaforo(5e6), libroSemaforo(0)],
+      // Un spread negativo o cruzado no es un spread.
+      cruzado: libroSpread(101, 100),
+      sinPuntas: libroSpread(0, 100),
+    };
+  });
+  if (!libro.conLibro) {
+    omitir('libro de puntas y volumen', 'data912 no devolvió precios ahora');
+  } else {
+    check(libro.conLibro > 10, 'las puntas llegan a los bonos en pesos',
+          libro.conLibro + '/' + libro.pesos + ' con libro');
+    check(libro.conMonto > 10, 'el volumen también', libro.conMonto + ' con monto');
+    check(libro.usdConLibro > 0 && libro.usdConMonto > 0,
+          'y a los bonos en dólares, las tres familias',
+          libro.usdConLibro + ' con libro, ' + libro.usdConMonto + ' con monto');
+    check(libro.spreadOk, 'el spread es punta a punta sobre el medio');
+    check(libro.montoOk === true, 'el monto es nominales por precio, no el campo crudo');
+    check(libro.montoDistintoDeVol === true, 'el monto no es el volumen en láminas');
+    check(JSON.stringify(libro.sem) === JSON.stringify(['verde', 'amarillo', 'rojo', null]),
+          'el semáforo corta en mil y en diez millones', JSON.stringify(libro.sem));
+    check(libro.cruzado === null && libro.sinPuntas === null,
+          'un libro cruzado o sin punta no devuelve spread');
+  }
+
+  // Las siete tablas tienen las dos columnas, y los encabezados cuadran con las
+  // celdas: una columna de más en el thead desalinea toda la fila.
+  const tablas = [];
+  for (const [sec, tab, body] of [
+    ['pesos', 'lecap', 'table-body'], ['pesos', 'cer', 'cer-table-body'],
+    ['pesos', 'tamar', 'tamar-table-body'], ['pesos', 'dlk', 'dlk-table-body'],
+    ['usd', 'usd-globales', 'glo-summary-tbody'], ['usd', 'usd-bonares', 'bon-summary-tbody'],
+    ['usd', 'usd-bopreales', 'bop-summary-tbody'],
+  ]) {
+    await page.evaluate(([s, t]) => { switchSection(s); (s === 'usd' ? switchUsdTab : switchTab)(t); }, [sec, tab]);
+    await page.waitForTimeout(1400);
+    const r = await page.evaluate(id => {
+      const tb = document.getElementById(id);
+      const tr = tb && tb.querySelector('tr');
+      const tabla = tb && tb.closest('table');
+      return {
+        tds: tr ? tr.querySelectorAll('td').length : 0,
+        ths: tabla ? tabla.querySelectorAll('thead th').length : 0,
+        cab: tabla ? tabla.querySelector('thead').textContent.toUpperCase() : '',
+      };
+    }, body);
+    tablas.push({ tab, ...r });
+  }
+  const cuadran = tablas.filter(t => t.tds > 0 && t.tds === t.ths);
+  const conCols = tablas.filter(t => /SPREAD/.test(t.cab) && /MONTO/.test(t.cab));
+  check(conCols.length === 7, 'las siete tablas tienen spread y monto',
+        conCols.map(t => t.tab).join(', '));
+  check(cuadran.length === tablas.filter(t => t.tds > 0).length,
+        'los encabezados cuadran con las celdas',
+        tablas.map(t => t.tab + ' ' + t.tds + '/' + t.ths).join(' · '));
+
+  // Datos de mercado: no viajan a Supabase, igual que los precios.
+  const noViaja = await page.evaluate(() =>
+    ['bid', 'ask', 'vol', 'ops', 'monto'].every(k => /precio:null/.test(supaSaveSharedKey.toString())
+      && supaSaveSharedKey.toString().indexOf(k + ':null') >= 0));
+  check(noViaja, 'el libro no se sincroniza: es dato de mercado, no definición');
+
+
   // El selector de moneda no puede tocar lo que se archiva. Viaja entre
   // dispositivos por SUPA_SHARED_KEYS y el bot del snapshot lo hereda: el
   // 03/09/2026 corrió en cable y guardó los 21 bonos en dólares ~4% abajo.
