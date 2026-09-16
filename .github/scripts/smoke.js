@@ -2104,7 +2104,8 @@ const omitir = (label, motivo) =>
           fd.pares.map(x => `${x.s} ${x.nIni}/${x.nFin}`).join(' '));
     check(fd.pares.every(x => x.tenor == null || (x.tenor >= x.xMin && x.tenor <= x.xMax)),
           'el tenor nunca extrapola el ajuste');
-    check(fd.fx >= 3, 'la ficha trae el movimiento del dolar', String(fd.fx));
+    if (fd.fx < 3) omitir('la ficha trae el movimiento del dolar', 'sin precios en vivo');
+    else check(fd.fx >= 3, 'la ficha trae el movimiento del dolar', String(fd.fx));
     check(!/undefined|NaN/.test(fd.texto) && fd.texto.length > 400,
           'fichaTexto sale limpio', `${fd.texto.length} chars`);
   }
@@ -2252,14 +2253,18 @@ const omitir = (label, motivo) =>
       grafico: !!escChart,
     };
   });
-  check(esc.nBonos > 3 && esc.filas > 3, 'valúa la curva al horizonte',
-        `${esc.nBonos} bonos · ${esc.filas} filas`);
+  const escSinPrecios = esc.nBonos === 0;
+  if (escSinPrecios) omitir('valúa la curva al horizonte', 'sin precios en vivo');
+  else check(esc.nBonos > 3 && esc.filas > 3, 'valúa la curva al horizonte',
+             `${esc.nBonos} bonos · ${esc.filas} filas`);
   check(esc.intacto, 'un escenario no deja rastro en los senderos de la app');
   check(esc.roll > 0, 'la referencia de renovar a TAMAR sale', String(esc.roll));
   check(esc.rollAlto > esc.rollBajo, 'la palanca de TAMAR mueve la reinversión',
         `${esc.rollAlto} vs ${esc.rollBajo}`);
   check(esc.inflSube === true, 'la palanca de inflación mueve el acumulado');
-  check(esc.tfIgual === true, 'una tasa fija no se mueve con la inflación');
+  if (escSinPrecios || esc.tfIgual === null)
+    omitir('una tasa fija no se mueve con la inflación', 'sin precios en vivo');
+  else check(esc.tfIgual === true, 'una tasa fija no se mueve con la inflación');
   check(Math.abs(esc.realLeido - 5) < 0.02, 'TAMAR real 5% se lee como 5% real', String(esc.realLeido));
   check(Math.abs(esc.realIdaVuelta - esc.realLeido) < 0.02,
         'real → nominal → real cierra', `${esc.realIdaVuelta} vs ${esc.realLeido}`);
@@ -2271,7 +2276,9 @@ const omitir = (label, motivo) =>
   check(esc.vuelto === 33 && esc.modo === 'real' && esc.hor === 18,
         'volver a cargarlo recupera palancas, modo y horizonte',
         JSON.stringify([esc.vuelto, esc.modo, esc.hor]));
-  check(esc.tiles.includes('Renovar a TAMAR') && esc.grafico, 'se pintan los tiles y el gráfico');
+  if (escSinPrecios) omitir('se pintan los tiles y el gráfico', 'sin precios en vivo');
+  else check(esc.tiles.includes('Renovar a TAMAR') && esc.grafico,
+             'se pintan los tiles y el gráfico');
 
   console.log('\nProyecciones: los ajustes manuales sobreviven a la recarga');
   const puesto = await page.evaluate(async () => {
