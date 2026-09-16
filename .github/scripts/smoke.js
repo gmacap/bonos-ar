@@ -1820,7 +1820,10 @@ const omitir = (label, motivo) =>
   const cortevto = await page.evaluate(() => {
     const liq = G_LIQ || addHabiles(TODAY, 1);
     const mas = fmtDate(addHabiles(liq, 30));
-    const enTres = fmtDate(addHabiles(liq, 2));
+    // En días CORRIDOS, que es como mide curvasMuyCerca. Con addHabiles esto
+    // fallaba solo los jueves y viernes: dos hábiles cruzando el fin de semana
+    // son cuatro corridos, o sea justo el corte. Nada que ver con el bono.
+    const enTres = fmtDate(new Date(liq.getTime() + 2 * 86400000));
     return {
       existe: typeof curvasMuyCerca === 'function' && typeof CURVAS_DIAS_MIN === 'number',
       cortevto: typeof CURVAS_DIAS_MIN === 'number' ? CURVAS_DIAS_MIN : null,
