@@ -17005,8 +17005,8 @@ function fichaTirEfectiva(sector,tir,dias){
 // Una rueda entera, los siete sectores. Son unas ochenta filas: no necesita
 // paginar, y pedirla de a un sector serían siete viajes para el mismo dato.
 // Si es hoy y hay precios cargados sale de memoria, igual que curvasFetchSnapshot.
-async function fichaFetchRueda(fecha){
-  if(fecha===hoyAR()){
+async function fichaFetchRueda(fecha,soloArchivado){
+  if(!soloArchivado&&fecha===hoyAR()){
     const mem=curvasSnapshotFromMemory('ALL');
     if(mem.length)return mem;
   }
@@ -17183,21 +17183,33 @@ function fichaResiduos(par,n){
   return{baratos:rs.slice(0,n),ricos:rs.slice(-n).reverse()};
 }
 
-function fichaVolumen(par,montos,sector){
+// Se considera parcial cuando falta más de una de cada cinco ruedas del período.
+// No es un umbral fino: separa "faltó un feriado que el histórico no tiene" de
+// "el dato no existe para este tramo", que es lo que pasa hacia atrás.
+const FICHA_COBERTURA_MIN=0.8;
+function fichaVolumen(par,montos,sector,habiles){
   const pf=montos.porSectorFecha.get(sector);
   const pt=montos.porSectorTicker.get(sector);
-  if(!pf||!pf.size)return{total:0,prom:null,ruedas:0,top:null,
-                          truncado:montos.truncado,sinColumna:montos.sinColumna};
+  const base={truncado:montos.truncado,sinColumna:montos.sinColumna,habiles:habiles||null};
+  if(!pf||!pf.size)return{...base,total:0,prom:null,ruedas:0,top:null,parcial:!montos.sinColumna};
   let total=0;
   for(const v of pf.values())total+=v;
   const ruedas=pf.size;
   let top=null;
   if(pt)for(const[t,v]of pt)if(!top||v>top.monto)top={ticker:t,monto:v};
-  return{total,prom:total/ruedas,ruedas,top,
-         truncado:montos.truncado,sinColumna:montos.sinColumna};
+  const cobertura=habiles>0?ruedas/habiles:null;
+  return{...base,total,prom:total/ruedas,ruedas,top,cobertura,
+         parcial:montos.truncado||(cobertura!=null&&cobertura<FICHA_COBERTURA_MIN)};
 }
 
-function fichaSector(sector,rowsIni,rowsFin,montos){
+// Ruedas hábiles del período, para saber contra cuántas se mide la cobertura.
+function fichaHabiles(ini,fin){
+  let n=0,d=parseDate(ini),f=parseDate(fin),g=0;
+  while(d<=f&&g++<4000){if(esHabil(d))n++;d.setDate(d.getDate()+1);}
+  return n;
+}
+
+function fichaSector(sector,rowsIni,rowsFin,montos,habiles){
   const par=fichaPar(rowsIni,rowsFin,sector);
   if(!par.comunes.length)return null;
   const tenor=fichaTenor(par);
@@ -17221,7 +17233,7 @@ function fichaSector(sector,rowsIni,rowsFin,montos){
     tramos:fichaTramos(par),
     movers:fichaMovers(par),
     residuos:fichaResiduos(par),
-    volumen:fichaVolumen(par,montos,sector),
+    volumen:fichaVolumen(par,montos,sector,habiles),
     _aj:{ini:par.ajIni,fin:par.ajFin},
   };
 }
@@ -17352,11 +17364,15 @@ async function fichaConstruir(periodo,opts){
   const r=await fichaRuedas(periodo,opts);
   if(!r)return null;
   const[rowsIni,rowsFin,montos]=await Promise.all([
-    fichaFetchRueda(r.ini),
-    fichaFetchRueda(r.fin),
+    // La rueda inicial siempre del archivo: nunca es hoy.
+    fichaFetchRueda(r.ini,true),
+    // La final sale de memoria sólo si la ficha se declaró en vivo. Con
+    // soloArchivado la foto tiene que ser la misma corra cuando corra.
+    fichaFetchRueda(r.fin,!r.enVivo),
     fichaFetchMontos(r.ini,r.fin),
   ]);
-  const bloques=FICHA_SECTORES.map(s=>fichaSector(s,rowsIni,rowsFin,montos)).filter(Boolean);
+  const habiles=fichaHabiles(r.ini,r.fin);
+  const bloques=FICHA_SECTORES.map(s=>fichaSector(s,rowsIni,rowsFin,montos,habiles)).filter(Boolean);
   const fx=opts.sinFX?{}:await fichaFX(r.ini,r.fin);
   return{
     ...r,
@@ -17364,8 +17380,10 @@ async function fichaConstruir(periodo,opts){
     bloques,fx,
     implicitasIni:fichaImplicitas(bloques,'ini'),
     implicitasFin:fichaImplicitas(bloques,'fin'),
-    volumen:{total:montos.total,ruedas:montos.fechas.length,
-             truncado:montos.truncado,sinColumna:montos.sinColumna},
+    habiles,
+    volumen:{total:montos.total,ruedas:montos.fechas.length,habiles,
+             truncado:montos.truncado,sinColumna:montos.sinColumna,
+             parcial:montos.truncado||(habiles>0&&montos.fechas.length/habiles<FICHA_COBERTURA_MIN)},
   };
 }
 
@@ -17380,7 +17398,8 @@ Reglas, todas obligatorias:
 · Todo número que escribas tiene que aparecer literal en la FICHA. No calcules, no redondees hacia un número más lindo, no infieras un dato que no esté.
 · En el movimiento no puede aparecer ninguna noticia ni ninguna causa. Nada de "el bono subió por X". Describí qué se movió, cuánto, en qué tramo y con qué volumen.
 · Nunca uses "porque", "debido a" ni "impulsado por" entre un hecho de contexto y un movimiento de precios.
-· Si algo no está en la ficha, no lo menciones. Si la ficha dice que el volumen está truncado, no hables de volumen de ese período.
+· Ponéle la unidad a cada número, pegada: "27 puntos básicos", no "cedió 27 hasta 6,70%". Un número suelto no se puede verificar contra la ficha, y además obliga al que lee a deducir de qué se habla.
+· Si algo no está en la ficha, no lo menciones. Si la ficha marca el volumen como PARCIAL, no hables de volumen de ese período.
 · Castellano rioplatense, sin anglicismos innecesarios. Escribís para un cliente que lee esto sin ver la pantalla.
 
 `;
@@ -17421,9 +17440,9 @@ function fichaTexto(f){
     const v=b.volumen;
     if(v.sinColumna)L.push('  volumen: no disponible');
     else if(!v.ruedas)L.push('  volumen: sin datos en el período');
-    else L.push(`  volumen: ${_fM(v.total)} en ${v.ruedas} ruedas · ${_fM(v.prom)} por rueda`
+    else L.push(`  volumen: ${_fM(v.total)} en ${v.ruedas} de ${v.habiles||'?'} ruedas · ${_fM(v.prom)} por rueda`
                 +(v.top?` · más operado ${v.top.ticker} ${_fM(v.top.monto)}`:'')
-                +(v.truncado?' · PARCIAL, no hablar de volumen':''));
+                +(v.parcial?' · PARCIAL, no hablar de volumen de este período':''));
     if(b.entraron.length)L.push('  entraron a la curva: '+b.entraron.join(', '));
     if(b.salieron.length)L.push('  salieron de la curva: '+b.salieron.join(', '));
   }
@@ -17455,8 +17474,8 @@ function fichaTexto(f){
   }
   if(f.volumen&&!f.volumen.sinColumna&&f.volumen.total>0){
     L.push('');
-    L.push(`VOLUMEN TOTAL del período: ${_fM(f.volumen.total)} en ${f.volumen.ruedas} ruedas con dato`
-           +(f.volumen.truncado?' · PARCIAL':''));
+    L.push(`VOLUMEN TOTAL del período: ${_fM(f.volumen.total)} en ${f.volumen.ruedas} de ${f.volumen.habiles||'?'} ruedas`
+           +(f.volumen.parcial?' · PARCIAL, el monto operado no existe en el histórico antes de mediados de 2026':''));
   }
   return L.join('\n');
 }
@@ -17675,7 +17694,7 @@ function comTile(b,destacado){
   const vol=v.sinColumna?'<span style="color:var(--text3)">volumen no disponible</span>'
     :!v.ruedas?'<span style="color:var(--text3)">sin volumen en el período</span>'
     :`vol ${_fM(v.total)} · ${_fM(v.prom)}/rueda`+(v.top?` · top ${comEsc(v.top.ticker)} ${_fM(v.top.monto)}`:'')
-      +(v.truncado?' <span style="color:var(--warn)">parcial</span>':'');
+      +(v.parcial?` <span style="color:var(--warn)" title="Sólo ${v.ruedas} de ${v.habiles} ruedas tienen monto">parcial ${v.ruedas}/${v.habiles}</span>`:'');
   return `<div style="background:var(--surface2);border:1px solid ${destacado?'var(--border2)':'var(--border)'};border-radius:6px;padding:.7rem .85rem;font-family:var(--mono);font-size:11px;line-height:1.7">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:.4rem">
       <span style="font-size:12px;color:var(--accent2);font-weight:600">${comEsc(b.nombre)}</span>
