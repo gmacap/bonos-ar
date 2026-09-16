@@ -1,0 +1,12 @@
+# Permisos de Claude Code de esta máquina, no del proyecto. Hoy ya queda fuera
+# por otro lado, pero conviene que esté dicho acá: el repo es público.
+.claude/settings.local.json
+
+# La skill `comentario` pide instalar playwright en la raíz para poder correr
+# .github/scripts/ficha.js. Es una dependencia de herramienta, no del programa:
+# index.html no necesita nada instalado para funcionar.
+node_modules/
+package-lock.json
+
+# Salidas de trabajo de los scripts, que se regeneran solas.
+ficha.json

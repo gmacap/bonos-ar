@@ -358,6 +358,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab" id="nav-escenarios" onclick="switchTab('escenarios')">Escenarios</button>
   <button class="nav-tab" id="nav-curvas-ars" onclick="switchTab('curvas-ars')">Curvas</button>
   <button class="nav-tab" id="nav-series-ars" onclick="switchTab('series-ars')">Series</button>
+  <button class="nav-tab" id="nav-comentario" onclick="switchTab('comentario')">Comentario</button>
   <button class="nav-tab" id="nav-feriados" onclick="switchTab('feriados')" style="margin-left:auto">Feriados</button>
 </nav>
 <nav class="nav" id="nav-usd" style="display:none">
@@ -370,6 +371,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab"        id="nav-usd-equiv"       onclick="switchUsdTab('usd-equiv')">Equivalencias</button>
   <button class="nav-tab"        id="nav-usd-curvas"      onclick="switchUsdTab('usd-curvas')">Curvas</button>
   <button class="nav-tab"        id="nav-usd-series"      onclick="switchUsdTab('usd-series')">Series</button>
+  <button class="nav-tab"        id="nav-usd-comentario"  onclick="switchUsdTab('usd-comentario')">Comentario</button>
 </nav>
 <!-- USD sub-bar: currency selector + price status -->
 <div id="usd-subbar" style="display:none;align-items:center;height:36px;padding:0 1rem;gap:10px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
@@ -1930,6 +1932,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <!-- ARS CURVAS PAGE -->
 <div id="page-curvas-ars" style="display:none;height:calc(100vh - 64px);flex-direction:column;overflow:hidden;"></div>
 <div id="page-series-ars" style="display:none;height:calc(100vh - 64px);flex-direction:column;overflow:hidden;"></div>
+<div id="page-comentario" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:1.5rem 2rem;"></div>
 
 <!-- USD PAGES -->
 <div id="page-usd-resumen"   class="pg"></div>
@@ -2392,6 +2395,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 <div id="page-usd-curvas" style="display:none;height:calc(100vh - 200px);overflow:hidden;flex-direction:column;"></div>
 <div id="page-usd-series" style="display:none;height:calc(100vh - 200px);overflow:hidden;flex-direction:column;"></div>
+<div id="page-usd-comentario" style="display:none;height:calc(100vh - 200px);overflow-y:auto;padding:1.5rem 2rem;"></div>
 
 <div style="height:30px;"></div>
 <div class="status-bar">
@@ -4533,13 +4537,13 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-spreadleg','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-spreadleg','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-escenarios'];
+    'page-escenarios','page-comentario'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -4577,6 +4581,7 @@ function switchUsdTab(tab){
   if(tab==='usd-equiv') equivRender();
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
+  if(tab==='usd-comentario') comInit('usd');
 }
 
 function switchTab(tab){
@@ -4651,6 +4656,9 @@ function switchTab(tab){
   } else if(tab==='series-ars'){
     document.getElementById('page-series-ars').style.display='flex';
     seriesInit('ars');
+  } else if(tab==='comentario'){
+    document.getElementById('page-comentario').style.display='block';
+    comInit('ars');
   }
 }
 
@@ -15431,7 +15439,7 @@ function curvasSnapshotFromMemory(sector){
       const px=b.lastPrecioMEP??(usdCurrency==='MEP'?b.lastPrecio:null);
       if(px==null)return;
       const bk=b.lastPrecio;
-      try{b.lastPrecio=px;const r=usdResCalcRow(b,liq);if(r.tir==null||isNaN(r.tir))return;rows.push({ticker:b.ticker,tir:r.tir,md:r.md,dias:null,sector:sec,price:px});}catch(e){}
+      try{b.lastPrecio=px;const r=usdResCalcRow(b,liq);if(r.tir==null||isNaN(r.tir))return;rows.push({ticker:b.ticker,tir:r.tir,md:r.md,dias:null,sector:sec,price:px,...curvasLibroDe(b.lastBid,b.lastAsk,b.lastMonto)});}catch(e){}
       finally{b.lastPrecio=bk;}
     });
   }
@@ -15439,16 +15447,16 @@ function curvasSnapshotFromMemory(sector){
   if(BON_BONDS&&BON_BONDS.length) addUsd(BON_BONDS,'BON');
   if(GLO_BONDS&&GLO_BONDS.length) addUsd(GLO_BONDS,'GLO');
   if((!sector||sector==='TF'||sector==='ALL')&&LECAPS&&LECAPS.length){
-    LECAPS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=enrich(b);if(!e||isNaN(e.tna))return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'TF',price:b.precio});}catch(ex){}});
+    LECAPS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=enrich(b);if(!e||isNaN(e.tna))return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'TF',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='CER'||sector==='ALL')&&CER_BONDS&&CER_BONDS.length){
-    CER_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=cerEnrich(b);if(!e||isNaN(e.tir))return;rows.push({ticker:b.ticker,tir:e.tir,md:null,dias:e.dias,sector:'CER',price:b.precio});}catch(ex){}});
+    CER_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=cerEnrich(b);if(!e||isNaN(e.tir))return;rows.push({ticker:b.ticker,tir:e.tir,md:null,dias:e.dias,sector:'CER',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='TAMAR'||sector==='ALL')&&typeof TAMAR_BONDS!=='undefined'&&TAMAR_BONDS&&TAMAR_BONDS.length){
-    TAMAR_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=tamarEnrich(b);if(!e||isNaN(e.margenTNA)||!e.dias)return;rows.push({ticker:b.ticker,tir:e.margenTNA,md:null,dias:e.dias,sector:'TAMAR',price:b.precio});}catch(ex){}});
+    TAMAR_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=tamarEnrich(b);if(!e||isNaN(e.margenTNA)||!e.dias)return;rows.push({ticker:b.ticker,tir:e.margenTNA,md:null,dias:e.dias,sector:'TAMAR',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='DLK'||sector==='ALL')&&typeof DLK_BONDS!=='undefined'&&DLK_BONDS&&DLK_BONDS.length){
-    DLK_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=dlkEnrich(b);if(!e||e.tna==null)return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'DLK',price:b.precio});}catch(ex){}});
+    DLK_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=dlkEnrich(b);if(!e||e.tna==null)return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'DLK',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   return rows;
 }
@@ -16921,6 +16929,874 @@ function _curvasUsdDraw(){
   const textColor=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#e0e0e0';
   const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a302a';
   curvasUsdChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — MD ${i.parsed.x.toFixed(2)}, TIR ${i.parsed.y.toFixed(2)}%`}}},scales:{x:{type:'linear',title:{display:true,text:'Duration modificada (años)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:'TIR (%)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
+}
+
+// ══════════════════════════════════════════════════════ FICHA DE MERCADO
+// Qué se movió en la curva entre dos ruedas, medido y no opinado. Es el insumo
+// del comentario diario: los números los calcula esto, la prosa la escribe otra
+// cosa encima. Esa separación es deliberada — el texto va a clientes y un número
+// inventado es un problema distinto de una frase mal redactada.
+//
+// ── Por qué hay un solo punto de entrada ────────────────────────────────────
+// fichaConstruir() la llaman por igual el panel del navegador y el script que
+// genera el comentario. No hay una segunda implementación de la matemática en
+// Node: si la hubiera, el texto y la pantalla podrían decir cosas distintas del
+// mismo día y nadie sabría cuál creer.
+//
+// ── Lo que hay que tener en la cabeza ───────────────────────────────────────
+// `tir` NO significa lo mismo en cada sector. TF guarda TNA, CER guarda TIR
+// real, TAMAR guarda un margen sobre TAMAR, DLK guarda TNA en dólares y los tres
+// de dólares guardan TIR efectiva. El nivel y el delta se reportan siempre en la
+// unidad nativa del sector, que es la que está en la pantalla del que opera.
+// Convertir existe sólo para los breakeven, en fichaTirEfectiva.
+const FICHA_PERIODOS=[
+  {v:'dia',      l:'Día',       dias:1},
+  {v:'semana',   l:'Semana',    dias:7},
+  {v:'mes',      l:'Mes',       meses:1},
+  {v:'trimestre',l:'Trimestre', meses:3},
+  {v:'anio',     l:'Año',       meses:12},
+];
+const FICHA_SECTORES=['TF','CER','TAMAR','DLK','BOP','BON','GLO'];
+const FICHA_NOMBRE={TF:'Tasa fija',CER:'CER',TAMAR:'TAMAR',DLK:'Dollar linked',
+                    BOP:'Bopreales',BON:'Bonares',GLO:'Globales'};
+// Los pesos se leen por días al vencimiento y los dólares por duration
+// modificada, igual que las dos solapas de Curvas. Mezclarlos sería comparar un
+// número de días contra un número de años.
+const FICHA_EJEX={TF:'dias',CER:'dias',TAMAR:'dias',DLK:'dias',BOP:'md',BON:'md',GLO:'md'};
+const FICHA_UNIDAD={TF:'TNA',CER:'TIR real',TAMAR:'Margen TNA',DLK:'TNA USD',
+                    BOP:'TIR',BON:'TIR',GLO:'TIR'};
+// Los cortes por tramo no son los mismos números en los dos ejes ni miden lo
+// mismo: 180 son días, 3 son años de duration.
+const FICHA_TRAMOS_DEF={
+  dias:[{l:'corto',hasta:180},{l:'medio',hasta:540},{l:'largo',hasta:Infinity}],
+  md:  [{l:'corto',hasta:3},  {l:'medio',hasta:6},  {l:'largo',hasta:Infinity}],
+};
+const FICHA_R2_MIN=0.5;
+const FICHA_TENORES_BE=[90,180,270];
+const FICHA_MAX_FILAS=30000;
+const FICHA_SECT_ARS=['TF','CER','TAMAR','DLK'];
+const FICHA_SECT_USD=['BOP','BON','GLO'];
+
+// Tasa efectiva anual a partir de lo que guarda la tabla. Cada sector archiva una
+// convención distinta y compararlas crudas daría un breakeven inventado.
+//
+//   TF     TNA lineal → calcTIR, que es su inversa exacta
+//   CER    ya es TIR real efectiva
+//   DLK    lo que guarda es dlkCalcTNA(tir,dias), que arriba de 180 días usa base
+//          semestral 360/180. Su inversa NO es calcTIR: despejando
+//          (1+r)^(182,5/365) = 1 + tna/200  ⇒  r = (1+tna/200)² − 1
+//          Usar calcTIR acá da un número plausible y equivocado en todos los DLK
+//          largos, y no falla nada: por eso el smoke lo prueba de ida y vuelta.
+//   BON/GLO/BOP  ya es TIR efectiva
+//   TAMAR  es un margen sobre TAMAR, no una tasa: no hay TIR que devolver
+function fichaTirEfectiva(sector,tir,dias){
+  if(tir==null||!isFinite(tir))return null;
+  if(sector==='CER'||sector==='BON'||sector==='GLO'||sector==='BOP')return tir;
+  if(sector==='TAMAR')return null;
+  if(sector==='TF')return dias>0?calcTIR(tir,dias):null;
+  if(sector==='DLK'){
+    if(dias>180)return(Math.pow(1+tir/200,2)-1)*100;
+    return dias>0?calcTIR(tir,dias):null;
+  }
+  return null;
+}
+
+// ── Lectura ─────────────────────────────────────────────────────────────────
+// Una rueda entera, los siete sectores. Son unas ochenta filas: no necesita
+// paginar, y pedirla de a un sector serían siete viajes para el mismo dato.
+// Si es hoy y hay precios cargados sale de memoria, igual que curvasFetchSnapshot.
+async function fichaFetchRueda(fecha,soloArchivado){
+  if(!soloArchivado&&fecha===hoyAR()){
+    const mem=curvasSnapshotFromMemory('ALL');
+    if(mem.length)return mem;
+  }
+  const conLibro=await curvasSoportaLibro();
+  try{
+    const{data,error}=await supa.from('bond_price_snapshots')
+      .select('ticker,sector,tir,md,dias,price'+(conLibro?',monto,spread':''))
+      .eq('snapshot_date',fecha).or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`);
+    if(error||!data)return[];
+    return data;
+  }catch(e){return[];}
+}
+
+// El volumen del período. Es la primera lectura del cliente que cruza el tope de
+// 1000 filas de PostgREST: un año son unas 250 ruedas por unos 80 bonos. Ninguna
+// otra consulta de la app pagina, así que el patrón se copia de
+// .github/scripts/backfill-volumen.js. Se pide sólo `monto`: la tasa de las
+// ruedas del medio no se usa para nada.
+async function fichaFetchMontos(desde,hasta){
+  if(!await curvasSoportaLibro())
+    return fichaAgruparMontos([],false,true);
+  const filas=[];let truncado=false;
+  for(let off=0;off<FICHA_MAX_FILAS;off+=1000){
+    let data=null;
+    try{
+      const r=await supa.from('bond_price_snapshots')
+        .select('snapshot_date,ticker,sector,monto')
+        .gte('snapshot_date',desde).lte('snapshot_date',hasta)
+        .not('monto','is',null)
+        .order('snapshot_date',{ascending:true}).range(off,off+999);
+      if(r.error)break;
+      data=r.data;
+    }catch(e){break;}
+    if(!data||!data.length)break;
+    filas.push(...data);
+    if(data.length<1000)break;
+    if(off+1000>=FICHA_MAX_FILAS){truncado=true;break;}
+  }
+  return fichaAgruparMontos(filas,truncado,false);
+}
+
+function fichaAgruparMontos(filas,truncado,sinColumna){
+  const porSectorFecha=new Map(),porSectorTicker=new Map(),fechas=new Set();
+  for(const f of filas||[]){
+    const m=+f.monto;
+    if(!(m>0))continue;
+    fechas.add(f.snapshot_date);
+    if(!porSectorFecha.has(f.sector))porSectorFecha.set(f.sector,new Map());
+    const pf=porSectorFecha.get(f.sector);
+    pf.set(f.snapshot_date,(pf.get(f.snapshot_date)||0)+m);
+    if(!porSectorTicker.has(f.sector))porSectorTicker.set(f.sector,new Map());
+    const pt=porSectorTicker.get(f.sector);
+    pt.set(f.ticker,(pt.get(f.ticker)||0)+m);
+  }
+  return{porSectorFecha,porSectorTicker,fechas:[...fechas].sort(),
+         total:fichaMontoTotalUnico(filas),truncado:!!truncado,sinColumna:!!sinColumna};
+}
+
+// TXMJ9 y compañía viven en dos sectores a la vez: sumar los siete totales
+// contaría su volumen dos veces. Por sector el número es correcto —el bono está
+// de verdad en las dos curvas— pero el total de mercado se deduplica.
+function fichaMontoTotalUnico(filas){
+  const vistos=new Set();let t=0;
+  for(const f of filas||[]){
+    const k=f.snapshot_date+'|'+f.ticker;
+    if(vistos.has(k))continue;
+    vistos.add(k);
+    const m=+f.monto;
+    if(m>0)t+=m;
+  }
+  return t;
+}
+
+// ── Ajuste ──────────────────────────────────────────────────────────────────
+// curvasLogReg no devuelve bondad de ajuste, y sin eso la pendiente b se lee como
+// si siempre significara algo. Una curva con joroba no se representa con
+// a + b·ln(x): b sale de un promedio y decir "empinó" sería inventar. Debajo de
+// FICHA_R2_MIN se reporta el nivel y se calla la pendiente.
+function fichaAjuste(pts){
+  const reg=curvasLogReg(pts);
+  if(!reg)return null;
+  const ym=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+  let sse=0,sst=0;
+  for(const p of pts){
+    const yh=reg.a+reg.b*Math.log(Math.max(p.x,0.01));
+    sse+=(p.y-yh)*(p.y-yh);sst+=(p.y-ym)*(p.y-ym);
+  }
+  const xs=pts.map(p=>p.x);
+  return{reg,n:pts.length,r2:sst>0?1-sse/sst:null,
+         xMin:Math.min(...xs),xMax:Math.max(...xs)};
+}
+function fichaNivel(aj,x){
+  return aj?aj.reg.a+aj.reg.b*Math.log(Math.max(x,0.01)):null;
+}
+
+// Los dos ajustes van SOBRE EL MISMO CONJUNTO DE BONOS. Si entre una rueda y la
+// otra venció una letra o entró una nueva, a y b se mueven sin que el mercado se
+// haya movido, y el Δ nivel mediría el cambio de composición. Los que entran y
+// los que salen se reportan aparte: eso es información, no ruido.
+function fichaPar(rowsIni,rowsFin,sector){
+  const ejeX=FICHA_EJEX[sector];
+  const toMap=rows=>new Map((rows||[])
+    .filter(r=>r.sector===sector&&r.tir!=null&&isFinite(+r.tir)&&+r[ejeX]>0)
+    .map(r=>[r.ticker,{x:+r[ejeX],y:+r.tir,dias:r.dias!=null?+r.dias:null,
+                       monto:r.monto!=null?+r.monto:null,
+                       spread:r.spread!=null?+r.spread:null,price:r.price}]));
+  const mi=toMap(rowsIni),mf=toMap(rowsFin);
+  const comunes=[...mf.keys()].filter(t=>mi.has(t));
+  const pts=(m,ts)=>ts.map(t=>Object.assign({ticker:t},m.get(t)));
+  return{sector,ejeX,mi,mf,comunes,
+    entraron:[...mf.keys()].filter(t=>!mi.has(t)),
+    salieron:[...mi.keys()].filter(t=>!mf.has(t)),
+    ajIni:fichaAjuste(pts(mi,comunes)),
+    ajFin:fichaAjuste(pts(mf,comunes))};
+}
+
+// El tenor al que se lee el nivel: la MEDIANA de los x de los bonos comunes. Cae
+// adentro del rango con datos de las dos ruedas por construcción, así que el
+// nivel nunca es una extrapolación, y cae donde están los papeles. El punto medio
+// del intervalo no sirve: con CURVAS_DIAS_MIN=4 la letra más corta puede estar en
+// 5 días y un BONCAP en 700, y la media geométrica da 59 días, donde hay dos
+// papeles y el nivel se movería por ruido.
+function fichaTenor(par){
+  const xs=par.comunes.map(t=>(par.mi.get(t).x+par.mf.get(t).x)/2).sort((a,b)=>a-b);
+  if(!xs.length)return null;
+  const m=xs.length>>1;
+  return xs.length%2?xs[m]:(xs[m-1]+xs[m])/2;
+}
+
+function fichaMediana(vs){
+  const a=vs.filter(v=>v!=null&&isFinite(v)).sort((x,y)=>x-y);
+  if(!a.length)return null;
+  const m=a.length>>1;
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+
+// El movimiento por tramo, en bps y por mediana: un solo bono raro no arrastra al
+// tramo entero como haría un promedio.
+function fichaTramos(par){
+  const def=FICHA_TRAMOS_DEF[par.ejeX];
+  return def.map((t,i)=>{
+    const desde=i?def[i-1].hasta:-Infinity;
+    const ds=par.comunes
+      .filter(k=>{const x=par.mf.get(k).x;return x>desde&&x<=t.hasta;})
+      .map(k=>(par.mf.get(k).y-par.mi.get(k).y)*100);
+    return{l:t.l,n:ds.length,bps:fichaMediana(ds)};
+  }).filter(t=>t.n>0);
+}
+
+// Los que más se movieron, con el monto del día para saber si el movimiento se
+// puede operar o es una punta sola.
+function fichaMovers(par,n){
+  n=n||3;
+  const ds=par.comunes.map(t=>({
+    ticker:t,bps:(par.mf.get(t).y-par.mi.get(t).y)*100,
+    x:par.mf.get(t).x,dias:par.mf.get(t).dias,monto:par.mf.get(t).monto,
+  })).filter(d=>isFinite(d.bps));
+  const orden=[...ds].sort((a,b)=>b.bps-a.bps);
+  return{suben:orden.filter(d=>d.bps>0).slice(0,n),
+         bajan:orden.filter(d=>d.bps<0).reverse().slice(0,n)};
+}
+
+// Desvío contra la curva ajustada de la rueda final. Mayor tasa que la curva es
+// más barato, en los siete sectores: en CER es más tasa real, en TAMAR más
+// margen, en los dólares más TIR. Todos quieren decir precio más bajo.
+function fichaResiduos(par,n){
+  n=n||3;
+  if(!par.ajFin)return{ricos:[],baratos:[]};
+  const rs=par.comunes.map(t=>{
+    const p=par.mf.get(t);
+    const yh=fichaNivel(par.ajFin,p.x);
+    return{ticker:t,bps:yh!=null?(p.y-yh)*100:null,x:p.x,monto:p.monto};
+  }).filter(r=>r.bps!=null&&isFinite(r.bps)).sort((a,b)=>b.bps-a.bps);
+  return{baratos:rs.slice(0,n),ricos:rs.slice(-n).reverse()};
+}
+
+// Se considera parcial cuando falta más de una de cada cinco ruedas del período.
+// No es un umbral fino: separa "faltó un feriado que el histórico no tiene" de
+// "el dato no existe para este tramo", que es lo que pasa hacia atrás.
+const FICHA_COBERTURA_MIN=0.8;
+function fichaVolumen(par,montos,sector,habiles){
+  const pf=montos.porSectorFecha.get(sector);
+  const pt=montos.porSectorTicker.get(sector);
+  const base={truncado:montos.truncado,sinColumna:montos.sinColumna,habiles:habiles||null};
+  if(!pf||!pf.size)return{...base,total:0,prom:null,ruedas:0,top:null,parcial:!montos.sinColumna};
+  let total=0;
+  for(const v of pf.values())total+=v;
+  const ruedas=pf.size;
+  let top=null;
+  if(pt)for(const[t,v]of pt)if(!top||v>top.monto)top={ticker:t,monto:v};
+  const cobertura=habiles>0?ruedas/habiles:null;
+  return{...base,total,prom:total/ruedas,ruedas,top,cobertura,
+         parcial:montos.truncado||(cobertura!=null&&cobertura<FICHA_COBERTURA_MIN)};
+}
+
+// Ruedas hábiles del período, para saber contra cuántas se mide la cobertura.
+function fichaHabiles(ini,fin){
+  let n=0,d=parseDate(ini),f=parseDate(fin),g=0;
+  while(d<=f&&g++<4000){if(esHabil(d))n++;d.setDate(d.getDate()+1);}
+  return n;
+}
+
+function fichaSector(sector,rowsIni,rowsFin,montos,habiles){
+  const par=fichaPar(rowsIni,rowsFin,sector);
+  if(!par.comunes.length)return null;
+  const tenor=fichaTenor(par);
+  const nIni=fichaNivel(par.ajIni,tenor),nFin=fichaNivel(par.ajFin,tenor);
+  const r2ok=par.ajIni&&par.ajFin&&par.ajIni.r2!=null&&par.ajFin.r2!=null
+             &&par.ajIni.r2>=FICHA_R2_MIN&&par.ajFin.r2>=FICHA_R2_MIN;
+  return{
+    sector,nombre:FICHA_NOMBRE[sector],unidad:FICHA_UNIDAD[sector],ejeX:par.ejeX,
+    n:par.comunes.length,entraron:par.entraron,salieron:par.salieron,
+    tenor,nivelIni:nIni,nivelFin:nFin,
+    dNivelBps:(nIni!=null&&nFin!=null)?(nFin-nIni)*100:null,
+    // La pendiente sólo se reporta si el ajuste explica la curva en las dos
+    // ruedas. Con b<0 la curva está invertida, así que el adjetivo se arma sobre
+    // el signo y el módulo, no sobre el delta suelto.
+    pendIni:par.ajIni?par.ajIni.reg.b:null,
+    pendFin:par.ajFin?par.ajFin.reg.b:null,
+    dPend:r2ok?par.ajFin.reg.b-par.ajIni.reg.b:null,
+    forma:r2ok?fichaForma(par.ajIni.reg.b,par.ajFin.reg.b):null,
+    r2Ini:par.ajIni?par.ajIni.r2:null,r2Fin:par.ajFin?par.ajFin.r2:null,
+    r2ok,
+    tramos:fichaTramos(par),
+    movers:fichaMovers(par),
+    residuos:fichaResiduos(par),
+    volumen:fichaVolumen(par,montos,sector,habiles),
+    _aj:{ini:par.ajIni,fin:par.ajFin},
+  };
+}
+
+// Empinar es que la curva se haga más positiva; invertirse más, que se haga más
+// negativa. Con el signo cambiado entre las dos ruedas la curva dio vuelta, que
+// es otra cosa y merece su propia palabra.
+function fichaForma(bIni,bFin){
+  const d=bFin-bIni;
+  if(Math.abs(d)<0.05)return'sin cambio de forma';
+  if(bIni>=0&&bFin<0)return'se dio vuelta a invertida';
+  if(bIni<0&&bFin>=0)return'se dio vuelta a normal';
+  if(bFin<0)return d<0?'se invirtió más':'se invirtió menos';
+  return d>0?'empinó':'aplanó';
+}
+
+// ── Dólar ───────────────────────────────────────────────────────────────────
+// Sale de seriesTraerFX, la misma función que dibuja la solapa Monedas, para que
+// el MEP y la brecha de la ficha sean exactamente los del gráfico. Trae también
+// el breakeven de las letras, que acá no se usa: cuesta unos pedidos de más y
+// vale la consistencia.
+async function fichaFX(ini,fin){
+  const out={};
+  try{
+    const fx=await seriesTraerFX(ini,fin);
+    for(const l of['A3500','MEP','Cable','Canje','Brecha']){
+      const m=fx.porBono.get(l);
+      if(!m||!m.size)continue;
+      const fs=[...m.keys()].sort();
+      const a=fs.filter(f=>f<=ini).pop()||fs[0];
+      const b=fs.filter(f=>f<=fin).pop()||fs[fs.length-1];
+      const vi=m.get(a),vf=m.get(b);
+      if(vi==null||vf==null)continue;
+      // Canje y brecha ya son porcentajes: su cambio se lee en puntos, no en
+      // variación porcentual de un porcentaje, que no querría decir nada.
+      const esPct=(l==='Canje'||l==='Brecha');
+      out[l]={ini:vi,fin:vf,fechaIni:a,fechaFin:b,esPct,
+              var:esPct?vf-vi:(vi>0?(vf/vi-1)*100:null)};
+    }
+  }catch(e){console.warn('[ficha] fx:',e.message);}
+  return out;
+}
+
+// ── Implícitas ──────────────────────────────────────────────────────────────
+// A tenores FIJOS y no a la mediana del día: si el punto se moviera con la
+// composición de la curva, la serie saltaría cada vez que vence una letra y eso
+// se leería como una señal del mercado.
+//
+// Cada tenor se reporta sólo si cae adentro del rango con datos de las tres
+// curvas. Extrapolar el ajuste más allá del último bono es la forma más rápida de
+// publicar una inflación implícita que nadie puede operar.
+//
+// OJO: esto NO es el breakeven bono contra bono de la solapa Resumen. Acá se lee
+// el ajuste de toda la curva en un punto; allá se toman dos papeles concretos con
+// sus precios. Los dos números difieren, y la diferencia es información: si es
+// grande, hay algo desarbitrado contra su curva.
+function fichaImplicitaEn(ajTF,ajCER,ajDLK,x){
+  const dentro=a=>a&&x>=a.xMin&&x<=a.xMax;
+  const tf =dentro(ajTF) ?fichaTirEfectiva('TF', fichaNivel(ajTF,x), x):null;
+  const cer=dentro(ajCER)?fichaNivel(ajCER,x):null;
+  const dlk=dentro(ajDLK)?fichaTirEfectiva('DLK',fichaNivel(ajDLK,x),x):null;
+  const infla=(tf!=null&&cer!=null)?((1+tf/100)/(1+cer/100)-1)*100:null;
+  return{tenor:x,tf,cer,dlk,infla,
+    inflaMensual:infla!=null?(Math.pow(1+infla/100,1/12)-1)*100:null,
+    deval:(tf!=null&&dlk!=null)?((1+tf/100)/(1+dlk/100)-1)*100:null};
+}
+function fichaImplicitas(bloques,cual){
+  const aj=s=>{const b=bloques.find(x=>x&&x.sector===s);return b?b._aj[cual]:null;};
+  const tf=aj('TF'),cer=aj('CER'),dlk=aj('DLK');
+  return FICHA_TENORES_BE.map(x=>fichaImplicitaEn(tf,cer,dlk,x));
+}
+
+// ── Las dos ruedas ──────────────────────────────────────────────────────────
+// Se retrocede en calendario y después se cae a la última rueda con datos en o
+// antes de esa fecha. Así los feriados no hay que enumerarlos: si el 9 de julio
+// no tuvo rueda, el período arranca en el 8.
+function fichaFechaObjetivo(fin,p){
+  const d=parseDate(fin);
+  // El día es el único que se cuenta en hábiles: "ayer" de un lunes es viernes.
+  if(p.dias===1){do{d.setDate(d.getDate()-1);}while(!esHabil(d));return fmtDate(d);}
+  if(p.dias)d.setDate(d.getDate()-p.dias);
+  else d.setMonth(d.getMonth()-p.meses);
+  return fmtDate(d);
+}
+
+// La última rueda archivada en o antes de una fecha. Una fila, no un rango:
+// PostgREST ordena y corta del lado del servidor.
+async function fichaUltimaRuedaHasta(fecha){
+  try{
+    const{data,error}=await supa.from('bond_price_snapshots').select('snapshot_date')
+      .lte('snapshot_date',fecha).order('snapshot_date',{ascending:false}).limit(1);
+    if(error||!data||!data.length)return null;
+    return data[0].snapshot_date;
+  }catch(e){return null;}
+}
+
+// El cierre del período es HOY con precios en vivo si el mercado está operando:
+// es lo que el que opera tiene en pantalla a las tres de la tarde y lo que quiere
+// comentar. Fuera de rueda es la última rueda archivada, aunque la memoria
+// todavía tenga precios cargados — si no, a las seis de la tarde la ficha
+// compararía el cierre contra sí mismo.
+//
+// `enVivo` viaja en la ficha porque cambia lo que se puede decir: sin snapshot
+// todavía no hay monto operado del día más que el parcial del libro.
+//
+// `opts.soloArchivado` lo usa el generador del comentario, que no puede depender
+// de la hora de pared del runner ni de que los precios hayan cargado.
+async function fichaRuedas(periodo,opts){
+  opts=opts||{};
+  const p=FICHA_PERIODOS.find(x=>x.v===periodo);
+  if(!p)return null;
+  const hoy=hoyAR();
+  let enVivo=false;
+  if(!opts.soloArchivado){
+    try{enVivo=mercadoActivo()&&curvasSnapshotFromMemory('ALL').length>0;}catch(e){}
+  }
+  const fin=enVivo?hoy:await fichaUltimaRuedaHasta(hoy);
+  if(!fin)return null;
+  const ini=await fichaUltimaRuedaHasta(fichaFechaObjetivo(fin,p));
+  if(!ini||ini>=fin)return null;
+  return{periodo,label:p.l,ini,fin,enVivo,
+         dias:Math.round((parseDate(fin)-parseDate(ini))/86400000)};
+}
+
+// ── El punto de entrada ─────────────────────────────────────────────────────
+async function fichaConstruir(periodo,opts){
+  opts=opts||{};
+  const r=await fichaRuedas(periodo,opts);
+  if(!r)return null;
+  const[rowsIni,rowsFin,montos]=await Promise.all([
+    // La rueda inicial siempre del archivo: nunca es hoy.
+    fichaFetchRueda(r.ini,true),
+    // La final sale de memoria sólo si la ficha se declaró en vivo. Con
+    // soloArchivado la foto tiene que ser la misma corra cuando corra.
+    fichaFetchRueda(r.fin,!r.enVivo),
+    fichaFetchMontos(r.ini,r.fin),
+  ]);
+  const habiles=fichaHabiles(r.ini,r.fin);
+  const bloques=FICHA_SECTORES.map(s=>fichaSector(s,rowsIni,rowsFin,montos,habiles)).filter(Boolean);
+  const fx=opts.sinFX?{}:await fichaFX(r.ini,r.fin);
+  return{
+    ...r,
+    generado:new Date().toISOString(),
+    bloques,fx,
+    implicitasIni:fichaImplicitas(bloques,'ini'),
+    implicitasFin:fichaImplicitas(bloques,'fin'),
+    habiles,
+    volumen:{total:montos.total,ruedas:montos.fechas.length,habiles,
+             truncado:montos.truncado,sinColumna:montos.sinColumna,
+             parcial:montos.truncado||(habiles>0&&montos.fechas.length/habiles<FICHA_COBERTURA_MIN)},
+  };
+}
+
+// ── El texto ────────────────────────────────────────────────────────────────
+// Lo que se copia al portapapeles y lo que se le pasa al modelo. Es la misma
+// cadena en los dos casos a propósito: la vía manual y la automática tienen que
+// partir del mismo insumo o van a dar comentarios distintos del mismo día.
+const FICHA_PREAMBULO=
+`Sos un operador de renta fija argentina. Escribí el comentario de cierre a partir de la FICHA de abajo.
+
+Reglas, todas obligatorias:
+· Todo número que escribas tiene que aparecer literal en la FICHA. No calcules, no redondees hacia un número más lindo, no infieras un dato que no esté.
+· En el movimiento no puede aparecer ninguna noticia ni ninguna causa. Nada de "el bono subió por X". Describí qué se movió, cuánto, en qué tramo y con qué volumen.
+· Nunca uses "porque", "debido a" ni "impulsado por" entre un hecho de contexto y un movimiento de precios.
+· Ponéle la unidad a cada número, pegada: "27 puntos básicos", no "cedió 27 hasta 6,70%". Un número suelto no se puede verificar contra la ficha, y además obliga al que lee a deducir de qué se habla.
+· Si algo no está en la ficha, no lo menciones. Si la ficha marca el volumen como PARCIAL, no hables de volumen de ese período.
+· Castellano rioplatense, sin anglicismos innecesarios. Escribís para un cliente que lee esto sin ver la pantalla.
+
+`;
+
+const _fN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
+const _fB=v=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+Math.round(v)+' bps';
+const _fP=(v,d)=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+(+v).toFixed(d==null?2:d)+'%';
+const _fS=(v,d)=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+(+v).toFixed(d==null?2:d);
+const _fM=v=>v==null||!isFinite(v)||v<=0?'—':(typeof libroMontoFmt==='function'?libroMontoFmt(v):String(Math.round(v)));
+const _fF=f=>String(f||'').split('-').reverse().join('/');
+
+function fichaTexto(f){
+  if(!f)return'';
+  const L=[];
+  L.push(`FICHA · ${f.label.toUpperCase()} · ${_fF(f.ini)} → ${_fF(f.fin)} · ${f.dias} días corridos`);
+  L.push(f.enVivo?'Cierre: precios en vivo, la rueda todavía no cerró.'
+                 :'Cierre: última rueda archivada.');
+  L.push('');
+  L.push('CURVAS  (cada sector en su unidad nativa; un delta positivo es más tasa, o sea precio más bajo)');
+  for(const b of f.bloques){
+    const u=b.unidad,esDias=b.ejeX==='dias';
+    const tn=esDias?`${_fN(b.tenor,0)} días`:`MD ${_fN(b.tenor,2)}`;
+    L.push(`· ${b.nombre} [${b.sector}] — ${b.n} bonos en las dos ruedas`);
+    L.push(`  nivel @ ${tn}: ${_fN(b.nivelIni)}% → ${_fN(b.nivelFin)}% (${u})  ${_fB(b.dNivelBps)}`);
+    if(b.r2ok)L.push(`  pendiente: ${_fN(b.pendIni,3)} → ${_fN(b.pendFin,3)} · ${b.forma} (R² ${_fN(b.r2Fin,2)})`);
+    else L.push(`  pendiente: no se reporta, el ajuste logarítmico no representa esta curva (R² ${_fN(b.r2Fin,2)})`);
+    if(b.tramos.length)
+      L.push('  por tramo: '+b.tramos.map(t=>`${t.l} ${_fB(t.bps)} (${t.n})`).join(' · '));
+    const mv=x=>`${x.ticker} ${_fB(x.bps)}${x.monto>0?' ['+_fM(x.monto)+']':''}`;
+    if(b.movers.suben.length)L.push('  mayor suba de tasa: '+b.movers.suben.map(mv).join(' · '));
+    if(b.movers.bajan.length)L.push('  mayor baja de tasa: '+b.movers.bajan.map(mv).join(' · '));
+    if(!b.movers.suben.length)L.push('  ningún bono subió de tasa');
+    if(!b.movers.bajan.length)L.push('  ningún bono bajó de tasa');
+    const rs=x=>`${x.ticker} ${_fB(x.bps)}`;
+    if(b.residuos.baratos.length)
+      L.push('  contra su curva — barato: '+b.residuos.baratos.map(rs).join(' · ')
+             +' | caro: '+b.residuos.ricos.map(rs).join(' · '));
+    const v=b.volumen;
+    if(v.sinColumna)L.push('  volumen: no disponible');
+    else if(!v.ruedas)L.push('  volumen: sin datos en el período');
+    else L.push(`  volumen: ${_fM(v.total)} en ${v.ruedas} de ${v.habiles||'?'} ruedas · ${_fM(v.prom)} por rueda`
+                +(v.top?` · más operado ${v.top.ticker} ${_fM(v.top.monto)}`:'')
+                +(v.parcial?' · PARCIAL, no hablar de volumen de este período':''));
+    if(b.entraron.length)L.push('  entraron a la curva: '+b.entraron.join(', '));
+    if(b.salieron.length)L.push('  salieron de la curva: '+b.salieron.join(', '));
+  }
+  const fxk=Object.keys(f.fx||{});
+  if(fxk.length){
+    L.push('');
+    L.push('DÓLAR');
+    for(const k of fxk){
+      const d=f.fx[k];
+      const su=d.esPct?'%':'';
+      L.push(`· ${k}: ${_fN(d.ini,2)}${su} → ${_fN(d.fin,2)}${su}`
+             +`  ${d.esPct?_fS(d.var)+' pp':_fP(d.var)}`);
+    }
+  }
+  L.push('');
+  L.push('IMPLÍCITAS DE CURVA  (leídas del ajuste de toda la curva; NO son el breakeven bono contra bono de la solapa Resumen)');
+  for(let i=0;i<f.implicitasFin.length;i++){
+    const a=f.implicitasIni[i],b=f.implicitasFin[i];
+    if(b.infla==null&&b.deval==null){
+      L.push(`· ${b.tenor}d: fuera del rango con datos de la curva`);
+      continue;
+    }
+    const partes=[];
+    if(b.infla!=null)partes.push(`inflación ${_fN(b.infla)}% anual (${_fN(b.inflaMensual)}% mensual)`
+      +(a.infla!=null?` desde ${_fN(a.infla)}%`:''));
+    if(b.deval!=null)partes.push(`devaluación ${_fN(b.deval)}% anual`
+      +(a.deval!=null?` desde ${_fN(a.deval)}%`:''));
+    L.push(`· ${b.tenor}d: `+partes.join(' · '));
+  }
+  if(f.volumen&&!f.volumen.sinColumna&&f.volumen.total>0){
+    L.push('');
+    L.push(`VOLUMEN TOTAL del período: ${_fM(f.volumen.total)} en ${f.volumen.ruedas} de ${f.volumen.habiles||'?'} ruedas`
+           +(f.volumen.parcial?' · PARCIAL, el monto operado no existe en el histórico antes de mediados de 2026':''));
+  }
+  return L.join('\n');
+}
+
+// ══════════════════════════════════════════════════════ PANEL DE COMENTARIO
+// Un solo panel con dos entradas de navegación, y no dos paneles. Las
+// implícitas cruzan tasa fija con CER y con dollar linked, el dólar no es ni de
+// pesos ni de dólares, y el volumen sólo se compara entre sectores si están en
+// la misma ficha: partirlo daría dos medios comentarios y ninguna implícita. Lo
+// único que cambia entre las dos entradas es qué sectores vienen desplegados.
+//
+// Tres bloques, con borde y cabecera distintos, y en este orden: la LECTURA
+// arriba porque es lo que se manda, el CONTEXTO abajo porque es marco y no
+// causa, y lo MEDIDO al final porque es de dónde salen los dos. La separación
+// viaja al portapapeles: el texto que se copia lleva los mismos encabezados, así
+// no se pierde al pegar.
+const COM_LS='bonosAR_comentario_v1';
+const COM_URL='comentario.json';
+// El REM sale una vez por mes y por eso su TTL es de 24 horas. Esto cambia todos
+// los días hábiles a las seis de la tarde y la app suele quedar abierta todo el
+// día: con 24 horas nadie vería el de hoy.
+const COM_TTL_MS=3*60*60*1000;
+const FICHA_TTL_MS=5*60*1000;
+let COM_DATA=null;
+const comEstado={
+  ars:{periodo:'dia',sectores:FICHA_SECT_ARS},
+  usd:{periodo:'dia',sectores:FICHA_SECT_USD},
+};
+// La ficha es la misma para las dos entradas: se cachea por período para que
+// cambiar de sección no vuelva a pedir veinte mil filas de monto.
+const _fichaCache=new Map();
+const _comCargando=new Set();
+
+async function fichaCacheada(periodo,forzar){
+  const c=_fichaCache.get(periodo);
+  if(!forzar&&c&&Date.now()-c.ts<FICHA_TTL_MS)return c.ficha;
+  const ficha=await fichaConstruir(periodo);
+  _fichaCache.set(periodo,{ts:Date.now(),ficha});
+  return ficha;
+}
+
+// Copia literal del patrón de remFetch: caché con TTL, y si no hay red se sirve
+// la vencida. El 404 tiene que devolver null sin lanzar — antes del primer
+// commit el archivo no existe, y el panel funciona igual con la ficha sola.
+async function comFetch(forzar){
+  if(!forzar&&COM_DATA)return COM_DATA;
+  let cache=null;
+  try{
+    const r=localStorage.getItem(COM_LS);
+    if(r){
+      const p=JSON.parse(r);
+      if(p&&p.data){
+        cache=p.data;
+        if(!forzar&&Date.now()-p.ts<COM_TTL_MS){COM_DATA=p.data;return COM_DATA;}
+      }
+    }
+  }catch(e){}
+  try{
+    const res=await fetch(COM_URL,{cache:'no-cache'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const d=await res.json();
+    if(!d||!d.periodos||!d.periodos.dia||typeof d.periodos.dia.movimiento!=='string')
+      throw new Error('comentario.json sin la forma esperada');
+    COM_DATA=d;
+    try{localStorage.setItem(COM_LS,JSON.stringify({ts:Date.now(),data:d}));}catch(e){}
+    return COM_DATA;
+  }catch(e){
+    // Sin comentario el panel sigue sirviendo: la ficha es lo que se copia.
+    COM_DATA=cache;
+    return COM_DATA;
+  }
+}
+
+function comInit(sec){
+  const el=document.getElementById(sec==='ars'?'page-comentario':'page-usd-comentario');
+  if(!el)return;
+  if(!el.innerHTML.trim())el.innerHTML=comEsqueleto(sec);
+  comCargar(sec);
+}
+
+function comEsqueleto(sec){
+  const p=comEstado[sec].periodo;
+  return `<div style="max-width:1180px;margin:0 auto;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+      <div>
+        <div style="font-family:var(--serif);font-size:20px;font-weight:300;font-style:italic;color:var(--accent)">Comentario de mercado</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px" id="com-${sec}-rango">—</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <button class="btn" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCargar('${sec}',true)">↻</button>
+        <button class="btn" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCopiar('${sec}','ficha')" title="Copia sólo los números medidos">⧉ Ficha</button>
+        <button class="btn primary" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCopiar('${sec}','prompt')" title="Copia la ficha con las instrucciones, listo para pedir el comentario">⧉ Prompt</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.25rem;flex-wrap:wrap;" id="com-${sec}-tabs">
+      ${FICHA_PERIODOS.map(x=>`<button class="proy-subtab${x.v===p?' active':''}" style="margin-right:1.25rem" data-per="${x.v}" onclick="comSetPeriodo('${sec}','${x.v}')">${x.l}</button>`).join('')}
+    </div>
+    <div id="com-${sec}-cuerpo"><div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Midiendo la curva…</div></div>
+  </div>`;
+}
+
+function comSetPeriodo(sec,p){
+  if(!FICHA_PERIODOS.some(x=>x.v===p))return;
+  comEstado[sec].periodo=p;
+  const tabs=document.getElementById(`com-${sec}-tabs`);
+  if(tabs)tabs.querySelectorAll('.proy-subtab').forEach(b=>
+    b.classList.toggle('active',b.getAttribute('data-per')===p));
+  comCargar(sec);
+}
+
+async function comCargar(sec,forzar){
+  const p=comEstado[sec].periodo;
+  const clave=sec+'|'+p;
+  if(_comCargando.has(clave))return;
+  _comCargando.add(clave);
+  const cuerpo=document.getElementById(`com-${sec}-cuerpo`);
+  if(cuerpo&&forzar)cuerpo.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Midiendo la curva…</div>';
+  try{
+    const[ficha,com]=await Promise.all([fichaCacheada(p,forzar),comFetch(forzar)]);
+    comRender(sec,ficha,com);
+  }catch(e){
+    console.error('comCargar:',e);
+    if(cuerpo)cuerpo.innerHTML=`<div style="padding:2rem;text-align:center;color:var(--danger);font-size:12px">No se pudo medir: ${comEsc(e.message)}</div>`;
+  }finally{_comCargando.delete(clave);}
+}
+
+function comEsc(s){
+  return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function comParrafos(t){
+  return String(t||'').split(/\n{2,}/).filter(x=>x.trim())
+    .map(x=>`<p style="margin:0 0 .7rem">${comEsc(x.trim()).replace(/\n/g,'<br>')}</p>`).join('');
+}
+
+function comRender(sec,f,com){
+  const cuerpo=document.getElementById(`com-${sec}-cuerpo`);
+  if(!cuerpo)return;
+  const rango=document.getElementById(`com-${sec}-rango`);
+  if(rango){
+    rango.innerHTML=f
+      ?`${_fF(f.ini)} → ${_fF(f.fin)} · ${f.dias} días corridos · `
+       +(f.enVivo?'<span style="color:var(--warn)">precios en vivo, la rueda no cerró</span>'
+                 :'última rueda archivada')
+      :'sin historia para ese período';
+  }
+  if(!f){
+    cuerpo.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">No hay suficiente historia archivada para ese período.</div>';
+    return;
+  }
+  const p=com&&com.periodos?com.periodos[f.periodo]:null;
+  // Si el comentario no es de la última rueda medida, alguien lo puede mandar
+  // creyéndolo de hoy. Se avisa con la fecha a la vista en vez de esconderlo.
+  const viejo=p&&com&&com.ruedaFin&&com.ruedaFin!==f.fin;
+  cuerpo.innerHTML=
+    comBloqueLectura(p,viejo,com,f)+
+    comBloqueContexto(p,com)+
+    comBloqueMedido(sec,f)+
+    comPie();
+}
+
+function comCaja(color,titulo,sub,html){
+  return `<div style="border-left:3px solid ${color};background:var(--surface);border-radius:0 6px 6px 0;padding:.9rem 1.1rem;margin-bottom:1rem;">
+    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:.6rem">
+      <span style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:${color};font-family:var(--mono)">${titulo}</span>
+      <span style="font-size:10px;color:var(--text3)">${sub}</span>
+    </div>${html}</div>`;
+}
+
+function comBloqueLectura(p,viejo,com,f){
+  if(!p)return comCaja('var(--accent)','Lectura',
+    'escrita por IA sobre los números de abajo',
+    `<div style="font-size:12px;color:var(--text3);line-height:1.6">
+      Todavía no hay comentario generado para este período.
+      Apretá <strong style="color:var(--text2)">⧉ Prompt</strong>, pegalo en Claude y pedile el comentario:
+      sale con los mismos números que están acá abajo.
+    </div>`);
+  const aviso=viejo
+    ? `<div style="font-size:10px;color:var(--warn);margin-bottom:.6rem;font-family:var(--mono)">
+         ⚠ Este comentario es de la rueda del ${_fF(com.ruedaFin)} y los números de abajo son del ${_fF(f.fin)}.
+       </div>` : '';
+  const tit=p.titular?`<div style="font-family:var(--serif);font-size:16px;font-style:italic;color:var(--text);margin-bottom:.6rem">${comEsc(p.titular)}</div>`:'';
+  return comCaja('var(--accent)','Lectura',
+    'escrita por IA sobre los números de abajo'+(com&&com.generado?' · '+_fF(String(com.generado).slice(0,10)):''),
+    aviso+tit+`<div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(p.movimiento)}</div>`);
+}
+
+function comBloqueContexto(p,com){
+  if(!p||!p.contexto)return'';
+  const fs=(com&&Array.isArray(com.fuentes)?com.fuentes:[]).slice(0,8);
+  const links=fs.length?`<div style="margin-top:.7rem;display:flex;flex-wrap:wrap;gap:6px">`+
+    fs.map(x=>`<a href="${comEsc(x.url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--text3);border:1px solid var(--border);border-radius:3px;padding:1px 7px;text-decoration:none">${comEsc(x.titulo||x.url).slice(0,60)}${x.fecha?' · '+_fF(x.fecha):''}</a>`).join('')+`</div>`:'';
+  return comCaja('var(--warn)','Contexto',
+    'búsqueda web del modelo · no explica el movimiento',
+    `<div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(p.contexto)}</div>`+links);
+}
+
+function comBloqueMedido(sec,f){
+  const abiertos=new Set(comEstado[sec].sectores);
+  const orden=[...f.bloques].sort((a,b)=>
+    (abiertos.has(b.sector)?1:0)-(abiertos.has(a.sector)?1:0));
+  const tiles=orden.map(b=>comTile(b,abiertos.has(b.sector))).join('');
+  return comCaja('var(--text3)','Medido',
+    'calculado en tu navegador sobre el histórico de curvas',
+    `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(285px,1fr));gap:.7rem;margin-bottom:1rem">${tiles}</div>`
+    +comFilaFX(f)+comFilaImplicitas(f));
+}
+
+const _comBps=v=>v==null||!isFinite(v)?'<span style="color:var(--text3)">—</span>'
+  :`<span style="color:${v>=0?'var(--danger)':'var(--accent)'}">${v>=0?'+':''}${Math.round(v)} bps</span>`;
+
+function comTile(b,destacado){
+  const esDias=b.ejeX==='dias';
+  const tn=esDias?`${_fN(b.tenor,0)}d`:`MD ${_fN(b.tenor,2)}`;
+  const mv=x=>`<span style="white-space:nowrap">${comEsc(x.ticker)} ${_comBps(x.bps)}${x.monto>0?`<span style="color:var(--text3)"> ${_fM(x.monto)}</span>`:''}</span>`;
+  const v=b.volumen;
+  const vol=v.sinColumna?'<span style="color:var(--text3)">volumen no disponible</span>'
+    :!v.ruedas?'<span style="color:var(--text3)">sin volumen en el período</span>'
+    :`vol ${_fM(v.total)} · ${_fM(v.prom)}/rueda`+(v.top?` · top ${comEsc(v.top.ticker)} ${_fM(v.top.monto)}`:'')
+      +(v.parcial?` <span style="color:var(--warn)" title="Sólo ${v.ruedas} de ${v.habiles} ruedas tienen monto">parcial ${v.ruedas}/${v.habiles}</span>`:'');
+  return `<div style="background:var(--surface2);border:1px solid ${destacado?'var(--border2)':'var(--border)'};border-radius:6px;padding:.7rem .85rem;font-family:var(--mono);font-size:11px;line-height:1.7">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:.4rem">
+      <span style="font-size:12px;color:var(--accent2);font-weight:600">${comEsc(b.nombre)}</span>
+      <span style="color:var(--text3);font-size:10px">${b.n} bonos</span>
+    </div>
+    <div>nivel @ ${tn} <span style="color:var(--text)">${_fN(b.nivelFin)}%</span> <span style="color:var(--text3)">${comEsc(b.unidad)}</span>  ${_comBps(b.dNivelBps)}</div>
+    <div style="color:var(--text3)">${b.r2ok
+      ? `pendiente ${_fN(b.pendIni,2)} → ${_fN(b.pendFin,2)} · <span style="color:var(--text2)">${comEsc(b.forma)}</span> (R² ${_fN(b.r2Fin,2)})`
+      : `pendiente no reportada · el ajuste no representa esta curva (R² ${_fN(b.r2Fin,2)})`}</div>
+    <div style="color:var(--text3)">${b.tramos.map(t=>`${t.l} ${_comBps(t.bps)}`).join(' · ')||'—'}</div>
+    ${b.movers.suben.length?`<div>↑ ${b.movers.suben.map(mv).join(' · ')}</div>`:''}
+    ${b.movers.bajan.length?`<div>↓ ${b.movers.bajan.map(mv).join(' · ')}</div>`:''}
+    ${b.residuos.baratos.length?`<div style="color:var(--text3)">vs curva · barato ${comEsc(b.residuos.baratos[0].ticker)} ${_comBps(b.residuos.baratos[0].bps)} · caro ${comEsc(b.residuos.ricos[0].ticker)} ${_comBps(b.residuos.ricos[0].bps)}</div>`:''}
+    <div style="color:var(--text3)">${vol}</div>
+  </div>`;
+}
+
+function comFilaFX(f){
+  const ks=Object.keys(f.fx||{});
+  if(!ks.length)return'';
+  const celda=k=>{
+    const d=f.fx[k],su=d.esPct?'%':'';
+    const va=d.esPct?_fS(d.var)+' pp':_fP(d.var);
+    const col=d.var==null?'var(--text3)':(d.var>=0?'var(--danger)':'var(--accent)');
+    return `<span style="white-space:nowrap"><span style="color:var(--text3)">${k}</span> ${_fN(d.fin,2)}${su} <span style="color:${col}">${va}</span></span>`;
+  };
+  return `<div style="font-family:var(--mono);font-size:11px;display:flex;flex-wrap:wrap;gap:14px;padding:.6rem .85rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:.7rem">${ks.map(celda).join('')}</div>`;
+}
+
+function comFilaImplicitas(f){
+  const filas=f.implicitasFin.map((b,i)=>{
+    const a=f.implicitasIni[i];
+    if(b.infla==null&&b.deval==null)
+      return `<div style="color:var(--text3)">${b.tenor}d — fuera del rango con datos de la curva</div>`;
+    const dif=(x,y)=>x!=null&&y!=null?_comBps((x-y)*100):'';
+    const c=[];
+    if(b.infla!=null)c.push(`inflación <span style="color:var(--text)">${_fN(b.infla)}%</span> a. <span style="color:var(--text3)">(${_fN(b.inflaMensual)}% m)</span> ${dif(b.infla,a.infla)}`);
+    if(b.deval!=null)c.push(`devaluación <span style="color:var(--text)">${_fN(b.deval)}%</span> a. ${dif(b.deval,a.deval)}`);
+    return `<div><span style="color:var(--text3)">${b.tenor}d</span>  ${c.join('  ·  ')}</div>`;
+  }).join('');
+  // El nombre importa: si esto se llamara "breakeven" a secas, la diferencia
+  // contra el de la solapa Resumen —que toma dos bonos concretos y no el ajuste
+  // de toda la curva— se leería como un error y no como lo que es.
+  return `<div style="font-family:var(--mono);font-size:11px;line-height:1.9;padding:.6rem .85rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:.3rem">Implícitas de curva</div>
+    ${filas}
+    <div style="font-size:10px;color:var(--text3);margin-top:.4rem;line-height:1.5">
+      Salen de leer el ajuste de toda la curva en un punto. El breakeven de la solapa Resumen toma dos bonos concretos con sus precios: los dos números difieren, y si difieren mucho es que hay un papel desarbitrado contra su curva.
+    </div></div>`;
+}
+
+function comPie(){
+  return `<div style="font-size:10px;color:var(--text3);line-height:1.6;margin-top:1rem;padding-top:.7rem;border-top:1px solid var(--border)">
+    Los números son cálculo propio sobre cierres de mercado. La lectura y el contexto los redactó un modelo de lenguaje y pueden contener errores. No es recomendación de inversión.
+  </div>`;
+}
+
+// ── Copiar ──────────────────────────────────────────────────────────────────
+// Los tres encabezados van adentro del texto copiado, no sólo en la pantalla:
+// si la separación entre lo medido y lo interpretado se pierde al pegar, no
+// sirvió de nada.
+function comTextoCompleto(f,com,conPrompt){
+  const p=com&&com.periodos?com.periodos[f.periodo]:null;
+  const L=[];
+  if(conPrompt)L.push(FICHA_PREAMBULO);
+  if(p&&!conPrompt){
+    L.push('LECTURA — redactada por un modelo de lenguaje sobre los números de abajo');
+    if(p.titular)L.push(p.titular);
+    L.push(p.movimiento,'');
+    if(p.contexto){
+      L.push('CONTEXTO — búsqueda web del modelo; no explica el movimiento');
+      L.push(p.contexto,'');
+    }
+  }
+  L.push('MEDIDO — cálculo propio sobre cierres de mercado');
+  L.push(fichaTexto(f));
+  if(!conPrompt){
+    L.push('');
+    L.push('Los números son cálculo propio sobre cierres de mercado. La lectura y el contexto los redactó un modelo de lenguaje y pueden contener errores. No es recomendación de inversión.');
+  }
+  return L.join('\n');
+}
+
+async function comCopiar(sec,modo){
+  const f=await fichaCacheada(comEstado[sec].periodo,false);
+  if(!f){alert('No hay ficha para ese período todavía.');return;}
+  const txt=comTextoCompleto(f,COM_DATA,modo==='prompt');
+  comCopiarTexto(txt);
+}
+
+// Mismo patrón que el resto de la app: portapapeles, y si el navegador lo
+// bloquea, una ventana con el texto para seleccionar a mano.
+function comCopiarTexto(txt){
+  const alFallar=()=>{
+    const w=window.open('','_blank','width=760,height=640');
+    if(w)w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:1rem;white-space:pre-wrap">${comEsc(txt)}</pre>`);
+  };
+  try{
+    navigator.clipboard.writeText(txt)
+      .then(()=>{if(typeof toast==='function')toast(`Copiado · ${txt.length} caracteres`);else console.log('copiado',txt.length);})
+      .catch(alFallar);
+  }catch(e){alFallar();}
 }
 </script>
 </body>
