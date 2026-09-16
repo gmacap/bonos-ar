@@ -2283,6 +2283,38 @@ const omitir = (label, motivo) =>
   else check(esc.tiles.includes('Renovar a TAMAR') && esc.grafico,
              'se pintan los tiles y el gráfico');
 
+  console.log('\nSolapas en desarrollo: sólo para admins');
+  const dev = await page.evaluate(() => {
+    const vis = id => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; };
+    const ids = ['nav-escenarios', 'nav-comentario', 'nav-usd-comentario'];
+    const sinSesion = ids.map(vis);
+    // Admin simulado, sincrónico y restaurado en la misma llamada: nada escribe
+    // localStorage en el medio, así que la sincronización con Supabase no se entera.
+    const antes = SUPA_USER;
+    SUPA_USER = { email: ADMIN_EMAIL };
+    authUpdateAdminUI();
+    const conAdmin = ids.map(vis);
+    SUPA_USER = antes;
+    authUpdateAdminUI();
+    const restaurado = ids.map(vis);
+    // Un no-admin parado en una solapa en desarrollo vuelve al Resumen.
+    switchSection('pesos'); switchTab('escenarios');
+    devSacarSiNoAdmin();
+    const trasPesos = currentTab;
+    switchSection('usd'); switchUsdTab('usd-comentario');
+    devSacarSiNoAdmin();
+    const trasUsd = currentUsdTab;
+    switchSection('pesos');
+    const otros = ['nav-breakeven', 'nav-proyecciones', 'nav-series-ars', 'nav-usd-series'].map(vis);
+    return { sinSesion, conAdmin, restaurado, trasPesos, trasUsd, otros, admin: !!isAdmin() };
+  });
+  check(dev.sinSesion.every(v => !v), 'sin sesión no se ven Escenarios ni Comentario', JSON.stringify(dev.sinSesion));
+  check(dev.conAdmin.every(v => v), 'el admin sí las ve', JSON.stringify(dev.conAdmin));
+  check(dev.restaurado.every(v => !v) && !dev.admin, 'al dejar de ser admin se vuelven a ocultar', JSON.stringify(dev.restaurado));
+  check(dev.trasPesos === 'breakeven' && dev.trasUsd === 'usd-resumen',
+        'un no-admin parado en una solapa en desarrollo vuelve al Resumen', `${dev.trasPesos} · ${dev.trasUsd}`);
+  check(dev.otros.every(v => v), 'el resto de la navegación sigue a la vista', JSON.stringify(dev.otros));
+
   console.log('\nProyecciones: los ajustes manuales sobreviven a la recarga');
   const puesto = await page.evaluate(async () => {
     const mes = proyMesAdd(proyMesHoy(), 3);

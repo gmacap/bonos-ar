@@ -355,10 +355,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab" id="nav-sintetico" onclick="switchTab('sintetico')">Sintético ARS</button>
   <button class="nav-tab" id="nav-calendario" onclick="switchTab('calendario')">Calendario</button>
   <button class="nav-tab" id="nav-proyecciones" onclick="switchTab('proyecciones')">Proyecciones</button>
-  <button class="nav-tab" id="nav-escenarios" onclick="switchTab('escenarios')">Escenarios</button>
+  <button class="nav-tab nav-dev" id="nav-escenarios" onclick="switchTab('escenarios')" style="display:none">Escenarios</button>
   <button class="nav-tab" id="nav-curvas-ars" onclick="switchTab('curvas-ars')">Curvas</button>
   <button class="nav-tab" id="nav-series-ars" onclick="switchTab('series-ars')">Series</button>
-  <button class="nav-tab" id="nav-comentario" onclick="switchTab('comentario')">Comentario</button>
+  <button class="nav-tab nav-dev" id="nav-comentario" onclick="switchTab('comentario')" style="display:none">Comentario</button>
   <button class="nav-tab" id="nav-feriados" onclick="switchTab('feriados')" style="margin-left:auto">Feriados</button>
 </nav>
 <nav class="nav" id="nav-usd" style="display:none">
@@ -371,7 +371,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab"        id="nav-usd-equiv"       onclick="switchUsdTab('usd-equiv')">Equivalencias</button>
   <button class="nav-tab"        id="nav-usd-curvas"      onclick="switchUsdTab('usd-curvas')">Curvas</button>
   <button class="nav-tab"        id="nav-usd-series"      onclick="switchUsdTab('usd-series')">Series</button>
-  <button class="nav-tab"        id="nav-usd-comentario"  onclick="switchUsdTab('usd-comentario')">Comentario</button>
+  <button class="nav-tab nav-dev" id="nav-usd-comentario" onclick="switchUsdTab('usd-comentario')" style="display:none">Comentario</button>
 </nav>
 <!-- USD sub-bar: currency selector + price status -->
 <div id="usd-subbar" style="display:none;align-items:center;height:36px;padding:0 1rem;gap:10px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
@@ -2579,6 +2579,7 @@ async function authInit(){
       SUPA_USER=null;
       authUpdateUI(null);
       authUpdateAdminUI();
+      devSacarSiNoAdmin();
     }
   });
 }
@@ -2632,6 +2633,33 @@ function authUpdateAdminUI(){
   document.querySelectorAll('.usd-admin-btn').forEach(el=>{
     el.style.display=admin?'':'none';
   });
+  // Solapas en desarrollo: sólo las ve el admin.
+  document.querySelectorAll('.nav-dev').forEach(el=>{
+    el.style.display=admin?'':'none';
+  });
+}
+
+// Solapas que se están construyendo. Es un interruptor de visibilidad, no un
+// control de acceso: lo que muestran sale de datos que ya son públicos. Por eso
+// sólo se ocultan los botones y switchTab no se bloquea — el smoke entra a estas
+// solapas sin sesión y tiene que poder seguir probándolas.
+//
+// Para liberar una, se le saca la clase nav-dev al botón y se la quita de acá.
+const TABS_DESARROLLO=['escenarios','comentario'];
+const USD_TABS_DESARROLLO=['usd-comentario'];
+
+// Un admin que cierra sesión parado en una solapa en desarrollo se quedaría
+// mirando una pantalla cuyo botón acaba de desaparecer. Se lo lleva al Resumen.
+function devSacarSiNoAdmin(){
+  if(isAdmin())return;
+  if(USD_TABS_DESARROLLO.includes(currentUsdTab)){
+    if(currentSection==='usd')switchUsdTab('usd-resumen');
+    else currentUsdTab='usd-resumen';
+  }
+  if(TABS_DESARROLLO.includes(currentTab)){
+    if(currentSection==='pesos')switchTab('breakeven');
+    else currentTab='breakeven';
+  }
 }
 
 function authUpdateUI(user){
