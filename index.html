@@ -16922,6 +16922,536 @@ function _curvasUsdDraw(){
   const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a302a';
   curvasUsdChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — MD ${i.parsed.x.toFixed(2)}, TIR ${i.parsed.y.toFixed(2)}%`}}},scales:{x:{type:'linear',title:{display:true,text:'Duration modificada (años)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:'TIR (%)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
 }
+
+// ══════════════════════════════════════════════════════ FICHA DE MERCADO
+// Qué se movió en la curva entre dos ruedas, medido y no opinado. Es el insumo
+// del comentario diario: los números los calcula esto, la prosa la escribe otra
+// cosa encima. Esa separación es deliberada — el texto va a clientes y un número
+// inventado es un problema distinto de una frase mal redactada.
+//
+// ── Por qué hay un solo punto de entrada ────────────────────────────────────
+// fichaConstruir() la llaman por igual el panel del navegador y el script que
+// genera el comentario. No hay una segunda implementación de la matemática en
+// Node: si la hubiera, el texto y la pantalla podrían decir cosas distintas del
+// mismo día y nadie sabría cuál creer.
+//
+// ── Lo que hay que tener en la cabeza ───────────────────────────────────────
+// `tir` NO significa lo mismo en cada sector. TF guarda TNA, CER guarda TIR
+// real, TAMAR guarda un margen sobre TAMAR, DLK guarda TNA en dólares y los tres
+// de dólares guardan TIR efectiva. El nivel y el delta se reportan siempre en la
+// unidad nativa del sector, que es la que está en la pantalla del que opera.
+// Convertir existe sólo para los breakeven, en fichaTirEfectiva.
+const FICHA_PERIODOS=[
+  {v:'dia',      l:'Día',       dias:1},
+  {v:'semana',   l:'Semana',    dias:7},
+  {v:'mes',      l:'Mes',       meses:1},
+  {v:'trimestre',l:'Trimestre', meses:3},
+  {v:'anio',     l:'Año',       meses:12},
+];
+const FICHA_SECTORES=['TF','CER','TAMAR','DLK','BOP','BON','GLO'];
+const FICHA_NOMBRE={TF:'Tasa fija',CER:'CER',TAMAR:'TAMAR',DLK:'Dollar linked',
+                    BOP:'Bopreales',BON:'Bonares',GLO:'Globales'};
+// Los pesos se leen por días al vencimiento y los dólares por duration
+// modificada, igual que las dos solapas de Curvas. Mezclarlos sería comparar un
+// número de días contra un número de años.
+const FICHA_EJEX={TF:'dias',CER:'dias',TAMAR:'dias',DLK:'dias',BOP:'md',BON:'md',GLO:'md'};
+const FICHA_UNIDAD={TF:'TNA',CER:'TIR real',TAMAR:'Margen TNA',DLK:'TNA USD',
+                    BOP:'TIR',BON:'TIR',GLO:'TIR'};
+// Los cortes por tramo no son los mismos números en los dos ejes ni miden lo
+// mismo: 180 son días, 3 son años de duration.
+const FICHA_TRAMOS_DEF={
+  dias:[{l:'corto',hasta:180},{l:'medio',hasta:540},{l:'largo',hasta:Infinity}],
+  md:  [{l:'corto',hasta:3},  {l:'medio',hasta:6},  {l:'largo',hasta:Infinity}],
+};
+const FICHA_R2_MIN=0.5;
+const FICHA_TENORES_BE=[90,180,270];
+const FICHA_MAX_FILAS=30000;
+const FICHA_SECT_ARS=['TF','CER','TAMAR','DLK'];
+const FICHA_SECT_USD=['BOP','BON','GLO'];
+
+// Tasa efectiva anual a partir de lo que guarda la tabla. Cada sector archiva una
+// convención distinta y compararlas crudas daría un breakeven inventado.
+//
+//   TF     TNA lineal → calcTIR, que es su inversa exacta
+//   CER    ya es TIR real efectiva
+//   DLK    lo que guarda es dlkCalcTNA(tir,dias), que arriba de 180 días usa base
+//          semestral 360/180. Su inversa NO es calcTIR: despejando
+//          (1+r)^(182,5/365) = 1 + tna/200  ⇒  r = (1+tna/200)² − 1
+//          Usar calcTIR acá da un número plausible y equivocado en todos los DLK
+//          largos, y no falla nada: por eso el smoke lo prueba de ida y vuelta.
+//   BON/GLO/BOP  ya es TIR efectiva
+//   TAMAR  es un margen sobre TAMAR, no una tasa: no hay TIR que devolver
+function fichaTirEfectiva(sector,tir,dias){
+  if(tir==null||!isFinite(tir))return null;
+  if(sector==='CER'||sector==='BON'||sector==='GLO'||sector==='BOP')return tir;
+  if(sector==='TAMAR')return null;
+  if(sector==='TF')return dias>0?calcTIR(tir,dias):null;
+  if(sector==='DLK'){
+    if(dias>180)return(Math.pow(1+tir/200,2)-1)*100;
+    return dias>0?calcTIR(tir,dias):null;
+  }
+  return null;
+}
+
+// ── Lectura ─────────────────────────────────────────────────────────────────
+// Una rueda entera, los siete sectores. Son unas ochenta filas: no necesita
+// paginar, y pedirla de a un sector serían siete viajes para el mismo dato.
+// Si es hoy y hay precios cargados sale de memoria, igual que curvasFetchSnapshot.
+async function fichaFetchRueda(fecha){
+  if(fecha===hoyAR()){
+    const mem=curvasSnapshotFromMemory('ALL');
+    if(mem.length)return mem;
+  }
+  const conLibro=await curvasSoportaLibro();
+  try{
+    const{data,error}=await supa.from('bond_price_snapshots')
+      .select('ticker,sector,tir,md,dias,price'+(conLibro?',monto,spread':''))
+      .eq('snapshot_date',fecha).or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`);
+    if(error||!data)return[];
+    return data;
+  }catch(e){return[];}
+}
+
+// El volumen del período. Es la primera lectura del cliente que cruza el tope de
+// 1000 filas de PostgREST: un año son unas 250 ruedas por unos 80 bonos. Ninguna
+// otra consulta de la app pagina, así que el patrón se copia de
+// .github/scripts/backfill-volumen.js. Se pide sólo `monto`: la tasa de las
+// ruedas del medio no se usa para nada.
+async function fichaFetchMontos(desde,hasta){
+  if(!await curvasSoportaLibro())
+    return fichaAgruparMontos([],false,true);
+  const filas=[];let truncado=false;
+  for(let off=0;off<FICHA_MAX_FILAS;off+=1000){
+    let data=null;
+    try{
+      const r=await supa.from('bond_price_snapshots')
+        .select('snapshot_date,ticker,sector,monto')
+        .gte('snapshot_date',desde).lte('snapshot_date',hasta)
+        .not('monto','is',null)
+        .order('snapshot_date',{ascending:true}).range(off,off+999);
+      if(r.error)break;
+      data=r.data;
+    }catch(e){break;}
+    if(!data||!data.length)break;
+    filas.push(...data);
+    if(data.length<1000)break;
+    if(off+1000>=FICHA_MAX_FILAS){truncado=true;break;}
+  }
+  return fichaAgruparMontos(filas,truncado,false);
+}
+
+function fichaAgruparMontos(filas,truncado,sinColumna){
+  const porSectorFecha=new Map(),porSectorTicker=new Map(),fechas=new Set();
+  for(const f of filas||[]){
+    const m=+f.monto;
+    if(!(m>0))continue;
+    fechas.add(f.snapshot_date);
+    if(!porSectorFecha.has(f.sector))porSectorFecha.set(f.sector,new Map());
+    const pf=porSectorFecha.get(f.sector);
+    pf.set(f.snapshot_date,(pf.get(f.snapshot_date)||0)+m);
+    if(!porSectorTicker.has(f.sector))porSectorTicker.set(f.sector,new Map());
+    const pt=porSectorTicker.get(f.sector);
+    pt.set(f.ticker,(pt.get(f.ticker)||0)+m);
+  }
+  return{porSectorFecha,porSectorTicker,fechas:[...fechas].sort(),
+         total:fichaMontoTotalUnico(filas),truncado:!!truncado,sinColumna:!!sinColumna};
+}
+
+// TXMJ9 y compañía viven en dos sectores a la vez: sumar los siete totales
+// contaría su volumen dos veces. Por sector el número es correcto —el bono está
+// de verdad en las dos curvas— pero el total de mercado se deduplica.
+function fichaMontoTotalUnico(filas){
+  const vistos=new Set();let t=0;
+  for(const f of filas||[]){
+    const k=f.snapshot_date+'|'+f.ticker;
+    if(vistos.has(k))continue;
+    vistos.add(k);
+    const m=+f.monto;
+    if(m>0)t+=m;
+  }
+  return t;
+}
+
+// ── Ajuste ──────────────────────────────────────────────────────────────────
+// curvasLogReg no devuelve bondad de ajuste, y sin eso la pendiente b se lee como
+// si siempre significara algo. Una curva con joroba no se representa con
+// a + b·ln(x): b sale de un promedio y decir "empinó" sería inventar. Debajo de
+// FICHA_R2_MIN se reporta el nivel y se calla la pendiente.
+function fichaAjuste(pts){
+  const reg=curvasLogReg(pts);
+  if(!reg)return null;
+  const ym=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+  let sse=0,sst=0;
+  for(const p of pts){
+    const yh=reg.a+reg.b*Math.log(Math.max(p.x,0.01));
+    sse+=(p.y-yh)*(p.y-yh);sst+=(p.y-ym)*(p.y-ym);
+  }
+  const xs=pts.map(p=>p.x);
+  return{reg,n:pts.length,r2:sst>0?1-sse/sst:null,
+         xMin:Math.min(...xs),xMax:Math.max(...xs)};
+}
+function fichaNivel(aj,x){
+  return aj?aj.reg.a+aj.reg.b*Math.log(Math.max(x,0.01)):null;
+}
+
+// Los dos ajustes van SOBRE EL MISMO CONJUNTO DE BONOS. Si entre una rueda y la
+// otra venció una letra o entró una nueva, a y b se mueven sin que el mercado se
+// haya movido, y el Δ nivel mediría el cambio de composición. Los que entran y
+// los que salen se reportan aparte: eso es información, no ruido.
+function fichaPar(rowsIni,rowsFin,sector){
+  const ejeX=FICHA_EJEX[sector];
+  const toMap=rows=>new Map((rows||[])
+    .filter(r=>r.sector===sector&&r.tir!=null&&isFinite(+r.tir)&&+r[ejeX]>0)
+    .map(r=>[r.ticker,{x:+r[ejeX],y:+r.tir,dias:r.dias!=null?+r.dias:null,
+                       monto:r.monto!=null?+r.monto:null,
+                       spread:r.spread!=null?+r.spread:null,price:r.price}]));
+  const mi=toMap(rowsIni),mf=toMap(rowsFin);
+  const comunes=[...mf.keys()].filter(t=>mi.has(t));
+  const pts=(m,ts)=>ts.map(t=>Object.assign({ticker:t},m.get(t)));
+  return{sector,ejeX,mi,mf,comunes,
+    entraron:[...mf.keys()].filter(t=>!mi.has(t)),
+    salieron:[...mi.keys()].filter(t=>!mf.has(t)),
+    ajIni:fichaAjuste(pts(mi,comunes)),
+    ajFin:fichaAjuste(pts(mf,comunes))};
+}
+
+// El tenor al que se lee el nivel: la MEDIANA de los x de los bonos comunes. Cae
+// adentro del rango con datos de las dos ruedas por construcción, así que el
+// nivel nunca es una extrapolación, y cae donde están los papeles. El punto medio
+// del intervalo no sirve: con CURVAS_DIAS_MIN=4 la letra más corta puede estar en
+// 5 días y un BONCAP en 700, y la media geométrica da 59 días, donde hay dos
+// papeles y el nivel se movería por ruido.
+function fichaTenor(par){
+  const xs=par.comunes.map(t=>(par.mi.get(t).x+par.mf.get(t).x)/2).sort((a,b)=>a-b);
+  if(!xs.length)return null;
+  const m=xs.length>>1;
+  return xs.length%2?xs[m]:(xs[m-1]+xs[m])/2;
+}
+
+function fichaMediana(vs){
+  const a=vs.filter(v=>v!=null&&isFinite(v)).sort((x,y)=>x-y);
+  if(!a.length)return null;
+  const m=a.length>>1;
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+
+// El movimiento por tramo, en bps y por mediana: un solo bono raro no arrastra al
+// tramo entero como haría un promedio.
+function fichaTramos(par){
+  const def=FICHA_TRAMOS_DEF[par.ejeX];
+  return def.map((t,i)=>{
+    const desde=i?def[i-1].hasta:-Infinity;
+    const ds=par.comunes
+      .filter(k=>{const x=par.mf.get(k).x;return x>desde&&x<=t.hasta;})
+      .map(k=>(par.mf.get(k).y-par.mi.get(k).y)*100);
+    return{l:t.l,n:ds.length,bps:fichaMediana(ds)};
+  }).filter(t=>t.n>0);
+}
+
+// Los que más se movieron, con el monto del día para saber si el movimiento se
+// puede operar o es una punta sola.
+function fichaMovers(par,n){
+  n=n||3;
+  const ds=par.comunes.map(t=>({
+    ticker:t,bps:(par.mf.get(t).y-par.mi.get(t).y)*100,
+    x:par.mf.get(t).x,dias:par.mf.get(t).dias,monto:par.mf.get(t).monto,
+  })).filter(d=>isFinite(d.bps));
+  const orden=[...ds].sort((a,b)=>b.bps-a.bps);
+  return{suben:orden.filter(d=>d.bps>0).slice(0,n),
+         bajan:orden.filter(d=>d.bps<0).reverse().slice(0,n)};
+}
+
+// Desvío contra la curva ajustada de la rueda final. Mayor tasa que la curva es
+// más barato, en los siete sectores: en CER es más tasa real, en TAMAR más
+// margen, en los dólares más TIR. Todos quieren decir precio más bajo.
+function fichaResiduos(par,n){
+  n=n||3;
+  if(!par.ajFin)return{ricos:[],baratos:[]};
+  const rs=par.comunes.map(t=>{
+    const p=par.mf.get(t);
+    const yh=fichaNivel(par.ajFin,p.x);
+    return{ticker:t,bps:yh!=null?(p.y-yh)*100:null,x:p.x,monto:p.monto};
+  }).filter(r=>r.bps!=null&&isFinite(r.bps)).sort((a,b)=>b.bps-a.bps);
+  return{baratos:rs.slice(0,n),ricos:rs.slice(-n).reverse()};
+}
+
+function fichaVolumen(par,montos,sector){
+  const pf=montos.porSectorFecha.get(sector);
+  const pt=montos.porSectorTicker.get(sector);
+  if(!pf||!pf.size)return{total:0,prom:null,ruedas:0,top:null,
+                          truncado:montos.truncado,sinColumna:montos.sinColumna};
+  let total=0;
+  for(const v of pf.values())total+=v;
+  const ruedas=pf.size;
+  let top=null;
+  if(pt)for(const[t,v]of pt)if(!top||v>top.monto)top={ticker:t,monto:v};
+  return{total,prom:total/ruedas,ruedas,top,
+         truncado:montos.truncado,sinColumna:montos.sinColumna};
+}
+
+function fichaSector(sector,rowsIni,rowsFin,montos){
+  const par=fichaPar(rowsIni,rowsFin,sector);
+  if(!par.comunes.length)return null;
+  const tenor=fichaTenor(par);
+  const nIni=fichaNivel(par.ajIni,tenor),nFin=fichaNivel(par.ajFin,tenor);
+  const r2ok=par.ajIni&&par.ajFin&&par.ajIni.r2!=null&&par.ajFin.r2!=null
+             &&par.ajIni.r2>=FICHA_R2_MIN&&par.ajFin.r2>=FICHA_R2_MIN;
+  return{
+    sector,nombre:FICHA_NOMBRE[sector],unidad:FICHA_UNIDAD[sector],ejeX:par.ejeX,
+    n:par.comunes.length,entraron:par.entraron,salieron:par.salieron,
+    tenor,nivelIni:nIni,nivelFin:nFin,
+    dNivelBps:(nIni!=null&&nFin!=null)?(nFin-nIni)*100:null,
+    // La pendiente sólo se reporta si el ajuste explica la curva en las dos
+    // ruedas. Con b<0 la curva está invertida, así que el adjetivo se arma sobre
+    // el signo y el módulo, no sobre el delta suelto.
+    pendIni:par.ajIni?par.ajIni.reg.b:null,
+    pendFin:par.ajFin?par.ajFin.reg.b:null,
+    dPend:r2ok?par.ajFin.reg.b-par.ajIni.reg.b:null,
+    forma:r2ok?fichaForma(par.ajIni.reg.b,par.ajFin.reg.b):null,
+    r2Ini:par.ajIni?par.ajIni.r2:null,r2Fin:par.ajFin?par.ajFin.r2:null,
+    r2ok,
+    tramos:fichaTramos(par),
+    movers:fichaMovers(par),
+    residuos:fichaResiduos(par),
+    volumen:fichaVolumen(par,montos,sector),
+    _aj:{ini:par.ajIni,fin:par.ajFin},
+  };
+}
+
+// Empinar es que la curva se haga más positiva; invertirse más, que se haga más
+// negativa. Con el signo cambiado entre las dos ruedas la curva dio vuelta, que
+// es otra cosa y merece su propia palabra.
+function fichaForma(bIni,bFin){
+  const d=bFin-bIni;
+  if(Math.abs(d)<0.05)return'sin cambio de forma';
+  if(bIni>=0&&bFin<0)return'se dio vuelta a invertida';
+  if(bIni<0&&bFin>=0)return'se dio vuelta a normal';
+  if(bFin<0)return d<0?'se invirtió más':'se invirtió menos';
+  return d>0?'empinó':'aplanó';
+}
+
+// ── Dólar ───────────────────────────────────────────────────────────────────
+// Sale de seriesTraerFX, la misma función que dibuja la solapa Monedas, para que
+// el MEP y la brecha de la ficha sean exactamente los del gráfico. Trae también
+// el breakeven de las letras, que acá no se usa: cuesta unos pedidos de más y
+// vale la consistencia.
+async function fichaFX(ini,fin){
+  const out={};
+  try{
+    const fx=await seriesTraerFX(ini,fin);
+    for(const l of['A3500','MEP','Cable','Canje','Brecha']){
+      const m=fx.porBono.get(l);
+      if(!m||!m.size)continue;
+      const fs=[...m.keys()].sort();
+      const a=fs.filter(f=>f<=ini).pop()||fs[0];
+      const b=fs.filter(f=>f<=fin).pop()||fs[fs.length-1];
+      const vi=m.get(a),vf=m.get(b);
+      if(vi==null||vf==null)continue;
+      // Canje y brecha ya son porcentajes: su cambio se lee en puntos, no en
+      // variación porcentual de un porcentaje, que no querría decir nada.
+      const esPct=(l==='Canje'||l==='Brecha');
+      out[l]={ini:vi,fin:vf,fechaIni:a,fechaFin:b,esPct,
+              var:esPct?vf-vi:(vi>0?(vf/vi-1)*100:null)};
+    }
+  }catch(e){console.warn('[ficha] fx:',e.message);}
+  return out;
+}
+
+// ── Implícitas ──────────────────────────────────────────────────────────────
+// A tenores FIJOS y no a la mediana del día: si el punto se moviera con la
+// composición de la curva, la serie saltaría cada vez que vence una letra y eso
+// se leería como una señal del mercado.
+//
+// Cada tenor se reporta sólo si cae adentro del rango con datos de las tres
+// curvas. Extrapolar el ajuste más allá del último bono es la forma más rápida de
+// publicar una inflación implícita que nadie puede operar.
+//
+// OJO: esto NO es el breakeven bono contra bono de la solapa Resumen. Acá se lee
+// el ajuste de toda la curva en un punto; allá se toman dos papeles concretos con
+// sus precios. Los dos números difieren, y la diferencia es información: si es
+// grande, hay algo desarbitrado contra su curva.
+function fichaImplicitaEn(ajTF,ajCER,ajDLK,x){
+  const dentro=a=>a&&x>=a.xMin&&x<=a.xMax;
+  const tf =dentro(ajTF) ?fichaTirEfectiva('TF', fichaNivel(ajTF,x), x):null;
+  const cer=dentro(ajCER)?fichaNivel(ajCER,x):null;
+  const dlk=dentro(ajDLK)?fichaTirEfectiva('DLK',fichaNivel(ajDLK,x),x):null;
+  const infla=(tf!=null&&cer!=null)?((1+tf/100)/(1+cer/100)-1)*100:null;
+  return{tenor:x,tf,cer,dlk,infla,
+    inflaMensual:infla!=null?(Math.pow(1+infla/100,1/12)-1)*100:null,
+    deval:(tf!=null&&dlk!=null)?((1+tf/100)/(1+dlk/100)-1)*100:null};
+}
+function fichaImplicitas(bloques,cual){
+  const aj=s=>{const b=bloques.find(x=>x&&x.sector===s);return b?b._aj[cual]:null;};
+  const tf=aj('TF'),cer=aj('CER'),dlk=aj('DLK');
+  return FICHA_TENORES_BE.map(x=>fichaImplicitaEn(tf,cer,dlk,x));
+}
+
+// ── Las dos ruedas ──────────────────────────────────────────────────────────
+// Se retrocede en calendario y después se cae a la última rueda con datos en o
+// antes de esa fecha. Así los feriados no hay que enumerarlos: si el 9 de julio
+// no tuvo rueda, el período arranca en el 8.
+function fichaFechaObjetivo(fin,p){
+  const d=parseDate(fin);
+  // El día es el único que se cuenta en hábiles: "ayer" de un lunes es viernes.
+  if(p.dias===1){do{d.setDate(d.getDate()-1);}while(!esHabil(d));return fmtDate(d);}
+  if(p.dias)d.setDate(d.getDate()-p.dias);
+  else d.setMonth(d.getMonth()-p.meses);
+  return fmtDate(d);
+}
+
+// La última rueda archivada en o antes de una fecha. Una fila, no un rango:
+// PostgREST ordena y corta del lado del servidor.
+async function fichaUltimaRuedaHasta(fecha){
+  try{
+    const{data,error}=await supa.from('bond_price_snapshots').select('snapshot_date')
+      .lte('snapshot_date',fecha).order('snapshot_date',{ascending:false}).limit(1);
+    if(error||!data||!data.length)return null;
+    return data[0].snapshot_date;
+  }catch(e){return null;}
+}
+
+// El cierre del período es HOY con precios en vivo si el mercado está operando:
+// es lo que el que opera tiene en pantalla a las tres de la tarde y lo que quiere
+// comentar. Fuera de rueda es la última rueda archivada, aunque la memoria
+// todavía tenga precios cargados — si no, a las seis de la tarde la ficha
+// compararía el cierre contra sí mismo.
+//
+// `enVivo` viaja en la ficha porque cambia lo que se puede decir: sin snapshot
+// todavía no hay monto operado del día más que el parcial del libro.
+//
+// `opts.soloArchivado` lo usa el generador del comentario, que no puede depender
+// de la hora de pared del runner ni de que los precios hayan cargado.
+async function fichaRuedas(periodo,opts){
+  opts=opts||{};
+  const p=FICHA_PERIODOS.find(x=>x.v===periodo);
+  if(!p)return null;
+  const hoy=hoyAR();
+  let enVivo=false;
+  if(!opts.soloArchivado){
+    try{enVivo=mercadoActivo()&&curvasSnapshotFromMemory('ALL').length>0;}catch(e){}
+  }
+  const fin=enVivo?hoy:await fichaUltimaRuedaHasta(hoy);
+  if(!fin)return null;
+  const ini=await fichaUltimaRuedaHasta(fichaFechaObjetivo(fin,p));
+  if(!ini||ini>=fin)return null;
+  return{periodo,label:p.l,ini,fin,enVivo,
+         dias:Math.round((parseDate(fin)-parseDate(ini))/86400000)};
+}
+
+// ── El punto de entrada ─────────────────────────────────────────────────────
+async function fichaConstruir(periodo,opts){
+  opts=opts||{};
+  const r=await fichaRuedas(periodo,opts);
+  if(!r)return null;
+  const[rowsIni,rowsFin,montos]=await Promise.all([
+    fichaFetchRueda(r.ini),
+    fichaFetchRueda(r.fin),
+    fichaFetchMontos(r.ini,r.fin),
+  ]);
+  const bloques=FICHA_SECTORES.map(s=>fichaSector(s,rowsIni,rowsFin,montos)).filter(Boolean);
+  const fx=opts.sinFX?{}:await fichaFX(r.ini,r.fin);
+  return{
+    ...r,
+    generado:new Date().toISOString(),
+    bloques,fx,
+    implicitasIni:fichaImplicitas(bloques,'ini'),
+    implicitasFin:fichaImplicitas(bloques,'fin'),
+    volumen:{total:montos.total,ruedas:montos.fechas.length,
+             truncado:montos.truncado,sinColumna:montos.sinColumna},
+  };
+}
+
+// ── El texto ────────────────────────────────────────────────────────────────
+// Lo que se copia al portapapeles y lo que se le pasa al modelo. Es la misma
+// cadena en los dos casos a propósito: la vía manual y la automática tienen que
+// partir del mismo insumo o van a dar comentarios distintos del mismo día.
+const FICHA_PREAMBULO=
+`Sos un operador de renta fija argentina. Escribí el comentario de cierre a partir de la FICHA de abajo.
+
+Reglas, todas obligatorias:
+· Todo número que escribas tiene que aparecer literal en la FICHA. No calcules, no redondees hacia un número más lindo, no infieras un dato que no esté.
+· En el movimiento no puede aparecer ninguna noticia ni ninguna causa. Nada de "el bono subió por X". Describí qué se movió, cuánto, en qué tramo y con qué volumen.
+· Nunca uses "porque", "debido a" ni "impulsado por" entre un hecho de contexto y un movimiento de precios.
+· Si algo no está en la ficha, no lo menciones. Si la ficha dice que el volumen está truncado, no hables de volumen de ese período.
+· Castellano rioplatense, sin anglicismos innecesarios. Escribís para un cliente que lee esto sin ver la pantalla.
+
+`;
+
+const _fN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
+const _fB=v=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+Math.round(v)+' bps';
+const _fP=(v,d)=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+(+v).toFixed(d==null?2:d)+'%';
+const _fS=(v,d)=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+(+v).toFixed(d==null?2:d);
+const _fM=v=>v==null||!isFinite(v)||v<=0?'—':(typeof libroMontoFmt==='function'?libroMontoFmt(v):String(Math.round(v)));
+const _fF=f=>String(f||'').split('-').reverse().join('/');
+
+function fichaTexto(f){
+  if(!f)return'';
+  const L=[];
+  L.push(`FICHA · ${f.label.toUpperCase()} · ${_fF(f.ini)} → ${_fF(f.fin)} · ${f.dias} días corridos`);
+  L.push(f.enVivo?'Cierre: precios en vivo, la rueda todavía no cerró.'
+                 :'Cierre: última rueda archivada.');
+  L.push('');
+  L.push('CURVAS  (cada sector en su unidad nativa; un delta positivo es más tasa, o sea precio más bajo)');
+  for(const b of f.bloques){
+    const u=b.unidad,esDias=b.ejeX==='dias';
+    const tn=esDias?`${_fN(b.tenor,0)} días`:`MD ${_fN(b.tenor,2)}`;
+    L.push(`· ${b.nombre} [${b.sector}] — ${b.n} bonos en las dos ruedas`);
+    L.push(`  nivel @ ${tn}: ${_fN(b.nivelIni)}% → ${_fN(b.nivelFin)}% (${u})  ${_fB(b.dNivelBps)}`);
+    if(b.r2ok)L.push(`  pendiente: ${_fN(b.pendIni,3)} → ${_fN(b.pendFin,3)} · ${b.forma} (R² ${_fN(b.r2Fin,2)})`);
+    else L.push(`  pendiente: no se reporta, el ajuste logarítmico no representa esta curva (R² ${_fN(b.r2Fin,2)})`);
+    if(b.tramos.length)
+      L.push('  por tramo: '+b.tramos.map(t=>`${t.l} ${_fB(t.bps)} (${t.n})`).join(' · '));
+    const mv=x=>`${x.ticker} ${_fB(x.bps)}${x.monto>0?' ['+_fM(x.monto)+']':''}`;
+    if(b.movers.suben.length)L.push('  mayor suba de tasa: '+b.movers.suben.map(mv).join(' · '));
+    if(b.movers.bajan.length)L.push('  mayor baja de tasa: '+b.movers.bajan.map(mv).join(' · '));
+    if(!b.movers.suben.length)L.push('  ningún bono subió de tasa');
+    if(!b.movers.bajan.length)L.push('  ningún bono bajó de tasa');
+    const rs=x=>`${x.ticker} ${_fB(x.bps)}`;
+    if(b.residuos.baratos.length)
+      L.push('  contra su curva — barato: '+b.residuos.baratos.map(rs).join(' · ')
+             +' | caro: '+b.residuos.ricos.map(rs).join(' · '));
+    const v=b.volumen;
+    if(v.sinColumna)L.push('  volumen: no disponible');
+    else if(!v.ruedas)L.push('  volumen: sin datos en el período');
+    else L.push(`  volumen: ${_fM(v.total)} en ${v.ruedas} ruedas · ${_fM(v.prom)} por rueda`
+                +(v.top?` · más operado ${v.top.ticker} ${_fM(v.top.monto)}`:'')
+                +(v.truncado?' · PARCIAL, no hablar de volumen':''));
+    if(b.entraron.length)L.push('  entraron a la curva: '+b.entraron.join(', '));
+    if(b.salieron.length)L.push('  salieron de la curva: '+b.salieron.join(', '));
+  }
+  const fxk=Object.keys(f.fx||{});
+  if(fxk.length){
+    L.push('');
+    L.push('DÓLAR');
+    for(const k of fxk){
+      const d=f.fx[k];
+      const su=d.esPct?'%':'';
+      L.push(`· ${k}: ${_fN(d.ini,2)}${su} → ${_fN(d.fin,2)}${su}`
+             +`  ${d.esPct?_fS(d.var)+' pp':_fP(d.var)}`);
+    }
+  }
+  L.push('');
+  L.push('IMPLÍCITAS DE CURVA  (leídas del ajuste de toda la curva; NO son el breakeven bono contra bono de la solapa Resumen)');
+  for(let i=0;i<f.implicitasFin.length;i++){
+    const a=f.implicitasIni[i],b=f.implicitasFin[i];
+    if(b.infla==null&&b.deval==null){
+      L.push(`· ${b.tenor}d: fuera del rango con datos de la curva`);
+      continue;
+    }
+    const partes=[];
+    if(b.infla!=null)partes.push(`inflación ${_fN(b.infla)}% anual (${_fN(b.inflaMensual)}% mensual)`
+      +(a.infla!=null?` desde ${_fN(a.infla)}%`:''));
+    if(b.deval!=null)partes.push(`devaluación ${_fN(b.deval)}% anual`
+      +(a.deval!=null?` desde ${_fN(a.deval)}%`:''));
+    L.push(`· ${b.tenor}d: `+partes.join(' · '));
+  }
+  if(f.volumen&&!f.volumen.sinColumna&&f.volumen.total>0){
+    L.push('');
+    L.push(`VOLUMEN TOTAL del período: ${_fM(f.volumen.total)} en ${f.volumen.ruedas} ruedas con dato`
+           +(f.volumen.truncado?' · PARCIAL':''));
+  }
+  return L.join('\n');
+}
 </script>
 </body>
 </html>
