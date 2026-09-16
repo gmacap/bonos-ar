@@ -17053,7 +17053,11 @@ async function fichaFetchRueda(fecha,soloArchivado){
 // otra consulta de la app pagina, así que el patrón se copia de
 // .github/scripts/backfill-volumen.js. Se pide sólo `monto`: la tasa de las
 // ruedas del medio no se usa para nada.
-async function fichaFetchMontos(desde,hasta){
+//
+// La rueda inicial NO entra. El movimiento se mide desde su cierre, así que lo
+// que se operó ese día pasó antes de lo que se está comentando. Con la rueda
+// adentro, el volumen "del día" sumaba dos ruedas y se leía como una.
+async function fichaFetchMontos(desdeExcluida,hasta){
   if(!await curvasSoportaLibro())
     return fichaAgruparMontos([],false,true);
   const filas=[];let truncado=false;
@@ -17062,7 +17066,7 @@ async function fichaFetchMontos(desde,hasta){
     try{
       const r=await supa.from('bond_price_snapshots')
         .select('snapshot_date,ticker,sector,monto')
-        .gte('snapshot_date',desde).lte('snapshot_date',hasta)
+        .gt('snapshot_date',desdeExcluida).lte('snapshot_date',hasta)
         .not('monto','is',null)
         .order('snapshot_date',{ascending:true}).range(off,off+999);
       if(r.error)break;
@@ -17151,12 +17155,13 @@ function fichaPar(rowsIni,rowsFin,sector){
     ajFin:fichaAjuste(pts(mf,comunes))};
 }
 
-// El tenor al que se lee el nivel: la MEDIANA de los x de los bonos comunes. Cae
-// adentro del rango con datos de las dos ruedas por construcción, así que el
-// nivel nunca es una extrapolación, y cae donde están los papeles. El punto medio
-// del intervalo no sirve: con CURVAS_DIAS_MIN=4 la letra más corta puede estar en
-// 5 días y un BONCAP en 700, y la media geométrica da 59 días, donde hay dos
-// papeles y el nivel se movería por ruido.
+// El tenor al que se lee el nivel: la MEDIANA de los x de los bonos comunes, que
+// cae donde están los papeles. El punto medio del intervalo no sirve: con
+// CURVAS_DIAS_MIN=4 la letra más corta puede estar en 5 días y un BONCAP en 700,
+// y la media geométrica da 59 días, donde hay dos papeles y el nivel se movería
+// por ruido. En períodos largos la mediana puede quedar afuera del tramo que
+// cubren las dos ruedas —los bonos envejecen entre una y otra—, así que
+// fichaSector la acota a ese tramo antes de usarla.
 function fichaTenor(par){
   const xs=par.comunes.map(t=>(par.mi.get(t).x+par.mf.get(t).x)/2).sort((a,b)=>a-b);
   if(!xs.length)return null;
@@ -17231,23 +17236,40 @@ function fichaVolumen(par,montos,sector,habiles){
 }
 
 // Ruedas hábiles del período, para saber contra cuántas se mide la cobertura.
+// Sin la rueda inicial, por lo mismo que el volumen: el día tiene una rueda.
 function fichaHabiles(ini,fin){
   let n=0,d=parseDate(ini),f=parseDate(fin),g=0;
+  d.setDate(d.getDate()+1);
   while(d<=f&&g++<4000){if(esHabil(d))n++;d.setDate(d.getDate()+1);}
   return n;
 }
 
+// Con menos de tres bonos comunes no hay curva: dos puntos se unen con cualquier
+// ajuste, y uno no es un tramo. Pasa en el año, cuando de las letras de hace doce
+// meses queda una sola.
+const FICHA_MIN_BONOS=3;
 function fichaSector(sector,rowsIni,rowsFin,montos,habiles){
   const par=fichaPar(rowsIni,rowsFin,sector);
   if(!par.comunes.length)return null;
-  const tenor=fichaTenor(par);
-  const nIni=fichaNivel(par.ajIni,tenor),nFin=fichaNivel(par.ajFin,tenor);
-  const r2ok=par.ajIni&&par.ajFin&&par.ajIni.r2!=null&&par.ajFin.r2!=null
+  // El nivel se lee sólo adentro del tramo que las DOS ruedas cubren. La mediana
+  // cae ahí en un día, pero en un año los bonos envejecen: los Bopreales pasaron
+  // de 1,6-1,7 de duration a 0,84 todos juntos, y la mediana quedó en 1,24, afuera
+  // de las dos. El ajuste de hace un año, extrapolado ahí, daba 62%.
+  const rango=(par.ajIni&&par.ajFin)
+    ?[Math.max(par.ajIni.xMin,par.ajFin.xMin),Math.min(par.ajIni.xMax,par.ajFin.xMax)]:null;
+  const sinComparacion=par.comunes.length<FICHA_MIN_BONOS?'pocos bonos comunes'
+    :!(par.ajIni&&par.ajFin)?'sin ajuste en una de las ruedas'
+    :rango[0]>rango[1]?'las dos ruedas no comparten tramo de la curva':null;
+  let tenor=fichaTenor(par);
+  if(!sinComparacion&&tenor!=null)tenor=Math.min(rango[1],Math.max(rango[0],tenor));
+  const nIni=sinComparacion?null:fichaNivel(par.ajIni,tenor);
+  const nFin=sinComparacion?null:fichaNivel(par.ajFin,tenor);
+  const r2ok=!sinComparacion&&par.ajIni.r2!=null&&par.ajFin.r2!=null
              &&par.ajIni.r2>=FICHA_R2_MIN&&par.ajFin.r2>=FICHA_R2_MIN;
   return{
     sector,nombre:FICHA_NOMBRE[sector],unidad:FICHA_UNIDAD[sector],ejeX:par.ejeX,
     n:par.comunes.length,entraron:par.entraron,salieron:par.salieron,
-    tenor,nivelIni:nIni,nivelFin:nFin,
+    tenor,rangoComun:rango,sinComparacion,nivelIni:nIni,nivelFin:nFin,
     dNivelBps:(nIni!=null&&nFin!=null)?(nFin-nIni)*100:null,
     // La pendiente sólo se reporta si el ajuste explica la curva en las dos
     // ruedas. Con b<0 la curva está invertida, así que el adjetivo se arma sobre
@@ -17258,10 +17280,15 @@ function fichaSector(sector,rowsIni,rowsFin,montos,habiles){
     forma:r2ok?fichaForma(par.ajIni.reg.b,par.ajFin.reg.b):null,
     r2Ini:par.ajIni?par.ajIni.r2:null,r2Fin:par.ajFin?par.ajFin.r2:null,
     r2ok,
-    tramos:fichaTramos(par),
+    tramos:sinComparacion?[]:fichaTramos(par),
     movers:fichaMovers(par),
     residuos:fichaResiduos(par),
     volumen:fichaVolumen(par,montos,sector,habiles),
+    // Los bonos comunes a las dos ruedas, con su posición en cada una. Es lo que
+    // dibuja el gráfico, y viaja dentro de comentario.json para que el gráfico de
+    // un comentario viejo muestre su propia curva y no la de hoy.
+    puntos:par.comunes.map(t=>{const a=par.mi.get(t),z=par.mf.get(t);
+      return{ticker:t,xi:a.x,yi:a.y,xf:z.x,yf:z.y};}),
     _aj:{ini:par.ajIni,fin:par.ajFin},
   };
 }
@@ -17303,6 +17330,208 @@ async function fichaFX(ini,fin){
     }
   }catch(e){console.warn('[ficha] fx:',e.message);}
   return out;
+}
+
+// ── Treasuries y riesgo país ────────────────────────────────────────────────
+// Los bonos en dólares se leen contra dos referencias que no salen del histórico
+// propio: la curva del Tesoro de Estados Unidos y el riesgo país. Las dos mandan
+// CORS abierto, así que se piden directo desde el navegador, sin proxy.
+//
+//   Treasuries   home.treasury.gov, la curva par diaria de 1 mes a 30 años, un
+//                CSV por año. FRED tiene las mismas series pero sin CORS y con un
+//                día de atraso.
+//   Riesgo país  api.argentinadatos.com, el EMBI Argentina de JP Morgan, diario
+//                desde 1999.
+//
+// Se miden y quedan en la ficha en vez de tomarse de una nota: la del 15/09
+// decía 5,04% para el 10 años, que fue el máximo del día. El cierre fue 5,00%.
+const UST_URL=a=>`https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/${a}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${a}&page&_format=csv`;
+const RP_URL='https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais';
+const UST_REFERENCIAS=[2,5,10,30];
+const EXT_TTL_MS=3*60*60*1000;
+const _ustAnio=new Map();   // año -> {ts, filas: Map(fecha -> [{plazo, y}])}
+let _rpSerie=null;          // {ts, mapa: Map(fecha -> valor)}
+
+// La cabecera trae los plazos como texto ("1 Mo", "1.5 Month", "10 Yr") y no
+// siempre fueron los mismos: el de 1,5 meses apareció en 2025. Se lee la cabecera
+// en vez de fijar columnas, para que un año con otra forma no corra los plazos.
+function ustParsearCSV(txt){
+  const lineas=String(txt).trim().split(/\r?\n/);
+  if(lineas.length<2)return new Map();
+  const plazos=lineas[0].split(',').map(s=>{
+    const m=s.replace(/"/g,'').trim().match(/^([\d.]+)\s*(Mo|Month|Yr|Year)/i);
+    if(!m)return null;
+    const n=parseFloat(m[1]);
+    return /^Y/i.test(m[2])?n:n/12;
+  });
+  const out=new Map();
+  for(const l of lineas.slice(1)){
+    const c=l.split(',');
+    const md=(c[0]||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if(!md)continue;
+    const pts=[];
+    plazos.forEach((pz,i)=>{
+      if(pz==null)return;
+      const v=parseFloat(c[i]);
+      if(isFinite(v))pts.push({plazo:pz,y:v});
+    });
+    if(pts.length)out.set(`${md[3]}-${md[1]}-${md[2]}`,pts.sort((a,b)=>a.plazo-b.plazo));
+  }
+  return out;
+}
+
+async function ustTraerAnio(anio){
+  const c=_ustAnio.get(anio);
+  // Un año cerrado no cambia más: con pedirlo una vez por sesión alcanza.
+  const vence=anio<new Date().getFullYear()?Infinity:EXT_TTL_MS;
+  if(c&&Date.now()-c.ts<vence)return c.filas;
+  try{
+    const r=await fetch(UST_URL(anio),{cache:'no-cache'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const filas=ustParsearCSV(await r.text());
+    _ustAnio.set(anio,{ts:Date.now(),filas});
+    return filas;
+  }catch(e){
+    console.warn('[ficha] treasuries '+anio+':',e.message);
+    return c?c.filas:new Map();
+  }
+}
+
+// La curva de la última fecha publicada en o antes de `fecha`, con la fecha que
+// usó: si el Tesoro todavía no publicó el cierre del día, hay que decirlo en vez
+// de comparar contra el de ayer sin avisar.
+async function ustCurvaEn(fecha){
+  const anio=+String(fecha).slice(0,4);
+  for(const a of[anio,anio-1]){
+    // Primeros días de enero: el último cierre publicado es del año anterior.
+    const filas=await ustTraerAnio(a);
+    const fs=[...filas.keys()].filter(f=>f<=fecha).sort();
+    if(fs.length){const f=fs[fs.length-1];return{fecha:f,pts:filas.get(f)};}
+  }
+  return null;
+}
+
+// Rendimiento par interpolado linealmente por plazo. Fuera del rango se toma el
+// extremo: no hay nada más corto que un mes ni más largo que treinta años.
+function ustEnPlazo(pts,plazo){
+  if(!pts||!pts.length||plazo==null)return null;
+  if(plazo<=pts[0].plazo)return pts[0].y;
+  for(let i=1;i<pts.length;i++){
+    if(plazo<=pts[i].plazo){
+      const a=pts[i-1],b=pts[i];
+      return a.y+(b.y-a.y)*(plazo-a.plazo)/(b.plazo-a.plazo);
+    }
+  }
+  return pts[pts.length-1].y;
+}
+
+// El Tesoro publica rendimiento par con capitalización semestral; la TIR de los
+// bonos en dólares de la app es efectiva anual. Para restarlas hay que ponerlas
+// en la misma base: con tasas del 5% son unos 6 bps de nivel y nada en las
+// variaciones, pero un spread tiene que ser la resta de dos cosas comparables.
+function ustEfectiva(y){return y==null||!isFinite(y)?null:(Math.pow(1+y/200,2)-1)*100;}
+
+// El plazo del Treasury con la misma duration modificada que la curva en dólares.
+// Comparar Globales con duration 4,8 contra el 5 años mezclaría curva con spread:
+// un bono par a 5 años dura 4,4. Para un bono par con cupón semestral igual a su
+// rendimiento y:
+//   MD = (1 − (1+y/2)^(−2T)) / y   ⇒   T = −ln(1 − MD·y) / (2·ln(1+y/2))
+// y depende de T, así que se itera; converge en dos o tres vueltas.
+function ustPlazoPorMD(pts,md){
+  if(!(md>0)||!pts||!pts.length)return null;
+  let T=md;
+  for(let k=0;k<8;k++){
+    const y=ustEnPlazo(pts,T)/100;
+    if(!(y>0))return md;
+    const arg=1-md*y;
+    if(arg<=0)return 30;
+    const nuevo=Math.min(30,Math.max(pts[0].plazo,-Math.log(arg)/(2*Math.log(1+y/2))));
+    const listo=Math.abs(nuevo-T)<1e-7;
+    T=nuevo;
+    if(listo)break;
+  }
+  return T;
+}
+
+async function rpTraer(){
+  if(_rpSerie&&Date.now()-_rpSerie.ts<EXT_TTL_MS)return _rpSerie.mapa;
+  try{
+    const r=await fetch(RP_URL,{cache:'no-cache'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const mapa=new Map();
+    for(const x of await r.json()||[])
+      if(x&&x.fecha&&x.valor>0)mapa.set(String(x.fecha).slice(0,10),+x.valor);
+    _rpSerie={ts:Date.now(),mapa};
+    return mapa;
+  }catch(e){
+    console.warn('[ficha] riesgo país:',e.message);
+    return _rpSerie?_rpSerie.mapa:new Map();
+  }
+}
+function rpEn(mapa,fecha){
+  let mejor=null;
+  for(const f of mapa.keys())if(f<=fecha&&(!mejor||f>mejor))mejor=f;
+  return mejor?{fecha:mejor,valor:mapa.get(mejor)}:null;
+}
+
+// Cada curva en dólares contra el Treasury de su misma duration. La variación del
+// nivel se parte en dos: lo que se movió el Treasury y lo que se movió el spread.
+// Es una resta, no una explicación — dice cuánto vino de la tasa libre de riesgo
+// y cuánto quedó en el premio argentino, no por qué.
+//
+// Las dos partes se redondean para que sumen el total. Redondeadas cada una por
+// su lado, un comentario podría decir "19 bps: 3 de Treasuries y 15 de spread", y
+// un cliente que suma haría bien en desconfiar del resto.
+async function fichaDolares(bloques,ini,fin){
+  const[uIni,uFin,rp]=await Promise.all([ustCurvaEn(ini),ustCurvaEn(fin),rpTraer()]);
+  const out={ust:null,riesgoPais:null};
+  if(uIni&&uFin){
+    const desfasado=uFin.fecha<fin;
+    // Si las dos puntas cayeron en la misma curva publicada, el Treasury no se
+    // "movió cero": no hay dato del cierre nuevo. Un +0 bps diría otra cosa.
+    const mismaCurva=uIni.fecha===uFin.fecha;
+    out.ust={fechaIni:uIni.fecha,fechaFin:uFin.fecha,desfasado,
+      refs:UST_REFERENCIAS.map(pz=>{
+        const a=ustEnPlazo(uIni.pts,pz),b=ustEnPlazo(uFin.pts,pz);
+        return{plazo:pz,ini:a,fin:b,dBps:(!mismaCurva&&a!=null&&b!=null)?Math.round((b-a)*100):null};
+      })};
+    // Con el cierre del Tesoro desfasado, la descomposición le cargaría al spread
+    // el movimiento del Treasury que todavía no se publicó. No se calcula: la
+    // ficha lo dice, y se completa corriendo de nuevo cuando el dato esté.
+    if(!desfasado)for(const b of bloques){
+      if(!b||b.ejeX!=='md'||b.tenor==null||b.dNivelBps==null)continue;
+      const tIni=ustPlazoPorMD(uIni.pts,b.tenor),tFin=ustPlazoPorMD(uFin.pts,b.tenor);
+      const yIni=ustEfectiva(ustEnPlazo(uIni.pts,tIni)),yFin=ustEfectiva(ustEnPlazo(uFin.pts,tFin));
+      if(yIni==null||yFin==null)continue;
+      const dNivel=Math.round(b.dNivelBps),dUST=Math.round((yFin-yIni)*100);
+      // El nivel del spread se ancla en la rueda final, que es la que se lee, y el
+      // inicial sale de restarle la variación: así "432 → 448" da 16 al restar.
+      const spreadFin=Math.round((b.nivelFin-yFin)*100);
+      b.ust={plazo:tFin,ini:yIni,fin:yFin,dBps:dUST,
+             dSpreadBps:dNivel-dUST,spreadFin,spreadIni:spreadFin-(dNivel-dUST)};
+    }
+  }
+  const rIni=rpEn(rp,ini),rFin=rpEn(rp,fin);
+  // Mismo criterio que los Treasuries: si las dos puntas caen en el mismo dato
+  // publicado, la variación no es cero, es desconocida.
+  if(rIni&&rFin)out.riesgoPais={fechaIni:rIni.fecha,fechaFin:rFin.fecha,
+    ini:rIni.valor,fin:rFin.valor,desfasado:rFin.fecha<fin,
+    dBps:rIni.fecha===rFin.fecha?null:rFin.valor-rIni.valor};
+  return out;
+}
+
+// ── Qué curva lleva gráfico ─────────────────────────────────────────────────
+// Un día quieto no suma nada con una imagen de dos nubes superpuestas. Entra
+// cuando el nivel se movió más que el umbral del período, o cuando cambió la forma
+// aunque el nivel no se haya movido: un empinamiento con nivel plano es justo lo
+// que un gráfico muestra mejor que el texto. Devuelve el motivo, o null.
+const FICHA_UMBRAL_GRAFICO={dia:10,semana:10,mes:25,trimestre:25,anio:25};
+function fichaGraficoMotivo(b,periodo){
+  if(!b||b.dNivelBps==null||(b.puntos||[]).length<3)return null;
+  const u=FICHA_UMBRAL_GRAFICO[periodo]||10;
+  if(Math.abs(b.dNivelBps)>=u)return`nivel ${b.dNivelBps>0?'+':''}${Math.round(b.dNivelBps)} bps`;
+  if(b.r2ok&&b.forma&&b.forma!=='sin cambio de forma')return b.forma;
+  return null;
 }
 
 // ── Implícitas ──────────────────────────────────────────────────────────────
@@ -17375,10 +17604,14 @@ async function fichaRuedas(periodo,opts){
   if(!p)return null;
   const hoy=hoyAR();
   let enVivo=false;
-  if(!opts.soloArchivado){
+  if(!opts.soloArchivado&&!opts.hasta){
     try{enVivo=mercadoActivo()&&curvasSnapshotFromMemory('ALL').length>0;}catch(e){}
   }
-  const fin=enVivo?hoy:await fichaUltimaRuedaHasta(hoy);
+  // `opts.hasta` fija el cierre en una rueda ya terminada. La app archiva fotos
+  // durante la rueda, no sólo al cierre, así que a media mañana la "última rueda
+  // archivada" es la de hoy a medio hacer: para comentar la de ayer hay que
+  // pedirla por fecha.
+  const fin=enVivo?hoy:await fichaUltimaRuedaHasta(opts.hasta||hoy);
   if(!fin)return null;
   const ini=await fichaUltimaRuedaHasta(fichaFechaObjetivo(fin,p));
   if(!ini||ini>=fin)return null;
@@ -17399,13 +17632,22 @@ async function fichaConstruir(periodo,opts){
     fichaFetchRueda(r.fin,!r.enVivo),
     fichaFetchMontos(r.ini,r.fin),
   ]);
-  const habiles=fichaHabiles(r.ini,r.fin);
+  // Nunca menos ruedas hábiles que ruedas con operaciones: si la lista de
+  // feriados de la app marca como inhábil un día que operó, "65 de 64 ruedas"
+  // se lee como un error de la ficha y no del calendario.
+  const habiles=Math.max(fichaHabiles(r.ini,r.fin),montos.fechas.length);
   const bloques=FICHA_SECTORES.map(s=>fichaSector(s,rowsIni,rowsFin,montos,habiles)).filter(Boolean);
-  const fx=opts.sinFX?{}:await fichaFX(r.ini,r.fin);
+  for(const b of bloques)b.grafico=fichaGraficoMotivo(b,periodo);
+  const[fx,dol]=await Promise.all([
+    opts.sinFX?{}:fichaFX(r.ini,r.fin),
+    // Completa b.ust en cada curva en dólares: tiene que correr después de armar
+    // los bloques, porque parte del nivel ya medido.
+    opts.sinExternos?{ust:null,riesgoPais:null}:fichaDolares(bloques,r.ini,r.fin),
+  ]);
   return{
     ...r,
     generado:new Date().toISOString(),
-    bloques,fx,
+    bloques,fx,ust:dol.ust,riesgoPais:dol.riesgoPais,
     implicitasIni:fichaImplicitas(bloques,'ini'),
     implicitasFin:fichaImplicitas(bloques,'fin'),
     habiles,
@@ -17422,12 +17664,19 @@ async function fichaConstruir(periodo,opts){
 const FICHA_PREAMBULO=
 `Sos un operador de renta fija argentina. Escribí el comentario de cierre a partir de la FICHA de abajo.
 
+Estructura, siempre la misma:
+1. Un titular de una línea, sin números.
+2. PESOS: un párrafo corto de resumen, y después un párrafo por cada curva — tasa fija, CER, TAMAR y dollar linked — aunque sea para decir que estuvo quieta. Si la ficha no trae una curva, decí que no hay comparación posible en ese período.
+3. DÓLARES: Bonares, Globales y Bopreales, relacionados con los Treasuries y con el riesgo país. Usá la descomposición que trae la ficha para cada curva: "de los 19 puntos básicos, 3 corresponden a los Treasuries y 16 al spread". Para citar un Treasury usá la tasa par publicada de la sección TREASURIES; la tasa efectiva de cada curva sólo existe para la resta. El spread de la ficha y el riesgo país son dos medidas distintas: no las presentes como la misma.
+4. CONTEXTO: lo que pasó afuera del mercado, separado de todo lo anterior.
+5. TWITTER: un hilo de 3 a 5 tweets, cada uno de hasta 280 caracteres contando la numeración "1/4". El primero con el titular y los dos o tres números que más importan, uno para pesos, uno para dólares y, si hace falta, uno de contexto. Indicá qué gráfico va en cada tweet: sólo los que la ficha marca con "gráfico: sí".
+
 Reglas, todas obligatorias:
-· Todo número que escribas tiene que aparecer literal en la FICHA. No calcules, no redondees hacia un número más lindo, no infieras un dato que no esté.
-· En el movimiento no puede aparecer ninguna noticia ni ninguna causa. Nada de "el bono subió por X". Describí qué se movió, cuánto, en qué tramo y con qué volumen.
+· Todo número que escribas en pesos, dólares o Twitter tiene que aparecer literal en la FICHA. No calcules, no redondees hacia un número más lindo, no infieras un dato que no esté.
+· En pesos y dólares no puede aparecer ninguna noticia ni ninguna causa. Nada de "el bono subió por X". Describí qué se movió, cuánto, en qué tramo y con qué volumen. La descomposición contra Treasuries es una resta medida, no una causa.
 · Nunca uses "porque", "debido a" ni "impulsado por" entre un hecho de contexto y un movimiento de precios.
 · Ponéle la unidad a cada número, pegada: "27 puntos básicos", no "cedió 27 hasta 6,70%". Un número suelto no se puede verificar contra la ficha, y además obliga al que lee a deducir de qué se habla.
-· Si algo no está en la ficha, no lo menciones. Si la ficha marca el volumen como PARCIAL, no hables de volumen de ese período.
+· Si algo no está en la ficha, no lo menciones. Si la ficha marca el volumen como PARCIAL, no hables de volumen de ese período. Si marca los Treasuries o el riesgo país como DESFASADOS, decilo con la fecha.
 · Castellano rioplatense, sin anglicismos innecesarios. Escribís para un cliente que lee esto sin ver la pantalla.
 
 `;
@@ -17451,9 +17700,13 @@ function fichaTexto(f){
     const u=b.unidad,esDias=b.ejeX==='dias';
     const tn=esDias?`${_fN(b.tenor,0)} días`:`MD ${_fN(b.tenor,2)}`;
     L.push(`· ${b.nombre} [${b.sector}] — ${b.n} bonos en las dos ruedas`);
-    L.push(`  nivel @ ${tn}: ${_fN(b.nivelIni)}% → ${_fN(b.nivelFin)}% (${u})  ${_fB(b.dNivelBps)}`);
-    if(b.r2ok)L.push(`  pendiente: ${_fN(b.pendIni,3)} → ${_fN(b.pendFin,3)} · ${b.forma} (R² ${_fN(b.r2Fin,2)})`);
-    else L.push(`  pendiente: no se reporta, el ajuste logarítmico no representa esta curva (R² ${_fN(b.r2Fin,2)})`);
+    if(b.sinComparacion){
+      L.push(`  nivel y pendiente: SIN COMPARACIÓN posible en este período (${b.sinComparacion})`);
+    }else{
+      L.push(`  nivel @ ${tn}: ${_fN(b.nivelIni)}% → ${_fN(b.nivelFin)}% (${u})  ${_fB(b.dNivelBps)}`);
+      if(b.r2ok)L.push(`  pendiente: ${_fN(b.pendIni,3)} → ${_fN(b.pendFin,3)} · ${b.forma} (R² ${_fN(b.r2Fin,2)})`);
+      else L.push(`  pendiente: no se reporta, el ajuste logarítmico no representa la curva en las dos ruedas (R² ${_fN(b.r2Ini,2)} → ${_fN(b.r2Fin,2)})`);
+    }
     if(b.tramos.length)
       L.push('  por tramo: '+b.tramos.map(t=>`${t.l} ${_fB(t.bps)} (${t.n})`).join(' · '));
     const mv=x=>`${x.ticker} ${_fB(x.bps)}${x.monto>0?' ['+_fM(x.monto)+']':''}`;
@@ -17473,6 +17726,19 @@ function fichaTexto(f){
                 +(v.parcial?' · PARCIAL, no hablar de volumen de este período':''));
     if(b.entraron.length)L.push('  entraron a la curva: '+b.entraron.join(', '));
     if(b.salieron.length)L.push('  salieron de la curva: '+b.salieron.join(', '));
+    if(b.ust){
+      const u=b.ust,dn=Math.round(b.dNivelBps);
+      L.push(`  vs Treasuries: plazo equivalente ${_fN(u.plazo,1)} años · Treasury ${_fN(u.ini)}% → ${_fN(u.fin)}% (efectiva, sólo para la resta) ${_fB(u.dBps)}`);
+      L.push(`  spread contra Treasuries: ${u.spreadIni} → ${u.spreadFin} bps ${_fB(u.dSpreadBps)} · NO es el riesgo país`);
+      // Los Bopreales rinden por debajo del Treasury de su plazo. El número es
+      // real, pero leído como premio de riesgo crédito diría un disparate.
+      if(u.spreadFin<0)
+        L.push('  OJO: spread negativo, rinde por debajo del Treasury de su plazo; no se lee como riesgo crédito');
+      L.push(`  descomposición: de los ${dn} bps, ${u.dBps} corresponden a los Treasuries y ${u.dSpreadBps} al spread`);
+    }else if(b.ejeX==='md'&&f.ust&&f.ust.desfasado){
+      L.push(`  vs Treasuries: SIN DESCOMPOSICIÓN, el Tesoro todavía no publicó el cierre del ${_fF(f.fin)}`);
+    }
+    L.push(b.grafico?`  gráfico: sí (${b.grafico})`:'  gráfico: no, la curva no se movió lo suficiente');
   }
   const fxk=Object.keys(f.fx||{});
   if(fxk.length){
@@ -17484,6 +17750,26 @@ function fichaTexto(f){
       L.push(`· ${k}: ${_fN(d.ini,2)}${su} → ${_fN(d.fin,2)}${su}`
              +`  ${d.esPct?_fS(d.var)+' pp':_fP(d.var)}`);
     }
+  }
+  if(f.ust){
+    L.push('');
+    L.push('TREASURIES  (curva par publicada por el Tesoro de EE.UU.; son las tasas que se citan)');
+    for(const r of f.ust.refs)
+      L.push(r.dBps==null
+        ?`· ${r.plazo} años: ${_fN(r.fin)}% al ${_fF(f.ust.fechaFin)}, sin cierre nuevo publicado`
+        :`· ${r.plazo} años: ${_fN(r.ini)}% → ${_fN(r.fin)}%  ${_fB(r.dBps)}`);
+    if(f.ust.desfasado)
+      L.push(`  DESFASADOS: el último cierre publicado es del ${_fF(f.ust.fechaFin)}, no del ${_fF(f.fin)}`);
+  }
+  if(f.riesgoPais){
+    const r=f.riesgoPais;
+    L.push('');
+    L.push('RIESGO PAÍS  (EMBI Argentina de JP Morgan; no es el spread de la ficha)');
+    L.push(r.dBps==null
+      ?`· ${r.fin} bps al ${_fF(r.fechaFin)}, sin dato nuevo publicado`
+      :`· ${r.ini} → ${r.fin} bps  ${_fB(r.dBps)}`);
+    if(r.desfasado)
+      L.push(`  DESFASADO: el último dato publicado es del ${_fF(r.fechaFin)}, no del ${_fF(f.fin)}`);
   }
   L.push('');
   L.push('IMPLÍCITAS DE CURVA  (leídas del ajuste de toda la curva; NO son el breakeven bono contra bono de la solapa Resumen)');
@@ -17565,7 +17851,11 @@ async function comFetch(forzar){
     const res=await fetch(COM_URL,{cache:'no-cache'});
     if(!res.ok)throw new Error('HTTP '+res.status);
     const d=await res.json();
-    if(!d||!d.periodos||!d.periodos.dia||typeof d.periodos.dia.movimiento!=='string')
+    // La forma nueva separa pesos y dólares. La vieja, con un solo `movimiento`,
+    // se sigue aceptando: la caché del navegador puede tener una de antes del
+    // cambio, y un comentario viejo bien mostrado es mejor que ninguno.
+    const dia=d&&d.periodos&&d.periodos.dia;
+    if(!dia||!(dia.pesos&&typeof dia.pesos.resumen==='string')&&typeof dia.movimiento!=='string')
       throw new Error('comentario.json sin la forma esperada');
     COM_DATA=d;
     try{localStorage.setItem(COM_LS,JSON.stringify({ts:Date.now(),data:d}));}catch(e){}
@@ -17595,6 +17885,7 @@ function comEsqueleto(sec){
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
         <button class="btn" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCargar('${sec}',true)">↻</button>
         <button class="btn" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCopiar('${sec}','ficha')" title="Copia sólo los números medidos">⧉ Ficha</button>
+        <button class="btn" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCopiar('${sec}','hilo')" title="Copia el hilo para Twitter, un tweet por párrafo">⧉ Hilo</button>
         <button class="btn primary" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCopiar('${sec}','prompt')" title="Copia la ficha con las instrucciones, listo para pedir el comentario">⧉ Prompt</button>
       </div>
     </div>
@@ -17657,12 +17948,29 @@ function comRender(sec,f,com){
   // Si el comentario no es de la última rueda medida, alguien lo puede mandar
   // creyéndolo de hoy. Se avisa con la fecha a la vista en vez de esconderlo.
   const viejo=p&&com&&com.ruedaFin&&com.ruedaFin!==f.fin;
+  // Los gráficos de la lectura salen de la ficha con la que se escribió el
+  // comentario, no de la de ahora: si el texto es de ayer, su curva también. Los
+  // de lo medido, de la ficha actual.
+  const fg=(p&&p.ficha&&Array.isArray(p.ficha.bloques))?p.ficha:f;
+  _comFichaGraf[sec]={lectura:fg,medido:f};
+  (_comGraficos[sec]||[]).forEach(c=>{try{c.destroy();}catch(e){}});
+  _comGraficos[sec]=[];
+  const conLectura=!!(p&&p.pesos);
   cuerpo.innerHTML=
-    comBloqueLectura(p,viejo,com,f)+
+    comBloqueLectura(sec,p,viejo,com,f,fg)+
+    comBloqueTwitter(sec,p)+
     comBloqueContexto(p,com)+
-    comBloqueMedido(sec,f)+
+    // Sin comentario, los gráficos van con lo medido; con comentario van al lado
+    // del párrafo de cada curva y no se repiten abajo.
+    comBloqueMedido(sec,f,!conLectura)+
     comPie();
+  comDibujarGraficos(sec,cuerpo);
 }
+
+const COM_COLOR={TF:'#fbbf24',CER:'#4ade80',TAMAR:'#38bdf8',DLK:'#a855f7',
+                 GLO:'#6baed6',BON:'#d4a843',BOP:'#74c4a0'};
+const _comGraficos={ars:[],usd:[]};
+const _comFichaGraf={ars:{},usd:{}};
 
 function comCaja(color,titulo,sub,html){
   return `<div style="border-left:3px solid ${color};background:var(--surface);border-radius:0 6px 6px 0;padding:.9rem 1.1rem;margin-bottom:1rem;">
@@ -17672,7 +17980,7 @@ function comCaja(color,titulo,sub,html){
     </div>${html}</div>`;
 }
 
-function comBloqueLectura(p,viejo,com,f){
+function comBloqueLectura(sec,p,viejo,com,f,fg){
   if(!p)return comCaja('var(--accent)','Lectura',
     'escrita por IA sobre los números de abajo',
     `<div style="font-size:12px;color:var(--text3);line-height:1.6">
@@ -17685,9 +17993,202 @@ function comBloqueLectura(p,viejo,com,f){
          ⚠ Este comentario es de la rueda del ${_fF(com.ruedaFin)} y los números de abajo son del ${_fF(f.fin)}.
        </div>` : '';
   const tit=p.titular?`<div style="font-family:var(--serif);font-size:16px;font-style:italic;color:var(--text);margin-bottom:.6rem">${comEsc(p.titular)}</div>`:'';
-  return comCaja('var(--accent)','Lectura',
-    'escrita por IA sobre los números de abajo'+(com&&com.generado?' · '+_fF(String(com.generado).slice(0,10)):''),
+  const sub='escrita por IA sobre los números de abajo'+(com&&com.generado?' · '+_fF(String(com.generado).slice(0,10)):'');
+  // Un comentario de antes de separar pesos y dólares: se muestra como era.
+  if(!p.pesos)return comCaja('var(--accent)','Lectura',sub,
     aviso+tit+`<div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(p.movimiento)}</div>`);
+  // Desde la entrada de dólares, dólares primero: es lo que vino a mirar.
+  const orden=sec==='usd'?['dolares','pesos']:['pesos','dolares'];
+  const cuerpo=orden.map(k=>k==='pesos'?comSeccionPesos(sec,p,fg):comSeccionDolares(sec,p,fg)).join('');
+  return comCaja('var(--accent)','Lectura',sub,aviso+tit+cuerpo);
+}
+
+function comSubtitulo(t){
+  return `<div style="font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text);margin:1rem 0 .45rem">${t}</div>`;
+}
+
+function comSeccionPesos(sec,p,fg){
+  const filas=FICHA_SECT_ARS.map(s=>{
+    const txt=p.pesos[s];
+    if(!txt)return'';
+    const b=(fg.bloques||[]).find(x=>x.sector===s);
+    const graf=b&&b.grafico&&b.puntos?comGraficoCaja(sec,s,'lectura',b):'';
+    return `<div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start;padding:.7rem 0;border-top:1px solid var(--border)">
+      <div style="flex:1 1 340px;min-width:0">
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:${COM_COLOR[s]};margin-bottom:.3rem">${comEsc(FICHA_NOMBRE[s])}</div>
+        <div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(txt)}</div>
+      </div>
+      ${graf?`<div style="flex:0 1 400px;min-width:260px">${graf}</div>`:''}
+    </div>`;
+  }).join('');
+  return comSubtitulo('Pesos')
+    +`<div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(p.pesos.resumen)}</div>`
+    +filas;
+}
+
+function comSeccionDolares(sec,p,fg){
+  const d=p.dolares||{};
+  const graf=FICHA_SECT_USD.map(s=>{
+    const b=(fg.bloques||[]).find(x=>x.sector===s);
+    return b&&b.grafico&&b.puntos?comGraficoCaja(sec,s,'lectura',b):'';
+  }).join('');
+  return comSubtitulo('Dólares')
+    +`<div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start;border-top:1px solid var(--border);padding-top:.7rem">
+      <div style="flex:1 1 340px;min-width:0">
+        <div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(d.resumen)}</div>
+        ${comFilaExternos(fg)}
+      </div>
+      ${graf?`<div style="flex:0 1 400px;min-width:260px;display:flex;flex-direction:column;gap:.7rem">${graf}</div>`:''}
+    </div>`;
+}
+
+function comGraficoCaja(sec,s,origen,b){
+  return `<div>
+    <div style="position:relative;height:220px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px">
+      <canvas data-graf-sec="${s}" data-graf-origen="${origen}"></canvas>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">
+      <span>${comEsc(FICHA_NOMBRE[s])} · ${comEsc(b.grafico)}</span>
+      <button class="btn" style="margin:0;padding:1px 7px;font-size:10px" onclick="comDescargarGrafico('${sec}','${s}','${origen}')" title="Descarga la imagen lista para compartir, 1200×675">⤓ PNG</button>
+    </div>
+  </div>`;
+}
+
+function comBloqueTwitter(sec,p){
+  if(!p||!Array.isArray(p.twitter)||!p.twitter.length)return'';
+  const items=p.twitter.map((tw,i)=>{
+    const t=typeof tw==='string'?tw:(tw&&tw.texto)||'';
+    const g=(tw&&Array.isArray(tw.graficos))?tw.graficos:[];
+    const n=twLargo(t);
+    return `<div style="border-top:1px solid var(--border);padding:.6rem 0;display:flex;gap:.8rem;align-items:flex-start">
+      <div style="flex:1;min-width:0;font-size:13px;line-height:1.55;color:var(--text2);white-space:pre-wrap">${comEsc(t)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;font-family:var(--mono);font-size:10px">
+        <span style="color:${n>280?'var(--danger)':'var(--text3)'}">${n}/280</span>
+        ${g.length?`<span style="color:var(--text3)">imagen: ${g.map(x=>comEsc(FICHA_NOMBRE[x]||x)).join(', ')}</span>`:''}
+        <button class="btn" style="margin:0;padding:1px 7px;font-size:10px" onclick="comCopiarTweet('${sec}',${i})" title="Copia este tweet">⧉</button>
+      </div>
+    </div>`;
+  }).join('');
+  return comCaja('var(--info)','Twitter',`hilo de ${p.twitter.length} · las imágenes se bajan con ⤓ PNG en cada curva`,items);
+}
+
+// Cómo cuenta Twitter: la mayoría de los caracteres latinos pesa uno, casi todo
+// lo demás —flechas, emojis— pesa dos, y un link pesa 23 sin importar su largo.
+// Es la regla de twitter-text. La misma función está en comentario-verificar.js:
+// si cambia una, cambia la otra.
+function twLargo(t){
+  let n=0;
+  const sinUrl=String(t||'').normalize('NFC').replace(/https?:\/\/\S+/g,()=>{n+=23;return'';});
+  for(const ch of sinUrl){
+    const c=ch.codePointAt(0);
+    n+=(c<=4351||(c>=8192&&c<=8205)||(c>=8208&&c<=8223)||(c>=8242&&c<=8247))?1:2;
+  }
+  return n;
+}
+
+// ── Gráficos ────────────────────────────────────────────────────────────────
+// El mismo dibujo que la solapa Curvas: la rueda inicial tenue y punteada, la
+// final plena, cada una con su ajuste. Una sola configuración para el panel y
+// para la imagen exportada, así lo que se publica es exactamente lo que se miró.
+function comGraficoConfig(b,f,opts){
+  opts=opts||{};
+  const exp=!!opts.exportar,esc=exp?1.8:1;
+  const css=v=>getComputedStyle(document.body).getPropertyValue(v).trim();
+  const texto=css('--text')||'#e0e0e0',texto3=css('--text3')||'#888',
+        grilla=css('--border')||'#2a302a',fondo=css('--bg')||'#0d0f0e';
+  const col=COM_COLOR[b.sector]||'#a8d5a2',col2=col+'77';
+  const pi=b.puntos.map(p=>({x:p.xi,y:p.yi,t:p.ticker})).sort((a,c)=>a.x-c.x);
+  const pf=b.puntos.map(p=>({x:p.xf,y:p.yf,t:p.ticker})).sort((a,c)=>a.x-c.x);
+  const aji=b._aj&&b._aj.ini,ajf=b._aj&&b._aj.fin;
+  const esDias=b.ejeX==='dias';
+  const fnt=n=>({size:Math.round(n*esc),family:'DM Mono, monospace'});
+  // En el panel, con muchos bonos los rótulos se pisan; en la imagen hay lugar.
+  const rotular=exp||pf.length<=12;
+  const ds=[
+    {label:_fF(f.ini),data:pi,pointRadius:3*esc,pointBackgroundColor:col2,pointBorderColor:col2,showLine:false,datalabels:{display:false}},
+    {label:_fF(f.fin),data:pf,pointRadius:4*esc,pointBackgroundColor:col,pointBorderColor:col,showLine:false,
+     datalabels:{display:rotular,formatter:v=>v.t,color:col,font:fnt(8),anchor:'end',align:'top',offset:2}},
+  ];
+  if(aji)ds.push({label:'_ai',type:'line',data:curvasTrendPts(aji.reg,pi),borderColor:col2,borderWidth:1.2*esc,borderDash:[4*esc,3*esc],pointRadius:0,fill:false,datalabels:{display:false}});
+  if(ajf)ds.push({label:'_af',type:'line',data:curvasTrendPts(ajf.reg,pf),borderColor:col,borderWidth:2*esc,pointRadius:0,fill:false,datalabels:{display:false}});
+  const titulo=[
+    `${b.nombre} · ${_fF(f.ini)} → ${_fF(f.fin)}`,
+    `nivel ${_fN(b.nivelIni)}% → ${_fN(b.nivelFin)}% ${b.unidad} · ${_fB(b.dNivelBps)}`
+      +(b.ust?` · Treasuries ${_fB(b.ust.dBps)} · spread ${_fB(b.ust.dSpreadBps)}`:''),
+  ];
+  const options={
+    responsive:!exp,maintainAspectRatio:false,animation:exp?false:{duration:200},
+    layout:{padding:exp?{left:24,right:36,top:14,bottom:10}:2},
+    plugins:{
+      // A la izquierda y no a la derecha: con align 'end' la línea llena justo hasta
+      // el borde, Chart.js suma el margen del último ítem al dibujarlo y lo manda a
+      // una segunda línea que no reservó. La fecha final desaparecía de la leyenda.
+      legend:{display:true,position:'top',align:'start',labels:{color:texto3,font:fnt(9),boxWidth:10*esc,padding:8*esc,filter:i=>!i.text.startsWith('_')}},
+      title:{display:exp,text:titulo,color:texto,font:{...fnt(13),weight:'600'},align:'start',padding:{bottom:8}},
+      subtitle:{display:exp,text:'bonosAR · cálculo propio sobre cierres de mercado · no es recomendación de inversión',
+                color:texto3,font:fnt(8),position:'bottom',align:'end',padding:{top:8}},
+      tooltip:{filter:i=>!i.dataset.label.startsWith('_'),
+               callbacks:{label:i=>`${(i.raw&&i.raw.t)||''} ${i.dataset.label} — ${esDias?Math.round(i.parsed.x)+'d':'MD '+i.parsed.x.toFixed(2)}, ${i.parsed.y.toFixed(2)}%`}},
+      datalabels:{display:false},
+    },
+    scales:{
+      x:{type:'linear',title:{display:true,text:esDias?'Días al vencimiento':'Duration modificada (años)',color:texto3,font:fnt(9)},grid:{color:grilla},ticks:{color:texto3,font:fnt(9)}},
+      y:{title:{display:true,text:`${b.unidad} (%)`,color:texto3,font:fnt(9)},grid:{color:grilla},ticks:{color:texto3,font:fnt(9),callback:v=>(+v).toFixed(1)+'%'}},
+    },
+  };
+  if(exp)options.devicePixelRatio=1;
+  const cfg={type:'scatter',data:{datasets:ds},options};
+  // Una imagen suelta en un timeline no hereda el fondo de la app: sin esto el PNG
+  // sale transparente y el texto claro queda ilegible sobre fondo blanco.
+  if(exp)cfg.plugins=[{id:'comFondo',beforeDraw(c){const x=c.ctx;x.save();x.globalCompositeOperation='destination-over';x.fillStyle=fondo;x.fillRect(0,0,c.width,c.height);x.restore();}}];
+  return cfg;
+}
+
+function comDibujarGraficos(sec,cuerpo){
+  if(typeof Chart==='undefined'||!cuerpo)return;
+  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
+  cuerpo.querySelectorAll('canvas[data-graf-sec]').forEach(cv=>{
+    const s=cv.getAttribute('data-graf-sec'),o=cv.getAttribute('data-graf-origen');
+    const f=(_comFichaGraf[sec]||{})[o];
+    const b=f&&(f.bloques||[]).find(x=>x.sector===s);
+    if(!b||!b.puntos)return;
+    try{_comGraficos[sec].push(new Chart(cv,comGraficoConfig(b,f)));}
+    catch(e){console.warn('[comentario] gráfico',s,e.message);}
+  });
+}
+
+// La imagen para compartir: el mismo gráfico en 1200×675, la proporción que
+// Twitter muestra entera sin recortar, con fondo sólido y el título adentro.
+function comGraficoPNG(b,f){
+  if(typeof Chart==='undefined'||!b||!b.puntos||!f)return null;
+  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
+  const cv=document.createElement('canvas');
+  cv.width=1200;cv.height=675;
+  // En el documento pero fuera de la vista: desenganchado, Chart.js lee estilos
+  // computados vacíos y mide el canvas en cero.
+  Object.assign(cv.style,{position:'fixed',left:'-10000px',top:'0',width:'1200px',height:'675px'});
+  document.body.appendChild(cv);
+  let ch=null;
+  try{
+    ch=new Chart(cv,comGraficoConfig(b,f,{exportar:true}));
+    return ch.toBase64Image('image/png',1);
+  }catch(e){
+    console.warn('[comentario] imagen',b.sector,e.message);
+    return null;
+  }finally{
+    if(ch)ch.destroy();
+    cv.remove();
+  }
+}
+
+function comDescargarGrafico(sec,s,origen){
+  const f=(_comFichaGraf[sec]||{})[origen];
+  const b=f&&(f.bloques||[]).find(x=>x.sector===s);
+  const url=comGraficoPNG(b,f);
+  if(!url){alert('No se pudo generar la imagen.');return;}
+  const a=document.createElement('a');
+  a.href=url;a.download=`bonosAR-${f.fin}-${f.periodo}-${s}.png`;
+  document.body.appendChild(a);a.click();a.remove();
 }
 
 function comBloqueContexto(p,com){
@@ -17700,15 +18201,35 @@ function comBloqueContexto(p,com){
     `<div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(p.contexto)}</div>`+links);
 }
 
-function comBloqueMedido(sec,f){
+function comBloqueMedido(sec,f,conGraficos){
   const abiertos=new Set(comEstado[sec].sectores);
   const orden=[...f.bloques].sort((a,b)=>
     (abiertos.has(b.sector)?1:0)-(abiertos.has(a.sector)?1:0));
   const tiles=orden.map(b=>comTile(b,abiertos.has(b.sector))).join('');
+  const graf=conGraficos
+    ?orden.filter(b=>b.grafico&&b.puntos).map(b=>comGraficoCaja(sec,b.sector,'medido',b)).join('')
+    :'';
   return comCaja('var(--text3)','Medido',
     'calculado en tu navegador sobre el histórico de curvas',
     `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(285px,1fr));gap:.7rem;margin-bottom:1rem">${tiles}</div>`
-    +comFilaFX(f)+comFilaImplicitas(f));
+    +(graf?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:.7rem;margin-bottom:1rem">${graf}</div>`:'')
+    +comFilaFX(f)+comFilaExternos(f)+comFilaImplicitas(f));
+}
+
+// Treasuries y riesgo país tal como se publican. Si alguno todavía no tiene el
+// cierre del día, se dice acá: la descomposición de los bonos en dólares estaría
+// comparando contra el día anterior.
+function comFilaExternos(f){
+  if(!f||(!f.ust&&!f.riesgoPais))return'';
+  const c=[];
+  if(f.ust)for(const r of f.ust.refs)
+    c.push(`<span style="white-space:nowrap"><span style="color:var(--text3)">UST ${r.plazo}a</span> ${_fN(r.fin)}% ${_comBps(r.dBps)}</span>`);
+  if(f.riesgoPais)
+    c.push(`<span style="white-space:nowrap"><span style="color:var(--text3)">Riesgo país</span> ${f.riesgoPais.fin} ${_comBps(f.riesgoPais.dBps)}</span>`);
+  const desf=[f.ust&&f.ust.desfasado?`Treasuries al ${_fF(f.ust.fechaFin)}`:'',
+              f.riesgoPais&&f.riesgoPais.desfasado?`riesgo país al ${_fF(f.riesgoPais.fechaFin)}`:''].filter(Boolean);
+  if(desf.length)c.push(`<span style="color:var(--warn)">desfasado: ${desf.join(' · ')}</span>`);
+  return `<div style="font-family:var(--mono);font-size:11px;display:flex;flex-wrap:wrap;gap:14px;padding:.6rem .85rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin:.7rem 0">${c.join('')}</div>`;
 }
 
 const _comBps=v=>v==null||!isFinite(v)?'<span style="color:var(--text3)">—</span>'
@@ -17728,14 +18249,17 @@ function comTile(b,destacado){
       <span style="font-size:12px;color:var(--accent2);font-weight:600">${comEsc(b.nombre)}</span>
       <span style="color:var(--text3);font-size:10px">${b.n} bonos</span>
     </div>
-    <div>nivel @ ${tn} <span style="color:var(--text)">${_fN(b.nivelFin)}%</span> <span style="color:var(--text3)">${comEsc(b.unidad)}</span>  ${_comBps(b.dNivelBps)}</div>
-    <div style="color:var(--text3)">${b.r2ok
+    ${b.sinComparacion
+      ?`<div style="color:var(--text3)">sin comparación de nivel · ${comEsc(b.sinComparacion)}</div>`
+      :`<div>nivel @ ${tn} <span style="color:var(--text)">${_fN(b.nivelFin)}%</span> <span style="color:var(--text3)">${comEsc(b.unidad)}</span>  ${_comBps(b.dNivelBps)}</div>`}
+    <div style="color:var(--text3)">${b.sinComparacion?'':b.r2ok
       ? `pendiente ${_fN(b.pendIni,2)} → ${_fN(b.pendFin,2)} · <span style="color:var(--text2)">${comEsc(b.forma)}</span> (R² ${_fN(b.r2Fin,2)})`
       : `pendiente no reportada · el ajuste no representa esta curva (R² ${_fN(b.r2Fin,2)})`}</div>
     <div style="color:var(--text3)">${b.tramos.map(t=>`${t.l} ${_comBps(t.bps)}`).join(' · ')||'—'}</div>
     ${b.movers.suben.length?`<div>↑ ${b.movers.suben.map(mv).join(' · ')}</div>`:''}
     ${b.movers.bajan.length?`<div>↓ ${b.movers.bajan.map(mv).join(' · ')}</div>`:''}
     ${b.residuos.baratos.length?`<div style="color:var(--text3)">vs curva · barato ${comEsc(b.residuos.baratos[0].ticker)} ${_comBps(b.residuos.baratos[0].bps)} · caro ${comEsc(b.residuos.ricos[0].ticker)} ${_comBps(b.residuos.ricos[0].bps)}</div>`:''}
+    ${b.ust?`<div>Treasury ${_comBps(b.ust.dBps)} · spread <span style="color:var(--text)">${b.ust.spreadFin}</span> ${_comBps(b.ust.dSpreadBps)}</div>`:''}
     <div style="color:var(--text3)">${vol}</div>
   </div>`;
 }
@@ -17790,8 +18314,12 @@ function comTextoCompleto(f,com,conPrompt){
   if(conPrompt)L.push(FICHA_PREAMBULO);
   if(p&&!conPrompt){
     L.push('LECTURA — redactada por un modelo de lenguaje sobre los números de abajo');
-    if(p.titular)L.push(p.titular);
-    L.push(p.movimiento,'');
+    if(p.titular)L.push(p.titular,'');
+    if(p.pesos){
+      L.push('PESOS',p.pesos.resumen||'','');
+      for(const s of FICHA_SECT_ARS)if(p.pesos[s])L.push(`${FICHA_NOMBRE[s]}. ${p.pesos[s]}`,'');
+      if(p.dolares&&p.dolares.resumen)L.push('DÓLARES',p.dolares.resumen,'');
+    }else L.push(p.movimiento||'','');
     if(p.contexto){
       L.push('CONTEXTO — búsqueda web del modelo; no explica el movimiento');
       L.push(p.contexto,'');
@@ -17807,10 +18335,34 @@ function comTextoCompleto(f,com,conPrompt){
 }
 
 async function comCopiar(sec,modo){
+  if(modo==='hilo'){
+    const txt=comHiloTexto(comPeriodoActual(sec));
+    if(!txt){alert('No hay hilo para este período. Se arma al correr /comentario.');return;}
+    comCopiarTexto(txt);
+    return;
+  }
   const f=await fichaCacheada(comEstado[sec].periodo,false);
   if(!f){alert('No hay ficha para ese período todavía.');return;}
   const txt=comTextoCompleto(f,COM_DATA,modo==='prompt');
   comCopiarTexto(txt);
+}
+
+function comPeriodoActual(sec){
+  return COM_DATA&&COM_DATA.periodos?COM_DATA.periodos[comEstado[sec].periodo]:null;
+}
+function comTweets(p){
+  return(p&&Array.isArray(p.twitter)?p.twitter:[])
+    .map(tw=>typeof tw==='string'?tw:(tw&&tw.texto)||'').filter(Boolean);
+}
+// El hilo entero, un tweet por bloque, separado de forma que se vea dónde corta
+// cada uno al pegarlo en un borrador.
+function comHiloTexto(p){
+  const ts=comTweets(p);
+  return ts.length?ts.join('\n\n———\n\n'):'';
+}
+function comCopiarTweet(sec,i){
+  const t=comTweets(comPeriodoActual(sec))[i];
+  if(t)comCopiarTexto(t);
 }
 
 // Mismo patrón que el resto de la app: portapapeles, y si el navegador lo

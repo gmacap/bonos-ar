@@ -1,16 +1,17 @@
 ---
 name: comentario
-description: "Escribe el comentario diario del movimiento de la curva de bonos argentinos para bonos-ar: mide la curva con la ficha, busca el contexto de noticias, redacta los cinco periodos y commitea comentario.json. Usar cuando el usuario pida el comentario de mercado, el comentario del dia, o /comentario."
+description: "Escribe el comentario diario del movimiento de la curva de bonos argentinos para bonos-ar: mide la curva con la ficha, busca el contexto de noticias, redacta pesos por curva y dólares contra Treasuries y riesgo país, arma el hilo de Twitter con sus gráficos y commitea comentario.json. Usar cuando el usuario pida el comentario de mercado, el comentario del dia, el hilo para Twitter, o /comentario."
 ---
 
 # Comentario de mercado — bonos-ar
 
-Escribís el comentario diario del movimiento de la curva. Va a clientes, así que
-el estándar es el de una nota que alguien manda con su nombre: nada inventado,
+Escribís el comentario diario del movimiento de la curva. Va a clientes y a
+Twitter, así que el estándar es el de una nota que alguien firma: nada inventado,
 nada de relleno.
 
-**No calculás nada.** Los números salen de `fichaConstruir()`, que es la misma
-función que dibuja el panel de la app. Tu trabajo es leer esa ficha y escribirla
+**No calculás nada.** Los números salen de `fichaConstruir()`, la misma función
+que dibuja el panel de la app, y eso incluye los Treasuries, el riesgo país y la
+descomposición de los bonos en dólares. Tu trabajo es leer esa ficha y escribirla
 en castellano, más el contexto de noticias que la ficha no puede tener.
 
 ## El procedimiento
@@ -18,89 +19,129 @@ en castellano, más el contexto de noticias que la ficha no puede tener.
 ### 1. Medir
 
 ```
-node .github/scripts/ficha.js --salida <scratchpad>/ficha.json
+node .github/scripts/ficha.js --salida <scratchpad>/ficha.json --imagenes salidas/comentario
 ```
 
-Tarda un minuto: abre la app publicada con Playwright y le pide los cinco
-períodos. Con `--local` va contra `http://localhost:8000/index.html`, que sirve
-para probar cambios sin publicarlos. Con `--envivo` toma los precios del momento
-en vez de la última rueda cerrada — usalo sólo si el usuario pide expresamente el
-comentario durante la rueda, porque lo que se commitea deja de ser reproducible.
+Tarda un minuto. Abre la app publicada, le pide la ficha de los cinco períodos y
+exporta un PNG de 1200×675 por cada curva que la ficha marca con gráfico, del
+período `dia`. Las imágenes quedan en `salidas/comentario/<fecha>/`, que no se
+commitea. Si playwright no está instalado, el script dice qué hacer.
 
-Leé el archivo. Trae, por período: `ficha` (el objeto con todo) y `texto` (la
-ficha formateada, que es lo que tenés que respetar al pie de la letra). Trae
-también `preambulo`, que son las reglas de redacción tal como las define la app:
-**leelas de ahí, no de acá.** Si algún día cambian en `index.html`, cambian solas
-para vos también, y no hay dos juegos de reglas.
+Opciones que vas a necesitar:
 
-Antes de seguir, mirá `ruedaFin`. Si no es la última rueda hábil, decíselo al
-usuario: puede que el snapshot del día todavía no haya corrido.
+- `--hasta YYYY-MM-DD` fija la rueda que cierra el período. **La app archiva fotos
+  durante la rueda, no sólo al cierre**, así que antes de las 17:30 la "última
+  rueda archivada" es la de hoy a medio hacer. Si es de mañana o del mediodía,
+  pedí la rueda cerrada anterior con `--hasta`.
+- `--local` va contra `http://localhost:8000/index.html`, para probar cambios sin
+  publicarlos.
+- `--imagenes-periodos dia,semana` exporta gráficos de otros períodos.
+
+Antes de escribir, mirá lo que imprime al final:
+
+- **`ruedaFin`**: tiene que ser una rueda cerrada. Si es hoy y todavía no pasaron
+  las 17:30, decíselo al usuario.
+- **`Treasuries` y `Riesgo país`**: si alguno dice **DESFASADO**, el dato de afuera
+  todavía no se publicó para esa rueda. Sin Treasuries del día no hay
+  descomposición de los bonos en dólares. Preguntale al usuario si espera y lo
+  corrés más tarde, o si escribís dólares diciendo que el dato está pendiente.
+
+Leé `ficha.json`. Trae, por período, `ficha` (el objeto) y `texto` (la ficha
+formateada, que es lo que tenés que respetar al pie de la letra), y trae
+`preambulo`: la estructura y las reglas de redacción tal como las define la app.
+**Leelas de ahí, no de acá.** Si cambian en `index.html` cambian solas para vos
+también.
 
 ### 2. Buscar el contexto
 
 Con `WebSearch`, buscá qué pasó entre `ini` y `fin` del período **día** que le
-importe a un operador de renta fija argentina. Entre tres y seis búsquedas
-alcanzan. Cubrí las dos puntas:
+importe a un operador de renta fija argentina. Entre tres y seis búsquedas. Cubrí:
 
-- **Local**: licitaciones del Tesoro, medidas del BCRA, reservas, dato de
-  inflación, política, riesgo país.
-- **Internacional**: tasas largas de Estados Unidos, la Fed, emergentes, materias
-  primas que muevan la cuenta externa argentina.
+- **Local**: licitaciones del Tesoro, BCRA, reservas, dato de inflación, política.
+- **Internacional**: la Fed y lo que se esperaba de ella, el movimiento de los
+  Treasuries y por qué se habló de él, emergentes, materias primas.
 
-Quedate con cinco a ocho hechos, cada uno con su fecha y su fuente. Si en el día
-no pasó nada relevante, **eso también es el dato**: se dice que fue una rueda sin
-novedades y se sigue. Inventar una noticia para llenar el campo es peor que
-dejarlo corto.
+Quedate con cinco a ocho hechos, cada uno con fecha y fuente. Si en el día no
+pasó nada relevante, eso también es el dato: inventar una noticia para llenar el
+campo es peor que dejarlo corto.
+
+**Los números de mercado no salen de la búsqueda.** Si una nota dice que el 10
+años "tocó 5,04%" y la ficha dice que cerró en 5,00%, en dólares va el 5,00% de la
+ficha; el 5,04% sólo puede aparecer en el contexto, dicho como máximo del día.
 
 Para los períodos largos no busques de nuevo: usá los mismos hechos y sumá lo
-estructural del trimestre o del año si lo sabés, marcando la fecha.
+estructural que sepas, con fecha.
 
 ### 3. Redactar
 
-Cinco períodos: `dia`, `semana`, `mes`, `trimestre`, `anio`. Cada uno con tres
-campos.
+Cinco períodos: `dia`, `semana`, `mes`, `trimestre`, `anio`. La estructura está
+en `preambulo`; en concreto, por período:
 
-- **`titular`** — una línea, sin ningún número. Es lo que se lee primero.
-- **`movimiento`** — qué se movió, cuánto, en qué tramo, con qué volumen. Uno o
-  dos párrafos. **Sólo la ficha.** Ninguna noticia, ninguna causa.
-- **`contexto`** — el marco. Un párrafo. **Sólo lo que buscaste.** Ningún precio
-  de bono.
+- **`titular`** — una línea, **sin ningún número**.
+- **`pesos.resumen`** — un párrafo corto sobre la curva de pesos en conjunto.
+- **`pesos.TF`, `pesos.CER`, `pesos.TAMAR`, `pesos.DLK`** — un párrafo breve por
+  curva, dos o tres frases. **Siempre los cuatro**, aunque la curva haya estado
+  quieta. Sólo puede faltar uno si la ficha no trae ese sector en el período.
+- **`dolares.resumen`** — Bonares, Globales y Bopreales **relacionados con los
+  Treasuries y con el riesgo país**. Usá la línea `descomposición` de cada curva:
+  "de los 19 puntos básicos, 3 corresponden a los Treasuries y 16 al spread". Para
+  citar un Treasury, la tasa par de la sección TREASURIES. El spread de la ficha
+  **no es** el riesgo país: si mencionás los dos, que se note que son medidas
+  distintas.
+- **`contexto`** — el marco, separado de todo lo anterior.
+- **`twitter`** — obligatorio en `dia`, opcional en los demás. Ver abajo.
 
-Las reglas de redacción están en `preambulo`. Las que más se violan sin querer:
+Las reglas que más se violan sin querer:
 
-- Todo número tiene que estar **literal en la ficha de ese período**. No
-  calcules una variación que la ficha no trae, no promedies, no redondees hacia
-  un número más lindo. Si querés decir algo que no está medido, no lo digas.
-- En `movimiento` no puede aparecer **"porque", "debido a", "impulsado por",
-  "tras conocerse", "a raíz de"** ni ninguna otra forma de atribuir un
-  movimiento a un hecho. Hay un verificador que los busca.
-- Si la ficha dice que el volumen está **parcial**, no hables de volumen de ese
-  período. El monto operado sólo existe desde mediados de 2026, así que
-  trimestre y año lo tienen truncado.
-- Si un sector dice **"pendiente no reportada"**, no digas que empinó ni que
-  aplanó. Quiere decir que el ajuste logarítmico no representa esa curva y
-  cualquier adjetivo sobre su forma sería inventado.
-- Las **implícitas de curva** no son el breakeven de la solapa Resumen. Si las
-  mencionás, llamalas por su nombre.
+- Todo número en pesos, dólares y Twitter tiene que estar **literal en la ficha de
+  ese período**. No calcules, no promedies, no redondees hacia un número más lindo.
+- **Unidad pegada a cada número**: "27 puntos básicos", no "cedió 27 hasta 6,70%".
+- Ningún **"porque", "debido a", "impulsado por", "a raíz de"** fuera del contexto.
+  La descomposición contra Treasuries se escribe como resta ("corresponden a"),
+  no como causa.
+- Volumen **PARCIAL**: no se habla de volumen de ese período.
+- **"pendiente no se reporta"**: no digas que la curva empinó ni que aplanó.
+- **Spread negativo** (Bopreales): no lo presentes como riesgo crédito.
+- Las **implícitas de curva** no son el breakeven de la solapa Resumen.
+- Los **duales** aparecen en CER y en TAMAR: si los nombrás, aclaralo.
 
-Sobre el tono: castellano rioplatense, de operador a cliente. Frases cortas.
-Nada de "cabe destacar", "en un contexto de", "se observó". Los duales aparecen
-dos veces, una por pata: si los nombrás, aclaralo o no los nombres.
+Tono: castellano rioplatense, de operador a cliente. Frases cortas. Nada de
+"cabe destacar", "en un contexto de", "se observó".
 
-### 4. Escribir el archivo
+### 4. El hilo de Twitter
+
+Entre 3 y 5 tweets, **cada uno de hasta 280 caracteres contando la numeración**, y
+la numeración `1/4` al principio. Twitter cuenta distinto que un editor: las
+flechas y los emojis pesan dos y un link pesa 23, así que no uses "→" y evitá
+emojis. El verificador cuenta con la regla de Twitter.
+
+- **1/N**: el titular y los dos o tres números que más importan del día.
+- **pesos**: lo central de la curva de pesos.
+- **dólares**: Globales y Bonares contra Treasuries y riesgo país.
+- **contexto**, si hace falta.
+
+Cada tweet lleva `graficos`: los sectores cuya imagen se adjunta, **sólo entre los
+que la ficha marca con "gráfico: sí"**, hasta 4 por tweet. Si ninguno se movió lo
+suficiente, el hilo va sin imágenes y está bien.
+
+### 5. Escribir el archivo
 
 `comentario.json` en la raíz del repo, al lado de `rem.json`:
 
 ```json
 {
   "generado": "<ISO 8601 de ahora>",
-  "modelo": "claude-opus-5",
+  "modelo": "claude-opus-5 (Claude Code)",
   "ruedaFin": "<el ruedaFin de la ficha>",
   "fuentes": [{"titulo": "...", "url": "...", "fecha": "YYYY-MM-DD"}],
   "periodos": {
     "dia": {
       "ini": "...", "fin": "...", "ruedas": 1,
-      "titular": "...", "movimiento": "...", "contexto": "...",
+      "titular": "...",
+      "pesos": {"resumen": "...", "TF": "...", "CER": "...", "TAMAR": "...", "DLK": "..."},
+      "dolares": {"resumen": "..."},
+      "contexto": "...",
+      "twitter": [{"texto": "1/4 ...", "graficos": ["TF", "GLO"]}],
       "ficha": { }
     }
   }
@@ -108,32 +149,33 @@ dos veces, una por pata: si los nombrás, aclaralo o no los nombres.
 ```
 
 `ini` y `fin` se copian de la ficha del período. En `ficha` va el objeto
-`periodos.<p>.ficha` de `ficha.json` tal cual: **el comentario tiene que viajar
-con los números que lo respaldan.** Si alguien abre la app el miércoles, el
-comentario del martes tiene que verse junto a los números del martes, no junto a
-los que el navegador recalcule en ese momento.
+`periodos.<p>.ficha` de `ficha.json` tal cual: **el comentario viaja con los
+números que lo respaldan**, y los gráficos del panel se dibujan desde ahí. Si
+alguien abre la app el miércoles, el comentario del martes se ve con la curva del
+martes.
 
 El archivo va en **CRLF**, como todo el repo.
 
-### 5. Verificar
+### 6. Verificar
 
 ```
 node .github/scripts/comentario-verificar.js comentario.json <scratchpad>/ficha.json
 ```
 
-Chequea la forma, que todo número del movimiento esté en la ficha, y que no haya
-conectores causales. **Si sale en rojo, corregí el texto y volvé a correrlo. No
-commitees con errores** — el punto de esto es que una cifra inventada no llegue a
-un cliente.
+Chequea la forma, que dólares mencione Treasuries y riesgo país, que todo número
+esté en la ficha, que no haya conectores causales, y el hilo: cantidad, largo,
+numeración y que las imágenes existan. **Si sale en rojo, corregí el texto y volvé
+a correrlo. No commitees con errores.** Los avisos (`!`) son para mirar.
 
-Los avisos (`!`) son para mirar, no para bloquear.
+### 7. Mostrar y commitear
 
-### 6. Mostrar y commitear
+Mostrale al usuario, antes de commitear:
 
-Mostrale al usuario el `titular` y el `movimiento` del día antes de commitear.
-Es lo que va a mandar: que lo lea primero.
+- el titular, el resumen de pesos y la parte de dólares del día;
+- el hilo, tweet por tweet, con qué imagen va en cada uno;
+- la carpeta donde quedaron las imágenes.
 
-Con el visto bueno:
+Es lo que va a publicar: que lo lea primero. Con el visto bueno:
 
 ```
 git add comentario.json
@@ -141,17 +183,17 @@ git commit -m "data(comentario): cierre del <fecha>"
 git push
 ```
 
-Va a `main` si el usuario lo pide, o a `dev` si estás en medio de otra cosa.
-GitHub Pages lo publica y el panel lo levanta solo: `comFetch()` tiene un TTL de
-tres horas y sirve la caché vencida si no hay red.
+Las imágenes **no** se commitean. GitHub Pages publica el JSON y el panel lo
+levanta solo; desde el panel también se bajan las imágenes con el botón ⤓ PNG de
+cada curva.
 
 ## Qué NO hacer
 
-- **No edites `index.html`.** La ficha es lo que la app calcula; si un número te
-  parece mal, decíselo al usuario en vez de maquillar el texto.
-- **No inventes un número que la ficha no trae**, ni siquiera uno que parezca
-  obvio de despejar.
-- **No expliques un movimiento con una noticia.** Es la regla que existe porque
-  es la más fácil de romper: la correlación de un día no es una causa, y firmarla
-  frente a un cliente es otra cosa que sugerirla en una charla.
+- **No edites `index.html`.** Si un número de la ficha te parece mal, decíselo al
+  usuario en vez de maquillar el texto.
+- **No inventes un número que la ficha no trae**, aunque parezca obvio despejarlo.
+- **No expliques un movimiento con una noticia.** La correlación de un día no es
+  una causa, y firmarla frente a un cliente es otra cosa que sugerirla en una
+  charla.
+- **No tomes números de mercado de la búsqueda web** para pesos, dólares o Twitter.
 - **No commitees sin que el verificador pase.**

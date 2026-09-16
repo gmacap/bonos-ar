@@ -1,5 +1,5 @@
 {
-  "generado": "2026-09-16T02:03:33Z",
+  "generado": "2026-09-16T14:45:33Z",
   "modelo": "claude-opus-5 (Claude Code)",
   "ruedaFin": "2026-09-15",
   "fuentes": [
@@ -24,9 +24,43 @@
       "ini": "2026-09-14",
       "fin": "2026-09-15",
       "ruedas": 1,
-      "titular": "Los pesos comprimieron en toda la curva; los hard dollar cedieron desde el tramo largo",
-      "movimiento": "La curva de pesos cerró comprimida. Tasa fija bajó 3 puntos básicos en el nivel de 99 días, hasta 25,30% de TNA, pero el promedio esconde el reparto: el tramo corto comprimió 20 puntos básicos y el medio quedó prácticamente plano, con lo cual la curva empinó. S30S6 lideró la baja con 74 puntos básicos sobre 29,7 MM operados, y S30N6 cedió 21 con 139,1 MM, que fue el papel más operado del sector. Del otro lado quedó S16O6, que sumó 36 puntos básicos con 42,8 MM.\n\nCER comprimió 13 puntos básicos en el nivel de 509 días, hasta 6,69% de tasa real, y el movimiento se concentró en el medio: 39 puntos básicos abajo contra 11 en el corto y 3 arriba en el largo. TAMAR acompañó con 5 puntos básicos menos de margen. Dollar linked fue el que más comprimió, 22 puntos básicos hasta 5,40% de TNA en dólares, aunque el ajuste logarítmico no representa esa curva y no corresponde hablar de su forma.\n\nEn los hard dollar el signo fue el contrario. Globales sumaron 19 puntos básicos de TIR en el nivel de 4,84 de duration, con el tramo largo moviéndose más que el corto, 23 contra 9 puntos básicos. Bonares agregaron 4 y Bopreales cedieron 2. El volumen quedó claramente del lado de los pesos: 837,2 MM en tasa fija y 620,8 MM en CER, contra 234,0 MM en Bonares y 14,6 MM en Globales.\n\nEl oficial cerró 0,24% abajo y el MEP 0,11%, con la brecha 0,14 pp arriba. La inflación implícita de curva a 90 días quedó en 23,64% anual, equivalente a 1,78% mensual.",
-      "contexto": "La rueda llegó con las tasas largas de Estados Unidos en el centro de la escena: el rendimiento del Tesoro a diez años tocó 5,04%, su nivel más alto desde 2007, un día antes de la decisión de la Reserva Federal del miércoles 16. El riesgo país argentino que mide JP Morgan se ubicó en 504 unidades. En el plano local, el INDEC había publicado una inflación de agosto de 1,7% mensual, con 33,5% interanual y 21,4% acumulado en el año.",
+      "titular": "Los pesos comprimieron y los Globales cedieron, con casi todo el ajuste en el spread argentino",
+      "pesos": {
+        "resumen": "La curva de pesos cerró con compresión en tasa fija corta, CER, TAMAR y dollar linked. El volumen de la rueda se concentró en tasa fija, con 447,4 MM, contra 297,6 MM en CER, 192,1 MM en dollar linked y 116,4 MM en TAMAR. La inflación implícita de curva a 90 días quedó en 23,64% anual, equivalente a 1,78% mensual.",
+        "TF": "Tasa fija bajó 3 puntos básicos en el nivel de 99 días, hasta 25,30% de TNA, con un reparto desigual: el tramo corto comprimió 20 puntos básicos y el medio sumó 2 puntos básicos, así que la curva empinó. S30S6 lideró la baja con 74 puntos básicos, y S30N6, el papel más operado con 139,1 MM, cedió 21 puntos básicos.",
+        "CER": "CER comprimió 13 puntos básicos de tasa real en el nivel de 509 días, hasta 6,69%, sin cambio de forma. El movimiento se concentró en el tramo medio, 39 puntos básicos abajo, contra 11 puntos básicos en el corto y una suba de 3 puntos básicos en el largo.",
+        "TAMAR": "TAMAR recortó 5 puntos básicos de margen en el nivel de 591 días, hasta 7,03%, y la curva empinó: el tramo corto bajó 31 puntos básicos y el largo sumó 3 puntos básicos. TMF28 lideró la baja con 68 puntos básicos.",
+        "DLK": "Dollar linked comprimió 17 puntos básicos hasta 5,44% de TNA en dólares, con los tres tramos moviéndose en la misma dirección. El ajuste no representa bien esta curva, así que no corresponde hablar de su forma. D30S6 concentró la operatoria con 111,0 MM."
+      },
+      "dolares": {
+        "resumen": "En dólares, casi todo el movimiento quedó del lado argentino. Los Treasuries apenas se movieron: el 10 años cerró en 5,00%, 3 puntos básicos arriba, y el 2 años sumó 2 puntos básicos. Globales, en cambio, subieron 19 puntos básicos de TIR hasta 9,34%: de esos 19 puntos básicos, 3 puntos básicos corresponden a los Treasuries y 16 puntos básicos al spread, que quedó en 443 puntos básicos. El riesgo país, que mide otra canasta con otro método, subió también 16 puntos básicos hasta 506 puntos básicos. Bonares sumaron 4 puntos básicos, de los que 3 puntos básicos corresponden a los Treasuries, y Bopreales, que rinden por debajo del Treasury de su plazo, cedieron 2 puntos básicos."
+      },
+      "contexto": "La rueda llegó con las tasas largas de Estados Unidos en foco: durante la jornada el bono del Tesoro a diez años tocó 5,04%, su nivel más alto desde 2007, antes de moderarse, en la antesala de la decisión de la Reserva Federal del miércoles 16. En el plano local, el INDEC había publicado una inflación de agosto de 1,7% mensual, con 33,5% interanual y 21,4% acumulado en el año.",
+      "twitter": [
+        {
+          "texto": "1/4 Cierre del 15/09. Pesos: compresión en tasa fija corta, CER, TAMAR y dollar linked. Dólares: Globales +19 bps de TIR, de los que 16 bps fueron spread y 3 bps Treasuries. Riesgo país en 506 bps.",
+          "graficos": []
+        },
+        {
+          "texto": "2/4 Pesos. Tasa fija -3 bps a 25,30% TNA, con el tramo corto -20 bps: la curva empinó. CER -13 bps de tasa real, el medio -39 bps. TAMAR -5 bps de margen. Dollar linked -17 bps. En tasa fija se operaron 447,4 MM.",
+          "graficos": [
+            "TF",
+            "CER",
+            "TAMAR",
+            "DLK"
+          ]
+        },
+        {
+          "texto": "3/4 Dólares. El Treasury a 10 años cerró en 5,00%, +3 bps. Globales +19 bps a 9,34%: 3 bps de Treasuries y 16 bps de spread. Bonares +4 bps. Riesgo país +16 bps, de 490 bps a 506 bps.",
+          "graficos": [
+            "GLO"
+          ]
+        },
+        {
+          "texto": "4/4 Contexto. El mercado operó con la mira en la Fed del miércoles y con las tasas largas de Estados Unidos en máximos de casi dos décadas. En lo local, se conoció la inflación de agosto.",
+          "graficos": []
+        }
+      ],
       "ficha": {
         "periodo": "dia",
         "label": "Día",
@@ -34,7 +68,7 @@
         "fin": "2026-09-15",
         "enVivo": false,
         "dias": 1,
-        "generado": "2026-09-16T02:01:17.163Z",
+        "generado": "2026-09-16T14:37:46.905Z",
         "bloques": [
           {
             "sector": "TF",
@@ -45,6 +79,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 98.5,
+            "rangoComun": [
+              15,
+              287
+            ],
+            "sinComparacion": null,
             "nivelIni": 25.3304617509256,
             "nivelFin": 25.299532500659055,
             "dNivelBps": -3.0929250266545694,
@@ -160,17 +199,89 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 2,
-              "total": 837230684084.81,
-              "prom": 418615342042.405,
-              "ruedas": 2,
+              "habiles": 1,
+              "total": 447446939305.6401,
+              "prom": 447446939305.6401,
+              "ruedas": 1,
               "top": {
                 "ticker": "S30N6",
-                "monto": 220787386421.21
+                "monto": 139084707301.34
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "S13N6",
+                "xi": 59,
+                "yi": 24.373887,
+                "xf": 58,
+                "yf": 24.17468
+              },
+              {
+                "ticker": "S16O6",
+                "xi": 31,
+                "yi": 22.665063,
+                "xf": 30,
+                "yf": 23.024486
+              },
+              {
+                "ticker": "S29E7",
+                "xi": 136,
+                "yi": 25.252611,
+                "xf": 135,
+                "yf": 25.58463
+              },
+              {
+                "ticker": "S30N6",
+                "xi": 76,
+                "yi": 24.637934,
+                "xf": 75,
+                "yf": 24.428663
+              },
+              {
+                "ticker": "S30O6",
+                "xi": 45,
+                "yi": 22.708757,
+                "xf": 44,
+                "yf": 22.344452
+              },
+              {
+                "ticker": "S30S6",
+                "xi": 15,
+                "yi": 22.790642,
+                "xf": 14,
+                "yf": 22.047769
+              },
+              {
+                "ticker": "T15E7",
+                "xi": 122,
+                "yi": 24.960412,
+                "xf": 121,
+                "yf": 24.964617
+              },
+              {
+                "ticker": "T30A7",
+                "xi": 227,
+                "yi": 27.26419,
+                "xf": 226,
+                "yf": 27.313247
+              },
+              {
+                "ticker": "T30J7",
+                "xi": 288,
+                "yi": 28.184057,
+                "xf": 287,
+                "yf": 28.099794
+              },
+              {
+                "ticker": "T31Y7",
+                "xi": 258,
+                "yi": 28.056083,
+                "xf": 257,
+                "yf": 28.071112
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -192,7 +303,8 @@
                 "xMin": 14,
                 "xMax": 287
               }
-            }
+            },
+            "grafico": "empinó"
           },
           {
             "sector": "CER",
@@ -203,6 +315,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 509,
+            "rangoComun": [
+              15,
+              2663
+            ],
+            "sinComparacion": null,
             "nivelIni": 6.817468657047029,
             "nivelFin": 6.6884019888668,
             "dNivelBps": -12.906666818022927,
@@ -323,17 +440,201 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 2,
-              "total": 620822714455.2699,
-              "prom": 310411357227.63495,
-              "ruedas": 2,
+              "habiles": 1,
+              "total": 297578379317.8199,
+              "prom": 297578379317.8199,
+              "ruedas": 1,
               "top": {
                 "ticker": "X29E7",
-                "monto": 77673029187.43
+                "monto": 37962962464.25
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "DICP",
+                "xi": 2664,
+                "yi": 9.749828,
+                "xf": 2663,
+                "yf": 9.888884
+              },
+              {
+                "ticker": "TX26",
+                "xi": 55,
+                "yi": 2.975513,
+                "xf": 54,
+                "yf": 2.748768
+              },
+              {
+                "ticker": "TX28",
+                "xi": 786,
+                "yi": 8.605043,
+                "xf": 785,
+                "yf": 8.381321
+              },
+              {
+                "ticker": "TX31",
+                "xi": 1902,
+                "yi": 10.199023,
+                "xf": 1901,
+                "yf": 10.35064
+              },
+              {
+                "ticker": "TXMD8",
+                "xi": 822,
+                "yi": 5.599801,
+                "xf": 821,
+                "yf": 5.648242
+              },
+              {
+                "ticker": "TXMD9",
+                "xi": 1186,
+                "yi": 6.52833,
+                "xf": 1185,
+                "yf": 6.556016
+              },
+              {
+                "ticker": "TXMJ0",
+                "xi": 1382,
+                "yi": 6.628528,
+                "xf": 1381,
+                "yf": 6.635546
+              },
+              {
+                "ticker": "TXMJ8",
+                "xi": 654,
+                "yi": 4.940795,
+                "xf": 653,
+                "yf": 5.1924
+              },
+              {
+                "ticker": "TXMJ9",
+                "xi": 1018,
+                "yi": 6.62774,
+                "xf": 1017,
+                "yf": 6.656023
+              },
+              {
+                "ticker": "TZX27",
+                "xi": 288,
+                "yi": 5.057065,
+                "xf": 287,
+                "yf": 4.814274
+              },
+              {
+                "ticker": "TZX28",
+                "xi": 654,
+                "yi": 9.279239,
+                "xf": 653,
+                "yf": 9.240298
+              },
+              {
+                "ticker": "TZXA7",
+                "xi": 227,
+                "yi": 5.220477,
+                "xf": 226,
+                "yf": 4.199368
+              },
+              {
+                "ticker": "TZXD6",
+                "xi": 91,
+                "yi": 3.575487,
+                "xf": 90,
+                "yf": 3.483784
+              },
+              {
+                "ticker": "TZXD7",
+                "xi": 456,
+                "yi": 7.776659,
+                "xf": 455,
+                "yf": 7.62091
+              },
+              {
+                "ticker": "TZXD8",
+                "xi": 822,
+                "yi": 9.06087,
+                "xf": 821,
+                "yf": 9.189126
+              },
+              {
+                "ticker": "TZXM7",
+                "xi": 197,
+                "yi": 4.716082,
+                "xf": 196,
+                "yf": 4.352051
+              },
+              {
+                "ticker": "TZXM8",
+                "xi": 563,
+                "yi": 8.709462,
+                "xf": 562,
+                "yf": 8.598288
+              },
+              {
+                "ticker": "TZXM9",
+                "xi": 925,
+                "yi": 9.905388,
+                "xf": 924,
+                "yf": 9.572993
+              },
+              {
+                "ticker": "TZXO6",
+                "xi": 45,
+                "yi": 1.492573,
+                "xf": 44,
+                "yf": 1.6535
+              },
+              {
+                "ticker": "TZXO7",
+                "xi": 409,
+                "yi": 6.591829,
+                "xf": 408,
+                "yf": 6.090979
+              },
+              {
+                "ticker": "TZXS7",
+                "xi": 380,
+                "yi": 6.364272,
+                "xf": 379,
+                "yf": 5.977603
+              },
+              {
+                "ticker": "TZXS8",
+                "xi": 745,
+                "yi": 9.330482,
+                "xf": 744,
+                "yf": 9.295769
+              },
+              {
+                "ticker": "TZXY7",
+                "xi": 258,
+                "yi": 5.482504,
+                "xf": 257,
+                "yf": 4.746797
+              },
+              {
+                "ticker": "X29E7",
+                "xi": 136,
+                "yi": 4.113244,
+                "xf": 135,
+                "yf": 3.77425
+              },
+              {
+                "ticker": "X30N6",
+                "xi": 76,
+                "yi": 3.384933,
+                "xf": 75,
+                "yf": 3.286548
+              },
+              {
+                "ticker": "X30S6",
+                "xi": 15,
+                "yi": -1.00182,
+                "xf": 14,
+                "yf": -1.115002
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -355,7 +656,8 @@
                 "xMin": 14,
                 "xMax": 2663
               }
-            }
+            },
+            "grafico": "nivel -13 bps"
           },
           {
             "sector": "TAMAR",
@@ -366,6 +668,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 590.5,
+            "rangoComun": [
+              91,
+              1381
+            ],
+            "sinComparacion": null,
             "nivelIni": 7.081332293245698,
             "nivelFin": 7.028812237320089,
             "dNivelBps": -5.252005592560849,
@@ -486,17 +793,103 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 2,
-              "total": 233412230631.47998,
-              "prom": 116706115315.73999,
-              "ruedas": 2,
+              "habiles": 1,
+              "total": 116400272048.93999,
+              "prom": 116400272048.93999,
+              "ruedas": 1,
               "top": {
                 "ticker": "TMVE8",
-                "monto": 52674707804.600006
+                "monto": 32386969769.7
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "TMF27",
+                "xi": 164,
+                "yi": 2.37471,
+                "xf": 163,
+                "yf": 2.073199
+              },
+              {
+                "ticker": "TMF28",
+                "xi": 528,
+                "yi": 8.633369,
+                "xf": 527,
+                "yf": 7.950431
+              },
+              {
+                "ticker": "TMG27",
+                "xi": 350,
+                "yi": 2.869743,
+                "xf": 349,
+                "yf": 3.17583
+              },
+              {
+                "ticker": "TMG28",
+                "xi": 716,
+                "yi": 8.790459,
+                "xf": 715,
+                "yf": 8.739553
+              },
+              {
+                "ticker": "TML27",
+                "xi": 318,
+                "yi": 3.452434,
+                "xf": 317,
+                "yf": 3.214734
+              },
+              {
+                "ticker": "TMVE8",
+                "xi": 503,
+                "yi": 6.949154,
+                "xf": 502,
+                "yf": 6.890273
+              },
+              {
+                "ticker": "TTD26",
+                "xi": 91,
+                "yi": 0.589049,
+                "xf": 90,
+                "yf": 0.262173
+              },
+              {
+                "ticker": "TXMD8",
+                "xi": 822,
+                "yi": 8.620804,
+                "xf": 821,
+                "yf": 8.670394
+              },
+              {
+                "ticker": "TXMD9",
+                "xi": 1186,
+                "yi": 9.507804,
+                "xf": 1185,
+                "yf": 9.535927
+              },
+              {
+                "ticker": "TXMJ0",
+                "xi": 1382,
+                "yi": 9.614249,
+                "xf": 1381,
+                "yf": 9.622063
+              },
+              {
+                "ticker": "TXMJ8",
+                "xi": 654,
+                "yi": 7.494799,
+                "xf": 653,
+                "yf": 7.743072
+              },
+              {
+                "ticker": "TXMJ9",
+                "xi": 1018,
+                "yi": 9.105689,
+                "xf": 1017,
+                "yf": 9.134017
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -518,7 +911,8 @@
                 "xMin": 90,
                 "xMax": 1381
               }
-            }
+            },
+            "grafico": "empinó"
           },
           {
             "sector": "DLK",
@@ -529,38 +923,50 @@
             "entraron": [],
             "salieron": [],
             "tenor": 236.5,
+            "rangoComun": [
+              15,
+              821
+            ],
+            "sinComparacion": null,
             "nivelIni": 5.613736407878258,
-            "nivelFin": 5.39549776142564,
-            "dNivelBps": -21.823864645261803,
+            "nivelFin": 5.438861527184303,
+            "dNivelBps": -17.487488069395507,
             "pendIni": 1.2125885048145826,
-            "pendFin": 1.2072476420044627,
+            "pendFin": 1.1394797347864212,
             "dPend": null,
             "forma": null,
             "r2Ini": 0.21151640489226353,
-            "r2Fin": 0.21413390001542654,
+            "r2Fin": 0.19240533205690002,
             "r2ok": false,
             "tramos": [
               {
                 "l": "corto",
                 "n": 3,
-                "bps": -26.80389999999999
+                "bps": -16.63459999999999
               },
               {
                 "l": "medio",
                 "n": 4,
-                "bps": -16.853449999999988
+                "bps": -15.454299999999977
               },
               {
                 "l": "largo",
                 "n": 2,
-                "bps": -12.580600000000075
+                "bps": -11.937249999999988
               }
             ],
             "movers": {
               "suben": [
                 {
+                  "ticker": "D30S6",
+                  "bps": 12.541699999999967,
+                  "x": 14,
+                  "dias": 14,
+                  "monto": 111015251328
+                },
+                {
                   "ticker": "TZV28",
-                  "bps": 1.8017999999999645,
+                  "bps": 2.5176000000000087,
                   "x": 653,
                   "dias": 653,
                   "monto": 1644698128.8
@@ -569,21 +975,21 @@
               "bajan": [
                 {
                   "ticker": "D31M7",
-                  "bps": -67.01549999999995,
+                  "bps": -64.68599999999994,
                   "x": 196,
                   "dias": 196,
                   "monto": 7274360867.7
                 },
                 {
                   "ticker": "TZVD8",
-                  "bps": -26.963000000000115,
+                  "bps": -26.392099999999985,
                   "x": 821,
                   "dias": 821,
                   "monto": 632482932
                 },
                 {
                   "ticker": "D15E7",
-                  "bps": -26.826700000000002,
+                  "bps": -23.134199999999993,
                   "x": 121,
                   "dias": 121,
                   "monto": 20149656.6
@@ -594,19 +1000,19 @@
               "baratos": [
                 {
                   "ticker": "TZVD8",
-                  "bps": 382.71161234158717,
+                  "bps": 387.3803594109352,
                   "x": 821,
                   "monto": 632482932
                 },
                 {
                   "ticker": "TZV28",
-                  "bps": 356.33566181297454,
+                  "bps": 359.59778988807136,
                   "x": 653,
                   "monto": 1644698128.8
                 },
                 {
                   "ticker": "D30S6",
-                  "bps": 235.09415856261558,
+                  "bps": 243.42703411101985,
                   "x": 14,
                   "monto": 111015251328
                 }
@@ -614,19 +1020,19 @@
               "ricos": [
                 {
                   "ticker": "D10Y7",
-                  "bps": -483.6797739007385,
+                  "bps": -486.14039289618415,
                   "x": 236,
                   "monto": null
                 },
                 {
                   "ticker": "D15E7",
-                  "bps": -325.90905038001915,
+                  "bps": -331.0944451841447,
                   "x": 121,
                   "monto": 20149656.6
                 },
                 {
                   "ticker": "TZV27",
-                  "bps": -194.75782360232228,
+                  "bps": -196.20416070958873,
                   "x": 287,
                   "monto": 1191163718.8
                 }
@@ -635,17 +1041,82 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 2,
-              "total": 494372962427.2001,
-              "prom": 247186481213.60004,
-              "ruedas": 2,
+              "habiles": 1,
+              "total": 192063641028.6,
+              "prom": 192063641028.6,
+              "ruedas": 1,
               "top": {
                 "ticker": "D30S6",
-                "monto": 242214676988.4
+                "monto": 111015251328
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "D10Y7",
+                "xi": 237,
+                "yi": 0.707546,
+                "xf": 236,
+                "yf": 0.575046
+              },
+              {
+                "ticker": "D15E7",
+                "xi": 122,
+                "yi": 1.595628,
+                "xf": 121,
+                "yf": 1.364286
+              },
+              {
+                "ticker": "D30O6",
+                "xi": 45,
+                "yi": 5.142179,
+                "xf": 44,
+                "yf": 4.975833
+              },
+              {
+                "ticker": "D30S6",
+                "xi": 15,
+                "yi": 4.52653,
+                "xf": 14,
+                "yf": 4.651947
+              },
+              {
+                "ticker": "D31M7",
+                "xi": 197,
+                "yi": 5.953408,
+                "xf": 196,
+                "yf": 5.306548
+              },
+              {
+                "ticker": "TMVE8",
+                "xi": 503,
+                "yi": 5.168397,
+                "xf": 502,
+                "yf": 4.991811
+              },
+              {
+                "ticker": "TZV27",
+                "xi": 288,
+                "yi": 3.788323,
+                "xf": 287,
+                "yf": 3.697348
+              },
+              {
+                "ticker": "TZV28",
+                "xi": 654,
+                "yi": 10.166952,
+                "xf": 653,
+                "yf": 10.192128
+              },
+              {
+                "ticker": "TZVD8",
+                "xi": 822,
+                "yi": 10.994754,
+                "xf": 821,
+                "yf": 10.730833
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -659,15 +1130,16 @@
               },
               "fin": {
                 "reg": {
-                  "a": -1.2032553239187709,
-                  "b": 1.2072476420044627
+                  "a": -0.789475687146354,
+                  "b": 1.1394797347864212
                 },
                 "n": 9,
-                "r2": 0.21413390001542654,
+                "r2": 0.19240533205690002,
                 "xMin": 14,
                 "xMax": 821
               }
-            }
+            },
+            "grafico": "nivel -17 bps"
           },
           {
             "sector": "BOP",
@@ -678,6 +1150,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 0.84,
+            "rangoComun": [
+              0.84,
+              1.98
+            ],
+            "sinComparacion": null,
             "nivelIni": 2.437203,
             "nivelFin": 2.4171220542640364,
             "dNivelBps": -2.008094573596342,
@@ -781,17 +1258,61 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 2,
-              "total": 8248551676.26,
-              "prom": 4124275838.13,
-              "ruedas": 2,
+              "habiles": 1,
+              "total": 2984857456.19,
+              "prom": 2984857456.19,
+              "ruedas": 1,
               "top": {
                 "ticker": "BPOD7",
-                "monto": 3379081283.02
+                "monto": 1882675346
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "BPOA7",
+                "xi": 0.84,
+                "yi": 2.422778,
+                "xf": 0.84,
+                "yf": 2.027211
+              },
+              {
+                "ticker": "BPOA8",
+                "xi": 1.98,
+                "yi": 7.298561,
+                "xf": 1.98,
+                "yf": 7.229919
+              },
+              {
+                "ticker": "BPOB7",
+                "xi": 0.84,
+                "yi": 2.480478,
+                "xf": 0.84,
+                "yf": 2.720769
+              },
+              {
+                "ticker": "BPOB8",
+                "xi": 1.98,
+                "yi": 7.552542,
+                "xf": 1.97,
+                "yf": 7.625475
+              },
+              {
+                "ticker": "BPOC7",
+                "xi": 0.84,
+                "yi": 2.422778,
+                "xf": 0.84,
+                "yf": 2.430679
+              },
+              {
+                "ticker": "BPOD7",
+                "xi": 0.84,
+                "yi": 2.422778,
+                "xf": 0.84,
+                "yf": 2.48857
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -813,6 +1334,16 @@
                 "xMin": 0.84,
                 "xMax": 1.98
               }
+            },
+            "grafico": null,
+            "ust": {
+              "plazo": 0.8648897259947177,
+              "ini": 4.3652579524662505,
+              "fin": 4.377435669727814,
+              "dBps": 1,
+              "dSpreadBps": -3,
+              "spreadFin": -196,
+              "spreadIni": -193
             }
           },
           {
@@ -824,6 +1355,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 2.73,
+            "rangoComun": [
+              1.08,
+              5.53
+            ],
+            "sinComparacion": null,
             "nivelIni": 9.296142871006756,
             "nivelFin": 9.339740613189486,
             "dNivelBps": 4.35977421827296,
@@ -939,17 +1475,82 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 2,
-              "total": 234024581571.83,
-              "prom": 117012290785.915,
-              "ruedas": 2,
+              "habiles": 1,
+              "total": 117438574141.94,
+              "prom": 117438574141.94,
+              "ruedas": 1,
               "top": {
                 "ticker": "AL30",
-                "monto": 173251563952.5
+                "monto": 83114014362.5
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "AE38",
+                "xi": 4.34,
+                "yi": 10.783026,
+                "xf": 4.32,
+                "yf": 10.955293
+              },
+              {
+                "ticker": "AL29",
+                "xi": 1.45,
+                "yi": 7.766195,
+                "xf": 1.45,
+                "yf": 7.859925
+              },
+              {
+                "ticker": "AL30",
+                "xi": 1.87,
+                "yi": 8.77163,
+                "xf": 1.87,
+                "yf": 8.844707
+              },
+              {
+                "ticker": "AL35",
+                "xi": 5.14,
+                "yi": 10.54609,
+                "xf": 5.13,
+                "yf": 10.696238
+              },
+              {
+                "ticker": "AL41",
+                "xi": 5.53,
+                "yi": 10.672721,
+                "xf": 5.55,
+                "yf": 10.572267
+              },
+              {
+                "ticker": "AN29",
+                "xi": 2.73,
+                "yi": 10.349591,
+                "xf": 2.73,
+                "yf": 10.343296
+              },
+              {
+                "ticker": "AO27",
+                "xi": 1.08,
+                "yi": 4.039963,
+                "xf": 1.08,
+                "yf": 4.097349
+              },
+              {
+                "ticker": "AO28",
+                "xi": 1.98,
+                "yi": 9.160314,
+                "xf": 1.98,
+                "yf": 9.156136
+              },
+              {
+                "ticker": "AO29",
+                "xi": 2.81,
+                "yi": 10.175869,
+                "xf": 2.81,
+                "yf": 10.12588
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -971,6 +1572,16 @@
                 "xMin": 1.08,
                 "xMax": 5.55
               }
+            },
+            "grafico": null,
+            "ust": {
+              "plazo": 2.9588875793638794,
+              "ini": 4.782437598263467,
+              "fin": 4.8128558535649235,
+              "dBps": 3,
+              "dSpreadBps": 1,
+              "spreadFin": 453,
+              "spreadIni": 452
             }
           },
           {
@@ -982,6 +1593,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 4.84,
+            "rangoComun": [
+              1.48,
+              6.09
+            ],
+            "sinComparacion": null,
             "nivelIni": 9.15583147347036,
             "nivelFin": 9.340891312631019,
             "dNivelBps": 18.505983916065816,
@@ -1080,17 +1696,61 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 2,
-              "total": 14559044074.09,
-              "prom": 7279522037.045,
-              "ruedas": 2,
+              "habiles": 1,
+              "total": 10536010262.79,
+              "prom": 10536010262.79,
+              "ruedas": 1,
               "top": {
                 "ticker": "GD35",
-                "monto": 6130758831.21
+                "monto": 4325081784.41
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "GD29",
+                "xi": 1.48,
+                "yi": 5.50152,
+                "xf": 1.48,
+                "yf": 5.524056
+              },
+              {
+                "ticker": "GD30",
+                "xi": 1.92,
+                "yi": 6.424042,
+                "xf": 1.91,
+                "yf": 6.572504
+              },
+              {
+                "ticker": "GD35",
+                "xi": 5.21,
+                "yi": 9.49584,
+                "xf": 5.19,
+                "yf": 9.663701
+              },
+              {
+                "ticker": "GD38",
+                "xi": 4.49,
+                "yi": 9.273375,
+                "xf": 4.47,
+                "yf": 9.490219
+              },
+              {
+                "ticker": "GD41",
+                "xi": 5.69,
+                "yi": 9.656281,
+                "xf": 5.67,
+                "yf": 9.738631
+              },
+              {
+                "ticker": "GD46",
+                "xi": 6.15,
+                "yi": 9.477379,
+                "xf": 6.09,
+                "yf": 9.712311
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -1112,6 +1772,16 @@
                 "xMin": 1.48,
                 "xMax": 6.09
               }
+            },
+            "grafico": "nivel +19 bps",
+            "ust": {
+              "plazo": 5.583508165111582,
+              "ini": 4.881276306454008,
+              "fin": 4.912227607419073,
+              "dBps": 3,
+              "dSpreadBps": 16,
+              "spreadFin": 443,
+              "spreadIni": 427
             }
           }
         ],
@@ -1157,6 +1827,45 @@
             "var": 0.13543425972113443
           }
         },
+        "ust": {
+          "fechaIni": "2026-09-14",
+          "fechaFin": "2026-09-15",
+          "desfasado": false,
+          "refs": [
+            {
+              "plazo": 2,
+              "ini": 4.65,
+              "fin": 4.67,
+              "dBps": 2
+            },
+            {
+              "plazo": 5,
+              "ini": 4.8,
+              "fin": 4.83,
+              "dBps": 3
+            },
+            {
+              "plazo": 10,
+              "ini": 4.97,
+              "fin": 5,
+              "dBps": 3
+            },
+            {
+              "plazo": 30,
+              "ini": 5.34,
+              "fin": 5.36,
+              "dBps": 2
+            }
+          ]
+        },
+        "riesgoPais": {
+          "fechaIni": "2026-09-14",
+          "fechaFin": "2026-09-15",
+          "ini": 490,
+          "fin": 506,
+          "desfasado": false,
+          "dBps": 16
+        },
         "implicitasIni": [
           {
             "tenor": 90,
@@ -1191,35 +1900,35 @@
             "tenor": 90,
             "tf": 27.58217611015319,
             "cer": 3.186520466065029,
-            "dlk": 4.296989044496824,
+            "dlk": 4.40937679948783,
             "infla": 23.642289258228423,
             "inflaMensual": 1.7842513083256462,
-            "deval": 22.32584783029745
+            "deval": 22.194174528181865
           },
           {
             "tenor": 180,
             "tf": 28.39074394650265,
             "cer": 4.587458699644011,
-            "dlk": 5.130982541919327,
+            "dlk": 5.19444506731066,
             "infla": 22.759215629492747,
             "inflaMensual": 1.7234720975991102,
-            "deval": 22.124554381776896
+            "deval": 22.050878127974727
           },
           {
             "tenor": 270,
             "tf": 28.409995275692612,
             "cer": 5.406955032114252,
-            "dlk": 5.632583290826676,
+            "dlk": 5.667927696462871,
             "infla": 21.82307632031495,
             "inflaMensual": 1.6586013351865159,
-            "deval": 21.562865618987438
+            "deval": 21.52220458468499
           }
         ],
-        "habiles": 2,
+        "habiles": 1,
         "volumen": {
-          "total": 2312785374063.3403,
-          "ruedas": 2,
-          "habiles": 2,
+          "total": 1120333213338.2402,
+          "ruedas": 1,
+          "habiles": 1,
           "truncado": false,
           "sinColumna": false,
           "parcial": false
@@ -1229,10 +1938,19 @@
     "semana": {
       "ini": "2026-09-08",
       "fin": "2026-09-15",
-      "ruedas": 7,
-      "titular": "Semana de compresión en pesos y de venta en la deuda en dólares",
-      "movimiento": "En las seis ruedas de la semana la curva de pesos comprimió de punta a punta. Tasa fija bajó 49 puntos básicos y quedó en 25,36% de TNA, CER cedió 27 hasta 6,70% de tasa real y TAMAR 19 hasta 7,05% de margen. Dollar linked apenas se movió, 3 puntos básicos abajo.\n\nLa deuda en dólares fue para el otro lado y con más fuerza: Globales sumaron 48 puntos básicos de TIR hasta 9,35%, Bonares 40 hasta 9,36% y Bopreales 16 hasta 2,49%. Las tres curvas empinaron.\n\nEl oficial cerró la semana 0,23% abajo mientras el MEP subió 0,30%, así que la brecha se amplió 0,54 pp. El canje se comprimió 0,25 pp.",
-      "contexto": "El marco de la semana fue la suba de las tasas largas en Estados Unidos, con el bono del Tesoro a diez años en 5,04%, máximo desde 2007, en la antesala de la reunión de la Reserva Federal del 16 de septiembre. El riesgo país argentino cerró en torno a 504 puntos.",
+      "ruedas": 5,
+      "titular": "Semana de compresión en pesos y de suba de tasas en dólares, con los Treasuries marcando el ritmo",
+      "pesos": {
+        "resumen": "En las cinco ruedas de la semana la curva de pesos comprimió en tasa fija, CER y TAMAR, mientras dollar linked quedó prácticamente sin cambios en el nivel. Se operaron 1,9 B en tasa fija y 1,1 B en CER.",
+        "TF": "Tasa fija bajó 49 puntos básicos en el nivel de 102 días, hasta 25,36% de TNA, sin cambio de forma. El corto comprimió 92 puntos básicos y el medio 31 puntos básicos, y ningún papel subió de tasa. T15E7 y S30S6 lideraron con bajas de 134 puntos básicos y 130 puntos básicos.",
+        "CER": "CER comprimió 27 puntos básicos de tasa real hasta 6,70% y empinó: el corto bajó 76 puntos básicos y el medio 60 puntos básicos, contra 11 puntos básicos en el largo. TX31 fue la excepción, con una suba de 35 puntos básicos.",
+        "TAMAR": "TAMAR recortó 19 puntos básicos de margen hasta 7,05% y la curva empinó, con el corto 41 puntos básicos abajo y el largo 13 puntos básicos abajo. TMG27 cayó 94 puntos básicos.",
+        "DLK": "Dollar linked terminó la semana con el nivel casi igual, 1 punto básico arriba hasta 6,12% de TNA en dólares, pero con movimientos cruzados por tramo: el medio subió 108 puntos básicos y el corto y el largo bajaron. D30S6 concentró 743,2 MM."
+      },
+      "dolares": {
+        "resumen": "La semana fue de suba de tasas en dólares, con buena parte del movimiento correspondiente a los Treasuries: el 2 años subió 28 puntos básicos y el 10 años 20 puntos básicos, hasta 5,00%. Globales sumaron 48 puntos básicos de TIR hasta 9,35%, de los que 26 puntos básicos corresponden a los Treasuries y 22 puntos básicos al spread. Bonares subieron 40 puntos básicos, con 33 puntos básicos de Treasuries y 7 puntos básicos de spread. El riesgo país avanzó 12 puntos básicos, hasta 506 puntos básicos. Bopreales, que rinden por debajo del Treasury de su plazo, sumaron 16 puntos básicos."
+      },
+      "contexto": "La semana estuvo marcada por la suba de las tasas del Tesoro de Estados Unidos, con el 10 años llegando a máximos desde 2007 en la antesala de la reunión de la Reserva Federal del 16 de septiembre. En lo local, el INDEC publicó la inflación de agosto, que marcó 1,7% mensual.",
       "ficha": {
         "periodo": "semana",
         "label": "Semana",
@@ -1240,7 +1958,7 @@
         "fin": "2026-09-15",
         "enVivo": false,
         "dias": 7,
-        "generado": "2026-09-16T02:01:18.439Z",
+        "generado": "2026-09-16T14:37:48.234Z",
         "bloques": [
           {
             "sector": "TF",
@@ -1253,6 +1971,11 @@
               "S15S6"
             ],
             "tenor": 101.5,
+            "rangoComun": [
+              21,
+              287
+            ],
+            "sinComparacion": null,
             "nivelIni": 25.85525577504812,
             "nivelFin": 25.36405066233986,
             "dNivelBps": -49.12051127082613,
@@ -1346,17 +2069,89 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 6,
-              "total": 2302574848010.74,
-              "prom": 383762474668.4567,
-              "ruedas": 6,
+              "habiles": 5,
+              "total": 1913525831233.19,
+              "prom": 382705166246.638,
+              "ruedas": 5,
               "top": {
                 "ticker": "S30N6",
-                "monto": 511254500757.98
+                "monto": 430453805660.45996
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "S13N6",
+                "xi": 65,
+                "yi": 24.981673,
+                "xf": 58,
+                "yf": 24.17468
+              },
+              {
+                "ticker": "S16O6",
+                "xi": 37,
+                "yi": 23.409108,
+                "xf": 30,
+                "yf": 23.024486
+              },
+              {
+                "ticker": "S29E7",
+                "xi": 142,
+                "yi": 26.311866,
+                "xf": 135,
+                "yf": 25.58463
+              },
+              {
+                "ticker": "S30N6",
+                "xi": 82,
+                "yi": 25.348396,
+                "xf": 75,
+                "yf": 24.428663
+              },
+              {
+                "ticker": "S30O6",
+                "xi": 51,
+                "yi": 23.41266,
+                "xf": 44,
+                "yf": 22.344452
+              },
+              {
+                "ticker": "S30S6",
+                "xi": 21,
+                "yi": 23.343239,
+                "xf": 14,
+                "yf": 22.047769
+              },
+              {
+                "ticker": "T15E7",
+                "xi": 128,
+                "yi": 26.299668,
+                "xf": 121,
+                "yf": 24.964617
+              },
+              {
+                "ticker": "T30A7",
+                "xi": 233,
+                "yi": 27.630573,
+                "xf": 226,
+                "yf": 27.313247
+              },
+              {
+                "ticker": "T30J7",
+                "xi": 294,
+                "yi": 28.325559,
+                "xf": 287,
+                "yf": 28.099794
+              },
+              {
+                "ticker": "T31Y7",
+                "xi": 264,
+                "yi": 28.380222,
+                "xf": 257,
+                "yf": 28.071112
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -1378,7 +2173,8 @@
                 "xMin": 14,
                 "xMax": 287
               }
-            }
+            },
+            "grafico": "nivel -49 bps"
           },
           {
             "sector": "CER",
@@ -1389,6 +2185,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 512,
+            "rangoComun": [
+              21,
+              2663
+            ],
+            "sinComparacion": null,
             "nivelIni": 6.969818386259454,
             "nivelFin": 6.700279358849527,
             "dNivelBps": -26.953902740992675,
@@ -1509,17 +2310,201 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 6,
-              "total": 1210774397511.23,
-              "prom": 201795732918.53833,
-              "ruedas": 6,
+              "habiles": 5,
+              "total": 1063525650327.1699,
+              "prom": 212705130065.434,
+              "ruedas": 5,
               "top": {
                 "ticker": "TZXS7",
-                "monto": 131972806822.14
+                "monto": 112984547942.81001
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "DICP",
+                "xi": 2670,
+                "yi": 9.702297,
+                "xf": 2663,
+                "yf": 9.888884
+              },
+              {
+                "ticker": "TX26",
+                "xi": 61,
+                "yi": 3.529917,
+                "xf": 54,
+                "yf": 2.748768
+              },
+              {
+                "ticker": "TX28",
+                "xi": 792,
+                "yi": 8.361621,
+                "xf": 785,
+                "yf": 8.381321
+              },
+              {
+                "ticker": "TX31",
+                "xi": 1908,
+                "yi": 9.997165,
+                "xf": 1901,
+                "yf": 10.35064
+              },
+              {
+                "ticker": "TXMD8",
+                "xi": 828,
+                "yi": 5.817022,
+                "xf": 821,
+                "yf": 5.648242
+              },
+              {
+                "ticker": "TXMD9",
+                "xi": 1192,
+                "yi": 6.702947,
+                "xf": 1185,
+                "yf": 6.556016
+              },
+              {
+                "ticker": "TXMJ0",
+                "xi": 1388,
+                "yi": 6.786023,
+                "xf": 1381,
+                "yf": 6.635546
+              },
+              {
+                "ticker": "TXMJ8",
+                "xi": 660,
+                "yi": 5.299395,
+                "xf": 653,
+                "yf": 5.1924
+              },
+              {
+                "ticker": "TXMJ9",
+                "xi": 1024,
+                "yi": 6.778829,
+                "xf": 1017,
+                "yf": 6.656023
+              },
+              {
+                "ticker": "TZX27",
+                "xi": 294,
+                "yi": 5.196237,
+                "xf": 287,
+                "yf": 4.814274
+              },
+              {
+                "ticker": "TZX28",
+                "xi": 660,
+                "yi": 9.272955,
+                "xf": 653,
+                "yf": 9.240298
+              },
+              {
+                "ticker": "TZXA7",
+                "xi": 233,
+                "yi": 5.355062,
+                "xf": 226,
+                "yf": 4.199368
+              },
+              {
+                "ticker": "TZXD6",
+                "xi": 97,
+                "yi": 4.225047,
+                "xf": 90,
+                "yf": 3.483784
+              },
+              {
+                "ticker": "TZXD7",
+                "xi": 462,
+                "yi": 7.955967,
+                "xf": 455,
+                "yf": 7.62091
+              },
+              {
+                "ticker": "TZXD8",
+                "xi": 828,
+                "yi": 9.692701,
+                "xf": 821,
+                "yf": 9.189126
+              },
+              {
+                "ticker": "TZXM7",
+                "xi": 203,
+                "yi": 4.95098,
+                "xf": 196,
+                "yf": 4.352051
+              },
+              {
+                "ticker": "TZXM8",
+                "xi": 569,
+                "yi": 8.853607,
+                "xf": 562,
+                "yf": 8.598288
+              },
+              {
+                "ticker": "TZXM9",
+                "xi": 931,
+                "yi": 9.684473,
+                "xf": 924,
+                "yf": 9.572993
+              },
+              {
+                "ticker": "TZXO6",
+                "xi": 51,
+                "yi": 2.099323,
+                "xf": 44,
+                "yf": 1.6535
+              },
+              {
+                "ticker": "TZXO7",
+                "xi": 415,
+                "yi": 6.982896,
+                "xf": 408,
+                "yf": 6.090979
+              },
+              {
+                "ticker": "TZXS7",
+                "xi": 386,
+                "yi": 6.794612,
+                "xf": 379,
+                "yf": 5.977603
+              },
+              {
+                "ticker": "TZXS8",
+                "xi": 751,
+                "yi": 9.316448,
+                "xf": 744,
+                "yf": 9.295769
+              },
+              {
+                "ticker": "TZXY7",
+                "xi": 264,
+                "yi": 5.30921,
+                "xf": 257,
+                "yf": 4.746797
+              },
+              {
+                "ticker": "X29E7",
+                "xi": 142,
+                "yi": 4.811781,
+                "xf": 135,
+                "yf": 3.77425
+              },
+              {
+                "ticker": "X30N6",
+                "xi": 82,
+                "yi": 4.412137,
+                "xf": 75,
+                "yf": 3.286548
+              },
+              {
+                "ticker": "X30S6",
+                "xi": 21,
+                "yi": -0.976767,
+                "xf": 14,
+                "yf": -1.115002
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -1541,7 +2526,8 @@
                 "xMin": 14,
                 "xMax": 2663
               }
-            }
+            },
+            "grafico": "nivel -27 bps"
           },
           {
             "sector": "TAMAR",
@@ -1554,6 +2540,11 @@
               "TTS26"
             ],
             "tenor": 593.5,
+            "rangoComun": [
+              97,
+              1381
+            ],
+            "sinComparacion": null,
             "nivelIni": 7.236333832248615,
             "nivelFin": 7.048568318864774,
             "dNivelBps": -18.776551338384095,
@@ -1660,17 +2651,103 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 6,
-              "total": 748047855227.72,
-              "prom": 124674642537.95332,
-              "ruedas": 6,
+              "habiles": 5,
+              "total": 569024006805.94,
+              "prom": 113804801361.18799,
+              "ruedas": 5,
               "top": {
                 "ticker": "TMVE8",
-                "monto": 186105652521.5
+                "monto": 142739350521.5
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "TMF27",
+                "xi": 170,
+                "yi": 2.504914,
+                "xf": 163,
+                "yf": 2.073199
+              },
+              {
+                "ticker": "TMF28",
+                "xi": 534,
+                "yi": 8.517863,
+                "xf": 527,
+                "yf": 7.950431
+              },
+              {
+                "ticker": "TMG27",
+                "xi": 356,
+                "yi": 4.115898,
+                "xf": 349,
+                "yf": 3.17583
+              },
+              {
+                "ticker": "TMG28",
+                "xi": 722,
+                "yi": 8.900925,
+                "xf": 715,
+                "yf": 8.739553
+              },
+              {
+                "ticker": "TML27",
+                "xi": 324,
+                "yi": 3.414708,
+                "xf": 317,
+                "yf": 3.214734
+              },
+              {
+                "ticker": "TMVE8",
+                "xi": 509,
+                "yi": 6.8708,
+                "xf": 502,
+                "yf": 6.890273
+              },
+              {
+                "ticker": "TTD26",
+                "xi": 97,
+                "yi": 0.643677,
+                "xf": 90,
+                "yf": 0.262173
+              },
+              {
+                "ticker": "TXMD8",
+                "xi": 828,
+                "yi": 8.81486,
+                "xf": 821,
+                "yf": 8.670394
+              },
+              {
+                "ticker": "TXMD9",
+                "xi": 1192,
+                "yi": 9.664959,
+                "xf": 1185,
+                "yf": 9.535927
+              },
+              {
+                "ticker": "TXMJ0",
+                "xi": 1388,
+                "yi": 9.756644,
+                "xf": 1381,
+                "yf": 9.622063
+              },
+              {
+                "ticker": "TXMJ8",
+                "xi": 660,
+                "yi": 7.827708,
+                "xf": 653,
+                "yf": 7.743072
+              },
+              {
+                "ticker": "TXMJ9",
+                "xi": 1024,
+                "yi": 9.241221,
+                "xf": 1017,
+                "yf": 9.134017
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -1692,7 +2769,8 @@
                 "xMin": 90,
                 "xMax": 1381
               }
-            }
+            },
+            "grafico": "nivel -19 bps"
           },
           {
             "sector": "DLK",
@@ -1705,52 +2783,57 @@
             ],
             "salieron": [],
             "tenor": 245,
+            "rangoComun": [
+              21,
+              821
+            ],
+            "sinComparacion": null,
             "nivelIni": 6.105343387874596,
-            "nivelFin": 6.071180929473837,
-            "dNivelBps": -3.4162458400759377,
+            "nivelFin": 6.115372345529209,
+            "dNivelBps": 1.0028957654612647,
             "pendIni": 1.3717437877147778,
-            "pendFin": 1.300440167768947,
+            "pendFin": 1.2331463579010609,
             "dPend": null,
             "forma": null,
             "r2Ini": 0.25680166601078613,
-            "r2Fin": 0.3275481893559701,
+            "r2Fin": 0.2996512010550558,
             "r2ok": false,
             "tramos": [
               {
                 "l": "corto",
                 "n": 3,
-                "bps": -59.362300000000005
+                "bps": -55.669799999999995
               },
               {
                 "l": "medio",
                 "n": 3,
-                "bps": 106.38719999999999
+                "bps": 107.96569999999997
               },
               {
                 "l": "largo",
                 "n": 2,
-                "bps": -59.178050000000056
+                "bps": -58.53469999999996
               }
             ],
             "movers": {
               "suben": [
                 {
                   "ticker": "D31M7",
-                  "bps": 113.34780000000002,
+                  "bps": 115.67730000000003,
                   "x": 196,
                   "dias": 196,
                   "monto": 7274360867.7
                 },
                 {
                   "ticker": "TZV27",
-                  "bps": 106.38719999999999,
+                  "bps": 107.96569999999997,
                   "x": 287,
                   "dias": 287,
                   "monto": 1191163718.8
                 },
                 {
                   "ticker": "D30O6",
-                  "bps": 48.48929999999996,
+                  "bps": 58.658599999999964,
                   "x": 44,
                   "dias": 44,
                   "monto": 37898564627
@@ -1759,21 +2842,21 @@
               "bajan": [
                 {
                   "ticker": "D30S6",
-                  "bps": -144.5996,
+                  "bps": -112.77309999999999,
                   "x": 14,
                   "dias": 14,
                   "monto": 111015251328
                 },
                 {
                   "ticker": "TZV28",
-                  "bps": -73.41689999999997,
+                  "bps": -72.70109999999991,
                   "x": 653,
                   "dias": 653,
                   "monto": 1644698128.8
                 },
                 {
                   "ticker": "D15E7",
-                  "bps": -59.362300000000005,
+                  "bps": -55.669799999999995,
                   "x": 121,
                   "dias": 121,
                   "monto": 20149656.6
@@ -1784,19 +2867,19 @@
               "baratos": [
                 {
                   "ticker": "TZVD8",
-                  "bps": 308.13664225135335,
+                  "bps": 312.42600486451664,
                   "x": 821,
                   "monto": 632482932
                 },
                 {
                   "ticker": "TZV28",
-                  "bps": 283.89429713836336,
+                  "bps": 286.78789502552854,
                   "x": 653,
                   "monto": 1644698128.8
                 },
                 {
                   "ticker": "D30S6",
-                  "bps": 198.46220643105096,
+                  "bps": 206.60872463701742,
                   "x": 14,
                   "monto": 111015251328
                 }
@@ -1804,19 +2887,19 @@
               "ricos": [
                 {
                   "ticker": "D15E7",
-                  "bps": -382.640144091331,
+                  "bps": -388.1141463881634,
                   "x": 121,
                   "monto": 20149656.6
                 },
                 {
                   "ticker": "TZV27",
-                  "bps": -259.5378781360568,
+                  "bps": -261.3137701292474,
                   "x": 287,
                   "monto": 1191163718.8
                 },
                 {
                   "ticker": "TMVE8",
-                  "bps": -202.13121621526594,
+                  "bps": -200.81489081636272,
                   "x": 502,
                   "monto": 32386969769.7
                 }
@@ -1825,17 +2908,75 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 6,
-              "total": 1724853207362.5002,
-              "prom": 287475534560.4167,
-              "ruedas": 6,
+              "habiles": 5,
+              "total": 1542477389116.0002,
+              "prom": 308495477823.2001,
+              "ruedas": 5,
               "top": {
                 "ticker": "D30S6",
-                "monto": 875675874249
+                "monto": 743152871313.9
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "D15E7",
+                "xi": 128,
+                "yi": 1.920984,
+                "xf": 121,
+                "yf": 1.364286
+              },
+              {
+                "ticker": "D30O6",
+                "xi": 51,
+                "yi": 4.389247,
+                "xf": 44,
+                "yf": 4.975833
+              },
+              {
+                "ticker": "D30S6",
+                "xi": 21,
+                "yi": 5.779678,
+                "xf": 14,
+                "yf": 4.651947
+              },
+              {
+                "ticker": "D31M7",
+                "xi": 203,
+                "yi": 4.149775,
+                "xf": 196,
+                "yf": 5.306548
+              },
+              {
+                "ticker": "TMVE8",
+                "xi": 509,
+                "yi": 5.503236,
+                "xf": 502,
+                "yf": 4.991811
+              },
+              {
+                "ticker": "TZV27",
+                "xi": 294,
+                "yi": 2.617691,
+                "xf": 287,
+                "yf": 3.697348
+              },
+              {
+                "ticker": "TZV28",
+                "xi": 660,
+                "yi": 10.919139,
+                "xf": 653,
+                "yf": 10.192128
+              },
+              {
+                "ticker": "TZVD8",
+                "xi": 828,
+                "yi": 11.174516,
+                "xf": 821,
+                "yf": 10.730833
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -1849,15 +2990,16 @@
               },
               "fin": {
                 "reg": {
-                  "a": -1.082876220787246,
-                  "b": 1.300440167768947
+                  "a": -0.6684841806773294,
+                  "b": 1.2331463579010609
                 },
                 "n": 8,
-                "r2": 0.3275481893559701,
+                "r2": 0.2996512010550558,
                 "xMin": 14,
                 "xMax": 821
               }
-            }
+            },
+            "grafico": null
           },
           {
             "sector": "BOP",
@@ -1867,10 +3009,15 @@
             "n": 6,
             "entraron": [],
             "salieron": [],
-            "tenor": 0.85,
-            "nivelIni": 2.3262386091286387,
-            "nivelFin": 2.4864736711705797,
-            "dNivelBps": 16.023506204194106,
+            "tenor": 0.86,
+            "rangoComun": [
+              0.86,
+              1.98
+            ],
+            "sinComparacion": null,
+            "nivelIni": 2.39061075,
+            "nivelFin": 2.5550141394518584,
+            "dNivelBps": 16.44033894518584,
             "pendIni": 5.503755303051189,
             "pendFin": 5.860143233864785,
             "dPend": 0.35638793081359577,
@@ -1964,17 +3111,61 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 6,
-              "total": 27537488081.069996,
-              "prom": 4589581346.844999,
-              "ruedas": 6,
+              "habiles": 5,
+              "total": 23255150457.579998,
+              "prom": 4651030091.516,
+              "ruedas": 5,
               "top": {
                 "ticker": "BPOC7",
-                "monto": 11047178922.509998
+                "monto": 9266063152.95
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "BPOA7",
+                "xi": 0.86,
+                "yi": 2.489658,
+                "xf": 0.84,
+                "yf": 2.027211
+              },
+              {
+                "ticker": "BPOA8",
+                "xi": 2,
+                "yi": 6.994047,
+                "xf": 1.98,
+                "yf": 7.229919
+              },
+              {
+                "ticker": "BPOB7",
+                "xi": 0.86,
+                "yi": 2.376435,
+                "xf": 0.84,
+                "yf": 2.720769
+              },
+              {
+                "ticker": "BPOB8",
+                "xi": 2,
+                "yi": 7.077184,
+                "xf": 1.97,
+                "yf": 7.625475
+              },
+              {
+                "ticker": "BPOC7",
+                "xi": 0.86,
+                "yi": 2.319915,
+                "xf": 0.84,
+                "yf": 2.430679
+              },
+              {
+                "ticker": "BPOD7",
+                "xi": 0.86,
+                "yi": 2.376435,
+                "xf": 0.84,
+                "yf": 2.48857
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -1996,6 +3187,16 @@
                 "xMin": 0.84,
                 "xMax": 1.98
               }
+            },
+            "grafico": "nivel +16 bps",
+            "ust": {
+              "plazo": 0.8859346086237584,
+              "ini": 4.157710276162541,
+              "fin": 4.386896131526674,
+              "dBps": 23,
+              "dSpreadBps": -7,
+              "spreadFin": -183,
+              "spreadIni": -176
             }
           },
           {
@@ -2007,6 +3208,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 2.745,
+            "rangoComun": [
+              1.1,
+              5.55
+            ],
+            "sinComparacion": null,
             "nivelIni": 8.959002981286407,
             "nivelFin": 9.357601810735495,
             "dNivelBps": 39.859882944908875,
@@ -2100,17 +3306,82 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 6,
-              "total": 743205265103.48,
-              "prom": 123867544183.91333,
-              "ruedas": 6,
+              "habiles": 5,
+              "total": 605506736107.9001,
+              "prom": 121101347221.58003,
+              "ruedas": 5,
               "top": {
                 "ticker": "AL30",
-                "monto": 554058756896.8
+                "monto": 458879687611.6
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "AE38",
+                "xi": 4.39,
+                "yi": 10.418765,
+                "xf": 4.32,
+                "yf": 10.955293
+              },
+              {
+                "ticker": "AL29",
+                "xi": 1.47,
+                "yi": 7.705262,
+                "xf": 1.45,
+                "yf": 7.859925
+              },
+              {
+                "ticker": "AL30",
+                "xi": 1.89,
+                "yi": 8.477931,
+                "xf": 1.87,
+                "yf": 8.844707
+              },
+              {
+                "ticker": "AL35",
+                "xi": 5.18,
+                "yi": 10.18635,
+                "xf": 5.13,
+                "yf": 10.696238
+              },
+              {
+                "ticker": "AL41",
+                "xi": 5.61,
+                "yi": 10.241324,
+                "xf": 5.55,
+                "yf": 10.572267
+              },
+              {
+                "ticker": "AN29",
+                "xi": 2.76,
+                "yi": 9.999921,
+                "xf": 2.73,
+                "yf": 10.343296
+              },
+              {
+                "ticker": "AO27",
+                "xi": 1.1,
+                "yi": 3.611224,
+                "xf": 1.08,
+                "yf": 4.097349
+              },
+              {
+                "ticker": "AO28",
+                "xi": 2,
+                "yi": 8.939342,
+                "xf": 1.98,
+                "yf": 9.156136
+              },
+              {
+                "ticker": "AO29",
+                "xi": 2.83,
+                "yi": 9.862863,
+                "xf": 2.81,
+                "yf": 10.12588
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -2132,6 +3403,16 @@
                 "xMin": 1.08,
                 "xMax": 5.55
               }
+            },
+            "grafico": "nivel +40 bps",
+            "ust": {
+              "plazo": 2.9764211864755556,
+              "ini": 4.487214754096214,
+              "fin": 4.814471412222443,
+              "dBps": 33,
+              "dSpreadBps": 7,
+              "spreadFin": 454,
+              "spreadIni": 447
             }
           },
           {
@@ -2143,6 +3424,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 4.859999999999999,
+            "rangoComun": [
+              1.5,
+              6.09
+            ],
+            "sinComparacion": null,
             "nivelIni": 8.873146991756181,
             "nivelFin": 9.353582539287554,
             "dNivelBps": 48.04355475313731,
@@ -2249,17 +3535,61 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 6,
-              "total": 44971489190.590004,
-              "prom": 7495248198.431667,
-              "ruedas": 6,
+              "habiles": 5,
+              "total": 37408951648.67,
+              "prom": 7481790329.733999,
+              "ruedas": 5,
               "top": {
                 "ticker": "GD35",
-                "monto": 21851055042.8
+                "monto": 17529184175.96
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "GD29",
+                "xi": 1.5,
+                "yi": 5.587711,
+                "xf": 1.48,
+                "yf": 5.524056
+              },
+              {
+                "ticker": "GD30",
+                "xi": 1.94,
+                "yi": 6.2141,
+                "xf": 1.91,
+                "yf": 6.572504
+              },
+              {
+                "ticker": "GD35",
+                "xi": 5.24,
+                "yi": 9.268195,
+                "xf": 5.19,
+                "yf": 9.663701
+              },
+              {
+                "ticker": "GD38",
+                "xi": 4.54,
+                "yi": 8.999736,
+                "xf": 4.47,
+                "yf": 9.490219
+              },
+              {
+                "ticker": "GD41",
+                "xi": 5.75,
+                "yi": 9.328901,
+                "xf": 5.67,
+                "yf": 9.738631
+              },
+              {
+                "ticker": "GD46",
+                "xi": 6.24,
+                "yi": 9.191281,
+                "xf": 6.09,
+                "yf": 9.712311
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -2281,6 +3611,16 @@
                 "xMin": 1.48,
                 "xMax": 6.09
               }
+            },
+            "grafico": "nivel +48 bps",
+            "ust": {
+              "plazo": 5.610177764541319,
+              "ini": 4.653942549070278,
+              "fin": 4.913320281569811,
+              "dBps": 26,
+              "dSpreadBps": 22,
+              "spreadFin": 444,
+              "spreadIni": 422
             }
           }
         ],
@@ -2326,6 +3666,45 @@
             "var": 0.5372982295083428
           }
         },
+        "ust": {
+          "fechaIni": "2026-09-08",
+          "fechaFin": "2026-09-15",
+          "desfasado": false,
+          "refs": [
+            {
+              "plazo": 2,
+              "ini": 4.39,
+              "fin": 4.67,
+              "dBps": 28
+            },
+            {
+              "plazo": 5,
+              "ini": 4.57,
+              "fin": 4.83,
+              "dBps": 26
+            },
+            {
+              "plazo": 10,
+              "ini": 4.8,
+              "fin": 5,
+              "dBps": 20
+            },
+            {
+              "plazo": 30,
+              "ini": 5.25,
+              "fin": 5.36,
+              "dBps": 11
+            }
+          ]
+        },
+        "riesgoPais": {
+          "fechaIni": "2026-09-08",
+          "fechaFin": "2026-09-15",
+          "ini": 494,
+          "fin": 506,
+          "desfasado": false,
+          "dBps": 12
+        },
         "implicitasIni": [
           {
             "tenor": 90,
@@ -2360,35 +3739,35 @@
             "tenor": 90,
             "tf": 27.58217611015319,
             "cer": 3.186520466065029,
-            "dlk": 4.855221327853587,
+            "dlk": 4.970909875402851,
             "infla": 23.642289258228423,
             "inflaMensual": 1.7842513083256462,
-            "deval": 21.67460474976124
+            "deval": 21.54050704294095
           },
           {
             "tenor": 180,
             "tf": 28.39074394650265,
             "cer": 4.587458699644011,
-            "dlk": 5.751754936206677,
+            "dlk": 5.818570838972437,
             "infla": 22.759215629492747,
             "inflaMensual": 1.7234720975991102,
-            "deval": 21.40767216955657
+            "deval": 21.33101300515485
           },
           {
             "tenor": 270,
             "tf": 28.409995275692612,
             "cer": 5.406955032114252,
-            "dlk": 6.293560219680416,
+            "dlk": 6.332383437311195,
             "infla": 21.82307632031495,
             "inflaMensual": 1.6586013351865159,
-            "deval": 20.806937890031563
+            "deval": 20.762829840447793
           }
         ],
-        "habiles": 6,
+        "habiles": 5,
         "volumen": {
-          "total": 6402822386905.92,
-          "ruedas": 6,
-          "habiles": 6,
+          "total": 5444713199422.75,
+          "ruedas": 5,
+          "habiles": 5,
           "truncado": false,
           "sinColumna": false,
           "parcial": false
@@ -2398,10 +3777,19 @@
     "mes": {
       "ini": "2026-08-14",
       "fin": "2026-09-15",
-      "ruedas": 32,
-      "titular": "El mes dejó la curva de pesos más baja y la de dólares más alta",
-      "movimiento": "En las 22 ruedas del mes tasa fija comprimió 77 puntos básicos, hasta 25,14% de TNA en el nivel de 90 días, y TAMAR 20 hasta 7,12% de margen. CER fue en sentido contrario, 13 puntos básicos arriba hasta 6,74% de tasa real, y dollar linked 29 arriba hasta 5,46%.\n\nLa deuda en dólares perdió precio en todos los tramos. Bonares sumaron 71 puntos básicos de TIR hasta 9,40% y Globales 70 hasta 9,38%. Bopreales fueron la excepción, con 80 puntos básicos de compresión hasta 2,66%.\n\nEl tipo de cambio acompañó: el oficial subió 1,21%, el MEP 1,17% y el cable 1,47%, con la brecha casi sin cambios y el canje 0,32 pp arriba.",
-      "contexto": "El mes cerró con el dato de inflación de agosto del INDEC en 1,7% mensual, por debajo de julio, y con 33,5% interanual. Sobre el final del período las tasas largas de Estados Unidos treparon hasta 5,04% en el bono a diez años, el nivel más alto desde 2007, con la Reserva Federal reuniéndose el 16 de septiembre.",
+      "ruedas": 21,
+      "titular": "Un mes de tasa fija más baja y de venta en la deuda en dólares",
+      "pesos": {
+        "resumen": "En el mes, tasa fija y TAMAR comprimieron mientras CER y dollar linked subieron de tasa. Tasa fija fue el sector de pesos más operado, con 7,8 B.",
+        "TF": "Tasa fija bajó 77 puntos básicos en el nivel de 90 días, hasta 25,14% de TNA, y empinó: el corto comprimió 199 puntos básicos contra 45 puntos básicos del medio. S30S6 lideró con 351 puntos básicos de baja.",
+        "CER": "CER subió 13 puntos básicos de tasa real hasta 6,74% y aplanó: el medio comprimió 69 puntos básicos mientras el largo sumó 25 puntos básicos. TX31 subió 106 puntos básicos.",
+        "TAMAR": "TAMAR recortó 20 puntos básicos de margen hasta 7,12% y empinó, con el tramo corto 153 puntos básicos abajo. TTD26 cayó 169 puntos básicos.",
+        "DLK": "Dollar linked subió 33 puntos básicos hasta 5,50% de TNA en dólares, con el medio y el largo arriba y el corto 86 puntos básicos abajo. D30S6 bajó 490 puntos básicos y fue el más operado, con 3,3 B."
+      },
+      "dolares": {
+        "resumen": "La deuda en dólares perdió precio en el mes, con la mayor parte del movimiento correspondiente a los Treasuries: el 2 años subió 50 puntos básicos y el 10 años 32 puntos básicos, hasta 5,00%. Bonares sumaron 71 puntos básicos de TIR hasta 9,40%, de los que 53 puntos básicos corresponden a los Treasuries y 18 puntos básicos al spread; Globales subieron 70 puntos básicos, con 46 puntos básicos de Treasuries y 24 puntos básicos de spread. El riesgo país subió de 480 puntos básicos a 506 puntos básicos. Bopreales fueron la excepción y comprimieron 74 puntos básicos."
+      },
+      "contexto": "Durante el mes se conoció el dato de inflación de agosto del INDEC, 1,7% mensual y 33,5% interanual, por debajo del de julio. Sobre el final, las tasas largas de Estados Unidos treparon a máximos desde 2007, con la Reserva Federal reuniéndose el 16 de septiembre.",
       "ficha": {
         "periodo": "mes",
         "label": "Mes",
@@ -2409,7 +3797,7 @@
         "fin": "2026-09-15",
         "enVivo": false,
         "dias": 32,
-        "generado": "2026-09-16T02:01:20.020Z",
+        "generado": "2026-09-16T14:37:49.768Z",
         "bloques": [
           {
             "sector": "TF",
@@ -2425,6 +3813,11 @@
               "S31G6"
             ],
             "tenor": 89.5,
+            "rangoComun": [
+              43,
+              287
+            ],
+            "sinComparacion": null,
             "nivelIni": 25.90507601439753,
             "nivelFin": 25.1391885948039,
             "dNivelBps": -76.58874195936285,
@@ -2526,17 +3919,82 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 22,
-              "total": 8037519144972.278,
-              "prom": 365341779316.92175,
-              "ruedas": 22,
+              "habiles": 21,
+              "total": 7785513088769.068,
+              "prom": 370738718512.8128,
+              "ruedas": 21,
               "top": {
                 "ticker": "S30N6",
-                "monto": 1607303984669.8303
+                "monto": 1592360128990.34
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "S13N6",
+                "xi": 87,
+                "yi": 26.140524,
+                "xf": 58,
+                "yf": 24.17468
+              },
+              {
+                "ticker": "S16O6",
+                "xi": 59,
+                "yi": 25.039567,
+                "xf": 30,
+                "yf": 23.024486
+              },
+              {
+                "ticker": "S30N6",
+                "xi": 104,
+                "yi": 25.640319,
+                "xf": 75,
+                "yf": 24.428663
+              },
+              {
+                "ticker": "S30O6",
+                "xi": 73,
+                "yi": 24.659673,
+                "xf": 44,
+                "yf": 22.344452
+              },
+              {
+                "ticker": "S30S6",
+                "xi": 43,
+                "yi": 25.559046,
+                "xf": 14,
+                "yf": 22.047769
+              },
+              {
+                "ticker": "T15E7",
+                "xi": 150,
+                "yi": 26.466517,
+                "xf": 121,
+                "yf": 24.964617
+              },
+              {
+                "ticker": "T30A7",
+                "xi": 255,
+                "yi": 28.191696,
+                "xf": 226,
+                "yf": 27.313247
+              },
+              {
+                "ticker": "T30J7",
+                "xi": 316,
+                "yi": 27.717564,
+                "xf": 287,
+                "yf": 28.099794
+              },
+              {
+                "ticker": "T31Y7",
+                "xi": 286,
+                "yi": 28.519072,
+                "xf": 257,
+                "yf": 28.071112
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -2558,7 +4016,8 @@
                 "xMin": 14,
                 "xMax": 287
               }
-            }
+            },
+            "grafico": "nivel -77 bps"
           },
           {
             "sector": "CER",
@@ -2569,6 +4028,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 523,
+            "rangoComun": [
+              43,
+              2663
+            ],
+            "sinComparacion": null,
             "nivelIni": 6.612592977159626,
             "nivelFin": 6.743242122532243,
             "dNivelBps": 13.064914537261707,
@@ -2689,17 +4153,201 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 22,
-              "total": 4252495148235.409,
-              "prom": 193295234010.7004,
-              "ruedas": 22,
+              "habiles": 21,
+              "total": 4083389987001.6997,
+              "prom": 194447142238.17618,
+              "ruedas": 21,
               "top": {
                 "ticker": "TZXS7",
-                "monto": 420949046126.75
+                "monto": 400551469190.97
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "DICP",
+                "xi": 2692,
+                "yi": 9.257047,
+                "xf": 2663,
+                "yf": 9.888884
+              },
+              {
+                "ticker": "TX26",
+                "xi": 83,
+                "yi": 2.863188,
+                "xf": 54,
+                "yf": 2.748768
+              },
+              {
+                "ticker": "TX28",
+                "xi": 814,
+                "yi": 7.769709,
+                "xf": 785,
+                "yf": 8.381321
+              },
+              {
+                "ticker": "TX31",
+                "xi": 1930,
+                "yi": 9.295578,
+                "xf": 1901,
+                "yf": 10.35064
+              },
+              {
+                "ticker": "TXMD8",
+                "xi": 850,
+                "yi": 5.98362,
+                "xf": 821,
+                "yf": 5.648242
+              },
+              {
+                "ticker": "TXMD9",
+                "xi": 1214,
+                "yi": 6.82396,
+                "xf": 1185,
+                "yf": 6.556016
+              },
+              {
+                "ticker": "TXMJ0",
+                "xi": 1410,
+                "yi": 6.899405,
+                "xf": 1381,
+                "yf": 6.635546
+              },
+              {
+                "ticker": "TXMJ8",
+                "xi": 682,
+                "yi": 5.789612,
+                "xf": 653,
+                "yf": 5.1924
+              },
+              {
+                "ticker": "TXMJ9",
+                "xi": 1046,
+                "yi": 7.041361,
+                "xf": 1017,
+                "yf": 6.656023
+              },
+              {
+                "ticker": "TZX27",
+                "xi": 316,
+                "yi": 5.595319,
+                "xf": 287,
+                "yf": 4.814274
+              },
+              {
+                "ticker": "TZX28",
+                "xi": 682,
+                "yi": 8.989607,
+                "xf": 653,
+                "yf": 9.240298
+              },
+              {
+                "ticker": "TZXA7",
+                "xi": 255,
+                "yi": 5.454264,
+                "xf": 226,
+                "yf": 4.199368
+              },
+              {
+                "ticker": "TZXD6",
+                "xi": 119,
+                "yi": 3.587966,
+                "xf": 90,
+                "yf": 3.483784
+              },
+              {
+                "ticker": "TZXD7",
+                "xi": 484,
+                "yi": 7.702718,
+                "xf": 455,
+                "yf": 7.62091
+              },
+              {
+                "ticker": "TZXD8",
+                "xi": 850,
+                "yi": 8.694172,
+                "xf": 821,
+                "yf": 9.189126
+              },
+              {
+                "ticker": "TZXM7",
+                "xi": 225,
+                "yi": 4.91947,
+                "xf": 196,
+                "yf": 4.352051
+              },
+              {
+                "ticker": "TZXM8",
+                "xi": 591,
+                "yi": 8.376491,
+                "xf": 562,
+                "yf": 8.598288
+              },
+              {
+                "ticker": "TZXM9",
+                "xi": 953,
+                "yi": 8.976639,
+                "xf": 924,
+                "yf": 9.572993
+              },
+              {
+                "ticker": "TZXO6",
+                "xi": 73,
+                "yi": 1.446027,
+                "xf": 44,
+                "yf": 1.6535
+              },
+              {
+                "ticker": "TZXO7",
+                "xi": 437,
+                "yi": 7.171191,
+                "xf": 408,
+                "yf": 6.090979
+              },
+              {
+                "ticker": "TZXS7",
+                "xi": 408,
+                "yi": 6.591841,
+                "xf": 379,
+                "yf": 5.977603
+              },
+              {
+                "ticker": "TZXS8",
+                "xi": 773,
+                "yi": 8.963596,
+                "xf": 744,
+                "yf": 9.295769
+              },
+              {
+                "ticker": "TZXY7",
+                "xi": 286,
+                "yi": 5.441537,
+                "xf": 257,
+                "yf": 4.746797
+              },
+              {
+                "ticker": "X29E7",
+                "xi": 164,
+                "yi": 4.430005,
+                "xf": 135,
+                "yf": 3.77425
+              },
+              {
+                "ticker": "X30N6",
+                "xi": 104,
+                "yi": 3.287778,
+                "xf": 75,
+                "yf": 3.286548
+              },
+              {
+                "ticker": "X30S6",
+                "xi": 43,
+                "yi": -0.687353,
+                "xf": 14,
+                "yf": -1.115002
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -2721,7 +4369,8 @@
                 "xMin": 14,
                 "xMax": 2663
               }
-            }
+            },
+            "grafico": "aplanó"
           },
           {
             "sector": "TAMAR",
@@ -2735,6 +4384,11 @@
               "TTS26"
             ],
             "tenor": 604.5,
+            "rangoComun": [
+              119,
+              1381
+            ],
+            "sinComparacion": null,
             "nivelIni": 7.317547127544341,
             "nivelFin": 7.120162611215534,
             "dNivelBps": -19.738451632880682,
@@ -2841,17 +4495,103 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 22,
-              "total": 3988900838956.09,
-              "prom": 181313674498.0041,
-              "ruedas": 22,
+              "habiles": 21,
+              "total": 3792621531352.4194,
+              "prom": 180601025302.49615,
+              "ruedas": 21,
               "top": {
                 "ticker": "TMVE8",
-                "monto": 914928863517.6
+                "monto": 854782572573.0001
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "TMF27",
+                "xi": 192,
+                "yi": 3.441437,
+                "xf": 163,
+                "yf": 2.073199
+              },
+              {
+                "ticker": "TMF28",
+                "xi": 556,
+                "yi": 8.111287,
+                "xf": 527,
+                "yf": 7.950431
+              },
+              {
+                "ticker": "TMG27",
+                "xi": 378,
+                "yi": 2.918986,
+                "xf": 349,
+                "yf": 3.17583
+              },
+              {
+                "ticker": "TMG28",
+                "xi": 744,
+                "yi": 9.369094,
+                "xf": 715,
+                "yf": 8.739553
+              },
+              {
+                "ticker": "TML27",
+                "xi": 346,
+                "yi": 3.971691,
+                "xf": 317,
+                "yf": 3.214734
+              },
+              {
+                "ticker": "TMVE8",
+                "xi": 531,
+                "yi": 7.22778,
+                "xf": 502,
+                "yf": 6.890273
+              },
+              {
+                "ticker": "TTD26",
+                "xi": 119,
+                "yi": 1.956129,
+                "xf": 90,
+                "yf": 0.262173
+              },
+              {
+                "ticker": "TXMD8",
+                "xi": 850,
+                "yi": 8.907338,
+                "xf": 821,
+                "yf": 8.670394
+              },
+              {
+                "ticker": "TXMD9",
+                "xi": 1214,
+                "yi": 9.733258,
+                "xf": 1185,
+                "yf": 9.535927
+              },
+              {
+                "ticker": "TXMJ0",
+                "xi": 1410,
+                "yi": 9.824094,
+                "xf": 1381,
+                "yf": 9.622063
+              },
+              {
+                "ticker": "TXMJ8",
+                "xi": 682,
+                "yi": 8.234045,
+                "xf": 653,
+                "yf": 7.743072
+              },
+              {
+                "ticker": "TXMJ9",
+                "xi": 1046,
+                "yi": 9.448134,
+                "xf": 1017,
+                "yf": 9.134017
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -2873,7 +4613,8 @@
                 "xMin": 90,
                 "xMax": 1381
               }
-            }
+            },
+            "grafico": "empinó"
           },
           {
             "sector": "DLK",
@@ -2886,52 +4627,57 @@
               "D31G6"
             ],
             "tenor": 250.5,
+            "rangoComun": [
+              43,
+              821
+            ],
+            "sinComparacion": null,
             "nivelIni": 5.170508013065586,
-            "nivelFin": 5.464927433593452,
-            "dNivelBps": 29.44194205278663,
+            "nivelFin": 5.504393818717073,
+            "dNivelBps": 33.38858056514873,
             "pendIni": 0.39502926180827336,
-            "pendFin": 1.2072476420044627,
+            "pendFin": 1.1394797347864212,
             "dPend": null,
             "forma": null,
             "r2Ini": 0.009828958677728039,
-            "r2Fin": 0.21413390001542654,
+            "r2Fin": 0.19240533205690002,
             "r2ok": false,
             "tramos": [
               {
                 "l": "corto",
                 "n": 3,
-                "bps": -95.79409999999999
+                "bps": -85.6248
               },
               {
                 "l": "medio",
                 "n": 4,
-                "bps": 112.10740000000001
+                "bps": 114.21720000000002
               },
               {
                 "l": "largo",
                 "n": 2,
-                "bps": 92.49964999999997
+                "bps": 93.14300000000006
               }
             ],
             "movers": {
               "suben": [
                 {
                   "ticker": "TZV27",
-                  "bps": 218.78330000000003,
+                  "bps": 220.36179999999996,
                   "x": 287,
                   "dias": 287,
                   "monto": 1191163718.8
                 },
                 {
                   "ticker": "D10Y7",
-                  "bps": 119.6446,
+                  "bps": 121.5347,
                   "x": 236,
                   "dias": 236,
                   "monto": null
                 },
                 {
                   "ticker": "TZVD8",
-                  "bps": 108.6485999999999,
+                  "bps": 109.21950000000002,
                   "x": 821,
                   "dias": 821,
                   "monto": 632482932
@@ -2940,21 +4686,21 @@
               "bajan": [
                 {
                   "ticker": "D30S6",
-                  "bps": -521.8566000000001,
+                  "bps": -490.03010000000006,
                   "x": 14,
                   "dias": 14,
                   "monto": 111015251328
                 },
                 {
                   "ticker": "TMVE8",
-                  "bps": -120.33380000000005,
+                  "bps": -119.42560000000002,
                   "x": 502,
                   "dias": 502,
                   "monto": 32386969769.7
                 },
                 {
                   "ticker": "D30O6",
-                  "bps": -95.79409999999999,
+                  "bps": -85.6248,
                   "x": 44,
                   "dias": 44,
                   "monto": 37898564627
@@ -2965,19 +4711,19 @@
               "baratos": [
                 {
                   "ticker": "TZVD8",
-                  "bps": 382.71161234158717,
+                  "bps": 387.3803594109352,
                   "x": 821,
                   "monto": 632482932
                 },
                 {
                   "ticker": "TZV28",
-                  "bps": 356.33566181297454,
+                  "bps": 359.59778988807136,
                   "x": 653,
                   "monto": 1644698128.8
                 },
                 {
                   "ticker": "D30S6",
-                  "bps": 235.09415856261558,
+                  "bps": 243.42703411101985,
                   "x": 14,
                   "monto": 111015251328
                 }
@@ -2985,19 +4731,19 @@
               "ricos": [
                 {
                   "ticker": "D10Y7",
-                  "bps": -483.6797739007385,
+                  "bps": -486.14039289618415,
                   "x": 236,
                   "monto": null
                 },
                 {
                   "ticker": "D15E7",
-                  "bps": -325.90905038001915,
+                  "bps": -331.0944451841447,
                   "x": 121,
                   "monto": 20149656.6
                 },
                 {
                   "ticker": "TZV27",
-                  "bps": -194.75782360232228,
+                  "bps": -196.20416070958873,
                   "x": 287,
                   "monto": 1191163718.8
                 }
@@ -3006,17 +4752,82 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 22,
-              "total": 7010444211179.099,
-              "prom": 318656555053.5954,
-              "ruedas": 22,
+              "habiles": 21,
+              "total": 6788095781273.298,
+              "prom": 323242656251.10944,
+              "ruedas": 21,
               "top": {
                 "ticker": "D30S6",
-                "monto": 3293950298867.9004
+                "monto": 3289268922857.9004
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "D10Y7",
+                "xi": 265,
+                "yi": -0.640301,
+                "xf": 236,
+                "yf": 0.575046
+              },
+              {
+                "ticker": "D15E7",
+                "xi": 150,
+                "yi": 0.673952,
+                "xf": 121,
+                "yf": 1.364286
+              },
+              {
+                "ticker": "D30O6",
+                "xi": 73,
+                "yi": 5.832081,
+                "xf": 44,
+                "yf": 4.975833
+              },
+              {
+                "ticker": "D30S6",
+                "xi": 43,
+                "yi": 9.552248,
+                "xf": 14,
+                "yf": 4.651947
+              },
+              {
+                "ticker": "D31M7",
+                "xi": 225,
+                "yi": 4.237551,
+                "xf": 196,
+                "yf": 5.306548
+              },
+              {
+                "ticker": "TMVE8",
+                "xi": 531,
+                "yi": 6.186067,
+                "xf": 502,
+                "yf": 4.991811
+              },
+              {
+                "ticker": "TZV27",
+                "xi": 316,
+                "yi": 1.49373,
+                "xf": 287,
+                "yf": 3.697348
+              },
+              {
+                "ticker": "TZV28",
+                "xi": 682,
+                "yi": 9.421463,
+                "xf": 653,
+                "yf": 10.192128
+              },
+              {
+                "ticker": "TZVD8",
+                "xi": 850,
+                "yi": 9.638638,
+                "xf": 821,
+                "yf": 10.730833
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -3030,15 +4841,16 @@
               },
               "fin": {
                 "reg": {
-                  "a": -1.2032553239187709,
-                  "b": 1.2072476420044627
+                  "a": -0.789475687146354,
+                  "b": 1.1394797347864212
                 },
                 "n": 9,
-                "r2": 0.21413390001542654,
+                "r2": 0.19240533205690002,
                 "xMin": 14,
                 "xMax": 821
               }
-            }
+            },
+            "grafico": "nivel +33 bps"
           },
           {
             "sector": "BOP",
@@ -3048,10 +4860,15 @@
             "n": 6,
             "entraron": [],
             "salieron": [],
-            "tenor": 0.875,
-            "nivelIni": 3.458753586771123,
-            "nivelFin": 2.656344789244775,
-            "dNivelBps": -80.24087975263478,
+            "tenor": 0.91,
+            "rangoComun": [
+              0.91,
+              1.98
+            ],
+            "sinComparacion": null,
+            "nivelIni": 3.625989805037025,
+            "nivelFin": 2.886183786057328,
+            "dNivelBps": -73.9806018979697,
             "pendIni": 4.263976986147955,
             "pendFin": 5.860143233864785,
             "dPend": 1.5961662477168304,
@@ -3152,17 +4969,61 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 22,
-              "total": 124436638507.89001,
-              "prom": 5656210841.267728,
-              "ruedas": 22,
+              "habiles": 21,
+              "total": 121241358391.29001,
+              "prom": 5773398018.632857,
+              "ruedas": 21,
               "top": {
                 "ticker": "BPOD7",
-                "monto": 49150892199.829994
+                "monto": 47568182460.27999
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "BPOA7",
+                "xi": 0.91,
+                "yi": 3.612222,
+                "xf": 0.84,
+                "yf": 2.027211
+              },
+              {
+                "ticker": "BPOA8",
+                "xi": 2.06,
+                "yi": 6.977845,
+                "xf": 1.98,
+                "yf": 7.229919
+              },
+              {
+                "ticker": "BPOB7",
+                "xi": 0.91,
+                "yi": 3.612222,
+                "xf": 0.84,
+                "yf": 2.720769
+              },
+              {
+                "ticker": "BPOB8",
+                "xi": 2.05,
+                "yi": 7.221656,
+                "xf": 1.97,
+                "yf": 7.625475
+              },
+              {
+                "ticker": "BPOC7",
+                "xi": 0.91,
+                "yi": 3.612222,
+                "xf": 0.84,
+                "yf": 2.430679
+              },
+              {
+                "ticker": "BPOD7",
+                "xi": 0.91,
+                "yi": 3.666503,
+                "xf": 0.84,
+                "yf": 2.48857
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -3184,6 +5045,16 @@
                 "xMin": 0.84,
                 "xMax": 1.98
               }
+            },
+            "grafico": "nivel -74 bps",
+            "ust": {
+              "plazo": 0.9386497238024621,
+              "ini": 4.015687973254423,
+              "fin": 4.41059542921205,
+              "dBps": 39,
+              "dSpreadBps": -113,
+              "spreadFin": -152,
+              "spreadIni": -39
             }
           },
           {
@@ -3195,6 +5066,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 2.7800000000000002,
+            "rangoComun": [
+              1.15,
+              5.55
+            ],
+            "sinComparacion": null,
             "nivelIni": 8.690099302003114,
             "nivelFin": 9.398901227942865,
             "dNivelBps": 70.8801925939751,
@@ -3296,17 +5172,82 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 22,
-              "total": 2827638450517.9907,
-              "prom": 128529020478.09048,
-              "ruedas": 22,
+              "habiles": 21,
+              "total": 2717243663698.841,
+              "prom": 129392555414.23051,
+              "ruedas": 21,
               "top": {
                 "ticker": "AL30",
-                "monto": 1880929204392.5
+                "monto": 1803691209024.5
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "AE38",
+                "xi": 4.47,
+                "yi": 10.174493,
+                "xf": 4.32,
+                "yf": 10.955293
+              },
+              {
+                "ticker": "AL29",
+                "xi": 1.53,
+                "yi": 7.389326,
+                "xf": 1.45,
+                "yf": 7.859925
+              },
+              {
+                "ticker": "AL30",
+                "xi": 1.97,
+                "yi": 7.651182,
+                "xf": 1.87,
+                "yf": 8.844707
+              },
+              {
+                "ticker": "AL35",
+                "xi": 5.25,
+                "yi": 9.97829,
+                "xf": 5.13,
+                "yf": 10.696238
+              },
+              {
+                "ticker": "AL41",
+                "xi": 5.69,
+                "yi": 10.091543,
+                "xf": 5.55,
+                "yf": 10.572267
+              },
+              {
+                "ticker": "AN29",
+                "xi": 2.83,
+                "yi": 9.381585,
+                "xf": 2.73,
+                "yf": 10.343296
+              },
+              {
+                "ticker": "AO27",
+                "xi": 1.15,
+                "yi": 4.824342,
+                "xf": 1.08,
+                "yf": 4.097349
+              },
+              {
+                "ticker": "AO28",
+                "xi": 2.05,
+                "yi": 8.836118,
+                "xf": 1.98,
+                "yf": 9.156136
+              },
+              {
+                "ticker": "AO29",
+                "xi": 2.87,
+                "yi": 9.16943,
+                "xf": 2.81,
+                "yf": 10.12588
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -3328,6 +5269,16 @@
                 "xMin": 1.08,
                 "xMax": 5.55
               }
+            },
+            "grafico": "nivel +71 bps",
+            "ust": {
+              "plazo": 3.017344029852879,
+              "ini": 4.28417044932603,
+              "fin": 4.817265489542977,
+              "dBps": 53,
+              "dSpreadBps": 18,
+              "spreadFin": 458,
+              "spreadIni": 440
             }
           },
           {
@@ -3339,6 +5290,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 4.897500000000001,
+            "rangoComun": [
+              1.56,
+              6.09
+            ],
+            "sinComparacion": null,
             "nivelIni": 8.674796605032924,
             "nivelFin": 9.37723844440212,
             "dNivelBps": 70.24418393691967,
@@ -3437,17 +5393,61 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 22,
-              "total": 214853359567.46,
-              "prom": 9766061798.520908,
-              "ruedas": 22,
+              "habiles": 21,
+              "total": 206859388913.53,
+              "prom": 9850447091.120476,
+              "ruedas": 21,
               "top": {
                 "ticker": "GD35",
-                "monto": 95736723198.57002
+                "monto": 91851481583.44
               },
               "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "GD29",
+                "xi": 1.56,
+                "yi": 5.312981,
+                "xf": 1.48,
+                "yf": 5.524056
+              },
+              {
+                "ticker": "GD30",
+                "xi": 2,
+                "yi": 6.28394,
+                "xf": 1.91,
+                "yf": 6.572504
+              },
+              {
+                "ticker": "GD35",
+                "xi": 5.32,
+                "yi": 8.977481,
+                "xf": 5.19,
+                "yf": 9.663701
+              },
+              {
+                "ticker": "GD38",
+                "xi": 4.61,
+                "yi": 8.83629,
+                "xf": 4.47,
+                "yf": 9.490219
+              },
+              {
+                "ticker": "GD41",
+                "xi": 5.84,
+                "yi": 9.127609,
+                "xf": 5.67,
+                "yf": 9.738631
+              },
+              {
+                "ticker": "GD46",
+                "xi": 6.32,
+                "yi": 9.084415,
+                "xf": 6.09,
+                "yf": 9.712311
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -3469,6 +5469,16 @@
                 "xMin": 1.48,
                 "xMax": 6.09
               }
+            },
+            "grafico": "nivel +70 bps",
+            "ust": {
+              "plazo": 5.660284962007621,
+              "ini": 4.4517364401917225,
+              "fin": 4.915373227658537,
+              "dBps": 46,
+              "dSpreadBps": 24,
+              "spreadFin": 446,
+              "spreadIni": 422
             }
           }
         ],
@@ -3514,6 +5524,45 @@
             "var": -0.04180529416768497
           }
         },
+        "ust": {
+          "fechaIni": "2026-08-14",
+          "fechaFin": "2026-09-15",
+          "desfasado": false,
+          "refs": [
+            {
+              "plazo": 2,
+              "ini": 4.17,
+              "fin": 4.67,
+              "dBps": 50
+            },
+            {
+              "plazo": 5,
+              "ini": 4.36,
+              "fin": 4.83,
+              "dBps": 47
+            },
+            {
+              "plazo": 10,
+              "ini": 4.68,
+              "fin": 5,
+              "dBps": 32
+            },
+            {
+              "plazo": 30,
+              "ini": 5.25,
+              "fin": 5.36,
+              "dBps": 11
+            }
+          ]
+        },
+        "riesgoPais": {
+          "fechaIni": "2026-08-14",
+          "fechaFin": "2026-09-15",
+          "ini": 480,
+          "fin": 506,
+          "desfasado": false,
+          "dBps": 26
+        },
         "implicitasIni": [
           {
             "tenor": 90,
@@ -3548,35 +5597,35 @@
             "tenor": 90,
             "tf": 27.637251524775785,
             "cer": 3.186520466065029,
-            "dlk": 4.296989044496824,
+            "dlk": 4.40937679948783,
             "infla": 23.69566387961679,
             "inflaMensual": 1.7879121521156671,
-            "deval": 22.37865416260596
+            "deval": 22.246924018994708
           },
           {
             "tenor": 180,
             "tf": 28.460605496358383,
             "cer": 4.587458699644011,
-            "dlk": 5.130982541919327,
+            "dlk": 5.19444506731066,
             "infla": 22.826012882934332,
             "inflaMensual": 1.7280835331550781,
-            "deval": 22.19100629553874
+            "deval": 22.117289952107665
           },
           {
             "tenor": 270,
             "tf": 28.485487664567533,
             "cer": 5.406955032114252,
-            "dlk": 5.632583290826676,
+            "dlk": 5.667927696462871,
             "infla": 21.894696251705547,
             "inflaMensual": 1.6635804280701327,
-            "deval": 21.6343325721974
+            "deval": 21.593647633224535
           }
         ],
-        "habiles": 22,
+        "habiles": 21,
         "volumen": {
-          "total": 24397134208530.195,
-          "ruedas": 22,
-          "habiles": 22,
+          "total": 23561137259459.85,
+          "ruedas": 21,
+          "habiles": 21,
           "truncado": false,
           "sinColumna": false,
           "parcial": false
@@ -3586,10 +5635,19 @@
     "trimestre": {
       "ini": "2026-06-12",
       "fin": "2026-09-15",
-      "ruedas": 95,
-      "titular": "Tres meses de suba generalizada de tasas en pesos",
-      "movimiento": "El trimestre fue de venta en toda la curva de pesos. Tasa fija subió 382 puntos básicos de TNA, dollar linked 273, CER 289 puntos básicos de tasa real y TAMAR 187 de margen. Las tres curvas de pesos aplanaron, salvo dollar linked, cuyo ajuste no permite hablar de forma.\n\nEn dólares el movimiento fue mucho más chico: Bonares sumaron 98 puntos básicos de TIR y Globales 92, mientras Bopreales comprimieron 29. Las tres empinaron.\n\nEl tipo de cambio corrió por encima: el oficial subió 5,30%, el MEP 5,66% y el cable 6,67%, con el canje 0,99 pp más ancho.",
-      "contexto": "Los tres meses terminaron con la inflación en desaceleración —agosto marcó 1,7% mensual según el INDEC, con 21,4% acumulado en el año— y con las tasas largas de Estados Unidos en máximos de dos décadas sobre el cierre del período.",
+      "ruedas": 64,
+      "titular": "Tres meses de suba de tasas en toda la curva de pesos",
+      "pesos": {
+        "resumen": "En el trimestre las cuatro curvas de pesos subieron de tasa, y tasa fija, CER y TAMAR además aplanaron. Dollar linked fue el sector más operado, con 20,9 B.",
+        "TF": "Tasa fija subió 382 puntos básicos en el nivel de 167 días, hasta 26,48% de TNA, y aplanó: el medio subió 203 puntos básicos y el corto 152 puntos básicos.",
+        "CER": "CER sumó 289 puntos básicos de tasa real hasta 6,98% y aplanó, con el corto 335 puntos básicos arriba y el largo 158 puntos básicos arriba.",
+        "TAMAR": "TAMAR subió 187 puntos básicos de margen hasta 7,91% y aplanó: el medio sumó 161 puntos básicos y el largo 127 puntos básicos, contra 16 puntos básicos del corto.",
+        "DLK": "Dollar linked subió 277 puntos básicos hasta 7,52% de TNA en dólares, con el largo 327 puntos básicos arriba. El ajuste no representa esta curva y no corresponde hablar de su forma."
+      },
+      "dolares": {
+        "resumen": "En dólares, la mayor parte de la suba correspondió a los Treasuries: el 5 años subió 62 puntos básicos y el 10 años 52 puntos básicos, hasta 5,00%. Bonares sumaron 98 puntos básicos, de los que 63 puntos básicos corresponden a los Treasuries y 35 puntos básicos al spread; Globales subieron 92 puntos básicos, con 62 puntos básicos de Treasuries y 30 puntos básicos de spread. El riesgo país subió 69 puntos básicos, hasta 506 puntos básicos. Bopreales, que rinden por debajo del Treasury de su plazo, cedieron 9 puntos básicos."
+      },
+      "contexto": "El trimestre cerró con la inflación en desaceleración —agosto marcó 1,7% mensual y 21,4% acumulado en el año según el INDEC— y con las tasas largas de Estados Unidos en máximos de casi dos décadas.",
       "ficha": {
         "periodo": "trimestre",
         "label": "Trimestre",
@@ -3597,7 +5655,7 @@
         "fin": "2026-09-15",
         "enVivo": false,
         "dias": 95,
-        "generado": "2026-09-16T02:01:22.711Z",
+        "generado": "2026-09-16T14:37:52.336Z",
         "bloques": [
           {
             "sector": "TF",
@@ -3619,6 +5677,11 @@
               "T30J6"
             ],
             "tenor": 167,
+            "rangoComun": [
+              106,
+              287
+            ],
+            "sinComparacion": null,
             "nivelIni": 22.663728477097145,
             "nivelFin": 26.48194079878352,
             "dNivelBps": 381.82123216863744,
@@ -3721,16 +5784,67 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 64,
-              "total": 17799431483757.598,
-              "prom": 273837407442.4246,
-              "ruedas": 65,
+              "total": 17662611463995.957,
+              "prom": 275978304124.9368,
+              "ruedas": 64,
               "top": {
                 "ticker": "S13N6",
                 "monto": 2636302741674.3687
               },
-              "cobertura": 1.015625,
+              "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "S30N6",
+                "xi": 167,
+                "yi": 21.610594,
+                "xf": 75,
+                "yf": 24.428663
+              },
+              {
+                "ticker": "S30O6",
+                "xi": 136,
+                "yi": 21.141531,
+                "xf": 44,
+                "yf": 22.344452
+              },
+              {
+                "ticker": "S30S6",
+                "xi": 106,
+                "yi": 22.638417,
+                "xf": 14,
+                "yf": 22.047769
+              },
+              {
+                "ticker": "T15E7",
+                "xi": 213,
+                "yi": 23.122363,
+                "xf": 121,
+                "yf": 24.964617
+              },
+              {
+                "ticker": "T30A7",
+                "xi": 318,
+                "yi": 25.494176,
+                "xf": 226,
+                "yf": 27.313247
+              },
+              {
+                "ticker": "T30J7",
+                "xi": 379,
+                "yi": 23.912636,
+                "xf": 287,
+                "yf": 28.099794
+              },
+              {
+                "ticker": "T31Y7",
+                "xi": 349,
+                "yi": 26.038646,
+                "xf": 257,
+                "yf": 28.071112
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -3752,7 +5866,8 @@
                 "xMin": 14,
                 "xMax": 287
               }
-            }
+            },
+            "grafico": "nivel +382 bps"
           },
           {
             "sector": "CER",
@@ -3770,6 +5885,11 @@
               "X31L6"
             ],
             "tenor": 608,
+            "rangoComun": [
+              106,
+              2663
+            ],
+            "sinComparacion": null,
             "nivelIni": 4.091575639106974,
             "nivelFin": 6.978792935935317,
             "dNivelBps": 288.7217296828343,
@@ -3869,16 +5989,179 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 64,
-              "total": 14118653933583.215,
-              "prom": 217210060516.66486,
-              "ruedas": 65,
+              "total": 13533608619486.031,
+              "prom": 211462634679.46924,
+              "ruedas": 64,
               "top": {
                 "ticker": "TXMJ0",
-                "monto": 2279557846610.89
+                "monto": 2027031296047.9094
               },
-              "cobertura": 1.015625,
+              "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "DICP",
+                "xi": 2755,
+                "yi": 8.723298,
+                "xf": 2663,
+                "yf": 9.888884
+              },
+              {
+                "ticker": "TX26",
+                "xi": 146,
+                "yi": -1.014238,
+                "xf": 54,
+                "yf": 2.748768
+              },
+              {
+                "ticker": "TX28",
+                "xi": 877,
+                "yi": 4.593854,
+                "xf": 785,
+                "yf": 8.381321
+              },
+              {
+                "ticker": "TX31",
+                "xi": 1993,
+                "yi": 7.278606,
+                "xf": 1901,
+                "yf": 10.35064
+              },
+              {
+                "ticker": "TXMD8",
+                "xi": 913,
+                "yi": 4.545166,
+                "xf": 821,
+                "yf": 5.648242
+              },
+              {
+                "ticker": "TXMD9",
+                "xi": 1277,
+                "yi": 5.454377,
+                "xf": 1185,
+                "yf": 6.556016
+              },
+              {
+                "ticker": "TXMJ0",
+                "xi": 1473,
+                "yi": 5.881582,
+                "xf": 1381,
+                "yf": 6.635546
+              },
+              {
+                "ticker": "TXMJ8",
+                "xi": 745,
+                "yi": 4.050009,
+                "xf": 653,
+                "yf": 5.1924
+              },
+              {
+                "ticker": "TXMJ9",
+                "xi": 1109,
+                "yi": 5.450361,
+                "xf": 1017,
+                "yf": 6.656023
+              },
+              {
+                "ticker": "TZX27",
+                "xi": 379,
+                "yi": 1.965454,
+                "xf": 287,
+                "yf": 4.814274
+              },
+              {
+                "ticker": "TZX28",
+                "xi": 745,
+                "yi": 6.896984,
+                "xf": 653,
+                "yf": 9.240298
+              },
+              {
+                "ticker": "TZXA7",
+                "xi": 318,
+                "yi": 1.387034,
+                "xf": 226,
+                "yf": 4.199368
+              },
+              {
+                "ticker": "TZXD6",
+                "xi": 182,
+                "yi": 0.136462,
+                "xf": 90,
+                "yf": 3.483784
+              },
+              {
+                "ticker": "TZXD7",
+                "xi": 547,
+                "yi": 5.159177,
+                "xf": 455,
+                "yf": 7.62091
+              },
+              {
+                "ticker": "TZXM7",
+                "xi": 288,
+                "yi": 1.864974,
+                "xf": 196,
+                "yf": 4.352051
+              },
+              {
+                "ticker": "TZXM8",
+                "xi": 654,
+                "yi": 5.647965,
+                "xf": 562,
+                "yf": 8.598288
+              },
+              {
+                "ticker": "TZXM9",
+                "xi": 1016,
+                "yi": 7.429879,
+                "xf": 924,
+                "yf": 9.572993
+              },
+              {
+                "ticker": "TZXO6",
+                "xi": 136,
+                "yi": -1.260346,
+                "xf": 44,
+                "yf": 1.6535
+              },
+              {
+                "ticker": "TZXS7",
+                "xi": 471,
+                "yi": 4.228866,
+                "xf": 379,
+                "yf": 5.977603
+              },
+              {
+                "ticker": "TZXS8",
+                "xi": 836,
+                "yi": 7.332163,
+                "xf": 744,
+                "yf": 9.295769
+              },
+              {
+                "ticker": "TZXY7",
+                "xi": 349,
+                "yi": 1.446343,
+                "xf": 257,
+                "yf": 4.746797
+              },
+              {
+                "ticker": "X30N6",
+                "xi": 167,
+                "yi": -0.2464,
+                "xf": 75,
+                "yf": 3.286548
+              },
+              {
+                "ticker": "X30S6",
+                "xi": 106,
+                "yi": -2.78727,
+                "xf": 14,
+                "yf": -1.115002
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -3900,7 +6183,8 @@
                 "xMin": 14,
                 "xMax": 2663
               }
-            }
+            },
+            "grafico": "nivel +289 bps"
           },
           {
             "sector": "TAMAR",
@@ -3918,6 +6202,11 @@
               "TTS26"
             ],
             "tenor": 730,
+            "rangoComun": [
+              182,
+              1381
+            ],
+            "sinComparacion": null,
             "nivelIni": 6.048490730708572,
             "nivelFin": 7.913626005004485,
             "dNivelBps": 186.51352742959125,
@@ -4025,16 +6314,88 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 64,
-              "total": 11503605641869.246,
-              "prom": 176978548336.44995,
-              "ruedas": 65,
+              "total": 10999682501324.057,
+              "prom": 171870039083.1884,
+              "ruedas": 64,
               "top": {
                 "ticker": "TXMJ0",
-                "monto": 2322449586819.2397
+                "monto": 2069923036256.2595
               },
-              "cobertura": 1.015625,
+              "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "TMF27",
+                "xi": 255,
+                "yi": 1.471636,
+                "xf": 163,
+                "yf": 2.073199
+              },
+              {
+                "ticker": "TMF28",
+                "xi": 619,
+                "yi": 5.7504,
+                "xf": 527,
+                "yf": 7.950431
+              },
+              {
+                "ticker": "TMG27",
+                "xi": 441,
+                "yi": 2.146823,
+                "xf": 349,
+                "yf": 3.17583
+              },
+              {
+                "ticker": "TMG28",
+                "xi": 807,
+                "yi": 7.052652,
+                "xf": 715,
+                "yf": 8.739553
+              },
+              {
+                "ticker": "TTD26",
+                "xi": 182,
+                "yi": 0.540721,
+                "xf": 90,
+                "yf": 0.262173
+              },
+              {
+                "ticker": "TXMD8",
+                "xi": 913,
+                "yi": 7.405113,
+                "xf": 821,
+                "yf": 8.670394
+              },
+              {
+                "ticker": "TXMD9",
+                "xi": 1277,
+                "yi": 8.335726,
+                "xf": 1185,
+                "yf": 9.535927
+              },
+              {
+                "ticker": "TXMJ0",
+                "xi": 1473,
+                "yi": 8.777989,
+                "xf": 1381,
+                "yf": 9.622063
+              },
+              {
+                "ticker": "TXMJ8",
+                "xi": 745,
+                "yi": 6.452319,
+                "xf": 653,
+                "yf": 7.743072
+              },
+              {
+                "ticker": "TXMJ9",
+                "xi": 1109,
+                "yi": 7.855487,
+                "xf": 1017,
+                "yf": 9.134017
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -4056,7 +6417,8 @@
                 "xMin": 90,
                 "xMax": 1381
               }
-            }
+            },
+            "grafico": "nivel +187 bps"
           },
           {
             "sector": "DLK",
@@ -4076,52 +6438,57 @@
               "TZV26"
             ],
             "tenor": 333,
+            "rangoComun": [
+              106,
+              821
+            ],
+            "sinComparacion": null,
             "nivelIni": 4.754323842881924,
-            "nivelFin": 7.485835124082896,
-            "dNivelBps": 273.1511281200972,
+            "nivelFin": 7.523587044016228,
+            "dNivelBps": 276.92632011343045,
             "pendIni": 1.6680335918502438,
-            "pendFin": 1.417536596673067,
+            "pendFin": 1.3376705076834012,
             "dPend": null,
             "forma": null,
             "r2Ini": 0.46790484839148716,
-            "r2Fin": 0.4728852829578569,
+            "r2Fin": 0.43665636898036586,
             "r2ok": false,
             "tramos": [
               {
                 "l": "corto",
                 "n": 1,
-                "bps": 5.842999999999954
+                "bps": 37.66949999999998
               },
               {
                 "l": "medio",
                 "n": 2,
-                "bps": 138.10025000000002
+                "bps": 140.05425
               },
               {
                 "l": "largo",
                 "n": 2,
-                "bps": 326.33695
+                "bps": 326.98030000000006
               }
             ],
             "movers": {
               "suben": [
                 {
                   "ticker": "TZVD8",
-                  "bps": 334.02889999999996,
+                  "bps": 334.5998000000001,
                   "x": 821,
                   "dias": 821,
                   "monto": 632482932
                 },
                 {
                   "ticker": "TZV28",
-                  "bps": 318.645,
+                  "bps": 319.36080000000004,
                   "x": 653,
                   "dias": 653,
                   "monto": 1644698128.8
                 },
                 {
                   "ticker": "D31M7",
-                  "bps": 215.43870000000004,
+                  "bps": 217.76820000000004,
                   "x": 196,
                   "dias": 196,
                   "monto": 7274360867.7
@@ -4133,19 +6500,19 @@
               "baratos": [
                 {
                   "ticker": "TZVD8",
-                  "bps": 196.01313236870527,
+                  "bps": 200.01580146110226,
                   "x": 821,
                   "monto": 632482932
                 },
                 {
                   "ticker": "TZV28",
-                  "bps": 174.4516629247716,
+                  "bps": 176.77073001451208,
                   "x": 653,
                   "monto": 1644698128.8
                 },
                 {
                   "ticker": "D30S6",
-                  "bps": 134.01410687082898,
+                  "bps": 136.75517113414028,
                   "x": 14,
                   "monto": 111015251328
                 }
@@ -4153,19 +6520,19 @@
               "ricos": [
                 {
                   "ticker": "TZV27",
-                  "bps": -359.35407449034267,
+                  "bps": -362.7380579526906,
                   "x": 287,
                   "monto": 1191163718.8
                 },
                 {
                   "ticker": "D31M7",
-                  "bps": -145.12482767396352,
+                  "bps": -150.80364465706407,
                   "x": 196,
                   "monto": 7274360867.7
                 },
                 {
                   "ticker": "D30S6",
-                  "bps": 134.01410687082898,
+                  "bps": 136.75517113414028,
                   "x": 14,
                   "monto": 111015251328
                 }
@@ -4175,16 +6542,53 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 64,
-              "total": 21047959043762.6,
-              "prom": 323814754519.4246,
-              "ruedas": 65,
+              "total": 20878163488231.3,
+              "prom": 326221304503.6141,
+              "ruedas": 64,
               "top": {
                 "ticker": "D31L6",
-                "monto": 7089699362753.2
+                "monto": 7078811098955.2
               },
-              "cobertura": 1.015625,
+              "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "D30S6",
+                "xi": 106,
+                "yi": 4.275252,
+                "xf": 14,
+                "yf": 4.651947
+              },
+              {
+                "ticker": "D31M7",
+                "xi": 288,
+                "yi": 3.128866,
+                "xf": 196,
+                "yf": 5.306548
+              },
+              {
+                "ticker": "TZV27",
+                "xi": 379,
+                "yi": 3.073945,
+                "xf": 287,
+                "yf": 3.697348
+              },
+              {
+                "ticker": "TZV28",
+                "xi": 745,
+                "yi": 6.99852,
+                "xf": 653,
+                "yf": 10.192128
+              },
+              {
+                "ticker": "TZVD8",
+                "xi": 913,
+                "yi": 7.384835,
+                "xf": 821,
+                "yf": 10.730833
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -4198,15 +6602,16 @@
               },
               "fin": {
                 "reg": {
-                  "a": -0.7474194141562165,
-                  "b": 1.417536596673067
+                  "a": -0.24579386925344693,
+                  "b": 1.3376705076834012
                 },
                 "n": 5,
-                "r2": 0.4728852829578569,
+                "r2": 0.43665636898036586,
                 "xMin": 14,
                 "xMax": 821
               }
-            }
+            },
+            "grafico": "nivel +277 bps"
           },
           {
             "sector": "BOP",
@@ -4216,10 +6621,15 @@
             "n": 6,
             "entraron": [],
             "salieron": [],
-            "tenor": 0.96,
-            "nivelIni": 3.48477557710127,
-            "nivelFin": 3.1996351412611745,
-            "dNivelBps": -28.514043584009528,
+            "tenor": 1.08,
+            "rangoComun": [
+              1.08,
+              1.98
+            ],
+            "sinComparacion": null,
+            "nivelIni": 3.9796247499999997,
+            "nivelFin": 3.8898606007269856,
+            "dNivelBps": -8.976414927301413,
             "pendIni": 4.201362022476539,
             "pendFin": 5.860143233864785,
             "dPend": 1.6587812113882459,
@@ -4321,16 +6731,60 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 64,
-              "total": 460183003375.81006,
-              "prom": 7079738513.474001,
-              "ruedas": 65,
+              "total": 455016625372.02,
+              "prom": 7109634771.437813,
+              "ruedas": 64,
               "top": {
                 "ticker": "BPOD7",
-                "monto": 181438677438.33002
+                "monto": 179986170875.37003
               },
-              "cobertura": 1.015625,
+              "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "BPOA7",
+                "xi": 1.08,
+                "yi": 3.771106,
+                "xf": 0.84,
+                "yf": 2.027211
+              },
+              {
+                "ticker": "BPOA8",
+                "xi": 2.22,
+                "yi": 6.948751,
+                "xf": 1.98,
+                "yf": 7.229919
+              },
+              {
+                "ticker": "BPOB7",
+                "xi": 1.08,
+                "yi": 3.909865,
+                "xf": 0.84,
+                "yf": 2.720769
+              },
+              {
+                "ticker": "BPOB8",
+                "xi": 2.22,
+                "yi": 7.065049,
+                "xf": 1.97,
+                "yf": 7.625475
+              },
+              {
+                "ticker": "BPOC7",
+                "xi": 1.08,
+                "yi": 4.095503,
+                "xf": 0.84,
+                "yf": 2.430679
+              },
+              {
+                "ticker": "BPOD7",
+                "xi": 1.08,
+                "yi": 4.142025,
+                "xf": 0.84,
+                "yf": 2.48857
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -4352,6 +6806,16 @@
                 "xMin": 0.84,
                 "xMax": 1.98
               }
+            },
+            "grafico": "empinó",
+            "ust": {
+              "plazo": 1.1188416223985225,
+              "ini": 3.9239777592176894,
+              "fin": 4.472189073055732,
+              "dBps": 55,
+              "dSpreadBps": -64,
+              "spreadFin": -58,
+              "spreadIni": 6
             }
           },
           {
@@ -4365,6 +6829,11 @@
             ],
             "salieron": [],
             "tenor": 2.475,
+            "rangoComun": [
+              1.31,
+              5.55
+            ],
+            "sinComparacion": null,
             "nivelIni": 7.956309828654725,
             "nivelFin": 8.93453026272065,
             "dNivelBps": 97.8220434065924,
@@ -4467,16 +6936,74 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 64,
-              "total": 7995347921768.839,
-              "prom": 123005352642.59752,
-              "ruedas": 65,
+              "total": 7887007907841.468,
+              "prom": 123234498560.02293,
+              "ruedas": 64,
               "top": {
                 "ticker": "AL30",
-                "monto": 5123479033555.59
+                "monto": 5059684333370.34
               },
-              "cobertura": 1.015625,
+              "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "AE38",
+                "xi": 4.5,
+                "yi": 10.129179,
+                "xf": 4.32,
+                "yf": 10.955293
+              },
+              {
+                "ticker": "AL29",
+                "xi": 1.45,
+                "yi": 6.204958,
+                "xf": 1.45,
+                "yf": 7.859925
+              },
+              {
+                "ticker": "AL30",
+                "xi": 1.88,
+                "yi": 7.178577,
+                "xf": 1.87,
+                "yf": 8.844707
+              },
+              {
+                "ticker": "AL35",
+                "xi": 5.3,
+                "yi": 9.645617,
+                "xf": 5.13,
+                "yf": 10.696238
+              },
+              {
+                "ticker": "AL41",
+                "xi": 5.79,
+                "yi": 9.639025,
+                "xf": 5.55,
+                "yf": 10.572267
+              },
+              {
+                "ticker": "AN29",
+                "xi": 3,
+                "yi": 8.632449,
+                "xf": 2.73,
+                "yf": 10.343296
+              },
+              {
+                "ticker": "AO27",
+                "xi": 1.31,
+                "yi": 5.639299,
+                "xf": 1.08,
+                "yf": 4.097349
+              },
+              {
+                "ticker": "AO28",
+                "xi": 2.19,
+                "yi": 8.822704,
+                "xf": 1.98,
+                "yf": 9.156136
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -4498,6 +7025,16 @@
                 "xMin": 1.08,
                 "xMax": 5.55
               }
+            },
+            "grafico": "nivel +98 bps",
+            "ust": {
+              "plazo": 2.663265442667003,
+              "ini": 4.151316385394366,
+              "fin": 4.785618900568989,
+              "dBps": 63,
+              "dSpreadBps": 35,
+              "spreadFin": 415,
+              "spreadIni": 380
             }
           },
           {
@@ -4509,6 +7046,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 4.9125,
+            "rangoComun": [
+              1.48,
+              6.09
+            ],
+            "sinComparacion": null,
             "nivelIni": 8.462016634313237,
             "nivelFin": 9.3866501278928,
             "dNivelBps": 92.4633493579563,
@@ -4608,16 +7150,60 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 64,
-              "total": 591965683303.93,
-              "prom": 9107164358.522001,
-              "ruedas": 65,
+              "total": 582575918889.65,
+              "prom": 9102748732.650782,
+              "ruedas": 64,
               "top": {
                 "ticker": "GD35",
-                "monto": 269554393467.1299
+                "monto": 265294596532.18988
               },
-              "cobertura": 1.015625,
+              "cobertura": 1,
               "parcial": false
             },
+            "puntos": [
+              {
+                "ticker": "GD29",
+                "xi": 1.47,
+                "yi": 5.029368,
+                "xf": 1.48,
+                "yf": 5.524056
+              },
+              {
+                "ticker": "GD30",
+                "xi": 1.91,
+                "yi": 6.066499,
+                "xf": 1.91,
+                "yf": 6.572504
+              },
+              {
+                "ticker": "GD35",
+                "xi": 5.35,
+                "yi": 8.971033,
+                "xf": 5.19,
+                "yf": 9.663701
+              },
+              {
+                "ticker": "GD38",
+                "xi": 4.64,
+                "yi": 8.866867,
+                "xf": 4.47,
+                "yf": 9.490219
+              },
+              {
+                "ticker": "GD41",
+                "xi": 5.9,
+                "yi": 8.958645,
+                "xf": 5.67,
+                "yf": 9.738631
+              },
+              {
+                "ticker": "GD46",
+                "xi": 6.3,
+                "yi": 8.400414,
+                "xf": 6.09,
+                "yf": 9.712311
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -4639,6 +7225,16 @@
                 "xMin": 1.48,
                 "xMax": 6.09
               }
+            },
+            "grafico": "nivel +92 bps",
+            "ust": {
+              "plazo": 5.680365140171477,
+              "ini": 4.292005637352525,
+              "fin": 4.916195939919166,
+              "dBps": 62,
+              "dSpreadBps": 30,
+              "spreadFin": 447,
+              "spreadIni": 417
             }
           }
         ],
@@ -4684,6 +7280,45 @@
             "var": 0.3432178239685557
           }
         },
+        "ust": {
+          "fechaIni": "2026-06-12",
+          "fechaFin": "2026-09-15",
+          "desfasado": false,
+          "refs": [
+            {
+              "plazo": 2,
+              "ini": 4.09,
+              "fin": 4.67,
+              "dBps": 58
+            },
+            {
+              "plazo": 5,
+              "ini": 4.21,
+              "fin": 4.83,
+              "dBps": 62
+            },
+            {
+              "plazo": 10,
+              "ini": 4.48,
+              "fin": 5,
+              "dBps": 52
+            },
+            {
+              "plazo": 30,
+              "ini": 4.97,
+              "fin": 5.36,
+              "dBps": 39
+            }
+          ]
+        },
+        "riesgoPais": {
+          "fechaIni": "2026-06-12",
+          "fechaFin": "2026-09-15",
+          "ini": 437,
+          "fin": 506,
+          "desfasado": false,
+          "dBps": 69
+        },
         "implicitasIni": [
           {
             "tenor": 90,
@@ -4718,34 +7353,34 @@
             "tenor": 90,
             "tf": 27.591582463948995,
             "cer": 3.1894778550243164,
-            "dlk": 5.751824271901773,
+            "dlk": 5.900267557674144,
             "infla": 23.647861309278362,
             "inflaMensual": 1.7846335503384436,
-            "deval": 20.65189734778887
+            "deval": 20.482776301260607
           },
           {
             "tenor": 180,
             "tf": 28.449627372322617,
             "cer": 4.564373633375277,
-            "dlk": 6.724673647477286,
+            "dlk": 6.814491024774005,
             "infla": 22.842630724967638,
             "inflaMensual": 1.7292304104620682,
-            "deval": 20.356074169507533
+            "deval": 20.254870046172545
           },
           {
             "tenor": 270,
             "tf": 28.49285848033214,
             "cer": 5.368636106110415,
-            "dlk": 7.317736673647035,
+            "dlk": 7.374204510833371,
             "infla": 21.946020399215094,
             "inflaMensual": 1.6671468875395057,
-            "deval": 19.731241510505004
+            "deval": 19.668275137133186
           }
         ],
         "habiles": 64,
         "volumen": {
-          "total": 66558929229205.41,
-          "ruedas": 65,
+          "total": 65470835448903.734,
+          "ruedas": 64,
           "habiles": 64,
           "truncado": false,
           "sinColumna": false,
@@ -4756,10 +7391,19 @@
     "anio": {
       "ini": "2025-09-15",
       "fin": "2026-09-15",
-      "ruedas": 365,
+      "ruedas": 241,
       "titular": "Un año de compresión fuerte en tasa real y en la deuda en dólares",
-      "movimiento": "Mirado a doce meses, el movimiento más grande estuvo en la tasa real. CER comprimió 1.226 puntos básicos y quedó en 7,40% en el nivel de 553 días. La deuda en dólares acompañó: Globales bajaron 804 puntos básicos de TIR hasta 9,30% y Bonares 998 hasta 10,32%, y las dos curvas pasaron de invertidas a normales en el camino.\n\nTasa fija, TAMAR y Bopreales no admiten comparación de nivel en esta ventana: de un año a otro sobreviven apenas uno, uno y cuatro papeles respectivamente, así que no hay curva común que medir.\n\nEl tipo de cambio se movió poco en términos nominales: el oficial subió 3,06% en el año y el MEP 2,98%, mientras el cable avanzó 6,64% y el canje se abrió 3,57 pp.\n\nEl monto operado no se puede comentar en esta ventana: el histórico sólo lo tiene desde mediados de 2026 y cubre 102 de las 242 ruedas del período.",
-      "contexto": "El año cerró con una inflación interanual de 33,5% según el INDEC y un dato de agosto de 1,7% mensual, muy por encima de lo que se movió el tipo de cambio oficial en el mismo lapso. Sobre el cierre, el rendimiento del Tesoro estadounidense a diez años alcanzó 5,04%, su máximo desde 2007.",
+      "pesos": {
+        "resumen": "A doce meses, sólo la curva CER admite comparación de nivel: en tasa fija y en TAMAR no quedan bonos comunes suficientes entre las dos puntas para armar una curva. El monto operado de esta ventana no se puede comentar: el histórico lo registra sólo desde mediados de 2026.",
+        "TF": "Tasa fija no admite comparación en esta ventana: de las letras de hace un año queda una sola, y un bono no es una curva.",
+        "CER": "CER comprimió 1.226 puntos básicos de tasa real en el nivel de 554 días y quedó en 7,40%. La baja fue más fuerte en el corto, 1.870 puntos básicos, que en el largo, 770 puntos básicos. El ajuste no representa bien la curva de hace un año, así que no corresponde hablar de cambio de forma.",
+        "TAMAR": "TAMAR tampoco se puede comparar a doce meses: sobrevive un solo papel entre las dos puntas.",
+        "DLK": "Dollar linked no tiene comparación posible a doce meses."
+      },
+      "dolares": {
+        "resumen": "La deuda en dólares comprimió con fuerza aun con los Treasuries en contra: en el año el 5 años subió 122 puntos básicos y el 10 años 95 puntos básicos, hasta 5,00%. Globales bajaron 804 puntos básicos de TIR hasta 9,30%, con 124 puntos básicos de suba de Treasuries y 928 puntos básicos de compresión de spread. Bonares bajaron 998 puntos básicos hasta 10,32%, con 1.124 puntos básicos de compresión de spread, y las dos curvas pasaron de invertidas a normales. El riesgo país bajó 725 puntos básicos, de 1.231 puntos básicos a 506 puntos básicos: es otra canasta y otro método, y por eso no coincide con el spread de la ficha. Bopreales no admiten comparación de nivel en esta ventana."
+      },
+      "contexto": "El año cerró con una inflación interanual de 33,5% según el INDEC y un dato de agosto de 1,7% mensual. Sobre el cierre, el rendimiento del Tesoro estadounidense a diez años llegó a su máximo desde 2007.",
       "ficha": {
         "periodo": "anio",
         "label": "Año",
@@ -4767,7 +7411,7 @@
         "fin": "2026-09-15",
         "enVivo": false,
         "dias": 365,
-        "generado": "2026-09-16T02:01:26.215Z",
+        "generado": "2026-09-16T14:37:59.391Z",
         "bloques": [
           {
             "sector": "TF",
@@ -4791,6 +7435,8 @@
               "T30J6"
             ],
             "tenor": 303.5,
+            "rangoComun": null,
+            "sinComparacion": "pocos bonos comunes",
             "nivelIni": null,
             "nivelFin": null,
             "dNivelBps": null,
@@ -4800,14 +7446,8 @@
             "forma": null,
             "r2Ini": null,
             "r2Fin": null,
-            "r2ok": null,
-            "tramos": [
-              {
-                "l": "corto",
-                "n": 1,
-                "bps": -3073.6366999999996
-              }
-            ],
+            "r2ok": false,
+            "tramos": [],
             "movers": {
               "suben": [],
               "bajan": [
@@ -4827,7 +7467,7 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 242,
+              "habiles": 241,
               "total": 28393854007091.24,
               "prom": 278371117716.58075,
               "ruedas": 102,
@@ -4835,13 +7475,23 @@
                 "ticker": "S30S6",
                 "monto": 3775109830178.969
               },
-              "cobertura": 0.4214876033057851,
+              "cobertura": 0.42323651452282157,
               "parcial": true
             },
+            "puntos": [
+              {
+                "ticker": "T15E7",
+                "xi": 486,
+                "yi": 55.700984,
+                "xf": 121,
+                "yf": 24.964617
+              }
+            ],
             "_aj": {
               "ini": null,
               "fin": null
-            }
+            },
+            "grafico": null
           },
           {
             "sector": "CER",
@@ -4871,6 +7521,11 @@
               "TZX26"
             ],
             "tenor": 553.5,
+            "rangoComun": [
+              409,
+              2663
+            ],
+            "sinComparacion": null,
             "nivelIni": 19.662258875174857,
             "nivelFin": 7.400700860937704,
             "dNivelBps": -1226.1558014237153,
@@ -4969,7 +7624,7 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 242,
+              "habiles": 241,
               "total": 26265672307163.777,
               "prom": 257506591246.7037,
               "ruedas": 102,
@@ -4977,9 +7632,81 @@
                 "ticker": "TZX26",
                 "monto": 2551613772740.7803
               },
-              "cobertura": 0.4214876033057851,
+              "cobertura": 0.42323651452282157,
               "parcial": true
             },
+            "puntos": [
+              {
+                "ticker": "DICP",
+                "xi": 3028,
+                "yi": 18.826318,
+                "xf": 2663,
+                "yf": 9.888884
+              },
+              {
+                "ticker": "TX26",
+                "xi": 419,
+                "yi": 21.448237,
+                "xf": 54,
+                "yf": 2.748768
+              },
+              {
+                "ticker": "TX28",
+                "xi": 1150,
+                "yi": 22.849396,
+                "xf": 785,
+                "yf": 8.381321
+              },
+              {
+                "ticker": "TX31",
+                "xi": 2266,
+                "yi": 15.247538,
+                "xf": 1901,
+                "yf": 10.35064
+              },
+              {
+                "ticker": "TZX27",
+                "xi": 652,
+                "yi": 18.369101,
+                "xf": 287,
+                "yf": 4.814274
+              },
+              {
+                "ticker": "TZX28",
+                "xi": 1018,
+                "yi": 15.694642,
+                "xf": 653,
+                "yf": 9.240298
+              },
+              {
+                "ticker": "TZXD6",
+                "xi": 455,
+                "yi": 20.578373,
+                "xf": 90,
+                "yf": 3.483784
+              },
+              {
+                "ticker": "TZXD7",
+                "xi": 820,
+                "yi": 17.917132,
+                "xf": 455,
+                "yf": 7.62091
+              },
+              {
+                "ticker": "TZXM7",
+                "xi": 561,
+                "yi": 18.274383,
+                "xf": 196,
+                "yf": 4.352051
+              },
+              {
+                "ticker": "TZXO6",
+                "xi": 409,
+                "yi": 20.774396,
+                "xf": 44,
+                "yf": 1.6535
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -5001,7 +7728,8 @@
                 "xMin": 44,
                 "xMax": 2663
               }
-            }
+            },
+            "grafico": "nivel -1226 bps"
           },
           {
             "sector": "TAMAR",
@@ -5027,6 +7755,8 @@
               "TTS26"
             ],
             "tenor": 272.5,
+            "rangoComun": null,
+            "sinComparacion": "pocos bonos comunes",
             "nivelIni": null,
             "nivelFin": null,
             "dNivelBps": null,
@@ -5036,14 +7766,8 @@
             "forma": null,
             "r2Ini": null,
             "r2Fin": null,
-            "r2ok": null,
-            "tramos": [
-              {
-                "l": "corto",
-                "n": 1,
-                "bps": -1771.8540999999998
-              }
-            ],
+            "r2ok": false,
+            "tramos": [],
             "movers": {
               "suben": [],
               "bajan": [
@@ -5063,7 +7787,7 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 242,
+              "habiles": 241,
               "total": 15125186566552.924,
               "prom": 148286142809.34238,
               "ruedas": 102,
@@ -5071,13 +7795,23 @@
                 "ticker": "TXMJ0",
                 "monto": 2322449586819.2397
               },
-              "cobertura": 0.4214876033057851,
+              "cobertura": 0.42323651452282157,
               "parcial": true
             },
+            "puntos": [
+              {
+                "ticker": "TTD26",
+                "xi": 455,
+                "yi": 17.980714,
+                "xf": 90,
+                "yf": 0.262173
+              }
+            ],
             "_aj": {
               "ini": null,
               "fin": null
-            }
+            },
+            "grafico": null
           },
           {
             "sector": "BOP",
@@ -5091,7 +7825,9 @@
             ],
             "salieron": [],
             "tenor": 1.24,
-            "nivelIni": 62.07355632258781,
+            "rangoComun": null,
+            "sinComparacion": "sin ajuste en una de las ruedas",
+            "nivelIni": null,
             "nivelFin": null,
             "dNivelBps": null,
             "pendIni": -169.16126186684698,
@@ -5100,14 +7836,8 @@
             "forma": null,
             "r2Ini": 0.9980030302789643,
             "r2Fin": null,
-            "r2ok": null,
-            "tramos": [
-              {
-                "l": "corto",
-                "n": 4,
-                "bps": -1231.2863
-              }
-            ],
+            "r2ok": false,
+            "tramos": [],
             "movers": {
               "suben": [],
               "bajan": [
@@ -5141,7 +7871,7 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 242,
+              "habiles": 241,
               "total": 727762430894.5098,
               "prom": 7134925793.083429,
               "ruedas": 102,
@@ -5149,9 +7879,39 @@
                 "ticker": "BPOD7",
                 "monto": 264626555434.19995
               },
-              "cobertura": 0.4214876033057851,
+              "cobertura": 0.42323651452282157,
               "parcial": true
             },
+            "puntos": [
+              {
+                "ticker": "BPOA7",
+                "xi": 1.7,
+                "yi": 8.504351,
+                "xf": 0.84,
+                "yf": 2.027211
+              },
+              {
+                "ticker": "BPOB7",
+                "xi": 1.67,
+                "yi": 12.009075,
+                "xf": 0.84,
+                "yf": 2.720769
+              },
+              {
+                "ticker": "BPOC7",
+                "xi": 1.61,
+                "yi": 17.768099,
+                "xf": 0.84,
+                "yf": 2.430679
+              },
+              {
+                "ticker": "BPOD7",
+                "xi": 1.6,
+                "yi": 18.988332,
+                "xf": 0.84,
+                "yf": 2.48857
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -5164,7 +7924,8 @@
                 "xMax": 1.7
               },
               "fin": null
-            }
+            },
+            "grafico": null
           },
           {
             "sector": "BON",
@@ -5180,6 +7941,11 @@
             ],
             "salieron": [],
             "tenor": 4.115,
+            "rangoComun": [
+              1.54,
+              5.14
+            ],
+            "sinComparacion": null,
             "nivelIni": 20.300384244744794,
             "nivelFin": 10.321029124582253,
             "dNivelBps": -997.9355120162542,
@@ -5273,7 +8039,7 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 242,
+              "habiles": 241,
               "total": 11964175531228.035,
               "prom": 117295838541.45132,
               "ruedas": 102,
@@ -5281,9 +8047,46 @@
                 "ticker": "AL30",
                 "monto": 7654937198219.729
               },
-              "cobertura": 0.4214876033057851,
+              "cobertura": 0.42323651452282157,
               "parcial": true
             },
+            "puntos": [
+              {
+                "ticker": "AE38",
+                "xi": 3.91,
+                "yi": 22.247877,
+                "xf": 4.32,
+                "yf": 10.955293
+              },
+              {
+                "ticker": "AL29",
+                "xi": 1.54,
+                "yi": 26.885883,
+                "xf": 1.45,
+                "yf": 7.859925
+              },
+              {
+                "ticker": "AL30",
+                "xi": 1.9,
+                "yi": 24.047582,
+                "xf": 1.87,
+                "yf": 8.844707
+              },
+              {
+                "ticker": "AL35",
+                "xi": 5.14,
+                "yi": 18.72912,
+                "xf": 5.13,
+                "yf": 10.696238
+              },
+              {
+                "ticker": "AL41",
+                "xi": 5.13,
+                "yi": 18.045992,
+                "xf": 5.55,
+                "yf": 10.572267
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -5305,6 +8108,16 @@
                 "xMin": 1.45,
                 "xMax": 5.55
               }
+            },
+            "grafico": "nivel -998 bps",
+            "ust": {
+              "plazo": 4.641333960173958,
+              "ini": 3.614113563856236,
+              "fin": 4.875466170099996,
+              "dBps": 126,
+              "dSpreadBps": -1124,
+              "spreadFin": 545,
+              "spreadIni": 1669
             }
           },
           {
@@ -5316,6 +8129,11 @@
             "entraron": [],
             "salieron": [],
             "tenor": 4.77,
+            "rangoComun": [
+              1.61,
+              5.3
+            ],
+            "sinComparacion": null,
             "nivelIni": 17.33482935761252,
             "nivelFin": 9.296055292346436,
             "dNivelBps": -803.8774065266084,
@@ -5414,7 +8232,7 @@
             "volumen": {
               "truncado": false,
               "sinColumna": false,
-              "habiles": 242,
+              "habiles": 241,
               "total": 918221542176.6504,
               "prom": 9002171982.124023,
               "ruedas": 102,
@@ -5422,9 +8240,53 @@
                 "ticker": "GD35",
                 "monto": 423850233221.82996
               },
-              "cobertura": 0.4214876033057851,
+              "cobertura": 0.42323651452282157,
               "parcial": true
             },
+            "puntos": [
+              {
+                "ticker": "GD29",
+                "xi": 1.61,
+                "yi": 22.477425,
+                "xf": 1.48,
+                "yf": 5.524056
+              },
+              {
+                "ticker": "GD30",
+                "xi": 2,
+                "yi": 19.619889,
+                "xf": 1.91,
+                "yf": 6.572504
+              },
+              {
+                "ticker": "GD35",
+                "xi": 5.22,
+                "yi": 17.701706,
+                "xf": 5.19,
+                "yf": 9.663701
+              },
+              {
+                "ticker": "GD38",
+                "xi": 4.2,
+                "yi": 18.689831,
+                "xf": 4.47,
+                "yf": 9.490219
+              },
+              {
+                "ticker": "GD41",
+                "xi": 5.3,
+                "yi": 16.749751,
+                "xf": 5.67,
+                "yf": 9.738631
+              },
+              {
+                "ticker": "GD46",
+                "xi": 4.87,
+                "yi": 16.15337,
+                "xf": 6.09,
+                "yf": 9.712311
+              }
+            ],
             "_aj": {
               "ini": {
                 "reg": {
@@ -5446,6 +8308,16 @@
                 "xMin": 1.48,
                 "xMax": 6.09
               }
+            },
+            "grafico": "nivel -804 bps",
+            "ust": {
+              "plazo": 5.490459514681931,
+              "ini": 3.6687997104257297,
+              "fin": 4.908415376680608,
+              "dBps": 124,
+              "dSpreadBps": -928,
+              "spreadFin": 439,
+              "spreadIni": 1367
             }
           }
         ],
@@ -5490,6 +8362,45 @@
             "esPct": true,
             "var": -0.07253962366868816
           }
+        },
+        "ust": {
+          "fechaIni": "2025-09-15",
+          "fechaFin": "2026-09-15",
+          "desfasado": false,
+          "refs": [
+            {
+              "plazo": 2,
+              "ini": 3.54,
+              "fin": 4.67,
+              "dBps": 113
+            },
+            {
+              "plazo": 5,
+              "ini": 3.61,
+              "fin": 4.83,
+              "dBps": 122
+            },
+            {
+              "plazo": 10,
+              "ini": 4.05,
+              "fin": 5,
+              "dBps": 95
+            },
+            {
+              "plazo": 30,
+              "ini": 4.66,
+              "fin": 5.36,
+              "dBps": 70
+            }
+          ]
+        },
+        "riesgoPais": {
+          "fechaIni": "2025-09-15",
+          "fechaFin": "2026-09-15",
+          "ini": 1231,
+          "fin": 506,
+          "desfasado": false,
+          "dBps": -725
         },
         "implicitasIni": [
           {
@@ -5549,11 +8460,11 @@
             "deval": null
           }
         ],
-        "habiles": 242,
+        "habiles": 241,
         "volumen": {
           "total": 103720089018133.78,
           "ruedas": 102,
-          "habiles": 242,
+          "habiles": 241,
           "truncado": false,
           "sinColumna": false,
           "parcial": true
