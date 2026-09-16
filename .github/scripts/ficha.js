@@ -30,10 +30,15 @@ const path = require('path');
 // que tener playwright instalado en otro lado no alcanza. Se prueban los
 // lugares razonables y, si no está en ninguno, se dice qué hacer en vez de
 // escupir un stack de módulos.
+//
+// El lugar fijo es %LOCALAPPDATA%\bonos-ar, fuera del repo: el repo vive en
+// OneDrive, y un node_modules adentro son cientos de archivos sincronizándose.
+const PW_FIJO = process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'bonos-ar');
 function cargarPlaywright() {
   const candidatos = [
     'playwright',
     process.env.PW_DIR && path.join(process.env.PW_DIR, 'node_modules', 'playwright'),
+    PW_FIJO && path.join(PW_FIJO, 'node_modules', 'playwright'),
     path.join(process.cwd(), 'node_modules', 'playwright'),
   ].filter(Boolean);
   for (const c of candidatos) {
@@ -42,8 +47,9 @@ function cargarPlaywright() {
   console.error(`
 ✗ No encuentro playwright.
 
-  Una vez, en la raíz del repo:
-      npm install playwright && npx playwright install chromium
+  Una vez, fuera del repo (el repo está en OneDrive):
+      mkdir "%LOCALAPPDATA%\\bonos-ar" && cd "%LOCALAPPDATA%\\bonos-ar"
+      npm init -y && npm install playwright && npx playwright install chromium
 
   O, si ya lo tenés instalado en otra carpeta:
       PW_DIR=/ruta/a/esa/carpeta node .github/scripts/ficha.js

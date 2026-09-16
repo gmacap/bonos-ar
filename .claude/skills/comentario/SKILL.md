@@ -25,7 +25,9 @@ node .github/scripts/ficha.js --salida <scratchpad>/ficha.json --imagenes salida
 Tarda un minuto. Abre la app publicada, le pide la ficha de los cinco períodos y
 exporta un PNG de 1200×675 por cada curva que la ficha marca con gráfico, del
 período `dia`. Las imágenes quedan en `salidas/comentario/<fecha>/`, que no se
-commitea. Si playwright no está instalado, el script dice qué hacer.
+commitea. Playwright está instalado en `%LOCALAPPDATA%\bonos-ar`, fuera del repo
+porque el repo vive en OneDrive, y el script lo busca ahí solo. Si falta, el
+script dice cómo instalarlo.
 
 Opciones que vas a necesitar:
 
@@ -201,17 +203,37 @@ Mostrale al usuario, antes de commitear:
 - el hilo, tweet por tweet, con qué imagen va en cada uno;
 - la carpeta donde quedaron las imágenes.
 
-Es lo que va a publicar: que lo lea primero. Con el visto bueno:
+Es lo que va a publicar: que lo lea primero. **La revisión es en el chat**, y
+puede llevar varias vueltas: "el párrafo de CER más corto", "sacá el tweet 4",
+"¿de dónde sale el 443?".
+
+- Si pregunta de dónde sale un número, mostrale la línea de la ficha.
+- Si pide un cambio, hacelo en `comentario.json`, **volvé a correr el
+  verificador** y mostrale sólo lo que cambió. Un cambio de redacción puede
+  meter un número mal redondeado o un "porque" sin que se note.
+- Si lo que pide choca con una regla (un número que la ficha no trae, una
+  causa en pesos o dólares), decíselo y proponé cómo decirlo dentro de la regla.
+- **No publiques hasta un OK explícito** ("dale", "publicalo", "ok"). Un "está
+  bien" sobre un párrafo suelto no es el OK del comentario entero.
+
+Con el OK, **directo a `main`**, que es lo que sirve GitHub Pages; después se
+trae a `dev`. Es un dato, como `rem.json`: no pasa por `dev` para no arrastrar a
+producción código que todavía no se mergeó.
 
 ```
+git checkout main && git pull --ff-only
 git add comentario.json
 git commit -m "data(comentario): cierre del <fecha>"
-git push
+git push origin main
+git checkout dev && git merge --no-edit main && git push origin dev
 ```
 
-Las imágenes **no** se commitean. GitHub Pages publica el JSON y el panel lo
-levanta solo; desde el panel también se bajan las imágenes con el botón ⤓ PNG de
-cada curva.
+Si `checkout` o `pull` se quejan (cambios sin commitear, ramas divergidas), frená
+y decíselo al usuario: no resuelvas conflictos ni descartes cambios por tu cuenta.
+
+Las imágenes **no** se commitean. GitHub Pages publica el JSON en uno o dos
+minutos y el panel lo levanta con ↻; desde el panel también se bajan las imágenes
+con el botón ⤓ PNG de cada curva.
 
 ## Qué NO hacer
 
