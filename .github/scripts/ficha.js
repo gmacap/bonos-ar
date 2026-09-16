@@ -3,6 +3,12 @@
 //   node .github/scripts/ficha.js
 //   node .github/scripts/ficha.js --local --salida ficha.json
 //   node .github/scripts/ficha.js --periodo dia --envivo
+//   node .github/scripts/ficha.js --salida ficha.json --imagenes salidas/comentario
+//
+// Con --imagenes exporta un PNG de 1200×675 por cada curva que la ficha marca
+// con gráfico, para adjuntar al hilo de Twitter. Por defecto sólo del día; con
+// --imagenes-periodos dia,semana se eligen otros. Los dibuja comGraficoPNG, la
+// misma función del botón ⤓ PNG del panel: lo que se publica es lo que se miró.
 //
 // No calcula nada: abre la app publicada y le pide fichaConstruir(), que es la
 // misma funcion que dibuja el panel. Esa es toda la gracia — si la ficha se
@@ -54,6 +60,12 @@ const APP = flag('local') ? 'http://localhost:8000/index.html'
                          : (process.env.APP_URL || 'https://santosechezarreta5.github.io/bonos-ar/');
 const SALIDA = opt('salida', null);
 const UNO = opt('periodo', null);
+// La rueda que cierra el período. Sin esto es la última archivada, y la app
+// archiva fotos durante la rueda: a media mañana eso es hoy a medio hacer.
+const HASTA = opt('hasta', null);
+if (HASTA && !/^\d{4}-\d{2}-\d{2}$/.test(HASTA)) { console.error('✗ --hasta tiene que ser YYYY-MM-DD'); process.exit(2); }
+const IMAGENES = opt('imagenes', null);
+const IMG_PERIODOS = opt('imagenes-periodos', 'dia').split(',').map(s => s.trim()).filter(Boolean);
 // Por defecto la rueda cerrada, no los precios en vivo: esto termina commiteado
 // y tiene que ser reproducible. --envivo es para mirar durante la rueda.
 const SOLO_ARCHIVADO = !flag('envivo');
@@ -83,23 +95,56 @@ const fatal = m => { console.error(`\n✗ ${m}\n`); process.exit(1); };
   out.preambulo = await page.evaluate(() => typeof FICHA_PREAMBULO === 'string' ? FICHA_PREAMBULO : null);
 
   for (const p of periodos) {
-    const r = await page.evaluate(async ([p, solo]) => {
+    const r = await page.evaluate(async ([p, solo, hasta]) => {
       try {
-        const f = await fichaConstruir(p, { soloArchivado: solo });
+        const f = await fichaConstruir(p, { soloArchivado: solo, hasta: hasta || undefined });
         if (!f) return null;
         // El objeto entero mas su texto. El texto es lo que se le da a quien
         // redacta; el objeto queda para que el panel muestre los numeros del
         // dia en que se escribio y no los que el navegador recalcule despues.
         return { ficha: f, texto: fichaTexto(f) };
       } catch (e) { return { error: e.message }; }
-    }, [p, SOLO_ARCHIVADO]);
+    }, [p, SOLO_ARCHIVADO, HASTA]);
 
     if (!r) { console.error(`  -- ${p}: sin historia suficiente`); continue; }
     if (r.error) { console.error(`  ✗ ${p}: ${r.error}`); continue; }
     out.periodos[p] = r;
     if (!out.ruedaFin) out.ruedaFin = r.ficha.fin;
     const b = r.ficha.bloques.length;
-    console.error(`  ✓ ${p.padEnd(10)} ${r.ficha.ini} → ${r.ficha.fin}  ${String(b).padStart(2)} sectores  ${r.texto.length} chars`);
+    const graf = r.ficha.bloques.filter(x => x.grafico).map(x => x.sector);
+    console.error(`  ✓ ${p.padEnd(10)} ${r.ficha.ini} → ${r.ficha.fin}  ${String(b).padStart(2)} sectores  ${r.texto.length} chars  gráficos: ${graf.join(',') || '—'}`);
+  }
+
+  // Treasuries y riesgo país salen de fuera y pueden venir atrasados: si el
+  // cierre del día todavía no está publicado, quien redacta tiene que saberlo
+  // antes de escribir la parte de dólares.
+  const d0 = out.periodos.dia && out.periodos.dia.ficha;
+  if (d0) {
+    const u = d0.ust, rp = d0.riesgoPais;
+    console.error(`\n  Treasuries:  ${u ? `al ${u.fechaFin}${u.desfasado ? '  ⚠ DESFASADOS' : ''}` : '✗ sin datos'}`);
+    console.error(`  Riesgo país: ${rp ? `al ${rp.fechaFin}${rp.desfasado ? '  ⚠ DESFASADO' : ''}` : '✗ sin datos'}`);
+  }
+
+  if (IMAGENES) {
+    const dir = path.resolve(IMAGENES, out.ruedaFin || 'sin-fecha');
+    fs.mkdirSync(dir, { recursive: true });
+    let n = 0;
+    for (const p of IMG_PERIODOS) {
+      const per = out.periodos[p];
+      if (!per) continue;
+      const imgs = await page.evaluate(f => f.bloques.filter(b => b.grafico)
+        .map(b => ({ sector: b.sector, url: comGraficoPNG(b, f) })), per.ficha);
+      for (const im of imgs) {
+        if (!im.url || !im.url.startsWith('data:image/png;base64,')) {
+          console.error(`  ✗ ${p}/${im.sector}: no se pudo dibujar`);
+          continue;
+        }
+        const archivo = path.join(dir, `${p}-${im.sector}.png`);
+        fs.writeFileSync(archivo, Buffer.from(im.url.split(',')[1], 'base64'));
+        n++;
+      }
+    }
+    console.error(`\n→ ${n} imagen(es) en ${dir}`);
   }
 
   await browser.close();

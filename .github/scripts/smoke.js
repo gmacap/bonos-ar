@@ -2107,6 +2107,34 @@ const omitir = (label, motivo) =>
           fd.pares.map(x => `${x.s} ${x.nIni}/${x.nFin}`).join(' '));
     check(fd.pares.every(x => x.tenor == null || (x.tenor >= x.xMin && x.tenor <= x.xMax)),
           'el tenor nunca extrapola el ajuste');
+    // En el año los bonos envejecen entre una rueda y otra, y ahí es donde la
+    // mediana se salía del tramo común: los Bopreales daban un nivel de 62%.
+    const anio = await page.evaluate(async () => {
+      const f = await fichaConstruir('anio', { soloArchivado: true, sinFX: true, sinExternos: true });
+      if (!f) return null;
+      return f.bloques.map(b => ({ s: b.sector, n: b.n, sin: b.sinComparacion,
+        tenor: b.tenor, rango: b.rangoComun, nivel: b.nivelFin, tramos: b.tramos.length }));
+    });
+    if (!anio) omitir('el año lee el nivel dentro del tramo común', 'sin un año de historia');
+    else {
+      const conNivel = anio.filter(x => x.nivel != null);
+      check(conNivel.every(x => x.rango && x.tenor >= x.rango[0] - 1e-9 && x.tenor <= x.rango[1] + 1e-9),
+            'en el año el nivel se lee dentro del tramo que comparten las dos ruedas',
+            JSON.stringify(conNivel.map(x => [x.s, x.tenor, x.rango])));
+      check(anio.every(x => x.n >= 3 || (x.nivel == null && x.tramos === 0)),
+            'con menos de tres bonos comunes no hay nivel ni tramos',
+            JSON.stringify(anio.map(x => [x.s, x.n, x.nivel, x.tramos])));
+    }
+    // El movimiento se mide desde el cierre de la rueda inicial: lo que se operó
+    // ese día no es del período. Con la rueda adentro, el volumen "del día"
+    // sumaba dos ruedas, y así llegó a publicarse.
+    const volDia = await page.evaluate(async () => {
+      const f = await fichaConstruir('dia', { soloArchivado: true, sinFX: true, sinExternos: true });
+      return f ? { ruedas: f.volumen.ruedas, habiles: f.habiles } : null;
+    });
+    if (!volDia) omitir('el volumen del día es de una rueda', 'sin historia');
+    else check(volDia.ruedas <= 1 && volDia.habiles === 1,
+               'el volumen del día es el de una sola rueda', JSON.stringify(volDia));
     if (fd.fx < 3) omitir('la ficha trae el movimiento del dolar', 'sin precios en vivo');
     else check(fd.fx >= 3, 'la ficha trae el movimiento del dolar', String(fd.fx));
     check(!/undefined|NaN/.test(fd.texto) && fd.texto.length > 400,
@@ -2194,6 +2222,151 @@ const omitir = (label, motivo) =>
   else check(copia.medido && copia.pie && copia.preambulo && !copia.sucio && copia.largo > 1000,
              'el texto copiado lleva encabezados, pie y preambulo', JSON.stringify(copia));
   await page.evaluate(() => switchSection('pesos'));
+
+  console.log('\nComentario: Treasuries, riesgo país, gráficos y Twitter');
+  // Lo que no depende de la red: el parseo del Tesoro, la interpolación, la base
+  // de tasa, la duration, el conteo de Twitter y el criterio de gráfico.
+  const ext = await page.evaluate(() => {
+    const csv = 'Date,"1 Mo","1.5 Month","2 Yr","5 Yr","10 Yr"\n09/15/2026,3.93,4.00,4.67,4.83,5.00\n09/14/2026,3.94,4.00,4.65,4.80,4.97';
+    const m = ustParsearCSV(csv);
+    const pts = m.get('2026-09-15');
+    const plana = [{ plazo: 1 / 12, y: 5 }, { plazo: 30, y: 5 }];
+    return {
+      fechas: [...m.keys()].sort(),
+      plazos: pts.map(p => +p.plazo.toFixed(4)),
+      en2: ustEnPlazo(pts, 2), en7: ustEnPlazo(pts, 7.5), en40: ustEnPlazo(pts, 40),
+      efe: ustEfectiva(5),
+      // Un bono par a 5 años al 5% tiene esta duration; de vuelta tiene que dar 5.
+      plazo5: ustPlazoPorMD(plana, (1 - Math.pow(1.025, -10)) / 0.05),
+      rp: rpEn(new Map([['2026-09-11', 494], ['2026-09-14', 490], ['2026-09-15', 506]]), '2026-09-13'),
+      tw: { ascii: twLargo('a'.repeat(280)), flecha: twLargo('→'),
+            url: twLargo('ver https://example.com/una/ruta/muy/larga'), acento: twLargo('inflación') },
+      graf: {
+        dia15: fichaGraficoMotivo({ dNivelBps: 15, puntos: [1, 2, 3] }, 'dia'),
+        dia5: fichaGraficoMotivo({ dNivelBps: 5, puntos: [1, 2, 3], r2ok: true, forma: 'sin cambio de forma' }, 'dia'),
+        mes20: fichaGraficoMotivo({ dNivelBps: 20, puntos: [1, 2, 3], r2ok: false }, 'mes'),
+        forma: fichaGraficoMotivo({ dNivelBps: 2, puntos: [1, 2, 3], r2ok: true, forma: 'empinó' }, 'dia'),
+        sinR2: fichaGraficoMotivo({ dNivelBps: 2, puntos: [1, 2, 3], r2ok: false, forma: null }, 'dia'),
+      },
+    };
+  });
+  check(ext.fechas.join(',') === '2026-09-14,2026-09-15', 'el CSV del Tesoro se lee con sus fechas', ext.fechas.join(','));
+  check(JSON.stringify(ext.plazos) === JSON.stringify([0.0833, 0.125, 2, 5, 10]),
+        'los plazos salen de la cabecera, incluido el de 1,5 meses', JSON.stringify(ext.plazos));
+  check(ext.en2 === 4.67 && Math.abs(ext.en7 - 4.915) < 1e-9 && ext.en40 === 5,
+        'el Treasury se interpola por plazo y no extrapola', `${ext.en2} · ${ext.en7} · ${ext.en40}`);
+  check(Math.abs(ext.efe - 5.0625) < 1e-9, 'la tasa par semestral se pasa a efectiva anual', String(ext.efe));
+  check(Math.abs(ext.plazo5 - 5) < 1e-6, 'la duration de un par a 5 años devuelve 5 años', String(ext.plazo5));
+  check(ext.rp && ext.rp.fecha === '2026-09-11' && ext.rp.valor === 494,
+        'el riesgo país toma el último dato en o antes de la fecha', JSON.stringify(ext.rp));
+  check(ext.tw.ascii === 280 && ext.tw.flecha === 2 && ext.tw.url === 27 && ext.tw.acento === 9,
+        'los caracteres se cuentan como los cuenta Twitter', JSON.stringify(ext.tw));
+  check(!!ext.graf.dia15 && !ext.graf.dia5 && !ext.graf.mes20 && !!ext.graf.forma && !ext.graf.sinR2,
+        'el gráfico entra por nivel o por forma, con umbral por período', JSON.stringify(ext.graf));
+
+  // Contra el Tesoro y ArgentinaDatos de verdad, sobre una rueda ya cerrada: la
+  // última archivada puede ser una foto de media rueda sin Treasuries publicados.
+  const dec = await page.evaluate(async () => {
+    const r = await fichaRuedas('dia', { soloArchivado: true });
+    if (!r) return { omitir: 'sin historia archivada' };
+    const f = await fichaConstruir('dia', { soloArchivado: true, hasta: r.ini, sinFX: true });
+    if (!f) return { omitir: 'sin ficha para la rueda anterior' };
+    if (!f.ust) return { omitir: 'el Tesoro no respondió' };
+    const usd = f.bloques.filter(b => b.ejeX === 'md' && b.ust);
+    return {
+      desfasado: f.ust.desfasado,
+      suma: usd.map(b => ({ s: b.sector,
+        ok: Math.round(b.dNivelBps) === b.ust.dBps + b.ust.dSpreadBps
+            && b.ust.spreadFin - b.ust.spreadIni === b.ust.dSpreadBps })),
+      plazos: usd.map(b => ({ s: b.sector, md: +b.tenor.toFixed(2), t: +b.ust.plazo.toFixed(2) })),
+      rp: !!f.riesgoPais, texto: fichaTexto(f),
+    };
+  });
+  if (dec.omitir) omitir('la descomposición contra Treasuries', dec.omitir);
+  else {
+    check(!dec.desfasado, 'una rueda cerrada tiene los Treasuries publicados');
+    check(dec.suma.length > 0 && dec.suma.every(x => x.ok),
+          'Treasuries más spread suman exactamente el movimiento del nivel', JSON.stringify(dec.suma));
+    check(dec.plazos.every(x => x.t > x.md), 'el plazo equivalente es mayor que la duration', JSON.stringify(dec.plazos));
+    check(/TREASURIES/.test(dec.texto) && /descomposición: de los/.test(dec.texto),
+          'la ficha trae los Treasuries y la descomposición');
+    if (dec.rp) check(/RIESGO PAÍS/.test(dec.texto), 'la ficha trae el riesgo país');
+    else omitir('el riesgo país en la ficha', 'ArgentinaDatos no respondió');
+  }
+
+  // Con el cierre del Tesoro sin publicar, el Treasury no "se movió cero": no hay
+  // dato. Ni la variación ni la descomposición pueden aparecer.
+  const desf = await page.evaluate(async () => {
+    const u = await ustCurvaEn(hoyAR());
+    if (!u) return { omitir: 'el Tesoro no respondió' };
+    const mas = n => { const d = parseDate(u.fecha); d.setDate(d.getDate() + n); return fmtDate(d); };
+    const b = { ejeX: 'md', tenor: 4, dNivelBps: 12, nivelIni: 9, nivelFin: 9.12 };
+    const out = await fichaDolares([b], mas(1), mas(2));
+    return { desfasado: !!(out.ust && out.ust.desfasado), sinDescomposicion: !b.ust,
+             refsNulas: !!(out.ust && out.ust.refs.every(r => r.dBps === null)),
+             rpNulo: !out.riesgoPais || out.riesgoPais.dBps === null };
+  });
+  if (desf.omitir) omitir('los Treasuries desfasados', desf.omitir);
+  else check(desf.desfasado && desf.sinDescomposicion && desf.refsNulas && desf.rpNulo,
+             'sin cierre publicado no hay variación ni descomposición, en vez de un cero', JSON.stringify(desf));
+
+  // El panel con la forma nueva, con un comentario armado a mano sobre la ficha real.
+  const pan = await page.evaluate(async () => {
+    const f = await fichaCacheada('dia', false);
+    if (!f) return { omitir: 'sin ficha' };
+    const guardado = COM_DATA;
+    const graf = f.bloques.filter(b => b.grafico && b.puntos).map(b => b.sector);
+    const p = { ini: f.ini, fin: f.fin, titular: 'Titular de prueba',
+      pesos: { resumen: 'Resumen de pesos.', TF: 'Parrafo TF.', CER: 'Parrafo CER.', TAMAR: 'Parrafo TAMAR.', DLK: 'Parrafo DLK.' },
+      dolares: { resumen: 'Parrafo de dolares.' }, contexto: 'Contexto.',
+      twitter: [{ texto: '1/3 uno', graficos: graf.slice(0, 1) }, { texto: '2/3 dos' }, { texto: '3/3 tres' }],
+      ficha: f };
+    COM_DATA = { generado: new Date().toISOString(), ruedaFin: f.fin, fuentes: [], periodos: { dia: p } };
+    comEstado.ars.periodo = 'dia'; comEstado.usd.periodo = 'dia';
+    comRender('ars', f, COM_DATA);
+    const c = document.getElementById('com-ars-cuerpo');
+    const ta = c.textContent;
+    const out = {
+      pesosPrimero: ta.indexOf('Pesos') >= 0 && ta.indexOf('Pesos') < ta.indexOf('Dólares'),
+      curvas: ['Parrafo TF.', 'Parrafo CER.', 'Parrafo TAMAR.', 'Parrafo DLK.'].every(t => ta.includes(t)),
+      canvasLectura: c.querySelectorAll('canvas[data-graf-origen="lectura"]').length,
+      canvasMedido: c.querySelectorAll('canvas[data-graf-origen="medido"]').length,
+      charts: _comGraficos.ars.length, graf,
+      twitter: ta.includes('1/3 uno') && /\/280/.test(ta),
+      hilo: comHiloTexto(p),
+    };
+    const cu = document.getElementById('com-usd-cuerpo');
+    if (cu) { comRender('usd', f, COM_DATA); const tu = cu.textContent; out.dolaresPrimero = tu.indexOf('Dólares') >= 0 && tu.indexOf('Dólares') < tu.indexOf('Pesos'); }
+    const b = f.bloques.find(x => x.puntos && x.puntos.length >= 3);
+    const png = b ? comGraficoPNG(b, f) : null;
+    out.png = png ? { tipo: png.slice(0, 22), largo: png.length } : null;
+    // Sin comentario, los gráficos van con lo medido.
+    COM_DATA = null;
+    comRender('ars', f, null);
+    out.sinComentarioMedido = c.querySelectorAll('canvas[data-graf-origen="medido"]').length;
+    // Un comentario de la forma vieja sigue mostrándose.
+    COM_DATA = { generado: 'x', ruedaFin: f.fin, periodos: { dia: { ini: f.ini, fin: f.fin, titular: 'Viejo', movimiento: 'Texto viejo.', contexto: 'c' } } };
+    comRender('ars', f, COM_DATA);
+    out.viejo = c.textContent.includes('Texto viejo.');
+    COM_DATA = guardado;
+    comRender('ars', f, COM_DATA);
+    return out;
+  });
+  if (pan.omitir) omitir('el panel con la forma nueva', pan.omitir);
+  else {
+    check(pan.pesosPrimero && pan.dolaresPrimero !== false, 'pesos y dólares van por separado, cada entrada con lo suyo primero',
+          `ars pesos primero: ${pan.pesosPrimero} · usd dólares primero: ${pan.dolaresPrimero}`);
+    check(pan.curvas, 'un párrafo por cada curva de pesos');
+    check(pan.canvasLectura === pan.graf.length && pan.charts === pan.graf.length && pan.canvasMedido === 0,
+          'un gráfico por curva que se movió, al lado de su párrafo y sin repetirse abajo',
+          `${pan.canvasLectura} en lectura · ${pan.canvasMedido} en medido · ${pan.charts} dibujados · marcados ${pan.graf.join(',')}`);
+    check(pan.sinComentarioMedido === pan.graf.length, 'sin comentario, los gráficos van con lo medido', String(pan.sinComentarioMedido));
+    check(pan.twitter, 'el hilo se muestra con su conteo de caracteres');
+    check(pan.hilo.includes('1/3 uno') && pan.hilo.includes('3/3 tres'), 'el hilo se copia entero');
+    check(pan.png && pan.png.tipo === 'data:image/png;base64,' && pan.png.largo > 20000,
+          'la imagen para compartir se genera', JSON.stringify(pan.png));
+    check(pan.viejo, 'un comentario de la forma vieja se sigue mostrando');
+  }
 
   console.log('\nEscenarios');
   const esc = await page.evaluate(() => {

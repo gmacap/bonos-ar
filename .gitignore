@@ -10,3 +10,8 @@ package-lock.json
 
 # Salidas de trabajo de los scripts, que se regeneran solas.
 ficha.json
+
+# Las imágenes del comentario para Twitter. Son para adjuntar a mano, no para
+# el repo: un día con siete curvas son varios cientos de KB, todos los días,
+# para siempre en el historial de git. El panel las dibuja en el momento.
+salidas/
