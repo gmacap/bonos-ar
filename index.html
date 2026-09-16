@@ -358,6 +358,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab" id="nav-escenarios" onclick="switchTab('escenarios')">Escenarios</button>
   <button class="nav-tab" id="nav-curvas-ars" onclick="switchTab('curvas-ars')">Curvas</button>
   <button class="nav-tab" id="nav-series-ars" onclick="switchTab('series-ars')">Series</button>
+  <button class="nav-tab" id="nav-comentario" onclick="switchTab('comentario')">Comentario</button>
   <button class="nav-tab" id="nav-feriados" onclick="switchTab('feriados')" style="margin-left:auto">Feriados</button>
 </nav>
 <nav class="nav" id="nav-usd" style="display:none">
@@ -370,6 +371,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab"        id="nav-usd-equiv"       onclick="switchUsdTab('usd-equiv')">Equivalencias</button>
   <button class="nav-tab"        id="nav-usd-curvas"      onclick="switchUsdTab('usd-curvas')">Curvas</button>
   <button class="nav-tab"        id="nav-usd-series"      onclick="switchUsdTab('usd-series')">Series</button>
+  <button class="nav-tab"        id="nav-usd-comentario"  onclick="switchUsdTab('usd-comentario')">Comentario</button>
 </nav>
 <!-- USD sub-bar: currency selector + price status -->
 <div id="usd-subbar" style="display:none;align-items:center;height:36px;padding:0 1rem;gap:10px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
@@ -1930,6 +1932,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <!-- ARS CURVAS PAGE -->
 <div id="page-curvas-ars" style="display:none;height:calc(100vh - 64px);flex-direction:column;overflow:hidden;"></div>
 <div id="page-series-ars" style="display:none;height:calc(100vh - 64px);flex-direction:column;overflow:hidden;"></div>
+<div id="page-comentario" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:1.5rem 2rem;"></div>
 
 <!-- USD PAGES -->
 <div id="page-usd-resumen"   class="pg"></div>
@@ -2392,6 +2395,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 <div id="page-usd-curvas" style="display:none;height:calc(100vh - 200px);overflow:hidden;flex-direction:column;"></div>
 <div id="page-usd-series" style="display:none;height:calc(100vh - 200px);overflow:hidden;flex-direction:column;"></div>
+<div id="page-usd-comentario" style="display:none;height:calc(100vh - 200px);overflow-y:auto;padding:1.5rem 2rem;"></div>
 
 <div style="height:30px;"></div>
 <div class="status-bar">
@@ -4533,13 +4537,13 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-spreadleg','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-spreadleg','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-escenarios'];
+    'page-escenarios','page-comentario'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -4577,6 +4581,7 @@ function switchUsdTab(tab){
   if(tab==='usd-equiv') equivRender();
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
+  if(tab==='usd-comentario') comInit('usd');
 }
 
 function switchTab(tab){
@@ -4651,6 +4656,9 @@ function switchTab(tab){
   } else if(tab==='series-ars'){
     document.getElementById('page-series-ars').style.display='flex';
     seriesInit('ars');
+  } else if(tab==='comentario'){
+    document.getElementById('page-comentario').style.display='block';
+    comInit('ars');
   }
 }
 
@@ -15431,7 +15439,7 @@ function curvasSnapshotFromMemory(sector){
       const px=b.lastPrecioMEP??(usdCurrency==='MEP'?b.lastPrecio:null);
       if(px==null)return;
       const bk=b.lastPrecio;
-      try{b.lastPrecio=px;const r=usdResCalcRow(b,liq);if(r.tir==null||isNaN(r.tir))return;rows.push({ticker:b.ticker,tir:r.tir,md:r.md,dias:null,sector:sec,price:px});}catch(e){}
+      try{b.lastPrecio=px;const r=usdResCalcRow(b,liq);if(r.tir==null||isNaN(r.tir))return;rows.push({ticker:b.ticker,tir:r.tir,md:r.md,dias:null,sector:sec,price:px,...curvasLibroDe(b.lastBid,b.lastAsk,b.lastMonto)});}catch(e){}
       finally{b.lastPrecio=bk;}
     });
   }
@@ -15439,16 +15447,16 @@ function curvasSnapshotFromMemory(sector){
   if(BON_BONDS&&BON_BONDS.length) addUsd(BON_BONDS,'BON');
   if(GLO_BONDS&&GLO_BONDS.length) addUsd(GLO_BONDS,'GLO');
   if((!sector||sector==='TF'||sector==='ALL')&&LECAPS&&LECAPS.length){
-    LECAPS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=enrich(b);if(!e||isNaN(e.tna))return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'TF',price:b.precio});}catch(ex){}});
+    LECAPS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=enrich(b);if(!e||isNaN(e.tna))return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'TF',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='CER'||sector==='ALL')&&CER_BONDS&&CER_BONDS.length){
-    CER_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=cerEnrich(b);if(!e||isNaN(e.tir))return;rows.push({ticker:b.ticker,tir:e.tir,md:null,dias:e.dias,sector:'CER',price:b.precio});}catch(ex){}});
+    CER_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=cerEnrich(b);if(!e||isNaN(e.tir))return;rows.push({ticker:b.ticker,tir:e.tir,md:null,dias:e.dias,sector:'CER',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='TAMAR'||sector==='ALL')&&typeof TAMAR_BONDS!=='undefined'&&TAMAR_BONDS&&TAMAR_BONDS.length){
-    TAMAR_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=tamarEnrich(b);if(!e||isNaN(e.margenTNA)||!e.dias)return;rows.push({ticker:b.ticker,tir:e.margenTNA,md:null,dias:e.dias,sector:'TAMAR',price:b.precio});}catch(ex){}});
+    TAMAR_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=tamarEnrich(b);if(!e||isNaN(e.margenTNA)||!e.dias)return;rows.push({ticker:b.ticker,tir:e.margenTNA,md:null,dias:e.dias,sector:'TAMAR',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='DLK'||sector==='ALL')&&typeof DLK_BONDS!=='undefined'&&DLK_BONDS&&DLK_BONDS.length){
-    DLK_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=dlkEnrich(b);if(!e||e.tna==null)return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'DLK',price:b.precio});}catch(ex){}});
+    DLK_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=dlkEnrich(b);if(!e||e.tna==null)return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'DLK',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   return rows;
 }
@@ -17451,6 +17459,325 @@ function fichaTexto(f){
            +(f.volumen.truncado?' · PARCIAL':''));
   }
   return L.join('\n');
+}
+
+// ══════════════════════════════════════════════════════ PANEL DE COMENTARIO
+// Un solo panel con dos entradas de navegación, y no dos paneles. Las
+// implícitas cruzan tasa fija con CER y con dollar linked, el dólar no es ni de
+// pesos ni de dólares, y el volumen sólo se compara entre sectores si están en
+// la misma ficha: partirlo daría dos medios comentarios y ninguna implícita. Lo
+// único que cambia entre las dos entradas es qué sectores vienen desplegados.
+//
+// Tres bloques, con borde y cabecera distintos, y en este orden: la LECTURA
+// arriba porque es lo que se manda, el CONTEXTO abajo porque es marco y no
+// causa, y lo MEDIDO al final porque es de dónde salen los dos. La separación
+// viaja al portapapeles: el texto que se copia lleva los mismos encabezados, así
+// no se pierde al pegar.
+const COM_LS='bonosAR_comentario_v1';
+const COM_URL='comentario.json';
+// El REM sale una vez por mes y por eso su TTL es de 24 horas. Esto cambia todos
+// los días hábiles a las seis de la tarde y la app suele quedar abierta todo el
+// día: con 24 horas nadie vería el de hoy.
+const COM_TTL_MS=3*60*60*1000;
+const FICHA_TTL_MS=5*60*1000;
+let COM_DATA=null;
+const comEstado={
+  ars:{periodo:'dia',sectores:FICHA_SECT_ARS},
+  usd:{periodo:'dia',sectores:FICHA_SECT_USD},
+};
+// La ficha es la misma para las dos entradas: se cachea por período para que
+// cambiar de sección no vuelva a pedir veinte mil filas de monto.
+const _fichaCache=new Map();
+const _comCargando=new Set();
+
+async function fichaCacheada(periodo,forzar){
+  const c=_fichaCache.get(periodo);
+  if(!forzar&&c&&Date.now()-c.ts<FICHA_TTL_MS)return c.ficha;
+  const ficha=await fichaConstruir(periodo);
+  _fichaCache.set(periodo,{ts:Date.now(),ficha});
+  return ficha;
+}
+
+// Copia literal del patrón de remFetch: caché con TTL, y si no hay red se sirve
+// la vencida. El 404 tiene que devolver null sin lanzar — antes del primer
+// commit el archivo no existe, y el panel funciona igual con la ficha sola.
+async function comFetch(forzar){
+  if(!forzar&&COM_DATA)return COM_DATA;
+  let cache=null;
+  try{
+    const r=localStorage.getItem(COM_LS);
+    if(r){
+      const p=JSON.parse(r);
+      if(p&&p.data){
+        cache=p.data;
+        if(!forzar&&Date.now()-p.ts<COM_TTL_MS){COM_DATA=p.data;return COM_DATA;}
+      }
+    }
+  }catch(e){}
+  try{
+    const res=await fetch(COM_URL,{cache:'no-cache'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const d=await res.json();
+    if(!d||!d.periodos||!d.periodos.dia||typeof d.periodos.dia.movimiento!=='string')
+      throw new Error('comentario.json sin la forma esperada');
+    COM_DATA=d;
+    try{localStorage.setItem(COM_LS,JSON.stringify({ts:Date.now(),data:d}));}catch(e){}
+    return COM_DATA;
+  }catch(e){
+    // Sin comentario el panel sigue sirviendo: la ficha es lo que se copia.
+    COM_DATA=cache;
+    return COM_DATA;
+  }
+}
+
+function comInit(sec){
+  const el=document.getElementById(sec==='ars'?'page-comentario':'page-usd-comentario');
+  if(!el)return;
+  if(!el.innerHTML.trim())el.innerHTML=comEsqueleto(sec);
+  comCargar(sec);
+}
+
+function comEsqueleto(sec){
+  const p=comEstado[sec].periodo;
+  return `<div style="max-width:1180px;margin:0 auto;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+      <div>
+        <div style="font-family:var(--serif);font-size:20px;font-weight:300;font-style:italic;color:var(--accent)">Comentario de mercado</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px" id="com-${sec}-rango">—</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <button class="btn" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCargar('${sec}',true)">↻</button>
+        <button class="btn" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCopiar('${sec}','ficha')" title="Copia sólo los números medidos">⧉ Ficha</button>
+        <button class="btn primary" style="margin:0;padding:5px 11px;font-size:11px" onclick="comCopiar('${sec}','prompt')" title="Copia la ficha con las instrucciones, listo para pedir el comentario">⧉ Prompt</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.25rem;flex-wrap:wrap;" id="com-${sec}-tabs">
+      ${FICHA_PERIODOS.map(x=>`<button class="proy-subtab${x.v===p?' active':''}" style="margin-right:1.25rem" data-per="${x.v}" onclick="comSetPeriodo('${sec}','${x.v}')">${x.l}</button>`).join('')}
+    </div>
+    <div id="com-${sec}-cuerpo"><div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Midiendo la curva…</div></div>
+  </div>`;
+}
+
+function comSetPeriodo(sec,p){
+  if(!FICHA_PERIODOS.some(x=>x.v===p))return;
+  comEstado[sec].periodo=p;
+  const tabs=document.getElementById(`com-${sec}-tabs`);
+  if(tabs)tabs.querySelectorAll('.proy-subtab').forEach(b=>
+    b.classList.toggle('active',b.getAttribute('data-per')===p));
+  comCargar(sec);
+}
+
+async function comCargar(sec,forzar){
+  const p=comEstado[sec].periodo;
+  const clave=sec+'|'+p;
+  if(_comCargando.has(clave))return;
+  _comCargando.add(clave);
+  const cuerpo=document.getElementById(`com-${sec}-cuerpo`);
+  if(cuerpo&&forzar)cuerpo.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Midiendo la curva…</div>';
+  try{
+    const[ficha,com]=await Promise.all([fichaCacheada(p,forzar),comFetch(forzar)]);
+    comRender(sec,ficha,com);
+  }catch(e){
+    console.error('comCargar:',e);
+    if(cuerpo)cuerpo.innerHTML=`<div style="padding:2rem;text-align:center;color:var(--danger);font-size:12px">No se pudo medir: ${comEsc(e.message)}</div>`;
+  }finally{_comCargando.delete(clave);}
+}
+
+function comEsc(s){
+  return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function comParrafos(t){
+  return String(t||'').split(/\n{2,}/).filter(x=>x.trim())
+    .map(x=>`<p style="margin:0 0 .7rem">${comEsc(x.trim()).replace(/\n/g,'<br>')}</p>`).join('');
+}
+
+function comRender(sec,f,com){
+  const cuerpo=document.getElementById(`com-${sec}-cuerpo`);
+  if(!cuerpo)return;
+  const rango=document.getElementById(`com-${sec}-rango`);
+  if(rango){
+    rango.innerHTML=f
+      ?`${_fF(f.ini)} → ${_fF(f.fin)} · ${f.dias} días corridos · `
+       +(f.enVivo?'<span style="color:var(--warn)">precios en vivo, la rueda no cerró</span>'
+                 :'última rueda archivada')
+      :'sin historia para ese período';
+  }
+  if(!f){
+    cuerpo.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">No hay suficiente historia archivada para ese período.</div>';
+    return;
+  }
+  const p=com&&com.periodos?com.periodos[f.periodo]:null;
+  // Si el comentario no es de la última rueda medida, alguien lo puede mandar
+  // creyéndolo de hoy. Se avisa con la fecha a la vista en vez de esconderlo.
+  const viejo=p&&com&&com.ruedaFin&&com.ruedaFin!==f.fin;
+  cuerpo.innerHTML=
+    comBloqueLectura(p,viejo,com,f)+
+    comBloqueContexto(p,com)+
+    comBloqueMedido(sec,f)+
+    comPie();
+}
+
+function comCaja(color,titulo,sub,html){
+  return `<div style="border-left:3px solid ${color};background:var(--surface);border-radius:0 6px 6px 0;padding:.9rem 1.1rem;margin-bottom:1rem;">
+    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:.6rem">
+      <span style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:${color};font-family:var(--mono)">${titulo}</span>
+      <span style="font-size:10px;color:var(--text3)">${sub}</span>
+    </div>${html}</div>`;
+}
+
+function comBloqueLectura(p,viejo,com,f){
+  if(!p)return comCaja('var(--accent)','Lectura',
+    'escrita por IA sobre los números de abajo',
+    `<div style="font-size:12px;color:var(--text3);line-height:1.6">
+      Todavía no hay comentario generado para este período.
+      Apretá <strong style="color:var(--text2)">⧉ Prompt</strong>, pegalo en Claude y pedile el comentario:
+      sale con los mismos números que están acá abajo.
+    </div>`);
+  const aviso=viejo
+    ? `<div style="font-size:10px;color:var(--warn);margin-bottom:.6rem;font-family:var(--mono)">
+         ⚠ Este comentario es de la rueda del ${_fF(com.ruedaFin)} y los números de abajo son del ${_fF(f.fin)}.
+       </div>` : '';
+  const tit=p.titular?`<div style="font-family:var(--serif);font-size:16px;font-style:italic;color:var(--text);margin-bottom:.6rem">${comEsc(p.titular)}</div>`:'';
+  return comCaja('var(--accent)','Lectura',
+    'escrita por IA sobre los números de abajo'+(com&&com.generado?' · '+_fF(String(com.generado).slice(0,10)):''),
+    aviso+tit+`<div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(p.movimiento)}</div>`);
+}
+
+function comBloqueContexto(p,com){
+  if(!p||!p.contexto)return'';
+  const fs=(com&&Array.isArray(com.fuentes)?com.fuentes:[]).slice(0,8);
+  const links=fs.length?`<div style="margin-top:.7rem;display:flex;flex-wrap:wrap;gap:6px">`+
+    fs.map(x=>`<a href="${comEsc(x.url)}" target="_blank" rel="noopener" style="font-size:10px;color:var(--text3);border:1px solid var(--border);border-radius:3px;padding:1px 7px;text-decoration:none">${comEsc(x.titulo||x.url).slice(0,60)}${x.fecha?' · '+_fF(x.fecha):''}</a>`).join('')+`</div>`:'';
+  return comCaja('var(--warn)','Contexto',
+    'búsqueda web del modelo · no explica el movimiento',
+    `<div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(p.contexto)}</div>`+links);
+}
+
+function comBloqueMedido(sec,f){
+  const abiertos=new Set(comEstado[sec].sectores);
+  const orden=[...f.bloques].sort((a,b)=>
+    (abiertos.has(b.sector)?1:0)-(abiertos.has(a.sector)?1:0));
+  const tiles=orden.map(b=>comTile(b,abiertos.has(b.sector))).join('');
+  return comCaja('var(--text3)','Medido',
+    'calculado en tu navegador sobre el histórico de curvas',
+    `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(285px,1fr));gap:.7rem;margin-bottom:1rem">${tiles}</div>`
+    +comFilaFX(f)+comFilaImplicitas(f));
+}
+
+const _comBps=v=>v==null||!isFinite(v)?'<span style="color:var(--text3)">—</span>'
+  :`<span style="color:${v>=0?'var(--danger)':'var(--accent)'}">${v>=0?'+':''}${Math.round(v)} bps</span>`;
+
+function comTile(b,destacado){
+  const esDias=b.ejeX==='dias';
+  const tn=esDias?`${_fN(b.tenor,0)}d`:`MD ${_fN(b.tenor,2)}`;
+  const mv=x=>`<span style="white-space:nowrap">${comEsc(x.ticker)} ${_comBps(x.bps)}${x.monto>0?`<span style="color:var(--text3)"> ${_fM(x.monto)}</span>`:''}</span>`;
+  const v=b.volumen;
+  const vol=v.sinColumna?'<span style="color:var(--text3)">volumen no disponible</span>'
+    :!v.ruedas?'<span style="color:var(--text3)">sin volumen en el período</span>'
+    :`vol ${_fM(v.total)} · ${_fM(v.prom)}/rueda`+(v.top?` · top ${comEsc(v.top.ticker)} ${_fM(v.top.monto)}`:'')
+      +(v.truncado?' <span style="color:var(--warn)">parcial</span>':'');
+  return `<div style="background:var(--surface2);border:1px solid ${destacado?'var(--border2)':'var(--border)'};border-radius:6px;padding:.7rem .85rem;font-family:var(--mono);font-size:11px;line-height:1.7">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:.4rem">
+      <span style="font-size:12px;color:var(--accent2);font-weight:600">${comEsc(b.nombre)}</span>
+      <span style="color:var(--text3);font-size:10px">${b.n} bonos</span>
+    </div>
+    <div>nivel @ ${tn} <span style="color:var(--text)">${_fN(b.nivelFin)}%</span> <span style="color:var(--text3)">${comEsc(b.unidad)}</span>  ${_comBps(b.dNivelBps)}</div>
+    <div style="color:var(--text3)">${b.r2ok
+      ? `pendiente ${_fN(b.pendIni,2)} → ${_fN(b.pendFin,2)} · <span style="color:var(--text2)">${comEsc(b.forma)}</span> (R² ${_fN(b.r2Fin,2)})`
+      : `pendiente no reportada · el ajuste no representa esta curva (R² ${_fN(b.r2Fin,2)})`}</div>
+    <div style="color:var(--text3)">${b.tramos.map(t=>`${t.l} ${_comBps(t.bps)}`).join(' · ')||'—'}</div>
+    ${b.movers.suben.length?`<div>↑ ${b.movers.suben.map(mv).join(' · ')}</div>`:''}
+    ${b.movers.bajan.length?`<div>↓ ${b.movers.bajan.map(mv).join(' · ')}</div>`:''}
+    ${b.residuos.baratos.length?`<div style="color:var(--text3)">vs curva · barato ${comEsc(b.residuos.baratos[0].ticker)} ${_comBps(b.residuos.baratos[0].bps)} · caro ${comEsc(b.residuos.ricos[0].ticker)} ${_comBps(b.residuos.ricos[0].bps)}</div>`:''}
+    <div style="color:var(--text3)">${vol}</div>
+  </div>`;
+}
+
+function comFilaFX(f){
+  const ks=Object.keys(f.fx||{});
+  if(!ks.length)return'';
+  const celda=k=>{
+    const d=f.fx[k],su=d.esPct?'%':'';
+    const va=d.esPct?_fS(d.var)+' pp':_fP(d.var);
+    const col=d.var==null?'var(--text3)':(d.var>=0?'var(--danger)':'var(--accent)');
+    return `<span style="white-space:nowrap"><span style="color:var(--text3)">${k}</span> ${_fN(d.fin,2)}${su} <span style="color:${col}">${va}</span></span>`;
+  };
+  return `<div style="font-family:var(--mono);font-size:11px;display:flex;flex-wrap:wrap;gap:14px;padding:.6rem .85rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:.7rem">${ks.map(celda).join('')}</div>`;
+}
+
+function comFilaImplicitas(f){
+  const filas=f.implicitasFin.map((b,i)=>{
+    const a=f.implicitasIni[i];
+    if(b.infla==null&&b.deval==null)
+      return `<div style="color:var(--text3)">${b.tenor}d — fuera del rango con datos de la curva</div>`;
+    const dif=(x,y)=>x!=null&&y!=null?_comBps((x-y)*100):'';
+    const c=[];
+    if(b.infla!=null)c.push(`inflación <span style="color:var(--text)">${_fN(b.infla)}%</span> a. <span style="color:var(--text3)">(${_fN(b.inflaMensual)}% m)</span> ${dif(b.infla,a.infla)}`);
+    if(b.deval!=null)c.push(`devaluación <span style="color:var(--text)">${_fN(b.deval)}%</span> a. ${dif(b.deval,a.deval)}`);
+    return `<div><span style="color:var(--text3)">${b.tenor}d</span>  ${c.join('  ·  ')}</div>`;
+  }).join('');
+  // El nombre importa: si esto se llamara "breakeven" a secas, la diferencia
+  // contra el de la solapa Resumen —que toma dos bonos concretos y no el ajuste
+  // de toda la curva— se leería como un error y no como lo que es.
+  return `<div style="font-family:var(--mono);font-size:11px;line-height:1.9;padding:.6rem .85rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:.3rem">Implícitas de curva</div>
+    ${filas}
+    <div style="font-size:10px;color:var(--text3);margin-top:.4rem;line-height:1.5">
+      Salen de leer el ajuste de toda la curva en un punto. El breakeven de la solapa Resumen toma dos bonos concretos con sus precios: los dos números difieren, y si difieren mucho es que hay un papel desarbitrado contra su curva.
+    </div></div>`;
+}
+
+function comPie(){
+  return `<div style="font-size:10px;color:var(--text3);line-height:1.6;margin-top:1rem;padding-top:.7rem;border-top:1px solid var(--border)">
+    Los números son cálculo propio sobre cierres de mercado. La lectura y el contexto los redactó un modelo de lenguaje y pueden contener errores. No es recomendación de inversión.
+  </div>`;
+}
+
+// ── Copiar ──────────────────────────────────────────────────────────────────
+// Los tres encabezados van adentro del texto copiado, no sólo en la pantalla:
+// si la separación entre lo medido y lo interpretado se pierde al pegar, no
+// sirvió de nada.
+function comTextoCompleto(f,com,conPrompt){
+  const p=com&&com.periodos?com.periodos[f.periodo]:null;
+  const L=[];
+  if(conPrompt)L.push(FICHA_PREAMBULO);
+  if(p&&!conPrompt){
+    L.push('LECTURA — redactada por un modelo de lenguaje sobre los números de abajo');
+    if(p.titular)L.push(p.titular);
+    L.push(p.movimiento,'');
+    if(p.contexto){
+      L.push('CONTEXTO — búsqueda web del modelo; no explica el movimiento');
+      L.push(p.contexto,'');
+    }
+  }
+  L.push('MEDIDO — cálculo propio sobre cierres de mercado');
+  L.push(fichaTexto(f));
+  if(!conPrompt){
+    L.push('');
+    L.push('Los números son cálculo propio sobre cierres de mercado. La lectura y el contexto los redactó un modelo de lenguaje y pueden contener errores. No es recomendación de inversión.');
+  }
+  return L.join('\n');
+}
+
+async function comCopiar(sec,modo){
+  const f=await fichaCacheada(comEstado[sec].periodo,false);
+  if(!f){alert('No hay ficha para ese período todavía.');return;}
+  const txt=comTextoCompleto(f,COM_DATA,modo==='prompt');
+  comCopiarTexto(txt);
+}
+
+// Mismo patrón que el resto de la app: portapapeles, y si el navegador lo
+// bloquea, una ventana con el texto para seleccionar a mano.
+function comCopiarTexto(txt){
+  const alFallar=()=>{
+    const w=window.open('','_blank','width=760,height=640');
+    if(w)w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:1rem;white-space:pre-wrap">${comEsc(txt)}</pre>`);
+  };
+  try{
+    navigator.clipboard.writeText(txt)
+      .then(()=>{if(typeof toast==='function')toast(`Copiado · ${txt.length} caracteres`);else console.log('copiado',txt.length);})
+      .catch(alFallar);
+  }catch(e){alFallar();}
 }
 </script>
 </body>

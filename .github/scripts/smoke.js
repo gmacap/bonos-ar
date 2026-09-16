@@ -2010,6 +2010,187 @@ const omitir = (label, motivo) =>
           `${br.vuelta} vs ${br.antes}`);
   }
 
+  console.log('\nFicha de mercado');
+  // Las convenciones de tasa no dependen de la red ni del mercado: si esto se
+  // rompe, el breakeven de la ficha miente y no falla nada.
+  const tasas = await page.evaluate(() => ({
+    cer:  fichaTirEfectiva('CER', 12.34, 400),
+    glo:  fichaTirEfectiva('GLO', 11.2, null),
+    tf:   [fichaTirEfectiva('TF', 30, 180), calcTIR(30, 180)],
+    tamar: fichaTirEfectiva('TAMAR', 5, 400),
+    // Ida y vuelta por la funcion de la app. dlkCalcTNA usa base semestral
+    // arriba de 180 dias, asi que calcTIR NO es su inversa: estas dos
+    // aserciones son las que atrapan a quien 'simplifique' fichaTirEfectiva.
+    dlkLargo: fichaTirEfectiva('DLK', dlkCalcTNA(22.3, 1200), 1200),
+    dlkCorto: fichaTirEfectiva('DLK', dlkCalcTNA(7.5, 90), 90),
+    atajo:    calcTIR(dlkCalcTNA(22.3, 1200), 1200),
+  }));
+  check(tasas.cer === 12.34 && tasas.glo === 11.2, 'CER y los dolares pasan derecho');
+  check(tasas.tf[0] === tasas.tf[1], 'tasa fija se invierte con calcTIR');
+  check(tasas.tamar === null, 'el margen TAMAR no devuelve una TIR');
+  check(Math.abs(tasas.dlkLargo - 22.3) < 1e-9,
+        'DLK largo cierra ida y vuelta', String(tasas.dlkLargo));
+  check(Math.abs(tasas.dlkCorto - 7.5) < 1e-9,
+        'DLK corto cierra ida y vuelta', String(tasas.dlkCorto));
+  check(Math.abs(tasas.atajo - 22.3) > 3,
+        'el atajo con calcTIR erraria por cientos de bps',
+        `calcTIR daba ${tasas.atajo.toFixed(2)}% donde van 22,30%`);
+
+  const aj = await page.evaluate(() => {
+    const pts = [5, 30, 90, 200, 400, 700].map(x => ({ x, y: 3 + 2 * Math.log(x) }));
+    const a = fichaAjuste(pts);
+    const ruido = fichaAjuste([{x:10,y:5},{x:20,y:40},{x:30,y:2},{x:40,y:38}]);
+    return { a: a.reg.a, b: a.reg.b, r2: a.r2, xMin: a.xMin, xMax: a.xMax,
+      nivel: fichaNivel(a, 100), esperado: 3 + 2 * Math.log(100),
+      r2Ruido: ruido.r2, unPunto: fichaAjuste([{x:1,y:1}]) };
+  });
+  check(Math.abs(aj.a - 3) < 1e-9 && Math.abs(aj.b - 2) < 1e-9 && Math.abs(aj.r2 - 1) < 1e-9,
+        'el ajuste recupera a, b y R2 con datos perfectos');
+  check(Math.abs(aj.nivel - aj.esperado) < 1e-9, 'fichaNivel evalua el ajuste');
+  check(aj.r2Ruido < 0.5 && aj.unPunto === null,
+        'R2 bajo con ruido, y con un punto no hay ajuste', String(aj.r2Ruido));
+
+  const dual = await page.evaluate(() => {
+    const g = fichaAgruparMontos([
+      { snapshot_date: '2026-09-15', ticker: 'TXMJ0', sector: 'CER',   monto: 100 },
+      { snapshot_date: '2026-09-15', ticker: 'TXMJ0', sector: 'TAMAR', monto: 100 },
+      { snapshot_date: '2026-09-15', ticker: 'TX26',  sector: 'CER',   monto: 50 },
+    ], false, false);
+    return { total: g.total,
+      cer: g.porSectorFecha.get('CER').get('2026-09-15'),
+      tamar: g.porSectorFecha.get('TAMAR').get('2026-09-15') };
+  });
+  check(dual.total === 150 && dual.cer === 150 && dual.tamar === 100,
+        'los duales cuentan una vez en el total y entero por sector',
+        JSON.stringify(dual));
+
+  const ruedas = await page.evaluate(async () => {
+    const out = {};
+    for (const p of ['dia', 'mes', 'anio']) {
+      const r = await fichaRuedas(p, { soloArchivado: true });
+      out[p] = r ? { ini: r.ini, fin: r.fin, dias: r.dias,
+        hIni: esHabil(parseDate(r.ini)), hFin: esHabil(parseDate(r.fin)) } : null;
+    }
+    return out;
+  });
+  if (!ruedas.dia) omitir('las dos ruedas del dia', 'sin historia archivada');
+  else check(ruedas.dia.ini < ruedas.dia.fin && ruedas.dia.hIni && ruedas.dia.hFin,
+             'el dia toma dos ruedas habiles y distintas',
+             `${ruedas.dia.ini} -> ${ruedas.dia.fin}`);
+  if (!ruedas.anio) omitir('el ano retrocede', 'sin un ano de historia');
+  else check(ruedas.anio.dias > 300, 'el ano retrocede de verdad',
+             `${ruedas.anio.dias} dias`);
+  if (ruedas.dia && ruedas.mes)
+    check(ruedas.mes.dias > ruedas.dia.dias, 'el mes es mas largo que el dia',
+          `${ruedas.mes.dias} vs ${ruedas.dia.dias}`);
+
+  const fd = await page.evaluate(async () => {
+    const f = await fichaConstruir('dia', { soloArchivado: true });
+    if (!f) return null;
+    return {
+      n: f.bloques.length,
+      pares: f.bloques.map(b => ({ s: b.sector, tenor: b.tenor,
+        nIni: b._aj.ini ? b._aj.ini.n : null, nFin: b._aj.fin ? b._aj.fin.n : null,
+        xMin: b._aj.fin ? b._aj.fin.xMin : null, xMax: b._aj.fin ? b._aj.fin.xMax : null })),
+      fx: Object.keys(f.fx || {}).length,
+      texto: fichaTexto(f),
+    };
+  });
+  if (!fd) omitir('la ficha del dia', 'sin historia archivada');
+  else {
+    check(fd.n > 3, 'la ficha cubre la curva', `${fd.n} sectores`);
+    check(fd.pares.every(x => x.nIni === x.nFin),
+          'los dos ajustes van sobre los mismos bonos',
+          fd.pares.map(x => `${x.s} ${x.nIni}/${x.nFin}`).join(' '));
+    check(fd.pares.every(x => x.tenor == null || (x.tenor >= x.xMin && x.tenor <= x.xMax)),
+          'el tenor nunca extrapola el ajuste');
+    check(fd.fx >= 3, 'la ficha trae el movimiento del dolar', String(fd.fx));
+    check(!/undefined|NaN/.test(fd.texto) && fd.texto.length > 400,
+          'fichaTexto sale limpio', `${fd.texto.length} chars`);
+  }
+
+  const pag = await page.evaluate(async () => {
+    if (!await curvasSoportaLibro()) return { omitir: 'la tabla no tiene monto' };
+    const r = await fichaRuedas('anio', { soloArchivado: true });
+    if (!r) return { omitir: 'sin un ano de historia' };
+    const m = await fichaFetchMontos(r.ini, r.fin);
+    return { ruedas: m.fechas.length, total: m.total };
+  });
+  if (pag.omitir) omitir('la paginacion del volumen', pag.omitir);
+  else check(pag.ruedas > 0 && pag.ruedas !== 1000,
+             'el volumen del ano no se corta en el tope de PostgREST',
+             `${pag.ruedas} ruedas con dato`);
+
+  console.log('\nComentario: el panel');
+  const com404 = await page.evaluate(async () => {
+    try { await comFetch(true); return { ok: true }; }
+    catch (e) { return { ok: false, err: e.message }; }
+  });
+  check(com404.ok, 'comFetch tolera que comentario.json no exista', com404.err || '');
+
+  await page.evaluate(() => { switchSection('pesos'); switchTab('comentario'); });
+  await page.waitForFunction(() => {
+    const el = document.getElementById('com-ars-cuerpo');
+    return el && !/Midiendo/.test(el.textContent);
+  }, null, { timeout: 90000 }).catch(() => {});
+  const pars = await page.evaluate(() => {
+    const c = document.getElementById('com-ars-cuerpo');
+    return { disp: document.getElementById('page-comentario').style.display,
+      len: c ? c.innerHTML.length : 0,
+      tiles: document.querySelectorAll('#com-ars-cuerpo [style*="minmax(285px"] > div').length,
+      medido: c ? /Medido/.test(c.textContent) : false,
+      pie: c ? /No es recomendación de inversión/.test(c.textContent) : false,
+      rango: (document.getElementById('com-ars-rango') || {}).textContent || '' };
+  });
+  check(pars.disp === 'block' && pars.len > 1000, 'la entrada de pesos abre el panel',
+        `${pars.len} chars`);
+  check(pars.tiles >= 4, 'hay un tile por sector', `${pars.tiles}`);
+  check(pars.medido && pars.pie, 'estan el bloque medido y el pie de responsabilidad');
+
+  const antesRango = pars.rango;
+  await page.evaluate(() => comSetPeriodo('ars', 'mes'));
+  await page.waitForFunction(prev => {
+    const r = document.getElementById('com-ars-rango');
+    return r && r.textContent && r.textContent !== prev;
+  }, antesRango, { timeout: 90000 }).catch(() => {});
+  const trasPer = await page.evaluate(() => ({
+    per: comEstado.ars.periodo,
+    rango: (document.getElementById('com-ars-rango') || {}).textContent || '',
+  }));
+  check(trasPer.per === 'mes' && trasPer.rango !== antesRango,
+        'el selector de periodo recarga la ficha', `${trasPer.rango.slice(0, 40)}`);
+
+  await page.evaluate(() => { switchSection('usd'); switchUsdTab('usd-comentario'); });
+  await page.waitForFunction(() => {
+    const el = document.getElementById('com-usd-cuerpo');
+    return el && !/Midiendo/.test(el.textContent);
+  }, null, { timeout: 90000 }).catch(() => {});
+  const usdp = await page.evaluate(() => {
+    const c = document.getElementById('com-usd-cuerpo');
+    return { disp: document.getElementById('page-usd-comentario').style.display,
+      len: c ? c.innerHTML.length : 0,
+      primero: (c && c.querySelector('[style*="minmax(285px"] > div span') || {}).textContent || '' };
+  });
+  check(usdp.disp === 'block' && usdp.len > 1000, 'la entrada de dolares abre el mismo panel',
+        `${usdp.len} chars`);
+  check(['Bopreales', 'Bonares', 'Globales'].includes(usdp.primero),
+        'en la entrada de dolares los sectores USD van primero', usdp.primero);
+
+  const copia = await page.evaluate(async () => {
+    const f = await fichaCacheada('dia', false);
+    if (!f) return null;
+    const ficha = comTextoCompleto(f, COM_DATA, false);
+    const prompt = comTextoCompleto(f, COM_DATA, true);
+    return { medido: ficha.includes('MEDIDO'),
+      pie: ficha.includes('No es recomendación de inversión'),
+      preambulo: prompt.startsWith('Sos un operador'),
+      sucio: /undefined|NaN/.test(ficha), largo: ficha.length };
+  });
+  if (!copia) omitir('el texto que se copia', 'sin ficha');
+  else check(copia.medido && copia.pie && copia.preambulo && !copia.sucio && copia.largo > 1000,
+             'el texto copiado lleva encabezados, pie y preambulo', JSON.stringify(copia));
+  await page.evaluate(() => switchSection('pesos'));
+
   console.log('\nEscenarios');
   const esc = await page.evaluate(() => {
     switchSection('pesos'); switchTab('escenarios');
