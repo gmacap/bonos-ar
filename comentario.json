@@ -1,5 +1,5 @@
 {
-  "generado": "2026-09-16T14:45:33Z",
+  "generado": "2026-09-16T15:35:07Z",
   "modelo": "claude-opus-5 (Claude Code)",
   "ruedaFin": "2026-09-15",
   "fuentes": [
@@ -24,25 +24,25 @@
       "ini": "2026-09-14",
       "fin": "2026-09-15",
       "ruedas": 1,
-      "titular": "Los pesos comprimieron y los Globales cedieron, con casi todo el ajuste en el spread argentino",
+      "titular": "Leve baja de tasas en pesos y un día flojo para los bonos en dólares",
       "pesos": {
-        "resumen": "La curva de pesos cerró con compresión en tasa fija corta, CER, TAMAR y dollar linked. El volumen de la rueda se concentró en tasa fija, con 447,4 MM, contra 297,6 MM en CER, 192,1 MM en dollar linked y 116,4 MM en TAMAR. La inflación implícita de curva a 90 días quedó en 23,64% anual, equivalente a 1,78% mensual.",
-        "TF": "Tasa fija bajó 3 puntos básicos en el nivel de 99 días, hasta 25,30% de TNA, con un reparto desigual: el tramo corto comprimió 20 puntos básicos y el medio sumó 2 puntos básicos, así que la curva empinó. S30S6 lideró la baja con 74 puntos básicos, y S30N6, el papel más operado con 139,1 MM, cedió 21 puntos básicos.",
-        "CER": "CER comprimió 13 puntos básicos de tasa real en el nivel de 509 días, hasta 6,69%, sin cambio de forma. El movimiento se concentró en el tramo medio, 39 puntos básicos abajo, contra 11 puntos básicos en el corto y una suba de 3 puntos básicos en el largo.",
-        "TAMAR": "TAMAR recortó 5 puntos básicos de margen en el nivel de 591 días, hasta 7,03%, y la curva empinó: el tramo corto bajó 31 puntos básicos y el largo sumó 3 puntos básicos. TMF28 lideró la baja con 68 puntos básicos.",
-        "DLK": "Dollar linked comprimió 17 puntos básicos hasta 5,44% de TNA en dólares, con los tres tramos moviéndose en la misma dirección. El ajuste no representa bien esta curva, así que no corresponde hablar de su forma. D30S6 concentró la operatoria con 111,0 MM."
+        "resumen": "En pesos tuvimos tasas algo más bajas en casi toda la curva (siempre hablamos de tasa: cuando la tasa baja, el precio del bono sube). Donde más se operó fue en tasa fija, con $447 mil millones, seguida por CER con $298 mil millones. Un dato para tener a mano: la inflación que descuentan las curvas para los próximos tres meses quedó en 1,8% mensual.",
+        "TF": "En tasa fija la curva en general casi no se movió, 3 puntos abajo, pero adentro hubo movimiento: las letras más cortas bajaron 20 puntos y las de mediano plazo quedaron prácticamente igual. La que más bajó fue la S30S6, 74 puntos, y la más operada, la S30N6, bajó 21 puntos con $139 mil millones negociados.",
+        "CER": "Los bonos que ajustan por inflación rindieron 13 puntos menos: la tasa real, lo que pagan por encima de la inflación, quedó en 6,7%. El movimiento estuvo en los plazos medianos, que bajaron 39 puntos.",
+        "TAMAR": "En los bonos que pagan TAMAR más un margen, ese margen bajó 5 puntos y quedó en 7%. Los plazos cortos fueron los que más bajaron, 31 puntos, mientras los largos subieron 3 puntos.",
+        "DLK": "Los dollar linked, que ajustan por el dólar oficial, bajaron 17 puntos de tasa hasta 5,4% en dólares, parejo en todos los plazos. La D30S6 se llevó la mayor parte de la operatoria, con $111 mil millones."
       },
       "dolares": {
-        "resumen": "En dólares, casi todo el movimiento quedó del lado argentino. Los Treasuries apenas se movieron: el 10 años cerró en 5,00%, 3 puntos básicos arriba, y el 2 años sumó 2 puntos básicos. Globales, en cambio, subieron 19 puntos básicos de TIR hasta 9,34%: de esos 19 puntos básicos, 3 puntos básicos corresponden a los Treasuries y 16 puntos básicos al spread, que quedó en 443 puntos básicos. El riesgo país, que mide otra canasta con otro método, subió también 16 puntos básicos hasta 506 puntos básicos. Bonares sumaron 4 puntos básicos, de los que 3 puntos básicos corresponden a los Treasuries, y Bopreales, que rinden por debajo del Treasury de su plazo, cedieron 2 puntos básicos."
+        "resumen": "En dólares el día fue flojo, y en los Globales el golpe fue casi todo local. Afuera, los bonos del Tesoro americano casi no se movieron: el de 10 años cerró en 5%, 3 puntos arriba. Los Globales, en cambio, subieron 19 puntos de tasa hasta 9,3%. De esos 19 puntos, sólo 3 puntos vinieron de la suba en Estados Unidos; los otros 16 puntos fueron prima por riesgo argentino, que quedó en 443 puntos. El riesgo país, que calcula JP Morgan con otra canasta de bonos, también subió 16 puntos, hasta 506 puntos. Los Bonares apenas subieron 4 puntos y los Bopreales, que rinden menos que un Treasury de su mismo plazo, bajaron 2 puntos."
       },
-      "contexto": "La rueda llegó con las tasas largas de Estados Unidos en foco: durante la jornada el bono del Tesoro a diez años tocó 5,04%, su nivel más alto desde 2007, antes de moderarse, en la antesala de la decisión de la Reserva Federal del miércoles 16. En el plano local, el INDEC había publicado una inflación de agosto de 1,7% mensual, con 33,5% interanual y 21,4% acumulado en el año.",
+      "contexto": "Afuera, el foco estuvo en las tasas de Estados Unidos: durante el día el bono del Tesoro a diez años llegó a tocar 5,04%, lo más alto desde 2007, antes de aflojar, con todo el mundo esperando la decisión de la Reserva Federal del miércoles 16. Acá, el INDEC había publicado la inflación de agosto: 1,7% mensual, 33,5% en los últimos doce meses y 21,4% en lo que va del año.",
       "twitter": [
         {
-          "texto": "1/4 Cierre del 15/09. Pesos: compresión en tasa fija corta, CER, TAMAR y dollar linked. Dólares: Globales +19 bps de TIR, de los que 16 bps fueron spread y 3 bps Treasuries. Riesgo país en 506 bps.",
+          "texto": "1/4 Cierre del 15/09. En pesos, leve baja de tasas. En dólares, día flojo: los Globales subieron 19 bps de tasa y 16 bps de eso fue riesgo argentino, no Treasuries. Riesgo país en 506 bps.",
           "graficos": []
         },
         {
-          "texto": "2/4 Pesos. Tasa fija -3 bps a 25,30% TNA, con el tramo corto -20 bps: la curva empinó. CER -13 bps de tasa real, el medio -39 bps. TAMAR -5 bps de margen. Dollar linked -17 bps. En tasa fija se operaron 447,4 MM.",
+          "texto": "2/4 Pesos. Tasa fija casi quieta (-3 bps), aunque las letras cortas bajaron 20 bps. CER -13 bps: la tasa real quedó en 6,7%. TAMAR -5 bps de margen. Dollar linked -17 bps. En tasa fija se operaron $447 mil millones.",
           "graficos": [
             "TF",
             "CER",
@@ -51,13 +51,13 @@
           ]
         },
         {
-          "texto": "3/4 Dólares. El Treasury a 10 años cerró en 5,00%, +3 bps. Globales +19 bps a 9,34%: 3 bps de Treasuries y 16 bps de spread. Bonares +4 bps. Riesgo país +16 bps, de 490 bps a 506 bps.",
+          "texto": "3/4 Dólares. El Treasury a 10 años cerró en 5%, +3 bps. Los Globales +19 bps, a 9,3%: 3 bps vinieron de EE.UU. y 16 bps de prima argentina. Bonares +4 bps. Riesgo país +16 bps, de 490 bps a 506 bps.",
           "graficos": [
             "GLO"
           ]
         },
         {
-          "texto": "4/4 Contexto. El mercado operó con la mira en la Fed del miércoles y con las tasas largas de Estados Unidos en máximos de casi dos décadas. En lo local, se conoció la inflación de agosto.",
+          "texto": "4/4 Contexto. Todo el mundo mirando a la Fed del miércoles, con las tasas largas de EE.UU. en máximos de casi dos décadas. Acá se conoció la inflación de agosto.",
           "graficos": []
         }
       ],
@@ -1939,18 +1939,18 @@
       "ini": "2026-09-08",
       "fin": "2026-09-15",
       "ruedas": 5,
-      "titular": "Semana de compresión en pesos y de suba de tasas en dólares, con los Treasuries marcando el ritmo",
+      "titular": "Una semana buena para los pesos y complicada para los bonos en dólares",
       "pesos": {
-        "resumen": "En las cinco ruedas de la semana la curva de pesos comprimió en tasa fija, CER y TAMAR, mientras dollar linked quedó prácticamente sin cambios en el nivel. Se operaron 1,9 B en tasa fija y 1,1 B en CER.",
-        "TF": "Tasa fija bajó 49 puntos básicos en el nivel de 102 días, hasta 25,36% de TNA, sin cambio de forma. El corto comprimió 92 puntos básicos y el medio 31 puntos básicos, y ningún papel subió de tasa. T15E7 y S30S6 lideraron con bajas de 134 puntos básicos y 130 puntos básicos.",
-        "CER": "CER comprimió 27 puntos básicos de tasa real hasta 6,70% y empinó: el corto bajó 76 puntos básicos y el medio 60 puntos básicos, contra 11 puntos básicos en el largo. TX31 fue la excepción, con una suba de 35 puntos básicos.",
-        "TAMAR": "TAMAR recortó 19 puntos básicos de margen hasta 7,05% y la curva empinó, con el corto 41 puntos básicos abajo y el largo 13 puntos básicos abajo. TMG27 cayó 94 puntos básicos.",
-        "DLK": "Dollar linked terminó la semana con el nivel casi igual, 1 punto básico arriba hasta 6,12% de TNA en dólares, pero con movimientos cruzados por tramo: el medio subió 108 puntos básicos y el corto y el largo bajaron. D30S6 concentró 743,2 MM."
+        "resumen": "La semana dejó tasas más bajas en casi toda la curva de pesos, o sea precios más altos. La excepción fue dollar linked, que terminó prácticamente donde empezó. En tasa fija se operaron $1,9 billones en las cinco ruedas.",
+        "TF": "Tasa fija fue la que más aflojó: 49 puntos menos, con las letras a tres meses rindiendo 25,4% nominal anual. Las cortas bajaron 92 puntos y ninguna letra subió de tasa en toda la semana.",
+        "CER": "En CER la tasa real bajó 27 puntos, hasta 6,7%, y fueron los plazos cortos los que más se movieron, con 76 puntos abajo. La excepción fue el TX31, que subió 35 puntos.",
+        "TAMAR": "Los TAMAR redujeron su margen en 19 puntos, hasta 7,05%, con bajas en todos los plazos. El que más se movió fue el TMG27, 94 puntos abajo.",
+        "DLK": "Dollar linked quedó prácticamente igual, apenas 1 punto arriba, pero con los plazos cruzados: los medianos subieron 108 puntos y los cortos y los largos bajaron. La D30S6 concentró $743 mil millones."
       },
       "dolares": {
-        "resumen": "La semana fue de suba de tasas en dólares, con buena parte del movimiento correspondiente a los Treasuries: el 2 años subió 28 puntos básicos y el 10 años 20 puntos básicos, hasta 5,00%. Globales sumaron 48 puntos básicos de TIR hasta 9,35%, de los que 26 puntos básicos corresponden a los Treasuries y 22 puntos básicos al spread. Bonares subieron 40 puntos básicos, con 33 puntos básicos de Treasuries y 7 puntos básicos de spread. El riesgo país avanzó 12 puntos básicos, hasta 506 puntos básicos. Bopreales, que rinden por debajo del Treasury de su plazo, sumaron 16 puntos básicos."
+        "resumen": "En dólares, en cambio, fue una semana para el olvido, y buena parte vino de afuera. Las tasas de Estados Unidos subieron fuerte: el Treasury a 2 años sumó 28 puntos y el de 10 años 20 puntos, hasta 5%. Los Globales subieron 48 puntos de tasa: 26 puntos vinieron de los Treasuries y 22 puntos de prima argentina. En los Bonares la cuenta fue 33 puntos de afuera y 7 puntos de acá, sobre una suba de 40 puntos. El riesgo país subió 12 puntos, hasta 506 puntos."
       },
-      "contexto": "La semana estuvo marcada por la suba de las tasas del Tesoro de Estados Unidos, con el 10 años llegando a máximos desde 2007 en la antesala de la reunión de la Reserva Federal del 16 de septiembre. En lo local, el INDEC publicó la inflación de agosto, que marcó 1,7% mensual.",
+      "contexto": "Fue la semana en que las tasas largas de Estados Unidos treparon a máximos desde 2007, con el mercado esperando la reunión de la Fed del 16 de septiembre. Acá, el INDEC publicó la inflación de agosto: 1,7% mensual.",
       "ficha": {
         "periodo": "semana",
         "label": "Semana",
@@ -3778,18 +3778,18 @@
       "ini": "2026-08-14",
       "fin": "2026-09-15",
       "ruedas": 21,
-      "titular": "Un mes de tasa fija más baja y de venta en la deuda en dólares",
+      "titular": "Un mes de letras rindiendo menos y de presión sobre la deuda en dólares",
       "pesos": {
-        "resumen": "En el mes, tasa fija y TAMAR comprimieron mientras CER y dollar linked subieron de tasa. Tasa fija fue el sector de pesos más operado, con 7,8 B.",
-        "TF": "Tasa fija bajó 77 puntos básicos en el nivel de 90 días, hasta 25,14% de TNA, y empinó: el corto comprimió 199 puntos básicos contra 45 puntos básicos del medio. S30S6 lideró con 351 puntos básicos de baja.",
-        "CER": "CER subió 13 puntos básicos de tasa real hasta 6,74% y aplanó: el medio comprimió 69 puntos básicos mientras el largo sumó 25 puntos básicos. TX31 subió 106 puntos básicos.",
-        "TAMAR": "TAMAR recortó 20 puntos básicos de margen hasta 7,12% y empinó, con el tramo corto 153 puntos básicos abajo. TTD26 cayó 169 puntos básicos.",
-        "DLK": "Dollar linked subió 33 puntos básicos hasta 5,50% de TNA en dólares, con el medio y el largo arriba y el corto 86 puntos básicos abajo. D30S6 bajó 490 puntos básicos y fue el más operado, con 3,3 B."
+        "resumen": "El mes dejó la foto de pesos partida: bajaron los rendimientos de las letras a tasa fija y de los TAMAR, y subieron los de CER y dollar linked. Tasa fija fue lo más operado, con $7,8 billones.",
+        "TF": "Las letras a tasa fija rinden 77 puntos menos que hace un mes: a tres meses están en 25,1% nominal anual. La baja fue mucho más fuerte en las cortas, 199 puntos, que en las de mediano plazo, 45 puntos. La S30S6 bajó 351 puntos.",
+        "CER": "En CER la tasa real subió 13 puntos, hasta 6,7%, pero no fue pareja: los plazos medianos bajaron 69 puntos y los largos subieron 25 puntos. El TX31 subió 106 puntos.",
+        "TAMAR": "Los TAMAR bajaron 20 puntos de margen, hasta 7,1%, con los cortos llevándose casi todo: 153 puntos abajo.",
+        "DLK": "Dollar linked subió 33 puntos de tasa, hasta 5,5% en dólares: bajaron los cortos, 86 puntos, y subieron los medianos y los largos. Lo más operado fue la D30S6, con $3,3 billones."
       },
       "dolares": {
-        "resumen": "La deuda en dólares perdió precio en el mes, con la mayor parte del movimiento correspondiente a los Treasuries: el 2 años subió 50 puntos básicos y el 10 años 32 puntos básicos, hasta 5,00%. Bonares sumaron 71 puntos básicos de TIR hasta 9,40%, de los que 53 puntos básicos corresponden a los Treasuries y 18 puntos básicos al spread; Globales subieron 70 puntos básicos, con 46 puntos básicos de Treasuries y 24 puntos básicos de spread. El riesgo país subió de 480 puntos básicos a 506 puntos básicos. Bopreales fueron la excepción y comprimieron 74 puntos básicos."
+        "resumen": "En dólares el mes fue malo, y la mayor parte vino de afuera. En Estados Unidos el Treasury a 2 años subió 50 puntos y el de 10 años 32 puntos, hasta 5%. Los Bonares subieron 71 puntos de tasa: 53 puntos fueron Treasuries y 18 puntos prima argentina. En los Globales fueron 70 puntos, con 46 puntos de afuera y 24 puntos de acá. El riesgo país pasó de 480 puntos a 506 puntos. Los Bopreales fueron la excepción: bajaron 74 puntos."
       },
-      "contexto": "Durante el mes se conoció el dato de inflación de agosto del INDEC, 1,7% mensual y 33,5% interanual, por debajo del de julio. Sobre el final, las tasas largas de Estados Unidos treparon a máximos desde 2007, con la Reserva Federal reuniéndose el 16 de septiembre.",
+      "contexto": "En el mes se conoció la inflación de agosto: 1,7% mensual y 33,5% interanual, por debajo de julio. Sobre el final, las tasas largas de Estados Unidos llegaron a máximos desde 2007, con la Fed reuniéndose el 16 de septiembre.",
       "ficha": {
         "periodo": "mes",
         "label": "Mes",
@@ -5636,18 +5636,18 @@
       "ini": "2026-06-12",
       "fin": "2026-09-15",
       "ruedas": 64,
-      "titular": "Tres meses de suba de tasas en toda la curva de pesos",
+      "titular": "Tres meses de suba de tasas en todos los bonos en pesos",
       "pesos": {
-        "resumen": "En el trimestre las cuatro curvas de pesos subieron de tasa, y tasa fija, CER y TAMAR además aplanaron. Dollar linked fue el sector más operado, con 20,9 B.",
-        "TF": "Tasa fija subió 382 puntos básicos en el nivel de 167 días, hasta 26,48% de TNA, y aplanó: el medio subió 203 puntos básicos y el corto 152 puntos básicos.",
-        "CER": "CER sumó 289 puntos básicos de tasa real hasta 6,98% y aplanó, con el corto 335 puntos básicos arriba y el largo 158 puntos básicos arriba.",
-        "TAMAR": "TAMAR subió 187 puntos básicos de margen hasta 7,91% y aplanó: el medio sumó 161 puntos básicos y el largo 127 puntos básicos, contra 16 puntos básicos del corto.",
-        "DLK": "Dollar linked subió 277 puntos básicos hasta 7,52% de TNA en dólares, con el largo 327 puntos básicos arriba. El ajuste no representa esta curva y no corresponde hablar de su forma."
+        "resumen": "Mirando tres meses para atrás, las cuatro curvas de pesos terminaron rindiendo más: fue un trimestre de precios en baja en toda la curva. Dollar linked fue lo más operado, con $20,9 billones.",
+        "TF": "Las letras a tasa fija rinden 382 puntos más que hace tres meses: a unos cinco meses y medio pagan 26,5% nominal anual. La suba se sintió en todos los plazos, más en los medianos, 203 puntos, que en los cortos, 152 puntos.",
+        "CER": "En CER la tasa real subió 289 puntos, hasta 7%, y fueron los plazos cortos los que más subieron: 335 puntos, contra 158 puntos en los largos.",
+        "TAMAR": "Los TAMAR subieron 187 puntos de margen, hasta 7,9%. Casi todo se vio en los plazos medianos y largos, con 161 puntos y 127 puntos; los cortos apenas se movieron, 16 puntos.",
+        "DLK": "Dollar linked subió 277 puntos de tasa, hasta 7,5% en dólares, con los plazos largos a la cabeza: 327 puntos."
       },
       "dolares": {
-        "resumen": "En dólares, la mayor parte de la suba correspondió a los Treasuries: el 5 años subió 62 puntos básicos y el 10 años 52 puntos básicos, hasta 5,00%. Bonares sumaron 98 puntos básicos, de los que 63 puntos básicos corresponden a los Treasuries y 35 puntos básicos al spread; Globales subieron 92 puntos básicos, con 62 puntos básicos de Treasuries y 30 puntos básicos de spread. El riesgo país subió 69 puntos básicos, hasta 506 puntos básicos. Bopreales, que rinden por debajo del Treasury de su plazo, cedieron 9 puntos básicos."
+        "resumen": "En dólares la suba fue sobre todo de afuera. En Estados Unidos el Treasury a 5 años subió 62 puntos y el de 10 años 52 puntos, hasta 5%. Los Bonares subieron 98 puntos de tasa: 63 puntos de Treasuries y 35 puntos de prima argentina. Los Globales, 92 puntos: 62 puntos de afuera y 30 puntos de acá. El riesgo país subió 69 puntos, hasta 506 puntos, y los Bopreales, que rinden menos que un Treasury de su mismo plazo, bajaron 9 puntos."
       },
-      "contexto": "El trimestre cerró con la inflación en desaceleración —agosto marcó 1,7% mensual y 21,4% acumulado en el año según el INDEC— y con las tasas largas de Estados Unidos en máximos de casi dos décadas.",
+      "contexto": "El trimestre cerró con la inflación bajando —agosto dio 1,7% mensual y 21,4% en el año, según el INDEC— y con las tasas largas de Estados Unidos en máximos de casi dos décadas.",
       "ficha": {
         "periodo": "trimestre",
         "label": "Trimestre",
@@ -7392,18 +7392,18 @@
       "ini": "2025-09-15",
       "fin": "2026-09-15",
       "ruedas": 241,
-      "titular": "Un año de compresión fuerte en tasa real y en la deuda en dólares",
+      "titular": "Un año de fuerte baja de tasas en CER y en la deuda en dólares",
       "pesos": {
-        "resumen": "A doce meses, sólo la curva CER admite comparación de nivel: en tasa fija y en TAMAR no quedan bonos comunes suficientes entre las dos puntas para armar una curva. El monto operado de esta ventana no se puede comentar: el histórico lo registra sólo desde mediados de 2026.",
-        "TF": "Tasa fija no admite comparación en esta ventana: de las letras de hace un año queda una sola, y un bono no es una curva.",
-        "CER": "CER comprimió 1.226 puntos básicos de tasa real en el nivel de 554 días y quedó en 7,40%. La baja fue más fuerte en el corto, 1.870 puntos básicos, que en el largo, 770 puntos básicos. El ajuste no representa bien la curva de hace un año, así que no corresponde hablar de cambio de forma.",
-        "TAMAR": "TAMAR tampoco se puede comparar a doce meses: sobrevive un solo papel entre las dos puntas.",
+        "resumen": "A doce meses, la única curva de pesos que se puede comparar es la de CER: en tasa fija y en TAMAR casi no quedan bonos vivos de hace un año, y sin curva no hay comparación honesta. El volumen tampoco lo podemos contar: tenemos registro sólo desde mediados de 2026.",
+        "TF": "En tasa fija no hay comparación posible: de las letras de hace un año queda una sola.",
+        "CER": "En CER la tasa real bajó 1.226 puntos en el año: a un año y medio de plazo pasó a rendir 7,4% por encima de la inflación. La baja fue mucho más fuerte en los cortos, 1.870 puntos, que en los largos, 770 puntos.",
+        "TAMAR": "En TAMAR tampoco se puede comparar: sobrevive un solo bono de hace un año.",
         "DLK": "Dollar linked no tiene comparación posible a doce meses."
       },
       "dolares": {
-        "resumen": "La deuda en dólares comprimió con fuerza aun con los Treasuries en contra: en el año el 5 años subió 122 puntos básicos y el 10 años 95 puntos básicos, hasta 5,00%. Globales bajaron 804 puntos básicos de TIR hasta 9,30%, con 124 puntos básicos de suba de Treasuries y 928 puntos básicos de compresión de spread. Bonares bajaron 998 puntos básicos hasta 10,32%, con 1.124 puntos básicos de compresión de spread, y las dos curvas pasaron de invertidas a normales. El riesgo país bajó 725 puntos básicos, de 1.231 puntos básicos a 506 puntos básicos: es otra canasta y otro método, y por eso no coincide con el spread de la ficha. Bopreales no admiten comparación de nivel en esta ventana."
+        "resumen": "En dólares el año fue excelente, y eso que afuera el viento soplaba en contra. El Treasury a 10 años subió 95 puntos, hasta 5%, y el de 5 años 122 puntos. Aun así, los Globales bajaron 804 puntos de tasa, hasta 9,3%: las tasas de Estados Unidos les sumaron 124 puntos y la prima argentina les restó 928 puntos. Los Bonares bajaron 998 puntos, hasta 10,3%, con 1.124 puntos menos de prima. En el camino, las dos curvas dejaron de estar invertidas: hoy los bonos más largos vuelven a rendir más que los cortos, como es lo normal. El riesgo país bajó 725 puntos, de 1.231 puntos a 506 puntos. Los Bopreales no se pueden comparar a doce meses."
       },
-      "contexto": "El año cerró con una inflación interanual de 33,5% según el INDEC y un dato de agosto de 1,7% mensual. Sobre el cierre, el rendimiento del Tesoro estadounidense a diez años llegó a su máximo desde 2007.",
+      "contexto": "El año cerró con una inflación de 33,5% en doce meses según el INDEC y de 1,7% en agosto. Sobre el final, la tasa del Tesoro americano a diez años llegó a su máximo desde 2007.",
       "ficha": {
         "periodo": "anio",
         "label": "Año",

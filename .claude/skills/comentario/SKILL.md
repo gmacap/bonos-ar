@@ -93,9 +93,11 @@ en `preambulo`; en concreto, por período:
 
 Las reglas que más se violan sin querer:
 
-- Todo número en pesos, dólares y Twitter tiene que estar **literal en la ficha de
-  ese período**. No calcules, no promedies, no redondees hacia un número más lindo.
-- **Unidad pegada a cada número**: "27 puntos básicos", no "cedió 27 hasta 6,70%".
+- Todo número en pesos, dólares y Twitter tiene que **salir de la ficha de ese
+  período**. Se puede redondear a entero o a un decimal ("25,3%", "447 mil
+  millones"); no se puede aproximar ("casi 450", "unos 20") ni calcular uno nuevo.
+- **Cada número con su unidad a la vista**: "bajó 20 puntos", "20 bps", "25,3%". En
+  la ficha MM son miles de millones y B son billones: escribilos en palabras.
 - Ningún **"porque", "debido a", "impulsado por", "a raíz de"** fuera del contexto.
   La descomposición contra Treasuries se escribe como resta ("corresponden a"),
   no como causa.
@@ -105,8 +107,32 @@ Las reglas que más se violan sin querer:
 - Las **implícitas de curva** no son el breakeven de la solapa Resumen.
 - Los **duales** aparecen en CER y en TAMAR: si los nombrás, aclaralo.
 
-Tono: castellano rioplatense, de operador a cliente. Frases cortas. Nada de
-"cabe destacar", "en un contexto de", "se observó".
+**Tono: coloquial y cercano.** El detalle está en `preambulo`; en corto, escribís
+como le contarías el día a un cliente que conocés, no como un informe:
+
+- Primera persona del plural y frases cortas: "en pesos vimos…".
+- **Traducí la jerga.** La forma de la curva se cuenta con los tramos y sus
+  números, no con la palabra "empinó" o "aplanó". Ojo: no son sinónimos de "los
+  cortos se movieron más". La pendiente sale del ajuste de toda la curva, y en el
+  trimestre del 15/09 tasa fija "aplanó" con las medianas subiendo más que las
+  cortas. Si la palabra y los tramos no dicen lo mismo, contá los tramos. El
+  spread es "la prima por riesgo argentino"; la tasa real es "lo que rinde por
+  encima de la inflación". Plazos en palabras: "las letras a tres meses", no "el
+  nivel de 99 días".
+- **Elegí.** Uno o dos datos por curva, no todos los tramos y todos los bonos.
+- Nada de "cabe destacar", "se observó", "en un contexto de". Nada de
+  recomendaciones.
+
+Antes y después, con los mismos números:
+
+> ✗ Tasa fija bajó 3 puntos básicos en el nivel de 99 días, hasta 25,30% de TNA,
+> con un reparto desigual: el tramo corto comprimió 20 puntos básicos y el medio
+> sumó 2 puntos básicos, así que la curva empinó.
+>
+> ✓ En tasa fija la curva en general casi no se movió, 3 puntos abajo, pero
+> adentro hubo movimiento: las letras más cortas bajaron 20 puntos y las de
+> mediano plazo quedaron prácticamente igual. A tres meses cierran rindiendo 25,3%
+> de tasa nominal anual.
 
 ### 4. El hilo de Twitter
 

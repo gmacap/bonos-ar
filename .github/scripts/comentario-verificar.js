@@ -88,7 +88,9 @@ for (const p of esperados) {
   if (!d) continue;
   const f = fichas.periodos[p].ficha, t = d.toLowerCase();
   if (f.ust) {
-    if (!/treasur|tesoro de (los )?estados unidos|\bust\b/.test(t))
+    // En tono coloquial nadie escribe siempre "Treasuries": también "los bonos
+    // del Tesoro americano" o "las tasas de EE.UU.".
+    if (!/treasur|tesoro (de )?(los )?(estados unidos|ee\.?\s?uu\.?|americano|estadounidense)|tasas? (largas? )?(de|en) (estados unidos|ee\.?\s?uu)|\bust\b/.test(t))
       mal(`${p}: la parte de dólares no menciona los Treasuries`);
     if (f.ust.desfasado && !/desfas|todavía no (se )?public|todavia no (se )?public|pendiente|sin cierre/.test(t))
       mal(`${p}: los Treasuries están desfasados (al ${f.ust.fechaFin}) y el texto no lo dice`);
@@ -115,7 +117,10 @@ if (errores === erroresDol) bien('dólares relacionados con Treasuries y riesgo 
 // eso no se compara el texto: se generan las lecturas plausibles de cada número
 // y alcanza con que una esté en la ficha. Es deliberadamente indulgente —lo que
 // importa es que no pase una cifra inventada, no cazar un redondeo.
-const UNIDAD = String.raw`%|bps|pbs|pb|pp|MM|B|M|k|puntos?\s+b[áa]sicos?|puntos?\s+porcentuales?|mil(?:es)?\s+de\s+millones|mil\s+millones|millones|billones`;
+// "puntos" solo va al final de la lista para que "puntos básicos" gane primero.
+// Es lo que escribe cualquiera en tono coloquial ("bajó 20 puntos"): dejarlo
+// afuera haría que el texto más natural fuera justo el que no se verifica.
+const UNIDAD = String.raw`%|bps|pbs|pb|pp|MM|B|M|k|puntos?\s+b[áa]sicos?|puntos?\s+porcentuales?|mil(?:es)?\s+de\s+millones|mil\s+millones|millones|billones|puntos?`;
 const NUM_CON_UNIDAD = new RegExp(String.raw`(-?\d[\d.,]*)\s*(?:${UNIDAD})\b`, 'gi');
 const NUM_SUELTO = /-?\d[\d.,]*/g;
 
@@ -126,6 +131,10 @@ function lecturas(s0) {
     if (!isFinite(v)) return;
     out.add(v.toFixed(2));
     out.add(Math.abs(v).toFixed(2));
+    // Un decimal también: "25,3%" por 25,30% o "1,8% mensual" por 1,78% es como
+    // se escribe para alguien que lee, y sigue siendo el número de la ficha.
+    out.add(v.toFixed(1));
+    out.add(Math.abs(v).toFixed(1));
     // El redondeo a entero es una lectura legítima, pero sólo de diez para
     // arriba. Abajo vuelve vacía la comparación: 1,226 redondea a 1, y un 1 está
     // en cualquier ficha, así que un número inventado pasaría por ahí.
