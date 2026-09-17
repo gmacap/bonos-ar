@@ -1317,7 +1317,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 
     <!-- COL 1: Breakevens (resizable) -->
-    <div id="be-col1" style="width:200px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
+    <div id="be-col1" style="width:250px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
 
       <!-- BE Inflación -->
       <div>
@@ -1357,8 +1357,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <tr class="bb2">
               <th style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase">Bono</th>
               <th style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">Fixing</th>
-              <th style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--warn);font-weight:400;text-transform:uppercase;text-align:right">TNA%</th>
-              <th style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--accent2);font-weight:400;text-transform:uppercase;text-align:right">Real</th>
+              <th title="TAMAR breakeven contra la tasa fija de su plazo, nominal" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--warn);font-weight:400;text-transform:uppercase;text-align:right">vs TF</th>
+              <th title="TAMAR por encima de la inflación que iguala al bono con los CER elegidos" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--accent2);font-weight:400;text-transform:uppercase;text-align:right">Real vs CER</th>
             </tr>
           </thead>
           <tbody id="be-tamar-tbody"></tbody>
@@ -1481,6 +1481,24 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     <div class="modal-actions">
       <button class="btn" onclick="beCloseModal()">Cancelar</button>
       <button class="btn primary" onclick="beSaveModal()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAMAR REAL MODAL: elección de los CER y detalle paso a paso -->
+<div class="modal-backdrop" id="betr-modal" onclick="if(event.target===this)betrCerrar()">
+  <div class="modal" style="max-width:640px;width:92vw">
+    <div class="modal-title" id="betr-m-titulo">TAMAR real</div>
+    <div id="betr-m-sub" style="font-size:11px;color:var(--text3);margin:-6px 0 10px"></div>
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Bonos CER contra los que se compara</div>
+    <div id="betr-m-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="btn" style="margin:0;padding:3px 9px;font-size:10px" onclick="betrAplicarSugerencia()" title="El CER del mismo vencimiento, o los dos que lo rodean">sugerir</button>
+      <button class="btn" style="margin:0;padding:3px 9px;font-size:10px" onclick="betrLimpiar()">limpiar</button>
+    </div>
+    <div style="max-height:52vh;overflow-y:auto" id="betr-m-detalle"></div>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="betrCerrar()">Cerrar</button>
     </div>
   </div>
 </div>
@@ -2715,7 +2733,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -3628,7 +3646,33 @@ const FERIADOS_BASE=[
   {fecha:'2026-12-08',desc:''},
   {fecha:'2026-12-24',desc:''},
   {fecha:'2026-12-25',desc:''},
-  {fecha:'2026-12-31',desc:''}
+  {fecha:'2026-12-31',desc:''},
+  // 2027. Los trasladables ya están movidos según la ley 27.399: Güemes cae
+  // jueves 17/06 y va al lunes siguiente; San Martín cae martes 17/08 y la
+  // Diversidad Cultural martes 12/10, así que van al lunes anterior. La
+  // Soberanía Nacional cae sábado 20/11 y no se mueve. Faltan los puentes
+  // turísticos, que se decretan después: cuando salgan, van acá o como feriados
+  // manuales. Sin esto, todo cálculo con fechas de 2027 —vencimientos −10
+  // hábiles, días de TAMAR a proyectar— contaba diez días hábiles de más.
+  {fecha:'2027-01-01',desc:'Año Nuevo'},
+  {fecha:'2027-02-08',desc:'Carnaval'},
+  {fecha:'2027-02-09',desc:'Carnaval'},
+  {fecha:'2027-03-24',desc:'Memoria'},
+  {fecha:'2027-03-25',desc:'Jueves Santo'},
+  {fecha:'2027-03-26',desc:'Viernes Santo'},
+  {fecha:'2027-04-02',desc:'Malvinas'},
+  {fecha:'2027-05-01',desc:'Trabajador'},
+  {fecha:'2027-05-25',desc:'Revolución de Mayo'},
+  {fecha:'2027-06-20',desc:'Belgrano'},
+  {fecha:'2027-06-21',desc:'Güemes (trasladado)'},
+  {fecha:'2027-07-09',desc:'Independencia'},
+  {fecha:'2027-08-16',desc:'San Martín (trasladado)'},
+  {fecha:'2027-10-11',desc:'Diversidad Cultural (trasladado)'},
+  {fecha:'2027-11-20',desc:'Soberanía Nacional'},
+  {fecha:'2027-12-08',desc:'Inmaculada Concepción'},
+  {fecha:'2027-12-24',desc:'Nochebuena, sin actividad bancaria'},
+  {fecha:'2027-12-25',desc:'Navidad'},
+  {fecha:'2027-12-31',desc:'Fin de año, sin actividad bancaria'}
 ];
 
 // localStorage key para feriados manuales
@@ -9801,6 +9845,9 @@ function beRefreshIfVisible(){
 
 function beInit(){
   beLoadLs();
+  // La elección de CER de cada bono TAMAR viaja por usuario: al iniciar sesión
+  // llega después de que el módulo se cargó, así que se relee acá.
+  betrLoadLs();
   beCPLoadLs();
   beColWidthsLoad();
   beChartSelLoadLs();
@@ -10035,39 +10082,8 @@ function beRenderDetalle(resultados){
 // ── FIN BREAKEVEN ─────────────────────────────────────────────────────────────
 
 // ══════════════════════════════════════════════════════════════ TAMAR BREAKEVEN
-
-// Retorna {valor: inflaBE mensual en %, tickers: string} o null
-function beTamarGetCERBE(tamarVcto){
-  if(!CER_INDEX.length||!PROJ_INFLACION.length)return null;
-  const liq=G_LIQ||addHabiles(TODAY,1);
-  const cerSorted=CER_BONDS
-    .filter(b=>b.vcto&&b.precio&&diasACT(liq,parseDate(b.vcto))>0)
-    .sort((a,b)=>a.vcto.localeCompare(b.vcto));
-  if(!cerSorted.length)return null;
-
-  const getInflaBE=b=>{
-    if(!b)return null;
-    const r=beCalcular(b.ticker);
-    return(r&&!r.error)?{valor:r.inflaBE,ticker:b.ticker}:null;
-  };
-
-  // Coincidencia exacta de vencimiento
-  const exact=cerSorted.find(b=>b.vcto===tamarVcto);
-  if(exact){
-    const res=getInflaBE(exact);
-    return res?{valor:res.valor,tickers:res.ticker}:null;
-  }
-
-  // Inmediato anterior e inmediato posterior
-  const prevBond=cerSorted.filter(b=>b.vcto<tamarVcto).slice(-1)[0]||null;
-  const nextBond=cerSorted.find(b=>b.vcto>tamarVcto)||null;
-  const resP=getInflaBE(prevBond), resN=getInflaBE(nextBond);
-
-  if(resP&&resN) return{valor:(resP.valor+resN.valor)/2, tickers:`${resP.ticker} + ${resN.ticker}`};
-  if(resP) return{valor:resP.valor, tickers:resP.ticker};
-  if(resN) return{valor:resN.valor, tickers:resN.ticker};
-  return null;
-}
+// La TAMAR nominal que iguala un bono TAMAR con la tasa fija de su plazo. La
+// TAMAR real contra los bonos CER es otra cuenta y vive más abajo, en betr*.
 
 function beTamarCalcular(tamarTicker){
   const r=TAMAR_DATA.length?TAMAR_DATA.find(x=>x.ticker===tamarTicker):null;
@@ -10118,24 +10134,232 @@ function beTamarCalcular(tamarTicker){
   // Fecha último TAMAR = fixVto del bono
   const fixVto=d.fixVto;
 
-  // TAMAR REAL: ((1+TAMAR_BE_TEM)/(1+BE_CER))^12-1
   const tamar_be_tna_dec=tamar_be_tna/100;
   const tamar_be_tem=Math.pow(Math.pow(1+tamar_be_tna_dec*32/365,365/32),1/12)-1;
-  const cerBE=beTamarGetCERBE(bond.vcto);
-  const be_cer=cerBE!=null?cerBE.valor/100:null;
-  const be_cer_tickers=cerBE?.tickers||null;
-  const tamar_real=be_cer!=null
-    ?(Math.pow((1+tamar_be_tem)/(1+be_cer),12)-1)*100
-    :null;
 
   return{
     ticker:tamarTicker,tfTicker:tfBond.ticker,
     fixVto,valor_final,tem_capitalizar:tem_capitalizar*100,
     tem_proy_be:tem_proy_be*100,tna_proy_be:tna_proy_be*100,
     tamar_be_tna,tamar_be_tem:tamar_be_tem*100,
-    tamar_real,be_cer_tickers,
     dias_liq_vto_tf,dias_liq_vto_tamar,
   };
+}
+
+// ══════════════════════════════════════════════ TAMAR REAL CONTRA CER (betr)
+// La TAMAR por encima de la inflación que iguala un bono TAMAR con uno o más
+// bonos CER elegidos a mano. Los pasos son los que se verificaron contra
+// planilla, con TTD26 contra TZXD6 y TML27 contra TZXM7 y TZXS7:
+//
+//   1. CER de tres fechas: emisión −10 hábiles (a), cierre de la ventana TAMAR
+//      —el menor entre vencimiento −10 hábiles y la última TAMAR publicada— (b)
+//      y liquidación −10 hábiles, que es el del valor técnico de hoy (c).
+//   2-3. VPV de cada CER elegido: el CER de hoy sobre el de su emisión, por 100
+//      porque el precio va por cada 100 de nominal.
+//   4. El precio del TAMAR llevado al vencimiento con el rendimiento real de
+//      esos CER. Cada uno se reescala al plazo del TAMAR y se ponderan por
+//      cercanía de vencimiento: el exponente ajusta el plazo, no la tasa, y la
+//      curva real tiene pendiente. Con dos bonos, la inversa de la distancia es
+//      exactamente la interpolación lineal entre los dos.
+//   5. Se le saca el CER del valor técnico: queda el valor final en moneda de la
+//      emisión.
+//   6. Ese valor pasado a TEM real sobre los DIAS360 de la vida del bono.
+//   7. Se le descuenta lo ya devengado, que es nominal, deflactado con la
+//      variación del CER de esa misma ventana. TODAS las bases de tiempo en
+//      30/360: con días corridos acá el resultado se desarma, porque lo que
+//      queda por proyectar es una resta chica entre dos números grandes.
+//   8-10. De TEM a TNA con la convención de plazo fijo a 32 días, se saca el
+//      margen y se pasa a TEA.
+//
+// El margen es nominal, así que en términos reales vale margen/(1+inflación):
+// restarlo entero subestima la TAMAR real unos 0,1 puntos con un margen de 5,4%.
+// Se corrige con la inflación mensual que espera el REM para la ventana a
+// proyectar. El resultado casi no depende de ese supuesto —entre 1,5% y 2%
+// mensual se mueve 0,03 puntos— pero el sesgo que corrige es siempre para abajo.
+// Si el REM no cubre esos meses se usa la resta directa y se avisa.
+const BETR_LS='bonosAR_be_tamar_cer_v1';
+// Con menos de un mes hábil por proyectar, el despeje del paso 7 multiplica
+// cualquier error de precio por (transcurridos + a proyectar) / a proyectar.
+const BETR_MIN_PROY=20;
+let BETR_CER={};
+function betrLoadLs(){
+  try{const r=localStorage.getItem(BETR_LS);if(r){const p=JSON.parse(r);if(p&&typeof p==='object')BETR_CER=p;}}catch(e){}
+}
+function betrSaveLs(){
+  try{localStorage.setItem(BETR_LS,JSON.stringify(BETR_CER));}catch(e){}
+}
+betrLoadLs();
+
+// Ayudantes locales: los del final del archivo todavía no existen cuando el
+// panel se dibuja por primera vez en el arranque.
+const betrEsc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const betrN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
+const betrF=f=>String(f||'').split('-').reverse().join('/');
+
+const betrTemATna=tem=>(Math.pow(Math.pow(1+tem,12),32/365)-1)/32*365;
+const betrTnaATem=tna=>Math.pow(Math.pow(1+tna*32/365,365/32),1/12)-1;
+
+// Los pasos 4 a 10 sobre números ya leídos, sin DOM ni estado. Separado para
+// poder fijarlo en el smoke con los casos verificados a mano.
+function betrNucleo(x){
+  const cers=(x.cers||[]).filter(c=>c.vpv>0&&c.precio>0&&c.dias>0&&c.peso>0);
+  if(!cers.length)return{error:'sin bonos CER con precio'};
+  if(!(x.precioTamar>0)||!(x.diasTamar>0))return{error:'sin precio del bono TAMAR'};
+  if(!(x.diasProy>0))return{error:'sin días de TAMAR para proyectar'};
+  const pesoTotal=cers.reduce((s,c)=>s+c.peso,0);
+  const conPot=cers.map(c=>({...c,potencia:Math.pow(c.vpv/c.precio,x.diasTamar/c.dias),
+    realCada30:(Math.pow(c.vpv/c.precio,30/c.dias)-1)*100}));
+  const promedio=conPot.reduce((s,c)=>s+c.potencia*c.peso,0)/pesoTotal;
+  const valorFinal=promedio*x.precioTamar;
+  const valorSobreCer=valorFinal/x.varCerTecnico;
+  const tem6=Math.pow(valorSobreCer/100,30/x.dias360Bono)-1;
+  const realTotal=Math.pow(1+tem6,(x.diasProy+x.diasTransc)/30);
+  const nomTransc=Math.pow(1+x.temTranscurrida,x.diasTransc/30);
+  const cerTransc=Math.pow(x.varCerTranscurrida,x.diasTransc/x.dias360Transc);
+  const realTransc=nomTransc/cerTransc;
+  const resto=realTotal/realTransc;
+  const tem7=Math.pow(resto,30/x.diasProy)-1;
+  const tnaConMargen=betrTemATna(tem7);
+  const m=(x.margen||0)/100;
+  const tnaAprox=tnaConMargen-m;
+  let tnaReal=tnaAprox,exacta=false;
+  if(x.inflaMensual>0){
+    // El margen se saca en nominal, que es donde el bono lo paga, y se vuelve a
+    // real con la misma inflación.
+    const nomTotal=(1+tem7)*(1+x.inflaMensual)-1;
+    const temTamarNom=betrTnaATem(betrTemATna(nomTotal)-m);
+    tnaReal=betrTemATna((1+temTamarNom)/(1+x.inflaMensual)-1);
+    exacta=true;
+  }
+  return{cers:conPot,pesoTotal,promedio,valorFinal,valorSobreCer,tem6,
+    realTotal,nomTransc,cerTransc,realTransc,resto,tem7,
+    tnaConMargen,tnaAprox,tnaReal,exacta,
+    tea:Math.pow(1+tnaReal*32/365,365/32)-1};
+}
+
+// Peso de cada CER por cercanía de vencimiento. Con vencimiento igual al del
+// TAMAR, ese bono se lleva todo: no hay nada que interpolar.
+function betrPesos(cers,vctoTamar){
+  const dT=parseDate(vctoTamar);
+  cers.forEach(c=>{c.dist=Math.abs(diasACT(dT,parseDate(c.vcto)));});
+  const exacto=cers.find(c=>c.dist===0);
+  cers.forEach(c=>{c.peso=exacto?(c===exacto?1:0):1/c.dist;});
+  return cers;
+}
+
+function betrUltimaTamar(){
+  if(!TAMAR_INDEX.length)return null;
+  return [...TAMAR_INDEX].sort((a,b)=>a.fecha.localeCompare(b.fecha)).pop();
+}
+
+// Inflación mensual esperada para la ventana que queda por proyectar, del REM.
+// Se completa con las anclas anuales igual que Proyecciones; si ni con el ancla
+// llega, devuelve null y el margen se resta derecho.
+function betrInflaProyectada(desdeFecha,hastaFecha){
+  if(!REM_DATA||!Array.isArray(REM_DATA.ipc)||!REM_DATA.ipc.length)return null;
+  const m0=String(desdeFecha).slice(0,7),m1=String(hastaFecha).slice(0,7);
+  if(m1<m0)return null;
+  const anclas=(REM_DATA.anclas||{}).ipc||{};
+  const tope=Object.keys(anclas).sort().find(a=>a>=m1)||m1;
+  const serie=proyExtender(REM_DATA.ipc,anclas,'ipc',tope).filter(p=>p.mes>=m0&&p.mes<=m1);
+  const n=proyMesDelta(m0,m1)+1;
+  if(serie.length!==n||serie.some(p=>p.origen==='extrap'))return null;
+  let acum=1;serie.forEach(p=>{acum*=1+p.v/100;});
+  return{desde:m0,hasta:m1,meses:n,mensual:(Math.pow(acum,1/n)-1)*100,
+         conAncla:serie.some(p=>p.origen==='ancla'),relevamiento:REM_DATA.relevamiento||null};
+}
+
+// Un bono TAMAR que también está cargado como CER es un dual: su precio incluye
+// el derecho a quedarse con la mejor de las dos patas.
+function betrEsDual(ticker){
+  return CER_BONDS.some(b=>b.ticker===ticker);
+}
+// Candidatos: CER cero cupón, con precio y sin vencer. Los duales quedan afuera:
+// su precio no es CER puro.
+function betrCandidatos(){
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  return CER_BONDS
+    .filter(b=>b.tipo!=='cupon'&&b.vcto&&b.precio>0&&b.emision&&diasACT(liq,parseDate(b.vcto))>0)
+    .filter(b=>!TAMAR_BONDS.some(t=>t.ticker===b.ticker))
+    .sort((a,b)=>a.vcto.localeCompare(b.vcto));
+}
+// Lo que elegiría a mano alzada: el CER del mismo vencimiento, o los dos vecinos.
+function betrSugerir(vctoTamar){
+  const c=betrCandidatos();
+  const exacto=c.find(b=>b.vcto===vctoTamar);
+  if(exacto)return[exacto.ticker];
+  const prev=c.filter(b=>b.vcto<vctoTamar).slice(-1)[0];
+  const next=c.find(b=>b.vcto>vctoTamar);
+  return [prev,next].filter(Boolean).map(b=>b.ticker);
+}
+
+// opts.mismoPrecio: para el punto de indiferencia de un dual, las dos patas
+// tienen que salir del mismo precio. El mismo ticker está cargado en las dos
+// listas y lo actualizan dos caminos distintos, así que pueden diferir por un
+// centavo y eso es ruido puro.
+function betrDe(tamarTicker,cerTickers,opts){
+  opts=opts||{};
+  const tt=TAMAR_BONDS.find(b=>b.ticker===tamarTicker);
+  if(!tt)return{error:'Bono TAMAR no encontrado'};
+  if(!tt.precio||!tt.vcto||!tt.emision)return{error:'Sin precio o fechas'};
+  const d=(tamarEnrich(tt)||{})._debug;
+  if(!d)return{error:'Sin datos de cálculo'};
+  const ult=betrUltimaTamar();
+  if(!ult)return{error:'Sin serie de TAMAR'};
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  const fa=restarHabiles(parseDate(tt.emision),10);
+  const fVto10=restarHabiles(parseDate(tt.vcto),10);
+  const fb=fmtDate(fVto10)<ult.fecha?fmtDate(fVto10):ult.fecha;
+  const fc=restarHabiles(liq,10);
+  const cerA=cerIndexGet(fmtDate(fa)),cerB=cerIndexGet(fb),cerC=cerIndexGet(fmtDate(fc));
+  if(!(cerA>0)||!(cerB>0)||!(cerC>0))return{error:'Sin CER para esas fechas'};
+  // El dual TAMAR/dólar cotiza por lámina en dólares: se normaliza con su TC
+  // inicial, igual que la solapa TAMAR.
+  const precioTamar=tt.precio/(tt.tcInicial||1);
+  const diasTamar=diasACT(liq,parseDate(tt.vcto));
+  const cers=[];
+  for(const tk of (cerTickers||[])){
+    const cb=CER_BONDS.find(b=>b.ticker===tk);
+    if(!cb||!cb.vcto||!cb.emision||!(cb.precio>0))continue;
+    const cerEm=cerIndexGet(fmtDate(restarHabiles(parseDate(cb.emision),10)));
+    if(!(cerEm>0))continue;
+    cers.push({ticker:tk,vcto:cb.vcto,tipo:cb.tipo,
+      precio:opts.mismoPrecio?precioTamar:cb.precio,
+      cerEm,vpv:100*cerC/cerEm,dias:diasACT(liq,parseDate(cb.vcto)),peso:1});
+  }
+  if(!cers.length)return{error:'Elegí al menos un bono CER'};
+  betrPesos(cers,tt.vcto);
+  const infla=betrInflaProyectada(ult.fecha,d.fixVto);
+  const r=betrNucleo({
+    cers,diasTamar,precioTamar,margen:tt.margen,
+    varCerTecnico:cerC/cerA,varCerTranscurrida:cerB/cerA,
+    dias360Transc:dias360(fa,parseDate(fb)),
+    dias360Bono:dias360(parseDate(tt.emision),parseDate(tt.vcto)),
+    diasProy:d.DIAS_TAMAR_PROYECTAR,diasTransc:d.DIAS_TAMAR_TRANSCURRIDOS,
+    temTranscurrida:d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS/100,
+    inflaMensual:infla?infla.mensual/100:null,
+  });
+  if(r.error)return r;
+  return{...r,ticker:tamarTicker,margen:tt.margen||0,precioTamar,dual:betrEsDual(tamarTicker),
+    fechas:{a:fmtDate(fa),b:fb,c:fmtDate(fc),vto10:fmtDate(fVto10),ultTamar:ult.fecha,fixVto:d.fixVto},
+    cer:{a:cerA,b:cerB,c:cerC,varTecnico:cerC/cerA,varTranscurrida:cerB/cerA},
+    dias:{tamar:diasTamar,proy:d.DIAS_TAMAR_PROYECTAR,transc:d.DIAS_TAMAR_TRANSCURRIDOS,
+          d360Transc:dias360(fa,parseDate(fb)),d360Bono:dias360(parseDate(tt.emision),parseDate(tt.vcto))},
+    tamarTransc:{promTNA:d.TAMAR_DIAS_TRANSCURRIDOS,tem:d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS},
+    infla,
+    pocoConfiable:d.DIAS_TAMAR_PROYECTAR<BETR_MIN_PROY,
+    extrapola:!cers.some(c=>c.vcto>=tt.vcto)||!cers.some(c=>c.vcto<=tt.vcto),
+  };
+}
+
+// El dual contra sí mismo. El precio se cancela —el valor sobre CER da 100 y la
+// TEM real a capitalizar, cero— así que no es un breakeven de mercado: es el
+// punto de indiferencia entre las dos patas, la TAMAR real para lo que queda de
+// vida con la que las dos pagan lo mismo al vencimiento.
+function betrIndiferencia(tamarTicker){
+  if(!betrEsDual(tamarTicker))return null;
+  const r=betrDe(tamarTicker,[tamarTicker],{mismoPrecio:true});
+  return r&&!r.error?r:null;
 }
 
 function beTamarToggleSelector(){
@@ -10181,9 +10405,11 @@ function beTamarRecalc(){
     return;
   }
 
-  // ordenar por vencimiento, aplicar exclusiones
+  // ordenar por vencimiento, aplicar exclusiones. Los vencidos no van: no tienen
+  // precio y sólo ensucian la tabla con errores.
+  const liqT=G_LIQ||addHabiles(TODAY,1);
   const bondsOrdenados=[...TAMAR_BONDS]
-    .filter(b=>b.vcto&&!BE_TAMAR_EXCLUDED.has(b.ticker))
+    .filter(b=>b.vcto&&!BE_TAMAR_EXCLUDED.has(b.ticker)&&diasACT(liqT,parseDate(b.vcto))>0)
     .sort((a,b)=>a.vcto.localeCompare(b.vcto));
 
   if(!bondsOrdenados.length){
@@ -10191,26 +10417,158 @@ function beTamarRecalc(){
     return;
   }
 
+  // Una celda por columna: la TAMAR contra tasa fija necesita una LECAP del
+  // plazo y la TAMAR real no. Cuando la fila entera se reemplazaba por el error
+  // de la primera, los bonos que vencen después de la última LECAP —de TML27 en
+  // adelante— no mostraban nada, ni siquiera lo que sí se puede calcular.
   tbody.innerHTML=bondsOrdenados.map(bond=>{
     const res=beTamarCalcular(bond.ticker);
-    if(!res||res.error){
-      return`<tr class="bb">
-        <td colspan="2" style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--accent)">${bond.ticker}</td>
-        <td colspan="2" style="padding:1px 4px;text-align:right;color:var(--danger);font-size:9px">${res?.error||'—'}</td>
-      </tr>`;
-    }
-    const fixParts=res.fixVto.split('-');
-    const fixDisp=`${fixParts[2]}/${fixParts[1]}/${fixParts[0].slice(2)}`;
-    const realCell=res.tamar_real!=null
-      ?`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;color:${res.tamar_real>=0?'var(--accent2)':'var(--danger)'};font-weight:600;white-space:nowrap">${fmtP2(res.tamar_real)}</td>`
-      :`<td style="padding:1px 4px;text-align:right;color:var(--text3);font-size:10px">—</td>`;
+    const ok=res&&!res.error;
+    // El fixing es del bono, no de la comparación: sale igual aunque no haya
+    // LECAP de su plazo.
+    const fix=betrF(fmtDate(restarHabiles(parseDate(bond.vcto),10))).replace(/\/(\d\d)(\d\d)$/,'/$2');
+    const gris='padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--text3)';
     return`<tr class="bb">
-      <td style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600;white-space:nowrap">${bond.ticker}</td>
-      <td style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--text2);text-align:right;white-space:nowrap">${fixDisp}</td>
-      <td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--warn);font-weight:600;white-space:nowrap">${fmtP2(res.tamar_be_tna)}</td>
-      ${realCell}
+      <td style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600;white-space:nowrap">${bond.ticker}${betrEsDual(bond.ticker)?'<span title="Dual: el precio incluye el valor de la otra pata" style="color:var(--info)"> d</span>':''}</td>
+      <td style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--text2);text-align:right;white-space:nowrap">${fix}</td>
+      ${ok
+        ?`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--warn);font-weight:600;white-space:nowrap">${fmtP2(res.tamar_be_tna)}</td>`
+        :`<td style="${gris}" title="${betrEsc((res&&res.error)||'')}">—</td>`}
+      ${betrCelda(bond.ticker)}
     </tr>`;
   }).join('');
+}
+
+// La celda de la TAMAR real: el número, abajo con qué CER se calculó, y para los
+// duales el punto de indiferencia. Sin CER elegidos no muestra número: no se
+// inventa una comparación.
+function betrCelda(ticker){
+  const td=(html,extra)=>`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;white-space:nowrap;${extra||''}">${html}</td>`;
+  const elegidos=BETR_CER[ticker]||[];
+  const boton=t=>`<button onclick="betrAbrir('${ticker}')" style="background:none;border:none;padding:0;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:9px;text-decoration:underline">${t}</button>`;
+  // El punto de indiferencia de un dual no necesita ningún CER elegido: sale del
+  // bono contra sí mismo.
+  const indLinea=()=>{
+    const i=betrEsDual(ticker)?betrIndiferencia(ticker):null;
+    return i?`<br><span title="Punto de indiferencia entre las dos patas del dual. No depende del precio." style="color:var(--info);font-size:8px">ind. ${fmtP2(i.tnaReal*100)}</span>`:'';
+  };
+  if(!elegidos.length)return td(boton('elegir CER')+indLinea());
+  const r=betrDe(ticker,elegidos);
+  if(r.error)return td(`<span style="color:var(--danger);font-size:9px">${betrEsc(r.error)}</span><br>${boton('cambiar')}`);
+  const col=r.tnaReal>=0?'var(--accent2)':'var(--danger)';
+  const avisos=[];
+  if(r.pocoConfiable)avisos.push(`<span title="Quedan ${r.dias.proy} días hábiles por proyectar: el despeje amplifica cualquier error de precio" style="color:var(--warn)">⚠</span>`);
+  if(r.extrapola)avisos.push(`<span title="Los CER elegidos no rodean al vencimiento del bono: la tasa se extrapola" style="color:var(--warn)">↗</span>`);
+  if(!r.exacta)avisos.push('<span title="Sin REM para esos meses: el margen se restó derecho" style="color:var(--text3)">~</span>');
+  return td(
+    `<button onclick="betrAbrir('${ticker}')" title="Ver el detalle paso a paso" style="background:none;border:none;padding:0;cursor:pointer;font-family:var(--mono);font-size:10px;color:${col};font-weight:600">${fmtP2(r.tnaReal*100)}</button> ${avisos.join('')}`
+    +`<br><span title="Bonos CER contra los que se compara" style="color:var(--text3);font-size:8px">${elegidos.join('·')}</span>`
+    +indLinea()
+  );
+}
+
+function betrAbrir(ticker){
+  const el=document.getElementById('betr-modal');
+  if(!el)return;
+  el.dataset.ticker=ticker;
+  el.classList.add('open');
+  betrRenderModal();
+}
+function betrCerrar(){
+  const el=document.getElementById('betr-modal');
+  if(el)el.classList.remove('open');
+}
+function betrToggleCer(tk){
+  const el=document.getElementById('betr-modal');
+  const ticker=el&&el.dataset.ticker;
+  if(!ticker)return;
+  const act=new Set(BETR_CER[ticker]||[]);
+  if(act.has(tk))act.delete(tk);else act.add(tk);
+  BETR_CER[ticker]=[...act];
+  if(!BETR_CER[ticker].length)delete BETR_CER[ticker];
+  betrSaveLs();betrRenderModal();beTamarRecalc();
+}
+function betrAplicarSugerencia(){
+  const el=document.getElementById('betr-modal');
+  const ticker=el&&el.dataset.ticker;
+  const tt=TAMAR_BONDS.find(b=>b.ticker===ticker);
+  if(!tt)return;
+  const s=betrSugerir(tt.vcto);
+  if(s.length)BETR_CER[ticker]=s;else delete BETR_CER[ticker];
+  betrSaveLs();betrRenderModal();beTamarRecalc();
+}
+function betrLimpiar(){
+  const el=document.getElementById('betr-modal');
+  const ticker=el&&el.dataset.ticker;
+  if(!ticker)return;
+  delete BETR_CER[ticker];
+  betrSaveLs();betrRenderModal();beTamarRecalc();
+}
+
+function betrRenderModal(){
+  const el=document.getElementById('betr-modal');
+  if(!el||!el.classList.contains('open'))return;
+  const ticker=el.dataset.ticker;
+  const tt=TAMAR_BONDS.find(b=>b.ticker===ticker);
+  const tit=document.getElementById('betr-m-titulo');
+  if(tit)tit.textContent=`TAMAR real · ${ticker||''}`;
+  const sub=document.getElementById('betr-m-sub');
+  if(sub&&tt)sub.innerHTML=`vence ${betrF(tt.vcto)} · margen ${betrN(tt.margen||0,2)}%`
+    +(betrEsDual(ticker)?' · <span style="color:var(--info)">dual: el precio incluye el valor de la otra pata, así que la TAMAR real que sale es un techo</span>':'');
+  const elegidos=BETR_CER[ticker]||[];
+  const chips=document.getElementById('betr-m-chips');
+  if(chips){
+    const cands=betrCandidatos();
+    chips.innerHTML=cands.length?cands.map(b=>{
+      const on=elegidos.includes(b.ticker);
+      return`<button onclick="betrToggleCer('${b.ticker}')" title="vence ${betrF(b.vcto)}"
+        style="padding:3px 8px;font-size:10px;font-family:var(--mono);border-radius:3px;cursor:pointer;
+        border:1px solid ${on?'var(--accent2)':'var(--border2)'};
+        background:${on?'var(--accent-dim)':'var(--surface2)'};
+        color:${on?'var(--accent)':'var(--text3)'};transition:all .12s">${b.ticker}</button>`;
+    }).join(''):'<span style="font-size:10px;color:var(--text3)">No hay bonos CER cero cupón cargados.</span>';
+  }
+  const det=document.getElementById('betr-m-detalle');
+  if(det)det.innerHTML=elegidos.length?betrDetalleHTML(ticker,elegidos):
+    '<div style="font-size:11px;color:var(--text3);padding:.5rem 0">Elegí uno o más bonos CER. Con dos o más se ponderan por cercanía de vencimiento.</div>';
+}
+
+function betrDetalleHTML(ticker,elegidos){
+  const r=betrDe(ticker,elegidos);
+  if(r.error)return`<div style="font-size:11px;color:var(--danger);padding:.5rem 0">${betrEsc(r.error)}</div>`;
+  const fila=(n,label,val)=>`<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--border)">
+    <span style="font-size:10px;color:var(--text3);min-width:22px;text-align:right">${n}</span>
+    <span style="font-size:11px;color:var(--text3);flex:1">${label}</span>
+    <span style="font-size:12px;color:var(--accent);font-family:var(--mono);white-space:nowrap">${val}</span></div>`;
+  const cers=r.cers.map(c=>fila('','<span style="color:var(--text2)">'+c.ticker+'</span> · VPV '+betrN(c.vpv,4)+' / precio '+betrN(c.precio,2)
+    +' · '+c.dias+'d · peso '+betrN(c.peso/r.pesoTotal*100,1)+'%',betrN(c.potencia,8))).join('');
+  const ind=r.dual?betrIndiferencia(ticker):null;
+  return `
+    ${fila('1.a','CER emisión −10 hábiles ('+betrF(r.fechas.a)+')',betrN(r.cer.a,8))}
+    ${fila('1.b','CER al cierre de la ventana TAMAR ('+betrF(r.fechas.b)+')',betrN(r.cer.b,8))}
+    ${fila('1.c','CER del valor técnico, liquidación −10 hábiles ('+betrF(r.fechas.c)+')',betrN(r.cer.c,8))}
+    ${fila('1.d','variación CER de la ventana TAMAR (b / a)',betrN(r.cer.varTranscurrida,10))}
+    ${fila('1.e','DIAS360 de esa ventana',r.dias.d360Transc)}
+    ${fila('1.f','variación CER para valor técnico (c / a)',betrN(r.cer.varTecnico,10))}
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:.5rem 0 .2rem">2 y 3 · bonos CER y su VPV</div>
+    ${cers}
+    ${fila('4','valor final, precio TAMAR '+betrN(r.precioTamar,3)+' × promedio '+betrN(r.promedio,8),betrN(r.valorFinal,8))}
+    ${fila('5','valor final sobre CER (4 / 1.f)',betrN(r.valorSobreCer,8))}
+    ${fila('6','TEM real a capitalizar · DIAS360 del bono '+r.dias.d360Bono,betrN(r.tem6*100,8)+'%')}
+    ${fila('7.a','TAMAR + margen transcurrida (TEM) · TNA promedio '+betrN(r.tamarTransc.promTNA,4)+'%',betrN(r.tamarTransc.tem,8)+'%')}
+    ${fila('7.b','días a proyectar / transcurridos',r.dias.proy+' / '+r.dias.transc)}
+    ${fila('7.c','real total / real transcurrido',betrN(r.realTotal,8)+' / '+betrN(r.realTransc,8))}
+    ${fila('7','TAMAR + margen a proyectar (TEM real)',betrN(r.tem7*100,8)+'%')}
+    ${fila('8','TAMAR + margen a proyectar (TNA real)',betrN(r.tnaConMargen*100,8)+'%')}
+    ${fila('9','sin margen ('+betrN(r.margen,2)+'%)'+(r.exacta
+        ?' · exacto con inflación REM '+betrN(r.infla.mensual,2)+'% mensual '+betrF(r.infla.desde)+' a '+betrF(r.infla.hasta)
+        :' · resta directa, sin REM para esos meses'),
+      '<span style="font-weight:600">'+betrN(r.tnaReal*100,8)+'%</span>')}
+    ${fila('10','TEA',betrN(r.tea*100,8)+'%')}
+    ${r.exacta?fila('','resta directa, para comparar',betrN(r.tnaAprox*100,8)+'%'):''}
+    ${ind?fila('','punto de indiferencia del dual, sin contenido de precio','<span style="color:var(--info)">'+betrN(ind.tnaReal*100,8)+'%</span>'):''}
+    ${r.pocoConfiable?'<div style="font-size:10px;color:var(--warn);margin-top:.5rem">⚠ Quedan '+r.dias.proy+' días hábiles por proyectar. El despeje del paso 7 multiplica cualquier error de precio por '+betrN((r.dias.proy+r.dias.transc)/r.dias.proy,1)+'.</div>':''}
+    ${r.extrapola?'<div style="font-size:10px;color:var(--warn);margin-top:.5rem">↗ Los CER elegidos no rodean el vencimiento del bono: la tasa real se extrapola.</div>':''}`;
 }
 const LS_LECAPS='bonosAR_lecaps_v1';
 const LS_CER='bonosAR_cer_bonds_v1';
@@ -11131,8 +11489,16 @@ function beCPSaveModal(){
 
 // ── COLUMN RESIZER ────────────────────────────────────────────────────────────
 const BE_COL_LS='bonosAR_be_colwidths';
+// El ancho guardado se respeta, salvo que sea de antes de que la primera columna
+// tuviera la TAMAR real: con 200px la columna nueva quedaba cortada, y el ancho
+// viejo estaba en el localStorage de todos los que ya habían entrado.
+const BE_COL1_MIN_UTIL=250;
 function beColWidthsLoad(){
-  try{const r=localStorage.getItem(BE_COL_LS);if(r){const m=JSON.parse(r);['be-col1','be-col2'].forEach(id=>{const col=document.getElementById(id);if(col&&m[id])col.style.width=m[id]+'px';});}}catch(e){}
+  try{const r=localStorage.getItem(BE_COL_LS);if(r){const m=JSON.parse(r);['be-col1','be-col2'].forEach(id=>{
+    const col=document.getElementById(id);
+    if(!col||!m[id])return;
+    col.style.width=(id==='be-col1'?Math.max(m[id],BE_COL1_MIN_UTIL):m[id])+'px';
+  });}}catch(e){}
 }
 function beStartResize(e, colId){
   const col=document.getElementById(colId);

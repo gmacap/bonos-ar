@@ -2475,6 +2475,78 @@ const omitir = (label, motivo) =>
     check(ref.limpio, 'la ficha con referencias no tiene undefined, NaN ni null');
   }
 
+  // TAMAR real contra CER. Los dos casos están fijados con los números que se
+  // verificaron a mano contra planilla, con los precios de esa rueda: si alguien
+  // toca la fórmula, esto se cae.
+  console.log('\nTAMAR real contra CER');
+  const betr = await page.evaluate(() => {
+    const out = {};
+    // TTD26 contra TZXD6, 16/09/2026. Margen 0, así que la corrección por
+    // inflación no cambia nada y la resta del margen es exacta por definición.
+    const ttd = betrNucleo({
+      cers: [{ ticker: 'TZXD6', vcto: '2026-12-15', vpv: 307.6960369012062, precio: 305.15, dias: 88, peso: 1 }],
+      diasTamar: 88, precioTamar: 170.338, margen: 0,
+      varCerTecnico: 1.5993417547087379, varCerTranscurrida: 1.6111796147340527,
+      dias360Transc: 600, dias360Bono: 676, diasProy: 51, diasTransc: 402,
+      temTranscurrida: 0.027420999203538576, inflaMensual: null,
+    });
+    out.ttd = { tem7: ttd.tem7 * 100, tna: ttd.tnaAprox * 100, tea: ttd.tea * 100, v5: ttd.valorSobreCer };
+    // TML27 contra TZXM7 y TZXS7, mismos precios, con los pesos por cercanía de
+    // vencimiento (34% y 66%) y 201 días a proyectar, ya con los feriados 2027.
+    const base = {
+      cers: [
+        { ticker: 'TZXM7', vcto: '2027-03-31', vpv: 230.82257228520533, precio: 226.15, dias: 194, peso: 0.3387978142076503 },
+        { ticker: 'TZXS7', vcto: '2027-09-30', vpv: 115.3434858477226, precio: 108.85, dias: 377, peso: 0.6612021857923497 },
+      ],
+      diasTamar: 315, precioTamar: 108.75, margen: 5.4,
+      varCerTecnico: 1.0537124888307963, varCerTranscurrida: 1.0615117605705482,
+      dias360Transc: 89, dias360Bono: 390, diasProy: 201, diasTransc: 63,
+      temTranscurrida: 0.02391478917002976,
+    };
+    const iguales = betrNucleo({ ...base, cers: base.cers.map(c => ({ ...c, peso: 1 })), diasProy: 211, inflaMensual: null });
+    out.tmlSimple = { tna: iguales.tnaAprox * 100 };
+    const pond = betrNucleo({ ...base, diasProy: 211, inflaMensual: null });
+    out.tmlPonderado = { tna: pond.tnaAprox * 100 };
+    // Los feriados 2027 bajan los días a proyectar de 211 a 201.
+    const con201 = betrNucleo({ ...base, cers: base.cers.map(c => ({ ...c, peso: 1 })), inflaMensual: null });
+    out.tml201 = { tna: con201.tnaAprox * 100 };
+    const conRem = betrNucleo({ ...base, inflaMensual: 0.017 });
+    out.tmlRem = { tnaAprox: conRem.tnaAprox * 100, tnaReal: conRem.tnaReal * 100, exacta: conRem.exacta };
+    // Pesos: con dos bonos, la inversa de la distancia es la interpolación lineal.
+    const pesos = betrPesos([{ vcto: '2027-03-31' }, { vcto: '2027-09-30' }], '2027-07-30');
+    const tot = pesos.reduce((s, c) => s + c.peso, 0);
+    out.pesos = pesos.map(c => c.peso / tot);
+    const exacto = betrPesos([{ vcto: '2027-07-30' }, { vcto: '2027-09-30' }], '2027-07-30');
+    out.pesoExacto = exacto.map(c => c.peso);
+    // Feriados 2027: sin ellos, cualquier cuenta de 2027 contaba días hábiles de más.
+    out.feriados2027 = ['2027-01-01', '2027-02-08', '2027-03-25', '2027-06-21', '2027-07-09', '2027-10-11']
+      .every(f => !esHabil(parseDate(f)));
+    // Sin CER elegidos no hay número, y sin días a proyectar tampoco.
+    out.sinCer = (betrNucleo({ ...base, cers: [] }) || {}).error;
+    return out;
+  });
+  const cerca = (a, b, tol) => Math.abs(a - b) < (tol || 1e-6);
+  check(cerca(betr.ttd.tem7, 0.28712983) && cerca(betr.ttd.tna, 3.44581521) && cerca(betr.ttd.tea, 3.50049485),
+        'TTD26 contra TZXD6 reproduce los números verificados',
+        `TEM ${betr.ttd.tem7.toFixed(8)}% · TNA ${betr.ttd.tna.toFixed(8)}% · TEA ${betr.ttd.tea.toFixed(8)}%`);
+  check(cerca(betr.tmlSimple.tna, 2.04460118) && cerca(betr.tmlPonderado.tna, 2.34006046),
+        'TML27: pesos iguales y pesos por plazo dan lo verificado',
+        `iguales ${betr.tmlSimple.tna.toFixed(8)}% · ponderado ${betr.tmlPonderado.tna.toFixed(8)}%`);
+  check(cerca(betr.tml201.tna, 2.08151923),
+        'con los feriados de 2027 quedan 201 días a proyectar y TML27 da lo verificado',
+        `${betr.tml201.tna.toFixed(8)}%`);
+  check(betr.tmlRem.exacta && betr.tmlRem.tnaReal - betr.tmlRem.tnaAprox > 0.05
+        && betr.tmlRem.tnaReal - betr.tmlRem.tnaAprox < 0.2,
+        'la corrección por inflación saca el sesgo del margen, unos 0,1 puntos',
+        `aprox ${betr.tmlRem.tnaAprox.toFixed(8)}% → exacta ${betr.tmlRem.tnaReal.toFixed(8)}%`);
+  check(cerca(betr.pesos[0], 0.3387978142076503) && cerca(betr.pesos[1], 0.6612021857923497),
+        'los pesos por cercanía son la interpolación lineal entre los dos CER',
+        betr.pesos.map(p => p.toFixed(4)).join(' · '));
+  check(betr.pesoExacto[0] === 1 && betr.pesoExacto[1] === 0,
+        'con un CER del mismo vencimiento, ese se lleva todo');
+  check(betr.feriados2027, 'el calendario tiene los feriados de 2027');
+  check(/CER/.test(betr.sinCer || ''), 'sin bonos CER no se inventa un número', betr.sinCer);
+
   console.log('\nEscenarios');
   const esc = await page.evaluate(() => {
     switchSection('pesos'); switchTab('escenarios');
