@@ -109,32 +109,45 @@ Las reglas que más se violan sin querer:
 - Las **implícitas de curva** no son el breakeven de la solapa Resumen.
 - Los **duales** aparecen en CER y en TAMAR: si los nombrás, aclaralo.
 
-**Tono: coloquial y cercano.** El detalle está en `preambulo`; en corto, escribís
-como le contarías el día a un cliente que conocés, no como un informe:
+**A quién le escribís: clientes que saben de finanzas.** El detalle está en
+`preambulo`; lo que pidió el usuario, en corto:
 
-- Primera persona del plural y frases cortas: "en pesos vimos…".
-- **Traducí la jerga.** La forma de la curva se cuenta con los tramos y sus
-  números, no con la palabra "empinó" o "aplanó". Ojo: no son sinónimos de "los
-  cortos se movieron más". La pendiente sale del ajuste de toda la curva, y en el
-  trimestre del 15/09 tasa fija "aplanó" con las medianas subiendo más que las
-  cortas. Si la palabra y los tramos no dicen lo mismo, contá los tramos. El
-  spread es "la prima por riesgo argentino"; la tasa real es "lo que rinde por
-  encima de la inflación". Plazos en palabras: "las letras a tres meses", no "el
-  nivel de 99 días".
-- **Elegí.** Uno o dos datos por curva, no todos los tramos y todos los bonos.
+- **Nada obvio.** Ni "cuando la tasa baja, el precio sube" ni definiciones de tasa
+  real, margen, spread o breakeven. Términos de mercado, tono cercano, primera
+  persona del plural, frases cortas.
+- **Cada dato con su contexto.** Un número suelto no agrega valor. El volumen va
+  contra el promedio de las 20 ruedas previas ("1,9 veces el promedio"). Las
+  implícitas van contra el REM (sección REFERENCIAS DEL REM). El margen TAMAR va
+  contra la TAMAR de hoy y la que espera el REM. Todas esas referencias están en
+  la ficha, así que el verificador las chequea como cualquier otro número.
+- **Leé la curva.** Después del dato, qué puede estar descontando el mercado,
+  como lectura posible ("puede leerse como", "es consistente con", "se lee
+  como"). Sale de la curva y de las referencias, **nunca de una noticia**. Las
+  claves por curva están en `preambulo`: leelas antes de interpretar. En TAMAR,
+  por ejemplo, el margen se calcula con la TAMAR constante: si el mercado
+  recalculara la TAMAR esperada se moverían más los largos.
+- **Que la lectura cierre con los números.** Antes de escribir "el mercado
+  descuenta X", fijate que los tramos, el volumen y las referencias lo sostengan.
+  Si apuntan para lados distintos, decí eso en vez de forzar una lectura.
+- **Elegí.** Uno o dos datos por curva, cada uno con su lectura.
+- Empinó y aplanó se pueden usar, pero la pendiente sale del ajuste de toda la
+  curva: en el trimestre al 16/09 tasa fija "aplanó" con las medianas subiendo más
+  que las cortas. Si la palabra y los tramos no dicen lo mismo, contá los tramos.
 - Nada de "cabe destacar", "se observó", "en un contexto de". Nada de
   recomendaciones.
 
-Antes y después, con los mismos números:
+Antes y después, con los mismos números (TAMAR, 16/09):
 
-> ✗ Tasa fija bajó 3 puntos básicos en el nivel de 99 días, hasta 25,30% de TNA,
-> con un reparto desigual: el tramo corto comprimió 20 puntos básicos y el medio
-> sumó 2 puntos básicos, así que la curva empinó.
+> ✗ En TAMAR el margen, lo que pagan por encima de la TAMAR, no se movió y sigue
+> en 7%. Adentro sí hubo cambios: los dos bonos más cortos subieron 20 puntos y
+> los medianos bajaron 9 puntos. El que más subió fue el TTD26, 42 puntos.
 >
-> ✓ En tasa fija la curva en general casi no se movió, 3 puntos abajo, pero
-> adentro hubo movimiento: las letras más cortas bajaron 20 puntos y las de
-> mediano plazo quedaron prácticamente igual. A tres meses cierran rindiendo 25,3%
-> de tasa nominal anual.
+> ✓ TAMAR cerró con el margen sin cambios, en 7,02%, pero con rotación adentro:
+> los dos más cortos ampliaron 20 bps (el TTD26, 42 bps) y el tramo medio
+> comprimió 9 bps, con los largos planos. Si el mercado estuviera recalculando la
+> TAMAR esperada se movería más el tramo largo, y no se movió: se lee como demanda
+> puntual por los bonos de mediano plazo y algo de oferta en los que vencen antes.
+> Volumen en su promedio, 1,0 veces.
 
 ### 4. El hilo de Twitter
 

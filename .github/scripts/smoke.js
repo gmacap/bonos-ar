@@ -2407,6 +2407,65 @@ const omitir = (label, motivo) =>
     check(pan.viejo, 'un comentario de la forma vieja se sigue mostrando');
   }
 
+  // El dato solo dice poco: la ficha trae contra qué compararlo. Volumen contra las
+  // ruedas previas y las implícitas contra el REM, medidos y no buscados, para que
+  // el comentario les dé contexto con números que el verificador puede chequear.
+  console.log('\nComentario: referencias de volumen y REM');
+  const ref = await page.evaluate(async () => {
+    const out = {};
+    // REM inventado: 2% mensual tres meses, dólar de 1000 a 1100 en tres meses y
+    // un ancla en marzo. Los números cierran a mano.
+    const rem = {
+      relevamiento: '2026-08-31',
+      ipc: [{ mes: '2026-09', v: 2 }, { mes: '2026-10', v: 2 }, { mes: '2026-11', v: 2 }],
+      tcn: [{ mes: '2026-09', v: 1000 }, { mes: '2026-10', v: 1030 }, { mes: '2026-11', v: 1060 }, { mes: '2026-12', v: 1100 }],
+      tamar: [{ mes: '2026-09', v: 24 }, { mes: '2026-10', v: 23.5 }, { mes: '2026-11', v: 23 }, { mes: '2026-12', v: 22 }],
+      anclas: { tcn: { '2027-03': 1200 } },
+    };
+    const imp = [{ tenor: 90, inflaMensual: 1.8, deval: 30 }, { tenor: 180, inflaMensual: 1.7, deval: 40 }, { tenor: 270 }];
+    const r = fichaRemCalc(rem, '2026-09-16', { fecha: '2026-09-15', v: 23.6 }, imp);
+    out.sint = {
+      infla90: r.tenores[0].infla && r.tenores[0].infla.mensual,
+      difInfla90: r.tenores[0].difInflaMensualPp,
+      deval90: r.tenores[0].deval && r.tenores[0].deval.anual,
+      infla180: r.tenores[1].infla,
+      deval180: r.tenores[1].deval && r.tenores[1].deval.anual,
+      ancla180: r.tenores[1].deval && r.tenores[1].deval.conAncla,
+      tamar: r.tamar.esperada.map(p => p.mes + '=' + p.v).join(' '),
+    };
+    const f = await fichaConstruir('dia', { soloArchivado: true, sinFX: true, sinExternos: true });
+    if (!f) return { ...out, sinFicha: true };
+    out.volRef = f.volumen.ref;
+    out.vsRefOk = f.bloques.filter(b => b.volumen.vsRef != null)
+      .every(b => Math.abs(b.volumen.vsRef - b.volumen.prom / b.volumen.ref) < 1e-9);
+    out.conVsRef = f.bloques.filter(b => b.volumen.vsRef != null).length;
+    out.rem = !!(f.rem && f.rem.tenores[0].infla && isFinite(f.rem.tenores[0].infla.mensual));
+    const t = fichaTexto(f);
+    out.textoRem = t.includes('REFERENCIAS DEL REM');
+    out.textoVol = t.includes('veces el promedio de las');
+    out.limpio = !/undefined|NaN|null/.test(t);
+    return out;
+  });
+  const s = ref.sint;
+  check(Math.abs(s.infla90 - 2) < 1e-9 && Math.abs(s.difInfla90 + 0.2) < 1e-9,
+        'REM: la inflación esperada es el promedio de los meses del plazo, y la diferencia contra la curva sale en pp',
+        `${s.infla90} · dif ${s.difInfla90}`);
+  check(Math.abs(s.deval90 - (Math.pow(1.1, 4) - 1) * 100) < 1e-9,
+        'REM: la devaluación es el ritmo del propio REM, no contra el spot', String(s.deval90));
+  check(s.infla180 === null && Math.abs(s.deval180 - 44) < 1e-9 && s.ancla180 === true,
+        'REM: sin meses no se inventa, y con el ancla anual se completa y se marca',
+        `infla180 ${s.infla180} · deval180 ${s.deval180} · ancla ${s.ancla180}`);
+  check(s.tamar === '2026-09=24 2026-12=22', 'REM: el sendero de TAMAR corta donde el REM deja de cubrir', s.tamar);
+  if (ref.sinFicha) omitir('referencias en la ficha real', 'no hay dos ruedas archivadas');
+  else {
+    if (!(ref.volRef > 0)) omitir('volumen contra las ruedas previas', 'no hay 20 ruedas previas con monto');
+    else check(ref.vsRefOk && ref.conVsRef > 0 && ref.textoVol,
+               'el volumen de cada curva se compara con su promedio de las ruedas previas', `${ref.conVsRef} curvas`);
+    if (!ref.rem) omitir('implícitas contra el REM', 'rem.json no cargó');
+    else check(ref.textoRem, 'la ficha trae las referencias del REM');
+    check(ref.limpio, 'la ficha con referencias no tiene undefined, NaN ni null');
+  }
+
   console.log('\nEscenarios');
   const esc = await page.evaluate(() => {
     switchSection('pesos'); switchTab('escenarios');

@@ -120,8 +120,14 @@ if (errores === erroresDol) bien('dólares relacionados con Treasuries y riesgo 
 // "puntos" solo va al final de la lista para que "puntos básicos" gane primero.
 // Es lo que escribe cualquiera en tono coloquial ("bajó 20 puntos"): dejarlo
 // afuera haría que el texto más natural fuera justo el que no se verifica.
-const UNIDAD = String.raw`%|bps|pbs|pb|pp|MM|B|M|k|puntos?\s+b[áa]sicos?|puntos?\s+porcentuales?|mil(?:es)?\s+de\s+millones|mil\s+millones|millones|billones|puntos?`;
-const NUM_CON_UNIDAD = new RegExp(String.raw`(-?\d[\d.,]*)\s*(?:${UNIDAD})\b`, 'gi');
+// "veces" es la referencia de volumen: "1,9 veces el promedio" también sale de la
+// ficha.
+const UNIDAD = String.raw`%|bps|pbs|pb|pp|MM|B|M|k|puntos?\s+b[áa]sicos?|puntos?\s+porcentuales?|mil(?:es)?\s+de\s+millones|mil\s+millones|millones|billones|veces|puntos?`;
+// El cierre NO es \b: después de "%" viene un espacio o una coma, y entre dos
+// caracteres que no son de palabra no hay límite de palabra. Con \b ningún
+// porcentaje se verificaba. Lo que importa es que la unidad no siga en una letra
+// o un dígito: "20 Bonares" no es "20 B".
+const NUM_CON_UNIDAD = new RegExp(String.raw`(-?\d[\d.,]*)\s*(?:${UNIDAD})(?![\p{L}\d])`, 'giu');
 const NUM_SUELTO = /-?\d[\d.,]*/g;
 
 function lecturas(s0) {

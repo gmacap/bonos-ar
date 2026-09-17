@@ -17127,8 +17127,46 @@ function fichaAgruparMontos(filas,truncado,sinColumna){
     const pt=porSectorTicker.get(f.sector);
     pt.set(f.ticker,(pt.get(f.ticker)||0)+m);
   }
-  return{porSectorFecha,porSectorTicker,fechas:[...fechas].sort(),
+  // El total por rueda, deduplicado igual que el del período: la referencia de
+  // volumen compara promedios por rueda y necesita cortar por fecha.
+  const totalPorFecha=new Map(),vistos=new Set();
+  for(const f of filas||[]){
+    const m=+f.monto,k=f.snapshot_date+'|'+f.ticker;
+    if(!(m>0)||vistos.has(k))continue;
+    vistos.add(k);
+    totalPorFecha.set(f.snapshot_date,(totalPorFecha.get(f.snapshot_date)||0)+m);
+  }
+  return{porSectorFecha,porSectorTicker,fechas:[...fechas].sort(),totalPorFecha,
          total:fichaMontoTotalUnico(filas),truncado:!!truncado,sinColumna:!!sinColumna};
+}
+
+// ── Referencias ─────────────────────────────────────────────────────────────
+// Un dato solo dice poco: "se operaron $375 mil millones" no dice si fue mucho, y
+// "1,8% mensual de inflación implícita" no dice si es alta. La ficha trae contra
+// qué compararlos, medido y no buscado, así el comentario puede darles contexto
+// sin tomar la referencia de una nota.
+//
+// Volumen: el promedio por rueda de las 20 ruedas que terminan en la inicial. La
+// inicial no entra en el volumen del período, así que las dos ventanas no se
+// pisan. Cuarenta y cinco días corridos alcanzan aun con feriados. Si faltan más
+// de una de cada cinco ruedas no hay referencia: hacia atrás de mediados de 2026
+// el monto no existe, y un promedio de seis ruedas no es "lo normal".
+const FICHA_VOL_REF_RUEDAS=20;
+async function fichaVolumenReferencia(ini){
+  const d=parseDate(ini);d.setDate(d.getDate()-45);
+  const m=await fichaFetchMontos(fmtDate(d),ini);
+  if(m.sinColumna||m.truncado)return null;
+  const fechas=m.fechas.slice(-FICHA_VOL_REF_RUEDAS);
+  if(fechas.length<Math.ceil(FICHA_VOL_REF_RUEDAS*FICHA_COBERTURA_MIN))return null;
+  const en=new Set(fechas);
+  const sectores={};
+  for(const[s,pf]of m.porSectorFecha){
+    let t=0;for(const[f,v]of pf)if(en.has(f))t+=v;
+    sectores[s]=t/fechas.length;
+  }
+  let total=0;for(const f of fechas)total+=m.totalPorFecha.get(f)||0;
+  return{desde:fechas[0],hasta:fechas[fechas.length-1],ruedas:fechas.length,sectores,
+         total:total/fechas.length};
 }
 
 // TXMJ9 y compañía viven en dos sectores a la vez: sumar los siete totales
@@ -17597,6 +17635,69 @@ function fichaImplicitas(bloques,cual){
   return FICHA_TENORES_BE.map(x=>fichaImplicitaEn(tf,cer,dlk,x));
 }
 
+// ── Contra el REM ───────────────────────────────────────────────────────────
+// La implícita de curva cobra sentido al lado de lo que esperan los analistas, y
+// el REM del BCRA es la referencia pública. Tres cuidados:
+//  · el REM es mensual y el tenor no: se toman los meses calendario que cubre,
+//    contando el de la rueda. 90 días son tres meses;
+//  · pasado el tramo mensual se completa con las anclas de diciembre, igual que
+//    Proyecciones, y se marca. Si ni el ancla alcanza, no se reporta;
+//  · la devaluación es el ritmo del propio REM, del promedio del mes de la rueda
+//    al del mes en que termina el tenor. NO desde el A3500 de hoy: el REM se
+//    releva a fin de mes y su nivel queda viejo. El del 31/08 esperaba $1.530
+//    para septiembre con el A3500 en $1.509, y anualizado desde el spot daba 36%
+//    contra un ritmo propio de 29%: la diferencia era el nivel, no la expectativa.
+// Separado de la lectura de rem.json para poder probarlo con un REM inventado.
+function fichaRemCalc(rem,fin,tamarHoy,implicitas){
+  if(!rem||!Array.isArray(rem.ipc))return null;
+  const mes0=fin.substring(0,7);
+  const anclas=rem.anclas||{};
+  const tope=(an,hasta)=>Object.keys(an||{}).sort().find(a=>a>=hasta)||hasta;
+  const serie=(tipo,hasta)=>proyExtender(rem[tipo],anclas[tipo],tipo,tope(anclas[tipo],hasta));
+  const tenores=FICHA_TENORES_BE.map((d,i)=>{
+    const n=Math.round(d/30),hasta=proyMesAdd(mes0,n-1);
+    const meses=serie('ipc',hasta).filter(p=>p.mes>=mes0&&p.mes<=hasta);
+    let infla=null;
+    if(meses.length===n&&!meses.some(p=>p.origen==='extrap')){
+      let acum=1;meses.forEach(p=>{acum*=1+p.v/100;});
+      const mensual=(Math.pow(acum,1/n)-1)*100;
+      infla={desde:mes0,hasta,mensual,anual:(Math.pow(1+mensual/100,12)-1)*100,
+             conAncla:meses.some(p=>p.origen==='ancla')};
+    }
+    let deval=null;
+    const fd=parseDate(fin);fd.setDate(fd.getDate()+d);
+    const mesFin=fmtDate(fd).substring(0,7);
+    const tcs=Array.isArray(rem.tcn)?serie('tcn',mesFin):[];
+    const tc0=tcs.find(p=>p.mes===mes0),tc=tcs.find(p=>p.mes===mesFin);
+    const nm=proyMesDelta(mes0,mesFin);
+    if(tc0&&tc&&nm>0&&tc0.v>0&&tc.origen!=='extrap')
+      deval={desde:mes0,mes:mesFin,tcn0:tc0.v,tcn:tc.v,anual:(Math.pow(tc.v/tc0.v,12/nm)-1)*100,
+             conAncla:tc.origen==='ancla'};
+    const imp=implicitas&&implicitas[i];
+    return{tenor:d,infla,deval,
+      difInflaMensualPp:infla&&imp&&imp.inflaMensual!=null?imp.inflaMensual-infla.mensual:null,
+      difDevalPp:deval&&imp&&imp.deval!=null?imp.deval-deval.anual:null};
+  });
+  let tamar=null;
+  if(Array.isArray(rem.tamar)){
+    const pts=[0,3,6].map(k=>{
+      const mes=proyMesAdd(mes0,k);
+      const p=serie('tamar',mes).find(x=>x.mes===mes);
+      return p&&p.origen!=='extrap'?{mes,v:p.v,conAncla:p.origen==='ancla'}:null;
+    }).filter(Boolean);
+    tamar={hoy:tamarHoy,esperada:pts};
+  }
+  return{relevamiento:rem.relevamiento||null,tenores,tamar};
+}
+async function fichaRem(fin,implicitas){
+  let rem=null;
+  try{rem=await remFetch();}catch(e){}
+  if(!rem)return null;
+  if(!TAMAR_INDEX.length){try{await tamarFetchIndex();}catch(e){}}
+  const t=[...TAMAR_INDEX].filter(x=>x.fecha<=fin).sort((a,b)=>a.fecha.localeCompare(b.fecha)).pop();
+  return fichaRemCalc(rem,fin,t?{fecha:t.fecha,v:t.valor}:null,implicitas);
+}
+
 // ── Las dos ruedas ──────────────────────────────────────────────────────────
 // Se retrocede en calendario y después se cae a la última rueda con datos en o
 // antes de esa fecha. Así los feriados no hay que enumerarlos: si el 9 de julio
@@ -17658,13 +17759,14 @@ async function fichaConstruir(periodo,opts){
   opts=opts||{};
   const r=await fichaRuedas(periodo,opts);
   if(!r)return null;
-  const[rowsIni,rowsFin,montos]=await Promise.all([
+  const[rowsIni,rowsFin,montos,volRef]=await Promise.all([
     // La rueda inicial siempre del archivo: nunca es hoy.
     fichaFetchRueda(r.ini,true),
     // La final sale de memoria sólo si la ficha se declaró en vivo. Con
     // soloArchivado la foto tiene que ser la misma corra cuando corra.
     fichaFetchRueda(r.fin,!r.enVivo),
     fichaFetchMontos(r.ini,r.fin),
+    fichaVolumenReferencia(r.ini).catch(()=>null),
   ]);
   // Nunca menos ruedas hábiles que ruedas con operaciones: si la lista de
   // feriados de la app marca como inhábil un día que operó, "65 de 64 ruedas"
@@ -17678,16 +17780,35 @@ async function fichaConstruir(periodo,opts){
     // los bloques, porque parte del nivel ya medido.
     opts.sinExternos?{ust:null,riesgoPais:null}:fichaDolares(bloques,r.ini,r.fin),
   ]);
+  // Contra el promedio de las ruedas previas sólo si los dos lados están completos:
+  // un período parcial dividido por un promedio da un "x veces" que no es nada.
+  const contraRef=(v,ref)=>(!v.parcial&&v.prom>0&&ref>0)?v.prom/ref:null;
+  for(const b of bloques){
+    const ref=volRef?volRef.sectores[b.sector]:null;
+    b.volumen.ref=ref>0?ref:null;
+    b.volumen.vsRef=contraRef(b.volumen,ref);
+  }
+  const ruedasVol=montos.fechas.length;
+  const volumen={total:montos.total,ruedas:ruedasVol,habiles,
+           prom:ruedasVol?montos.total/ruedasVol:null,
+           truncado:montos.truncado,sinColumna:montos.sinColumna,
+           parcial:montos.truncado||(habiles>0&&ruedasVol/habiles<FICHA_COBERTURA_MIN)};
+  volumen.ref=volRef?volRef.total:null;
+  volumen.refRuedas=volRef?volRef.ruedas:null;
+  volumen.vsRef=contraRef(volumen,volumen.ref);
+  const implicitasFin=fichaImplicitas(bloques,'fin');
+  // El REM es un archivo del mismo sitio, no una API de afuera: va aun con
+  // sinExternos.
+  const rem=await fichaRem(r.fin,implicitasFin).catch(()=>null);
   return{
     ...r,
     generado:new Date().toISOString(),
     bloques,fx,ust:dol.ust,riesgoPais:dol.riesgoPais,
     implicitasIni:fichaImplicitas(bloques,'ini'),
-    implicitasFin:fichaImplicitas(bloques,'fin'),
+    implicitasFin,
+    rem,
     habiles,
-    volumen:{total:montos.total,ruedas:montos.fechas.length,habiles,
-             truncado:montos.truncado,sinColumna:montos.sinColumna,
-             parcial:montos.truncado||(habiles>0&&montos.fechas.length/habiles<FICHA_COBERTURA_MIN)},
+    volumen,
   };
 }
 
@@ -17696,27 +17817,39 @@ async function fichaConstruir(periodo,opts){
 // cadena en los dos casos a propósito: la vía manual y la automática tienen que
 // partir del mismo insumo o van a dar comentarios distintos del mismo día.
 const FICHA_PREAMBULO=
-`Sos un operador de renta fija argentina que le cuenta a sus clientes cómo estuvo el mercado. Escribí el comentario de cierre a partir de la FICHA de abajo.
+`Sos un operador de renta fija argentina y le escribís el comentario de cierre a clientes que saben de finanzas. Partí de la FICHA de abajo.
 
 Estructura, siempre la misma:
 1. Un titular de una línea, sin números, que dé ganas de seguir leyendo.
 2. PESOS: un párrafo corto de resumen, y después un párrafo por cada curva — tasa fija, CER, TAMAR y dollar linked — aunque sea para decir que estuvo quieta. Si la ficha no trae una curva, decí que no hay comparación posible en ese período.
-3. DÓLARES: Bonares, Globales y Bopreales, relacionados con los Treasuries y con el riesgo país. Usá la descomposición que trae la ficha para cada curva, contada en criollo: "de esos 19 bps, sólo 3 vinieron de la suba de tasas en Estados Unidos; los otros 16 fueron prima por riesgo argentino". Para citar un Treasury usá la tasa par publicada de la sección TREASURIES; la tasa efectiva de cada curva sólo existe para la resta. La prima de la ficha y el riesgo país son dos medidas distintas: no las presentes como la misma.
+3. DÓLARES: Bonares, Globales y Bopreales, relacionados con los Treasuries y con el riesgo país. Usá la descomposición que trae la ficha para cada curva: "de los 19 bps, 3 vinieron de los Treasuries y 16 de spread". Para citar un Treasury usá la tasa par publicada de la sección TREASURIES; la tasa efectiva de cada curva sólo existe para la resta. El spread de la ficha y el riesgo país son dos medidas distintas: no las presentes como la misma.
 4. CONTEXTO: lo que pasó afuera del mercado, separado de todo lo anterior.
 5. TWITTER: un hilo de 3 a 5 tweets, cada uno de hasta 280 caracteres contando la numeración "1/4". El primero con el titular y los dos o tres números que más importan, uno para pesos, uno para dólares y, si hace falta, uno de contexto. Indicá qué gráfico va en cada tweet: sólo los que la ficha marca con "gráfico: sí".
 
-Tono — lo que más importa después de que los números estén bien:
-· Escribí como le contarías el día a un cliente que conocés, no como un informe. Primera persona del plural ("en pesos vimos…", "lo que más nos llamó la atención…") y frases cortas.
-· Traducí la jerga. La forma de la curva se cuenta con los tramos de la ficha y sus números, no con la palabra: en vez de "la curva empinó", "las letras cortas bajaron 20 puntos y las medianas quedaron casi igual". Si la palabra de la ficha (empinó, aplanó) y los tramos no cuentan lo mismo, contá los tramos: la pendiente sale del ajuste de toda la curva y puede no coincidir. El spread es "la prima que se paga por riesgo argentino". La tasa real es "lo que rinde por encima de la inflación". El margen TAMAR es "lo que paga por encima de la TAMAR". Si un término técnico hace falta, explicalo la primera vez en pocas palabras.
-· Contá lo que importa y dejá el resto: uno o dos datos por curva, no todos los tramos ni todos los bonos. Si una curva estuvo quieta, alcanza con una frase.
-· Los plazos van en palabras cuando se entiende mejor: "las letras a tres meses" en vez de "el nivel de 99 días".
-· Nada de "cabe destacar", "se observó", "en un contexto de", "cabe mencionar", "en tanto". Nada de recomendaciones: no digas qué conviene comprar o vender.
+A quién le escribís — quien lee sabe de renta fija:
+· No expliques lo obvio. Nada de "cuando la tasa baja, el precio sube", ni definiciones de tasa real, spread, margen, duration o breakeven. Usá los términos del mercado.
+· Tono cercano, de operador a cliente: primera persona del plural y frases cortas. Nada de "cabe destacar", "se observó", "en un contexto de", "cabe mencionar", "en tanto". Nada de recomendaciones: no digas qué conviene comprar o vender.
+· Elegí: uno o dos datos por curva, no todos los tramos ni todos los bonos. Un dato con su lectura vale más que tres sin ella. Si una curva estuvo quieta, alcanza con una frase.
+
+Cada dato con su contexto — el número solo no alcanza:
+· Volumen: comparalo con el promedio de las ruedas previas que trae la ficha ("1,9 veces el promedio"). Un movimiento con volumen alto tiene más convicción que uno con volumen flaco, y eso se dice.
+· Implícitas: ponelas al lado de lo que espera el REM (sección REFERENCIAS DEL REM). Decí si la curva descuenta más o menos inflación o devaluación que los analistas, y hacia dónde se movió. Si la diferencia es chica, no la presentes como una señal: la comparación es aproximada, el CER ajusta con rezago.
+· TAMAR: el margen se lee junto con la TAMAR de hoy y el sendero que espera el REM.
+
+Qué puede significar el movimiento — leé la curva, no sólo la describas:
+· Después del dato, decí qué puede estar descontando el mercado, como lectura posible y no como certeza ("puede leerse como", "es consistente con", "sugiere"). La lectura sale de la curva y de las referencias de la ficha, nunca de una noticia.
+· Tasa fija: si bajan más las cortas, puede estar descontando tasas cortas más bajas o hay demanda de liquidez en ese tramo; si suben más las largas, se pide más prima por plazo. Contra la inflación esperada del REM da una idea de la tasa real que se convalida.
+· CER: si la tasa fija baja más que el CER, cae la inflación implícita y el mercado le pone menos inflación; si pasa al revés, hay demanda de cobertura. En los CER más cortos buena parte del ajuste ya es inflación conocida.
+· TAMAR: el margen de la ficha es la TEM del bono menos la TAMAR actual, suponiendo que la TAMAR queda constante. Si el margen sube más en los largos que en los cortos, puede estar descontando una TAMAR más baja hacia adelante o menos demanda por plazo; si baja en los largos, lo contrario. En bonos a pocos meses de vencer, un salto de margen es poco precio.
+· Dollar linked: si baja la tasa de los cortos, hay demanda de cobertura cambiaria de corto plazo; leela junto con la devaluación implícita contra el REM. En letras a pocos días de vencer, un salto grande de tasa es poco precio.
+· Dólares: lo que corresponde a los Treasuries es de afuera y lo que corresponde al spread es riesgo argentino. Si los cortos suben más que los largos, se castigan los vencimientos cercanos. Si Bonares y Globales se separan, lo que se mueve es la prima por legislación.
+· Empinó y aplanó se pueden usar, pero si la palabra de la ficha y los tramos no cuentan lo mismo, contá los tramos: la pendiente sale del ajuste de toda la curva y puede no coincidir.
 
 Reglas, todas obligatorias:
-· Todo número que escribas en pesos, dólares o Twitter tiene que salir de la FICHA. Podés redondearlo a entero o a un decimal ("25,3%", "447 mil millones"), pero no aproximarlo ("casi 450", "unos 20") ni calcular uno que la ficha no trae.
-· Cada número con su unidad a la vista: "bajó 20 puntos", "20 bps", "25,3%", "se operaron $447 mil millones". En la ficha, MM son miles de millones y B son billones: escribilos así, en palabras, que "MM" confunde.
-· En pesos y dólares no puede aparecer ninguna noticia ni ninguna causa. Nada de "el bono subió por X". Contá qué se movió, cuánto, dónde y con cuánto volumen. La descomposición contra Treasuries es una resta medida, no una causa.
-· No uses "porque", "debido a", "impulsado por", "a raíz de" ni "producto de" en pesos, dólares o Twitter. Si algo pide explicación, contalo como dato y no como causa.
+· Todo número que escribas en pesos, dólares o Twitter tiene que salir de la FICHA, referencias incluidas (promedio de volumen, REM, TAMAR). Podés redondearlo a entero o a un decimal ("25,3%", "447 mil millones"), pero no aproximarlo ("casi 450", "unos 20") ni calcular uno que la ficha no trae.
+· Cada número con su unidad a la vista: "bajó 20 bps", "25,3%", "$447 mil millones", "1,9 veces el promedio". En la ficha, MM son miles de millones y B son billones: escribilos así, en palabras.
+· En pesos y dólares no puede aparecer ninguna noticia. La lectura de lo que descuenta el mercado sí; atribuir el movimiento a un hecho puntual, no. La descomposición contra Treasuries es una resta medida, no una causa.
+· No uses "porque", "debido a", "impulsado por", "a raíz de" ni "producto de" en pesos, dólares o Twitter.
 · Si algo no está en la ficha, no lo menciones. Si la ficha marca el volumen como PARCIAL, no hables de volumen de ese período. Si marca los Treasuries o el riesgo país como DESFASADOS, decilo con la fecha.
 · Castellano rioplatense, sin anglicismos innecesarios. Quien lee no ve la pantalla.
 
@@ -17763,6 +17896,7 @@ function fichaTexto(f){
     if(v.sinColumna)L.push('  volumen: no disponible');
     else if(!v.ruedas)L.push('  volumen: sin datos en el período');
     else L.push(`  volumen: ${_fM(v.total)} en ${v.ruedas} de ${v.habiles||'?'} ruedas · ${_fM(v.prom)} por rueda`
+                +(v.vsRef!=null?` (${_fN(v.vsRef,1)} veces el promedio de las ${f.volumen.refRuedas} ruedas previas, ${_fM(v.ref)} por rueda)`:'')
                 +(v.top?` · más operado ${v.top.ticker} ${_fM(v.top.monto)}`:'')
                 +(v.parcial?' · PARCIAL, no hablar de volumen de este período':''));
     if(b.entraron.length)L.push('  entraron a la curva: '+b.entraron.join(', '));
@@ -17827,10 +17961,32 @@ function fichaTexto(f){
       +(a.deval!=null?` desde ${_fN(a.deval)}%`:''));
     L.push(`· ${b.tenor}d: `+partes.join(' · '));
   }
-  if(f.volumen&&!f.volumen.sinColumna&&f.volumen.total>0){
+  const rm=f.rem;
+  if(rm&&(rm.tenores.some(t=>t.infla||t.deval)||(rm.tamar&&rm.tamar.esperada.length))){
+    const mesL=m=>{const[y,mm]=m.split('-');return `${MESES_ES[+mm-1].toLowerCase().slice(0,3)}-${y.slice(2)}`;};
+    const anc=x=>x&&x.conAncla?' (completado con el ancla anual del REM)':'';
+    const pp=v=>v==null?'':` · diferencia ${_fS(v)} pp`;
     L.push('');
-    L.push(`VOLUMEN TOTAL del período: ${_fM(f.volumen.total)} en ${f.volumen.ruedas} de ${f.volumen.habiles||'?'} ruedas`
-           +(f.volumen.parcial?' · PARCIAL, el monto operado no existe en el histórico antes de mediados de 2026':''));
+    L.push(`REFERENCIAS DEL REM  (Relevamiento de Expectativas de Mercado del BCRA${rm.relevamiento?' al '+_fF(rm.relevamiento):''}; son expectativas de analistas, no precios)`);
+    for(const t of rm.tenores){
+      const imp=f.implicitasFin.find(x=>x.tenor===t.tenor)||{};
+      if(t.infla)L.push(`· inflación esperada ${mesL(t.infla.desde)} a ${mesL(t.infla.hasta)}: ${_fN(t.infla.mensual)}% mensual promedio (${_fN(t.infla.anual)}% anualizada)${anc(t.infla)}`
+        +(imp.inflaMensual!=null?` · la curva a ${t.tenor}d descuenta ${_fN(imp.inflaMensual)}% mensual${pp(t.difInflaMensualPp)}`:''));
+      if(t.deval)L.push(`· tipo de cambio esperado ${mesL(t.deval.desde)} $${_fN(t.deval.tcn0)} a ${mesL(t.deval.mes)} $${_fN(t.deval.tcn)}: devaluación de ${_fN(t.deval.anual)}% anualizada${anc(t.deval)}`
+        +(imp.deval!=null?` · la curva a ${t.tenor}d descuenta ${_fN(imp.deval)}% anual${pp(t.difDevalPp)}`:''));
+    }
+    if(rm.tamar&&rm.tamar.esperada.length)
+      L.push('· TAMAR: '+(rm.tamar.hoy?`${_fN(rm.tamar.hoy.v)}% TNA al ${_fF(rm.tamar.hoy.fecha)} · `:'')
+        +'esperada '+rm.tamar.esperada.map(p=>`${mesL(p.mes)} ${_fN(p.v)}%${p.conAncla?' (ancla)':''}`).join(' · '));
+    L.push('  OJO: el CER ajusta con rezago de unos dos meses, así que implícita contra REM es una comparación aproximada, no exacta.');
+  }
+  if(f.volumen&&!f.volumen.sinColumna&&f.volumen.total>0){
+    const v=f.volumen;
+    L.push('');
+    L.push(`VOLUMEN TOTAL del período: ${_fM(v.total)} en ${v.ruedas} de ${v.habiles||'?'} ruedas`
+           +(v.ruedas>1&&v.prom?` · ${_fM(v.prom)} por rueda`:'')
+           +(v.vsRef!=null?` · ${_fN(v.vsRef,1)} veces el promedio de las ${v.refRuedas} ruedas previas (${_fM(v.ref)} por rueda)`:'')
+           +(v.parcial?' · PARCIAL, el monto operado no existe en el histórico antes de mediados de 2026':''));
   }
   return L.join('\n');
 }
@@ -18283,7 +18439,9 @@ function comTile(b,destacado){
   const v=b.volumen;
   const vol=v.sinColumna?'<span style="color:var(--text3)">volumen no disponible</span>'
     :!v.ruedas?'<span style="color:var(--text3)">sin volumen en el período</span>'
-    :`vol ${_fM(v.total)} · ${_fM(v.prom)}/rueda`+(v.top?` · top ${comEsc(v.top.ticker)} ${_fM(v.top.monto)}`:'')
+    :`vol ${_fM(v.total)} · ${_fM(v.prom)}/rueda`
+      +(v.vsRef!=null?` <span style="color:${v.vsRef>=1.25?'var(--warn)':v.vsRef<=0.75?'var(--info)':'var(--text2)'}" title="Contra el promedio por rueda de las ruedas previas: ${_fM(v.ref)}">${_fN(v.vsRef,1)}× prom.</span>`:'')
+      +(v.top?` · top ${comEsc(v.top.ticker)} ${_fM(v.top.monto)}`:'')
       +(v.parcial?` <span style="color:var(--warn)" title="Sólo ${v.ruedas} de ${v.habiles} ruedas tienen monto">parcial ${v.ruedas}/${v.habiles}</span>`:'');
   return `<div style="background:var(--surface2);border:1px solid ${destacado?'var(--border2)':'var(--border)'};border-radius:6px;padding:.7rem .85rem;font-family:var(--mono);font-size:11px;line-height:1.7">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:.4rem">
@@ -18326,7 +18484,14 @@ function comFilaImplicitas(f){
     const c=[];
     if(b.infla!=null)c.push(`inflación <span style="color:var(--text)">${_fN(b.infla)}%</span> a. <span style="color:var(--text3)">(${_fN(b.inflaMensual)}% m)</span> ${dif(b.infla,a.infla)}`);
     if(b.deval!=null)c.push(`devaluación <span style="color:var(--text)">${_fN(b.deval)}%</span> a. ${dif(b.deval,a.deval)}`);
-    return `<div><span style="color:var(--text3)">${b.tenor}d</span>  ${c.join('  ·  ')}</div>`;
+    // Al lado, lo que espera el REM para el mismo plazo: la implícita sola no dice
+    // si es mucho o poco.
+    const r=f.rem&&f.rem.tenores?f.rem.tenores.find(t=>t.tenor===b.tenor):null;
+    const rem=[];
+    if(r&&r.infla&&b.infla!=null)rem.push(`REM ${_fN(r.infla.mensual)}% m`);
+    if(r&&r.deval&&b.deval!=null)rem.push(`REM deval ${_fN(r.deval.anual)}% a.`);
+    return `<div><span style="color:var(--text3)">${b.tenor}d</span>  ${c.join('  ·  ')}`
+      +(rem.length?`  <span style="color:var(--text3)">· ${rem.join(' · ')}</span>`:'')+`</div>`;
   }).join('');
   // El nombre importa: si esto se llamara "breakeven" a secas, la diferencia
   // contra el de la solapa Resumen —que toma dos bonos concretos y no el ajuste
