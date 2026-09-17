@@ -16634,6 +16634,9 @@ function seriesDibujar(sec,error){
           title:tiempo?(c=>c.length?curvasFmtDate(fmtDate(new Date(c[0].parsed.x))):''):undefined,
           label:i=>{
             const v=i.parsed.y, p=i.raw;
+            // Las barras de volumen están en pesos, no en %: con el formato de la
+            // tasa un monto de 5.190 millones se leía "5190017294.91%".
+            if(i.dataset.yAxisID==='yv')return `${i.dataset.label} — ${v!=null?'$'+libroMontoFmt(v):'—'}`;
             const quien=p&&p.ticker?`${p.ticker} · ${i.dataset.label}`:i.dataset.label;
             if(esPesos)return `${quien} — ${v!=null?'$'+v.toFixed(2):'—'}`;
             return `${quien} — ${v!=null?v.toFixed(2):'—'}%`;

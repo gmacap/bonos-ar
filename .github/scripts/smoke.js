@@ -213,6 +213,12 @@ const omitir = (label, motivo) =>
     seriesTodos('ars', false); seriesToggle('ars', ts[0]);
     await new Promise(r => setTimeout(r, 700));
     const uno = barras();
+    // El cartel de la barra es un monto, no una tasa: antes salía "5190017294.91%".
+    const lbl = st.chart.options.plugins.tooltip.callbacks.label;
+    const dsBar = st.chart.data.datasets.find(x => x.type === 'bar');
+    const dsLinea = st.chart.data.datasets.find(x => x.type !== 'bar');
+    const cartelBarra = dsBar ? lbl({ parsed: { y: 5190017294.91 }, raw: 5190017294.91, dataset: dsBar }) : '';
+    const cartelLinea = dsLinea ? lbl({ parsed: { y: 21.84 }, raw: 21.84, dataset: dsLinea }) : '';
     const tope = st.chart.scales.yv ? st.chart.scales.yv.max : null;
     const mayor = Math.max(...[...m.values()]);
     const ejeTasa = st.chart.scales.y.max;
@@ -231,7 +237,7 @@ const omitir = (label, motivo) =>
     st.cache.montos = new Map();
     seriesTodos('ars', true);
     await new Promise(r => setTimeout(r, 500));
-    return { uno, dos, apagado, tope, mayor, ejeTasa, ruedas: st.cache.fechas.length };
+    return { uno, dos, apagado, tope, mayor, ejeTasa, ruedas: st.cache.fechas.length, cartelBarra, cartelLinea };
   });
   if (vol.sinDatos) {
     omitir('volumen en las series', 'no hay ruedas en el rango ahora');
@@ -242,6 +248,9 @@ const omitir = (label, motivo) =>
     check(vol.tope != null && Math.abs(vol.tope - vol.mayor * 4) < 1,
           'el eje del volumen se estira a cuatro veces la barra más alta',
           vol.tope + ' vs ' + vol.mayor);
+    check(/\$5\.2 MM$/.test(vol.cartelBarra) && !vol.cartelBarra.includes('%') && /21\.84%$/.test(vol.cartelLinea),
+          'el cartel de la barra muestra el monto abreviado y el de la línea la tasa',
+          `${vol.cartelBarra} · ${vol.cartelLinea}`);
   }
 
   // Las páginas de pantalla completa descontaban un encabezado más chico que el
