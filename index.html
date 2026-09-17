@@ -10331,6 +10331,36 @@ function betrUltimaTamar(){
   return [...TAMAR_INDEX].sort((a,b)=>a.fecha.localeCompare(b.fecha)).pop();
 }
 
+// La ventana de TAMAR de un bono: qué parte ya está devengada con TAMAR
+// publicada y cuánta queda por proyectar. Es la misma cuenta que hace la solapa
+// TAMAR, pero con un corte: pasando una fecha se reconstruye lo que se sabía ese
+// día, que es lo que necesita la serie histórica.
+//
+//   fixEm/fixVto   fixings del bono: emisión y vencimiento menos 10 hábiles
+//   T              datos de TAMAR publicados dentro de la ventana
+//   promTNA        su promedio simple
+//   tem            (promTNA + margen) pasado a TEM de plazo fijo a 32 días
+//   P              días hábiles del último dato al fixing del vencimiento
+function betrVentanaTamar(bono,corte,ordenado){
+  if(!bono||!bono.emision||!bono.vcto)return null;
+  const serie=(ordenado||[...TAMAR_INDEX].sort((a,b)=>a.fecha.localeCompare(b.fecha)))
+    .filter(t=>!corte||t.fecha<=corte);
+  if(!serie.length)return null;
+  const fixEm=restarHabiles(parseDate(bono.emision),10);
+  const fixVto=restarHabiles(parseDate(bono.vcto),10);
+  const fixEmStr=fmtDate(fixEm),fixVtoStr=fmtDate(fixVto);
+  const ult=serie[serie.length-1];
+  const dentro=serie.filter(t=>t.fecha>=fixEmStr&&t.fecha<=fixVtoStr);
+  const T=dentro.length;
+  const promTNA=T>0?dentro.reduce((s,t)=>s+t.valor,0)/T:0;
+  const margen=bono.margen||0;
+  const tem=Math.pow(Math.pow(1+(margen+promTNA)/100*32/365,365/32),1/12)-1;
+  let P=0;
+  {const d=parseDate(ult.fecha);d.setDate(d.getDate()+1);
+   while(fmtDate(d)<=fixVtoStr){if(esHabil(d))P++;d.setDate(d.getDate()+1);}}
+  return{fixEm,fixVto,fixEmStr,fixVtoStr,ult,T,promTNA,tem,P};
+}
+
 // Inflación mensual esperada para la ventana que queda por proyectar, del REM.
 // Se completa con las anclas anuales igual que Proyecciones; si ni con el ancla
 // llega, devuelve null y el margen se resta derecho.
@@ -10385,10 +10415,13 @@ function betrDe(tamarTicker,cerTickers,opts){
   const tt=TAMAR_BONDS.find(b=>b.ticker===tamarTicker);
   if(!tt)return{error:'Bono TAMAR no encontrado'};
   if(!tt.precio||!tt.vcto||!tt.emision)return{error:'Sin precio o fechas'};
-  const d=(tamarEnrich(tt)||{})._debug;
-  if(!d)return{error:'Sin datos de cálculo'};
-  const ult=betrUltimaTamar();
-  if(!ult)return{error:'Sin serie de TAMAR'};
+  // Sin corte: la ventana con toda la TAMAR publicada. Es la misma función que
+  // usa la serie histórica, que sí corta por fecha.
+  const v=betrVentanaTamar(tt,null);
+  if(!v||!(v.P>0)||!(v.T>0))return{error:'Sin datos de cálculo'};
+  const d={fixVto:v.fixVtoStr,DIAS_TAMAR_PROYECTAR:v.P,DIAS_TAMAR_TRANSCURRIDOS:v.T,
+           TAMAR_DIAS_TRANSCURRIDOS:v.promTNA,TAMAR_MARGEN_DIAS_TRANSCURRIDOS:v.tem*100};
+  const ult=v.ult;
   const liq=G_LIQ||addHabiles(TODAY,1);
   const fa=restarHabiles(parseDate(tt.emision),10);
   const fVto10=restarHabiles(parseDate(tt.vcto),10);
@@ -16173,6 +16206,7 @@ const SERIES_CFG={
       // El breakeven no es la tasa de un bono sino la comparación entre dos
       // curvas: tampoco admite forwards.
       {v:'BEINF',l:'BE inflación',   c:'#a8d5a2', y:'Inflación BE (% mensual)', fwd:false},
+      {v:'TAMARREAL',l:'TAMAR real', c:'#74c4a0', y:'TAMAR real (% TNA)', fwd:false},
     ],
   },
   usd:{
@@ -16553,6 +16587,7 @@ async function seriesCargar(sec){
              : st.sector==='FX'     ? await seriesTraerFX(desde,hasta)
              : st.sector==='DINERO' ? await seriesTraerDinero(desde,hasta)
              : st.sector==='BEINF'  ? await seriesTraerBEInfla(desde,hasta)
+             : st.sector==='TAMARREAL' ? await seriesTraerTamarReal(desde,hasta)
              : await seriesTraerSector(st.sector,desde,hasta);
       st.filtro=null;   // al cambiar el rango, arrancan todos seleccionados
     }
@@ -16721,6 +16756,121 @@ async function seriesTraerBEInfla(desde,hasta){
     colores:new Map([[SERIES_BE_IPC,'#8fa3b8']]),
     trazos:new Map([[SERIES_BE_IPC,[5,4]]]),
     nota:'reconstruido con el CER publicado a cada rueda'};
+}
+
+// ── TAMAR real, reconstruida rueda por rueda ────────────────────────────────
+// La misma cuenta que la columna "Real vs CER" del Resumen, para cada rueda
+// guardada, con el mismo núcleo (betrNucleo) y los CER que elegiste ahí.
+//
+// Tres cortes para no usar datos del futuro:
+//   · la TAMAR publicada hasta el día anterior a la rueda —el BCRA publica con
+//     un día de atraso—, que fija qué parte está devengada y cuántos días quedan
+//     por proyectar;
+//   · el CER publicado a esa rueda, igual que en la serie de BE inflación;
+//   · los precios de esa rueda, no los de hoy.
+//
+// El margen se resta derecho, sin la corrección por inflación esperada: el REM
+// sólo tiene el relevamiento vigente, así que usar el de hoy para una rueda de
+// marzo sería meter información que entonces no existía. La corrección vale una
+// décima de punto y va sólo en la tabla, que es del día.
+const SERIES_TR_OBS='TAMAR real observada';
+async function seriesTraerTamarReal(desde,hasta){
+  if(!CER_INDEX.length||!TAMAR_INDEX.length)throw new Error('Sin las series de CER y TAMAR del BCRA');
+  const elegidos=Object.keys(BETR_CER||{})
+    .map(t=>({bono:TAMAR_BONDS.find(b=>b.ticker===t),cers:BETR_CER[t]||[]}))
+    .filter(x=>x.bono&&x.bono.emision&&x.bono.vcto&&x.cers.length);
+  if(!elegidos.length)throw new Error('Elegí los CER de cada bono TAMAR en el Resumen, en BE · TAMAR');
+  const tickersTamar=elegidos.map(x=>x.bono.ticker);
+  const tickersCer=[...new Set(elegidos.flatMap(x=>x.cers))];
+  const filas=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
+    .select('snapshot_date,ticker,sector,price,dias')
+    .in('sector',['TAMAR','CER']).gte('snapshot_date',desde).lte('snapshot_date',hasta)
+    .order('snapshot_date',{ascending:true}));
+  const porFecha=new Map();
+  for(const r of filas){
+    if(!(r.price>0)||!(r.dias>0))continue;
+    const esT=r.sector==='TAMAR'&&tickersTamar.includes(r.ticker);
+    const esC=r.sector==='CER'&&tickersCer.includes(r.ticker);
+    if(!esT&&!esC)continue;
+    if(!porFecha.has(r.snapshot_date))porFecha.set(r.snapshot_date,{tamar:new Map(),cer:new Map()});
+    const d=porFecha.get(r.snapshot_date);
+    (esT?d.tamar:d.cer).set(r.ticker,r);
+  }
+  const cerOrd=[...CER_INDEX].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const mapaCer=new Map(cerOrd.map(x=>[x.fecha,x.valor]));
+  const tamOrd=[...TAMAR_INDEX].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  // Constantes por bono y por CER: no dependen de la rueda.
+  const fijos=new Map(elegidos.map(x=>[x.bono.ticker,{
+    bono:x.bono,cers:x.cers,
+    cerA:cerIndexGet(fmtDate(restarHabiles(parseDate(x.bono.emision),10))),
+    d360Bono:dias360(parseDate(x.bono.emision),parseDate(x.bono.vcto)),
+  }]));
+  const cerEmision=new Map(tickersCer.map(t=>{
+    const b=CER_BONDS.find(x=>x.ticker===t);
+    return[t,b&&b.emision?{bono:b,cerEm:cerIndexGet(fmtDate(restarHabiles(parseDate(b.emision),10)))}:null];
+  }));
+  const fechas=[...porFecha.keys()].sort();
+  const porBono=new Map();
+  const guardar=(k,f,v)=>{
+    if(v==null||!isFinite(v))return;
+    if(!porBono.has(k))porBono.set(k,new Map());
+    porBono.get(k).set(f,v);
+  };
+  for(const f of fechas){
+    const dia=porFecha.get(f);
+    const liqD=addHabiles(parseDate(f),1);
+    // El BCRA publica la TAMAR con un día de atraso: ese día no se conocía.
+    const corteT=fmtDate(new Date(parseDate(f).getTime()-86400000));
+    const cerConocido=beCerConocidoAl(f,cerOrd);
+    const cerC=cerIndexGet(fmtDate(restarHabiles(liqD,10)));
+    if(!cerConocido||!(cerC>0))continue;
+    for(const[tk,fj]of fijos){
+      const rowT=dia.tamar.get(tk);
+      if(!rowT||!(fj.cerA>0))continue;
+      const v=betrVentanaTamar(fj.bono,corteT,tamOrd);
+      if(!v||!(v.P>0)||!(v.T>0))continue;
+      const fb=v.fixVtoStr<v.ult.fecha?v.fixVtoStr:v.ult.fecha;
+      const cerB=cerIndexGet(fb);
+      const d360Transc=dias360(v.fixEm,parseDate(fb));
+      if(!(cerB>0)||!(d360Transc>0))continue;
+      const cers=[];
+      for(const ct of fj.cers){
+        const meta=cerEmision.get(ct),row=dia.cer.get(ct);
+        if(!meta||!row||!(meta.cerEm>0))continue;
+        const cc=meta.bono.tipo==='cupon'?cerCuponCorrido(meta.bono,liqD):0;
+        cers.push({ticker:ct,vcto:meta.bono.vcto,precio:row.price+cc,
+          vpv:100*cerC/meta.cerEm,dias:row.dias,peso:1});
+      }
+      if(!cers.length)continue;
+      betrPesos(cers,fj.bono.vcto);
+      const r=betrNucleo({
+        cers,diasTamar:rowT.dias,precioTamar:rowT.price/(fj.bono.tcInicial||1),
+        margen:fj.bono.margen,
+        varCerTecnico:cerC/fj.cerA,varCerTranscurrida:cerB/fj.cerA,
+        dias360Transc:d360Transc,dias360Bono:fj.d360Bono,
+        diasProy:v.P,diasTransc:v.T,temTranscurrida:v.tem,
+        inflaMensual:null,   // el REM no tiene historia: el margen se resta derecho
+      });
+      if(!r||r.error)continue;
+      guardar(tk,f,r.tnaReal*100);
+    }
+    // De referencia: la TAMAR que se publicaba ese día, deflactada por el último
+    // IPC publicado. Es lo que la TAMAR rendía en términos reales, contra lo que
+    // el mercado pedía a futuro.
+    const ultT=[...tamOrd].filter(t=>t.fecha<=corteT).pop();
+    const ipc=beIpcPublicadoAl(f,cerOrd,mapaCer);
+    if(ultT&&ipc!=null){
+      const tem=tamarTEM(ultT.valor)/100;
+      guardar(SERIES_TR_OBS,f,betrTemATna((1+tem)/(1+ipc/100)-1)*100);
+    }
+  }
+  if(!porBono.size)throw new Error('Sin ruedas con bono TAMAR y CER para reconstruir');
+  const orden=[...tickersTamar.filter(t=>porBono.has(t))];
+  if(porBono.has(SERIES_TR_OBS))orden.push(SERIES_TR_OBS);
+  return{fechas:fechas.filter(f=>[...porBono.values()].some(m=>m.has(f))),porBono,orden,
+    colores:new Map([[SERIES_TR_OBS,'#8fa3b8']]),
+    trazos:new Map([[SERIES_TR_OBS,[5,4]]]),
+    nota:'reconstruida a cada rueda · margen restado sin corrección por inflación'};
 }
 
 // Spread de legislación: una línea por par Global/Bonar.

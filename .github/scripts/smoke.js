@@ -2620,6 +2620,74 @@ const omitir = (label, motivo) =>
           `serie ${serieBE.ipc.serie} · sendero ${serieBE.ipc.sendero}`);
   }
 
+  // Serie histórica de la TAMAR real, con el mismo núcleo que la tabla.
+  console.log('\nSerie histórica de la TAMAR real');
+  const serieTR = await page.evaluate(async () => {
+    const out = {};
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    // La ventana de TAMAR sin corte tiene que dar lo mismo que la solapa TAMAR.
+    const bono = TAMAR_BONDS.find(b => b.vcto && b.emision && b.precio > 0 &&
+      diasACT(liq, parseDate(b.vcto)) > 60 && tamarEnrich(b)._debug);
+    if (!bono) return { sinBono: true };
+    const d = tamarEnrich(bono)._debug;
+    const v = betrVentanaTamar(bono, null);
+    out.ventana = { ticker: bono.ticker, igualP: v.P === d.DIAS_TAMAR_PROYECTAR,
+      igualT: v.T === d.DIAS_TAMAR_TRANSCURRIDOS,
+      igualTem: Math.abs(v.tem * 100 - d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS) < 1e-9,
+      P: v.P, T: v.T };
+    // Con un corte hacia atrás, queda menos devengado y más por proyectar.
+    const atras = fmtDate(new Date(TODAY.getTime() - 60 * 86400000));
+    const c = betrVentanaTamar(bono, atras);
+    out.corte = c ? { P: c.P, T: c.T, ult: c.ult.fecha, respeta: c.ult.fecha <= atras,
+      masProy: c.P > v.P, menosTransc: c.T < v.T } : null;
+    // La serie, con un CER elegido para ese bono.
+    const cerCand = CER_BONDS.filter(b => b.tipo !== 'cupon' && b.vcto && b.precio > 0 && b.emision &&
+      diasACT(liq, parseDate(b.vcto)) > 60).sort((a, b) =>
+        Math.abs(diasACT(parseDate(bono.vcto), parseDate(a.vcto))) - Math.abs(diasACT(parseDate(bono.vcto), parseDate(b.vcto))));
+    if (!cerCand.length) return { ...out, sinCer: true };
+    const guardado = JSON.parse(JSON.stringify(BETR_CER || {}));
+    BETR_CER = { [bono.ticker]: [cerCand[0].ticker] };
+    const hasta = fmtDate(TODAY);
+    const dd = parseDate(hasta); dd.setMonth(dd.getMonth() - 4);
+    let serie = null, error = null;
+    try { serie = await seriesTraerTamarReal(fmtDate(dd), hasta); } catch (e) { error = e.message; }
+    const panel = betrDe(bono.ticker, [cerCand[0].ticker]);
+    BETR_CER = guardado; betrSaveLs();
+    if (!serie) return { ...out, error };
+    const m = serie.porBono.get(bono.ticker);
+    const k = m ? [...m.keys()].sort() : [];
+    out.serie = { ruedas: serie.fechas.length, series: [...serie.porBono.keys()],
+      conObservada: serie.porBono.has('TAMAR real observada'), nota: serie.nota,
+      ultimo: k.length ? m.get(k[k.length - 1]) : null,
+      panel: panel && !panel.error ? panel.tnaAprox * 100 : null,
+      finitos: k.every(f => isFinite(m.get(f))) };
+    return out;
+  });
+  if (serieTR.sinBono) omitir('la serie de la TAMAR real', 'ningún bono TAMAR con datos');
+  else {
+    check(serieTR.ventana.igualP && serieTR.ventana.igualT && serieTR.ventana.igualTem,
+          'la ventana de TAMAR sin corte da lo mismo que la solapa TAMAR',
+          `${serieTR.ventana.ticker}: ${serieTR.ventana.T} devengados · ${serieTR.ventana.P} a proyectar`);
+    check(serieTR.corte && serieTR.corte.respeta && serieTR.corte.masProy && serieTR.corte.menosTransc,
+          'cortada a una fecha pasada, no usa TAMAR posterior y queda más por proyectar',
+          serieTR.corte ? `hasta ${serieTR.corte.ult}: ${serieTR.corte.T} y ${serieTR.corte.P}` : '—');
+    if (serieTR.sinCer) omitir('la serie de la TAMAR real', 'ningún CER con plazo para comparar');
+    else if (serieTR.error) omitir('la serie de la TAMAR real', serieTR.error);
+    else {
+      check(serieTR.serie.ruedas > 20 && serieTR.serie.finitos && serieTR.serie.conObservada
+            && /sin corrección/.test(serieTR.serie.nota || ''),
+            'la serie trae varias ruedas, la TAMAR real observada y avisa por el margen',
+            `${serieTR.serie.ruedas} ruedas · ${serieTR.serie.series.join(', ')}`);
+      // El despeje amplifica el precio por (devengados + a proyectar) / a proyectar,
+      // así que contra la tabla se compara con tolerancia ancha: la serie usa el
+      // precio de la rueda archivada y la tabla el de pantalla.
+      check(serieTR.serie.panel == null ||
+            Math.abs(serieTR.serie.ultimo - serieTR.serie.panel) < 1.5,
+            'el último punto de la serie acompaña a la tabla del Resumen',
+            `serie ${serieTR.serie.ultimo.toFixed(2)}% vs tabla ${serieTR.serie.panel && serieTR.serie.panel.toFixed(2)}%`);
+    }
+  }
+
   // Paginado: sin él, un rango largo se cortaba en las primeras 1000 filas.
   const pagSeries = await page.evaluate(async () => {
     const hasta = fmtDate(TODAY);
