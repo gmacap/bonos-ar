@@ -2578,12 +2578,26 @@ const omitir = (label, motivo) =>
     // La primera tabla de la columna es la de BE · Inflación.
     const thead = document.querySelector('#be-col1 table thead');
     out.encabezado = thead ? thead.textContent.replace(/\s+/g, ' ').trim() : '';
+    // El color de la diferencia: ámbar arriba del REM, azul abajo, gris cuando
+    // es chica, y sin REM no hay número.
+    const rem = { mensual: 1.8, meses: 3, desde: '2026-09', hasta: '2026-11', conAncla: false, relevamiento: '2026-08-31' };
+    const color = t => (t.match(/color:(var\(--[a-z0-9]+\))/) || [])[1];
+    out.colores = {
+      arriba: color(beCeldaRem({ difRem: 0.2, inflaBE: 2, rem })),
+      abajo: color(beCeldaRem({ difRem: -0.2, inflaBE: 1.6, rem })),
+      chica: color(beCeldaRem({ difRem: 0.01, inflaBE: 1.81, rem })),
+      sinRem: beCeldaRem({ difRem: null }).includes('—'),
+    };
     return out;
   });
   check(Math.abs(beRem.promedio - 2) < 1e-9 && beRem.meses === 3 && beRem.fuera === null,
         'el promedio del REM son los meses del período, y sin cobertura no se compara',
         `${beRem.promedio} en ${beRem.meses} meses`);
   check(/vs REM/i.test(beRem.encabezado || ''), 'la tabla BE trae la columna contra el REM', beRem.encabezado);
+  check(beRem.colores.arriba === 'var(--warn)' && beRem.colores.abajo === 'var(--info)'
+        && beRem.colores.chica === 'var(--text3)' && beRem.colores.sinRem,
+        'el color de la diferencia separa arriba, abajo y diferencia chica',
+        `+0,20 ${beRem.colores.arriba} · −0,20 ${beRem.colores.abajo} · +0,01 ${beRem.colores.chica}`);
   if (!beRem.cuentas.length) omitir('la diferencia contra el REM', 'ningún bono CER con LECAP de su plazo y REM que cubra');
   else check(beRem.cuentas.every(c => c.ok && c.cubre),
              'la diferencia es el breakeven menos el REM de los mismos meses',

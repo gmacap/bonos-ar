@@ -10060,20 +10060,30 @@ function beRenderTabla(resultados){
 }
 
 // La diferencia contra el REM, en puntos porcentuales de inflación mensual, y
-// abajo el REM con el que se comparó. Positivo es el mercado descontando más
-// inflación que los analistas. El color no dice bueno ni malo: no es un
-// movimiento de precio, es una brecha entre dos medidas.
+// abajo el REM con el que se comparó.
+//
+// El color separa el signo y no dice bueno ni malo: no es un movimiento de
+// precio sino una brecha entre dos medidas. Ámbar cuando el mercado descuenta
+// más inflación que los analistas, azul cuando descuenta menos. Abajo de cinco
+// centésimas de punto por mes queda gris: con el rezago del CER la comparación
+// es aproximada y una diferencia así no es una señal.
+const BE_REM_NEUTRO=0.05;
 function beCeldaRem(res){
   const base='padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle';
   if(res.difRem==null)
     return`<td style="${base}" title="El REM no cubre esos meses, ni con su ancla anual"><span style="font-size:10px;color:var(--text3)">—</span></td>`;
   const signo=res.difRem>0?'+':'';
+  const chico=Math.abs(res.difRem)<BE_REM_NEUTRO;
+  const col=chico?'var(--text3)':(res.difRem>0?'var(--warn)':'var(--info)');
   const t=`Breakeven ${fmtP2(res.inflaBE)} menos REM ${fmtP2(res.rem.mensual)} · ${res.rem.meses} meses`
     +` (${res.rem.desde} a ${res.rem.hasta})`
     +(res.rem.conAncla?' · completado con el ancla anual del REM':'')
-    +(res.rem.relevamiento?` · relevamiento del ${betrF(res.rem.relevamiento)}`:'');
+    +(res.rem.relevamiento?` · relevamiento del ${betrF(res.rem.relevamiento)}`:'')
+    +(chico?' · diferencia chica: con el rezago del CER la comparación es aproximada'
+           :res.difRem>0?' · el mercado descuenta MÁS inflación que el REM'
+                        :' · el mercado descuenta MENOS inflación que el REM');
   return`<td style="${base}" title="${betrEsc(t)}">
-    <div style="font-size:11px;color:var(--text);font-weight:600">${signo}${res.difRem.toFixed(2)}</div>
+    <div style="font-size:11px;color:${col};font-weight:600">${signo}${res.difRem.toFixed(2)}</div>
     <div style="font-size:9px;color:var(--text3)">${fmtP2(res.rem.mensual)}${res.rem.conAncla?'*':''}</div>
   </td>`;
 }
