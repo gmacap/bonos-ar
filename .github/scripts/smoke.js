@@ -2547,6 +2547,48 @@ const omitir = (label, motivo) =>
   check(betr.feriados2027, 'el calendario tiene los feriados de 2027');
   check(/CER/.test(betr.sinCer || ''), 'sin bonos CER no se inventa un número', betr.sinCer);
 
+  // BE · Inflación contra el REM: el breakeven solo no dice si el mercado pide
+  // más o menos inflación que los analistas.
+  console.log('\nBE · Inflación contra el REM');
+  const beRem = await page.evaluate(() => {
+    const out = {};
+    // Con un REM inventado de 2% por mes, el promedio tiene que dar 2%, y si el
+    // REM no cubre los meses pedidos no se compara.
+    const guardado = REM_DATA;
+    REM_DATA = { relevamiento: '2026-08-31', anclas: {},
+      ipc: [{ mes: '2026-09', v: 2 }, { mes: '2026-10', v: 2 }, { mes: '2026-11', v: 2 }] };
+    const tres = betrRemMensual('2026-09', '2026-11');
+    out.promedio = tres && tres.mensual;
+    out.meses = tres && tres.meses;
+    out.fuera = betrRemMensual('2026-09', '2027-06');
+    REM_DATA = guardado;
+    // Y con el REM real, sobre los bonos CER que tengan LECAP de su plazo.
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const candidatos = CER_BONDS.filter(b => b.tipo !== 'cupon' && b.vcto && b.precio > 0 &&
+      diasACT(liq, parseDate(b.vcto)) > 0).map(b => b.ticker);
+    const guardadoBonos = BE_BONOS;
+    BE_BONOS = candidatos.slice(0, 4);
+    beRecalc();
+    out.filas = [...document.querySelectorAll('#be-tbody tr')].length;
+    out.cuentas = BE_BONOS.map(t => beCalcular(t)).filter(x => x && !x.error && x.rem)
+      .map(x => ({ ok: Math.abs(x.difRem - (x.inflaBE - x.rem.mensual)) < 1e-9,
+                   cubre: x.rem.hasta === `${x.hastaMes.año}-${String(x.hastaMes.mes + 1).padStart(2, '0')}` }));
+    BE_BONOS = guardadoBonos;
+    beRecalc();
+    // La primera tabla de la columna es la de BE · Inflación.
+    const thead = document.querySelector('#be-col1 table thead');
+    out.encabezado = thead ? thead.textContent.replace(/\s+/g, ' ').trim() : '';
+    return out;
+  });
+  check(Math.abs(beRem.promedio - 2) < 1e-9 && beRem.meses === 3 && beRem.fuera === null,
+        'el promedio del REM son los meses del período, y sin cobertura no se compara',
+        `${beRem.promedio} en ${beRem.meses} meses`);
+  check(/vs REM/i.test(beRem.encabezado || ''), 'la tabla BE trae la columna contra el REM', beRem.encabezado);
+  if (!beRem.cuentas.length) omitir('la diferencia contra el REM', 'ningún bono CER con LECAP de su plazo y REM que cubra');
+  else check(beRem.cuentas.every(c => c.ok && c.cubre),
+             'la diferencia es el breakeven menos el REM de los mismos meses',
+             `${beRem.cuentas.length} bono(s)`);
+
   console.log('\nEscenarios');
   const esc = await page.evaluate(() => {
     switchSection('pesos'); switchTab('escenarios');

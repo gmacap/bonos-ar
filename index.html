@@ -1317,7 +1317,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 
     <!-- COL 1: Breakevens (resizable) -->
-    <div id="be-col1" style="width:250px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
+    <div id="be-col1" style="width:285px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
 
       <!-- BE Inflación -->
       <div>
@@ -1331,8 +1331,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <table class="be-table">
           <thead>
             <tr class="bb2">
-              <th style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:left">CER</th>
-              <th style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">BE</th>
+              <th title="Bono CER · abajo, hasta qué mes llega su breakeven y el promedio del sendero de Proyecciones" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:left">CER</th>
+              <th title="Inflación mensual que descuenta el precio contra su LECAP" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">BE</th>
+              <th title="Breakeven menos la inflación mensual que espera el REM para los mismos meses, en puntos porcentuales. Abajo de cada diferencia, el REM con el que se comparó." style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">vs REM<span style="text-transform:none"> pp</span></th>
               <th></th>
             </tr>
           </thead>
@@ -9944,6 +9945,14 @@ function beCalcular(cerTicker){
   const hm=beHastaMes(cerBond.vcto);
   const promInfla=bePromedioInfla(hm.año,hm.mes);
 
+  // Contra el REM, sobre los mismos meses que promedia la proyección: del primer
+  // mes sin publicar hasta el "hasta mes" del bono. El breakeven es la inflación
+  // que el precio descuenta para esa ventana, así que la referencia tiene que
+  // cubrir la misma. Si el REM no llega ni con su ancla anual, no se compara.
+  const hastaMesStr=`${hm.año}-${String(hm.mes+1).padStart(2,'0')}`;
+  const primerProy=(PROJ_INFLACION.find(r=>r.tipo!=='publicado')||{}).mes||null;
+  const rem=betrRemMensual(primerProy,hastaMesStr);
+
   // meses restantes = diferencia entre "hasta mes" y último mes publicado
   const lastPub=[...PROJ_INFLACION].filter(r=>r.tipo==='publicado').slice(-1)[0];
   let mesesRestantes=null;
@@ -9959,7 +9968,9 @@ function beCalcular(cerTicker){
     cerIni,cerFinalBE,
     lastReal:lastReal.valor,lastRealFecha:lastReal.fecha.split('-').reverse().join('/'),
     fixingVto:fmtDate(fixingVto).split('-').reverse().join('/'),
-    diasRestantes,varDiaria,inflaBE,hastaMes:hm,promInfla,mesesRestantes};
+    diasRestantes,varDiaria,inflaBE,hastaMes:hm,promInfla,mesesRestantes,
+    rem:rem?{...rem}:null,
+    difRem:(rem&&isFinite(inflaBE))?inflaBE-rem.mensual:null};
 }
 
 function beRecalc(){
@@ -10019,15 +10030,15 @@ function beRenderTabla(resultados){
   if(!tbody)return;
 
   if(!resultados.length){
-    tbody.innerHTML=`<tr><td colspan="3" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:11px">Agregá bonos CER con +</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="4" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:11px">Agregá bonos CER con +</td></tr>`;
     return;
   }
 
   tbody.innerHTML=resultados.map(({ticker,res})=>{
-    if(!res)return`<tr><td colspan="3" style="padding:2px 4px;color:var(--danger);font-size:10px">${ticker}: sin datos</td></tr>`;
+    if(!res)return`<tr><td colspan="4" style="padding:2px 4px;color:var(--danger);font-size:10px">${ticker}: sin datos</td></tr>`;
     if(res.error)return`<tr>
       <td style="padding:2px 4px;font-family:var(--mono);font-size:10px;color:var(--accent2)">${ticker}</td>
-      <td style="padding:2px 4px;color:var(--danger);font-size:9px">${res.error}</td>
+      <td colspan="2" style="padding:2px 4px;color:var(--danger);font-size:9px">${res.error}</td>
       <td style="padding:1px 2px;text-align:center"><button onclick="beRemove('${ticker}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px">✕</button></td>
     </tr>`;
     const hm=res.hastaMes;
@@ -10042,9 +10053,29 @@ function beRenderTabla(resultados){
         <div style="font-size:11px;color:var(--accent);font-weight:700">${fmtP2(res.inflaBE)}</div>
         <div style="font-size:9px;color:var(--text3)">${res.tfTicker||''}</div>
       </td>
+      ${beCeldaRem(res)}
       <td style="padding:1px 2px;text-align:center;vertical-align:middle"><button onclick="beRemove('${ticker}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;line-height:1">✕</button></td>
     </tr>`;
   }).join('');
+}
+
+// La diferencia contra el REM, en puntos porcentuales de inflación mensual, y
+// abajo el REM con el que se comparó. Positivo es el mercado descontando más
+// inflación que los analistas. El color no dice bueno ni malo: no es un
+// movimiento de precio, es una brecha entre dos medidas.
+function beCeldaRem(res){
+  const base='padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle';
+  if(res.difRem==null)
+    return`<td style="${base}" title="El REM no cubre esos meses, ni con su ancla anual"><span style="font-size:10px;color:var(--text3)">—</span></td>`;
+  const signo=res.difRem>0?'+':'';
+  const t=`Breakeven ${fmtP2(res.inflaBE)} menos REM ${fmtP2(res.rem.mensual)} · ${res.rem.meses} meses`
+    +` (${res.rem.desde} a ${res.rem.hasta})`
+    +(res.rem.conAncla?' · completado con el ancla anual del REM':'')
+    +(res.rem.relevamiento?` · relevamiento del ${betrF(res.rem.relevamiento)}`:'');
+  return`<td style="${base}" title="${betrEsc(t)}">
+    <div style="font-size:11px;color:var(--text);font-weight:600">${signo}${res.difRem.toFixed(2)}</div>
+    <div style="font-size:9px;color:var(--text3)">${fmtP2(res.rem.mensual)}${res.rem.conAncla?'*':''}</div>
+  </td>`;
 }
 
 function beRenderDetalle(resultados){
@@ -10255,10 +10286,11 @@ function betrUltimaTamar(){
 // Inflación mensual esperada para la ventana que queda por proyectar, del REM.
 // Se completa con las anclas anuales igual que Proyecciones; si ni con el ancla
 // llega, devuelve null y el margen se resta derecho.
-function betrInflaProyectada(desdeFecha,hastaFecha){
+// Inflación mensual promedio que espera el REM entre dos meses, ambos incluidos.
+// Es función declarada y no const: la usa beCalcular, que está más arriba.
+function betrRemMensual(m0,m1){
   if(!REM_DATA||!Array.isArray(REM_DATA.ipc)||!REM_DATA.ipc.length)return null;
-  const m0=String(desdeFecha).slice(0,7),m1=String(hastaFecha).slice(0,7);
-  if(m1<m0)return null;
+  if(!m0||!m1||m1<m0)return null;
   const anclas=(REM_DATA.anclas||{}).ipc||{};
   const tope=Object.keys(anclas).sort().find(a=>a>=m1)||m1;
   const serie=proyExtender(REM_DATA.ipc,anclas,'ipc',tope).filter(p=>p.mes>=m0&&p.mes<=m1);
@@ -10267,6 +10299,9 @@ function betrInflaProyectada(desdeFecha,hastaFecha){
   let acum=1;serie.forEach(p=>{acum*=1+p.v/100;});
   return{desde:m0,hasta:m1,meses:n,mensual:(Math.pow(acum,1/n)-1)*100,
          conAncla:serie.some(p=>p.origen==='ancla'),relevamiento:REM_DATA.relevamiento||null};
+}
+function betrInflaProyectada(desdeFecha,hastaFecha){
+  return betrRemMensual(String(desdeFecha||'').slice(0,7),String(hastaFecha||'').slice(0,7));
 }
 
 // Un bono TAMAR que también está cargado como CER es un dual: su precio incluye
@@ -11492,7 +11527,7 @@ const BE_COL_LS='bonosAR_be_colwidths';
 // El ancho guardado se respeta, salvo que sea de antes de que la primera columna
 // tuviera la TAMAR real: con 200px la columna nueva quedaba cortada, y el ancho
 // viejo estaba en el localStorage de todos los que ya habían entrado.
-const BE_COL1_MIN_UTIL=250;
+const BE_COL1_MIN_UTIL=285;
 function beColWidthsLoad(){
   try{const r=localStorage.getItem(BE_COL_LS);if(r){const m=JSON.parse(r);['be-col1','be-col2'].forEach(id=>{
     const col=document.getElementById(id);
