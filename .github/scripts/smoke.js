@@ -541,6 +541,45 @@ const omitir = (label, motivo) =>
     check(otro.bonos > 0, `${sec}: el sector nuevo trae datos`, `${otro.bonos} bonos`);
   }
 
+  // Colores con pocos bonos: salen de la paleta, son distintos entre sí y cada uno
+  // conserva el suyo al agregar o sacar otro. Antes el círculo cromático se
+  // repartía entre todos los bonos del sector aunque se vieran tres, y dos
+  // vencimientos seguidos quedaban con casi el mismo tono.
+  const col = await page.evaluate(() => {
+    const st = seriesEstado.ars;
+    const ts = ordenarPorVencimiento([...st.cache.porBono.keys()]);
+    if (!st.chart || ts.length < 4) return { sinDatos: true, n: ts.length };
+    const colores = () => Object.fromEntries(st.chart.data.datasets
+      .filter(d => d.type !== 'bar').map(d => [d.label, d.borderColor]));
+    seriesTodos('ars', false);
+    ts.slice(0, 3).forEach(t => seriesToggle('ars', t));
+    const tres = colores();
+    seriesToggle('ars', ts[3]);
+    const cuatro = colores();
+    seriesToggle('ars', ts[0]);
+    const sinPrimero = colores();
+    seriesTodos('ars', true);
+    const todos = Object.values(colores());
+    return { ts: ts.slice(0, 4), paleta: SERIES_PALETA, tres, cuatro, sinPrimero, todos };
+  });
+  if (col.sinDatos) omitir('colores de las series', `${col.n} bonos en el sector: hacen falta 4`);
+  else {
+    const [a, b, c, d] = col.ts;
+    const t3 = [a, b, c].map(t => col.tres[t]);
+    check(t3.every(x => col.paleta.includes(x)) && new Set(t3).size === 3,
+          'series: tres bonos seguidos toman tres colores distintos de la paleta', t3.join(' '));
+    check([a, b, c].every(t => col.cuatro[t] === col.tres[t]) && col.paleta.includes(col.cuatro[d])
+          && !t3.includes(col.cuatro[d]),
+          'series: agregar un bono no repinta a los otros', `${d}: ${col.cuatro[d]}`);
+    check([b, c, d].every(t => col.sinPrimero[t] === col.cuatro[t]),
+          'series: sacar un bono no repinta a los otros', [b, c, d].map(t => col.sinPrimero[t]).join(' '));
+    if (col.todos.length > col.paleta.length) {
+      const vecinosIguales = col.todos.filter((x, k) => k && x === col.todos[k - 1]).length;
+      check(new Set(col.todos).size === col.todos.length && vecinosIguales === 0,
+            'series: con muchos bonos, cada uno con su color', `${col.todos.length} bonos`);
+    }
+  }
+
   // Spread Leg. como serie temporal (solo USD)
   const slegSerie = await page.evaluate(async () => {
     seriesSetSector('usd', 'SLEG');

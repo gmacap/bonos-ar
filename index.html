@@ -15946,10 +15946,41 @@ async function seriesRangoDefecto(){
   return{desde,hasta};
 }
 
-// Colores estables por bono: mismo ticker, mismo color entre renders.
+// Con muchos bonos, el círculo cromático repartido por orden de vencimiento. Dos
+// vencimientos vecinos suelen ser dos líneas vecinas y quedan con tonos
+// parecidos: se alterna la luminosidad para que no se confundan.
 function seriesColor(i,total){
   const h=Math.round((i*360)/Math.max(total,1));
-  return `hsl(${h},62%,58%)`;
+  return `hsl(${h},72%,${i%2?74:56}%)`;
+}
+
+// Con pocos bonos, una paleta elegida a mano para que se distingan entre sí. Antes
+// el círculo se repartía entre todos los bonos del sector aunque se vieran dos: con
+// treinta bonos, dos vencimientos seguidos quedaban a 12° de tono. Los primeros
+// colores son los más distintos entre sí, y todos se leen sobre fondo oscuro y
+// claro.
+const SERIES_PALETA=['#3b9cff','#ff8a1f','#2fc26b','#ef4d6e','#a970ff',
+                     '#d9b400','#1fc7c7','#e36fd0','#b08355','#8fa3b8'];
+
+// Cada bono conserva su color mientras siga en el gráfico: agregar o sacar otro no
+// lo repinta, y uno nuevo toma el primer color libre. Pasando el tamaño de la
+// paleta no alcanzan los colores fijos y se reparte el círculo.
+function seriesAsignarColores(st,vis){
+  if(vis.length>SERIES_PALETA.length){
+    st.colorSlots=new Map();
+    return new Map(vis.map((t,k)=>[t,seriesColor(k,vis.length)]));
+  }
+  const slots=st.colorSlots instanceof Map?st.colorSlots:new Map();
+  const en=new Set(vis);
+  [...slots.keys()].forEach(t=>{if(!en.has(t))slots.delete(t);});
+  const usados=new Set(slots.values());
+  vis.forEach(t=>{
+    if(slots.has(t))return;
+    let k=0;while(usados.has(k))k++;
+    slots.set(t,k);usados.add(k);
+  });
+  st.colorSlots=slots;
+  return new Map(vis.map(t=>[t,SERIES_PALETA[slots.get(t)]]));
 }
 
 async function seriesInit(sec){
@@ -16495,7 +16526,11 @@ function seriesDibujar(sec,error){
   const tickers=esFwd?[...porBono.keys()]
     :orden?orden.filter(t=>porBono.has(t))
     :ordenarPorVencimiento([...porBono.keys()]);
-  const colDe=(t,i)=>(paleta&&paleta.get(t))||seriesColor(i,tickers.length);
+  // Los colores se reparten entre los bonos que se ven, no entre todos los del
+  // sector: los chips apagados no usan color.
+  const vis=esFwd?tickers:tickers.filter(t=>!st.filtro||st.filtro.has(t));
+  const asignados=seriesAsignarColores(st,vis);
+  const colDe=t=>(paleta&&paleta.get(t))||asignados.get(t)||'#8a9489';
   // Un hex no admite el truco de hsl→hsla para el fondo translúcido.
   const colBg=c=>c.charAt(0)==='#'?c+'22':c.replace('hsl','hsla').replace(')',',.15)');
   const uni=t=>unidades?(unidades.get(t)||'%'):'%';
@@ -16506,7 +16541,7 @@ function seriesDibujar(sec,error){
         ? lista.map(([c,l])=>{
             const label=c+'\u2192'+l;
             const i=tickers.indexOf(label), hay=i>=0;
-            const col=hay?colDe(label,i):null;
+            const col=hay?colDe(label):null;
             const s=`font-family:var(--mono);font-size:9px;padding:2px 6px 2px 8px;border-radius:2px;cursor:pointer;transition:all .1s;border:1px solid ${hay?col:'var(--border2)'};background:${hay?colBg(col):'transparent'};color:${hay?col:'var(--text3)'}`;
             const ti=hay?'Sacar del gráfico':'Sin datos en el rango \u2014 click para sacarlo';
             return `<button style="${s}" title="${ti}" onclick="seriesFwdQuitar('${sec}','${c}','${l}')">${label} <span style="opacity:.55">\u2715</span></button>`;
@@ -16514,9 +16549,9 @@ function seriesDibujar(sec,error){
         : `<span style="font-family:var(--mono);font-size:10px;color:var(--text3)">Elegí dos bonos arriba y apretá Agregar</span>`;
     } else {
       chipsDiv.innerHTML=tickers.length
-        ? tickers.map((t,i)=>{
+        ? tickers.map(t=>{
             const sel=!st.filtro||st.filtro.has(t);
-            const col=colDe(t,i);
+            const col=colDe(t);
             const s=`font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:2px;cursor:pointer;border:1px solid ${sel?col:'var(--border2)'};background:${sel?colBg(col):'transparent'};color:${sel?col:'var(--text3)'};transition:all .1s`;
             return `<button style="${s}" onclick="seriesToggle('${sec}','${t}')">${t}</button>`;
           }).join('')
@@ -16535,7 +16570,6 @@ function seriesDibujar(sec,error){
   if(!fechas.length){if(msg)msg.textContent='Sin datos en el rango elegido';return;}
   if(esFwd&&!tickers.length){if(msg)msg.textContent='Agregá una combinación para ver su histórico';return;}
 
-  const vis=esFwd?tickers:tickers.filter(t=>!st.filtro||st.filtro.has(t));
   const puntos=vis.reduce((n,t)=>n+porBono.get(t).size,0);
   if(msg)msg.textContent=esFwd
     ? `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length} combinaci${vis.length===1?'ón':'ones'} · ${puntos} puntos`
@@ -16550,7 +16584,7 @@ function seriesDibujar(sec,error){
   const tiempo=!!unidades;
   const ts=f=>parseDate(f).getTime();
   const dsDe=t=>{
-    const i=tickers.indexOf(t), col=colDe(t,i);
+    const col=colDe(t);
     const serie=porBono.get(t);
     const punteada=trazos&&trazos.get(t);
     if(dispersion&&dispersion.has(t)){
