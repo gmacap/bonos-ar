@@ -2577,6 +2577,16 @@ const omitir = (label, motivo) =>
     BE_BONOS = guardado; beSaveLs();
     if (!serie) return { ...out, error };
     const ipc = serie.porBono.get('IPC publicado');
+    // Las líneas van por vencimiento, no por el orden en que se eligieron, y la
+    // referencia al final. Se eligen al revés a propósito.
+    BE_BONOS = [...cands].reverse();
+    let inv = null;
+    try { inv = await seriesTraerBEInfla(fmtDate(d), hasta); } catch (e) {}
+    BE_BONOS = guardado; beSaveLs();
+    out.orden = inv ? inv.orden.map(t => {
+      const b = CER_BONDS.find(x => x.ticker === t);
+      return b ? b.vcto : 'zzz';
+    }) : null;
     const ult = t => { const m = serie.porBono.get(t); if (!m) return null;
       const k = [...m.keys()].sort(); return m.get(k[k.length - 1]); };
     // El último punto de cada bono contra la tabla de hoy: el precio de la rueda
@@ -2618,6 +2628,10 @@ const omitir = (label, motivo) =>
     check(serieBE.ipc.sendero == null || Math.abs(serieBE.ipc.serie - serieBE.ipc.sendero) < 0.06,
           'el IPC publicado de la serie es el último mes publicado',
           `serie ${serieBE.ipc.serie} · sendero ${serieBE.ipc.sendero}`);
+    check(serieBE.orden && serieBE.orden.length > 1
+          && serieBE.orden.every((v, i) => i === 0 || serieBE.orden[i - 1] <= v),
+          'las líneas van por vencimiento aunque los bonos se elijan al revés',
+          (serieBE.orden || []).join(' → '));
   }
 
   // Serie histórica de la TAMAR real, con el mismo núcleo que la tabla.

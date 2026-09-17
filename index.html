@@ -16750,7 +16750,10 @@ async function seriesTraerBEInfla(desde,hasta){
     }
   }
   if(!porBono.size)throw new Error('Sin ruedas con LECAP y CER para reconstruir');
-  const orden=[...tickers.filter(t=>porBono.has(t))];
+  // Por vencimiento, no por el orden en que se eligieron los bonos. La
+  // referencia va al final: no es un bono.
+  const orden=tickers.filter(t=>porBono.has(t))
+    .sort((a,b)=>String(fijos.get(a).bono.vcto).localeCompare(String(fijos.get(b).bono.vcto)));
   if(porBono.has(SERIES_BE_IPC))orden.push(SERIES_BE_IPC);
   return{fechas:fechas.filter(f=>[...porBono.values()].some(m=>m.has(f))),porBono,orden,
     colores:new Map([[SERIES_BE_IPC,'#8fa3b8']]),
@@ -16865,7 +16868,10 @@ async function seriesTraerTamarReal(desde,hasta){
     }
   }
   if(!porBono.size)throw new Error('Sin ruedas con bono TAMAR y CER para reconstruir');
-  const orden=[...tickersTamar.filter(t=>porBono.has(t))];
+  // Por vencimiento, no por el orden en que se eligieron los bonos. La
+  // referencia va al final: no es un bono.
+  const orden=tickersTamar.filter(t=>porBono.has(t))
+    .sort((a,b)=>String(fijos.get(a).bono.vcto).localeCompare(String(fijos.get(b).bono.vcto)));
   if(porBono.has(SERIES_TR_OBS))orden.push(SERIES_TR_OBS);
   return{fechas:fechas.filter(f=>[...porBono.values()].some(m=>m.has(f))),porBono,orden,
     colores:new Map([[SERIES_TR_OBS,'#8fa3b8']]),
