@@ -2547,6 +2547,40 @@ const omitir = (label, motivo) =>
   check(betr.feriados2027, 'el calendario tiene los feriados de 2027');
   check(/CER/.test(betr.sinCer || ''), 'sin bonos CER no se inventa un número', betr.sinCer);
 
+  // Los dos selectores del Resumen son chips ordenados por vencimiento, y los
+  // bonos vencidos no se ofrecen.
+  console.log('\nResumen: chips para elegir bonos');
+  const chips = await page.evaluate(() => {
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const vencidos = lista => lista.filter(b => b.vcto && diasACT(liq, parseDate(b.vcto)) <= 0).map(b => b.ticker);
+    beRenderChips(); beTamarRenderChips();
+    const leer = id => [...document.querySelectorAll('#' + id + ' button')].map(b => b.textContent.trim());
+    const cer = leer('be-chips'), tamar = leer('be-tamar-chips');
+    const ordenado = (ch, lista) => {
+      const v = ch.map(t => (lista.find(b => b.ticker === t) || {}).vcto || '');
+      return v.length > 1 && v.every((x, i) => i === 0 || v[i - 1] <= x);
+    };
+    // Un clic agrega y otro saca.
+    const antes = [...BE_BONOS];
+    const tk = cer[0];
+    beToggleBono(tk); const alta = BE_BONOS.includes(tk);
+    beToggleBono(tk); const baja = !BE_BONOS.includes(tk);
+    BE_BONOS = antes; beSaveLs(); beRecalc();
+    return { cer, tamar, ordenCer: ordenado(cer, CER_BONDS), ordenTamar: ordenado(tamar, TAMAR_BONDS),
+      vencidosOfrecidos: [...vencidos(CER_BONDS).filter(t => cer.includes(t)),
+                          ...vencidos(TAMAR_BONDS).filter(t => tamar.includes(t))],
+      nVencidos: vencidos(CER_BONDS).length + vencidos(TAMAR_BONDS).length,
+      alta, baja, modalViejo: !!document.getElementById('be-modal') };
+  });
+  check(chips.cer.length > 0 && chips.ordenCer && chips.tamar.length > 0 && chips.ordenTamar,
+        'los chips de CER y de TAMAR van ordenados por vencimiento',
+        `${chips.cer.length} CER · ${chips.tamar.length} TAMAR`);
+  if (!chips.nVencidos) omitir('los vencidos no se ofrecen', 'no hay bonos vencidos cargados');
+  else check(!chips.vencidosOfrecidos.length, 'ningún bono vencido aparece como opción',
+             `${chips.nVencidos} vencidos, ninguno ofrecido`);
+  check(chips.alta && chips.baja, 'un clic en el chip agrega y otro saca');
+  check(!chips.modalViejo, 'el modal viejo de BE · Inflación ya no existe');
+
   // BE · Inflación contra el REM: el breakeven solo no dice si el mercado pide
   // más o menos inflación que los analistas.
   console.log('\nBE · Inflación contra el REM');

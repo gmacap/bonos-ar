@@ -1324,9 +1324,12 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
           <div style="font-family:var(--serif);font-size:13px;font-weight:300;font-style:italic;color:var(--accent)">BE · Inflación</div>
           <div style="display:flex;gap:3px;">
+            <button class="btn" style="margin:0;padding:2px 6px;font-size:10px" onclick="beToggleSelector()">+/−</button>
             <button class="btn primary" style="margin:0;padding:2px 6px;font-size:10px" onclick="beRecalc()">↻</button>
-            <button class="btn" style="margin:0;padding:2px 6px;font-size:10px" onclick="beOpenModal()">+</button>
           </div>
+        </div>
+        <div id="be-selector" style="display:none;margin-bottom:.4rem;padding:.3rem .5rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;">
+          <div id="be-chips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
         </div>
         <table class="be-table">
           <thead>
@@ -1468,20 +1471,6 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         </div>
       </div>
 
-    </div>
-  </div>
-</div>
-
-<!-- BE MODAL -->
-<div class="modal-backdrop" id="be-modal">
-  <div class="modal">
-    <div class="modal-title">Agregar bono CER al Breakeven</div>
-    <div class="field-row cols1">
-      <div class="field"><label>Bono CER</label><select id="be-m-ticker" style="width:100%"></select></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn" onclick="beCloseModal()">Cancelar</button>
-      <button class="btn primary" onclick="beSaveModal()">Agregar</button>
     </div>
   </div>
 </div>
@@ -9861,23 +9850,54 @@ function beInit(){
     beRenderChartCER();
   }));
 }
-function beOpenModal(){
-  const sel=document.getElementById('be-m-ticker');
-  sel.innerHTML=CER_BONDS.filter(r=>r.vcto&&r.precio).map(r=>`<option value="${r.ticker}">${r.ticker} — vto ${r.vcto.split('-').reverse().join('/')}</option>`).join('');
-  document.getElementById('be-modal').classList.add('open');
+// Los bonos se eligen con chips, igual que en BE · TAMAR, y ordenados por
+// vencimiento: antes era una lista desplegable dentro de un modal, que para
+// agregar tres bonos eran nueve clics y no dejaba ver qué estaba puesto.
+// Los vencidos no se ofrecen: su breakeven no existe.
+function beToggleSelector(){
+  const el=document.getElementById('be-selector');
+  if(!el)return;
+  const abriendo=el.style.display==='none';
+  el.style.display=abriendo?'block':'none';
+  if(abriendo)beRenderChips();
 }
-function beCloseModal(){document.getElementById('be-modal').classList.remove('open');}
-function beSaveModal(){
-  const ticker=document.getElementById('be-m-ticker').value;
-  if(!ticker)return;
-  if(!BE_BONOS.includes(ticker))BE_BONOS.push(ticker);
+function beCandidatos(){
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  return [...CER_BONDS]
+    .filter(b=>b.vcto&&diasACT(liq,parseDate(b.vcto))>0)
+    .sort((a,b)=>a.vcto.localeCompare(b.vcto));
+}
+function beRenderChips(){
+  const el=document.getElementById('be-chips');
+  if(!el)return;
+  const bonos=beCandidatos();
+  if(!bonos.length){
+    el.innerHTML='<span style="font-size:10px;color:var(--text3)">No hay bonos CER sin vencer cargados.</span>';
+    return;
+  }
+  el.innerHTML=bonos.map(b=>{
+    const on=BE_BONOS.includes(b.ticker);
+    const sinPrecio=!(b.precio>0);
+    return`<button onclick="beToggleBono('${b.ticker}')"
+      title="vence ${betrF(b.vcto)}${sinPrecio?' · sin precio':''}"
+      style="padding:3px 8px;font-size:10px;font-family:var(--mono);border-radius:3px;cursor:pointer;
+      border:1px solid ${on?'var(--accent2)':'var(--border2)'};
+      background:${on?'var(--accent-dim)':'var(--surface2)'};
+      color:${on?'var(--accent)':(sinPrecio?'var(--text3)':'var(--text2)')};transition:all .12s"
+    >${b.ticker}</button>`;
+  }).join('');
+}
+function beToggleBono(ticker){
+  if(BE_BONOS.includes(ticker))BE_BONOS=BE_BONOS.filter(t=>t!==ticker);
+  else BE_BONOS=[...BE_BONOS,ticker];
   beSaveLs();
-  beCloseModal();
+  beRenderChips();
   beRecalc();
 }
 function beRemove(ticker){
   BE_BONOS=BE_BONOS.filter(t=>t!==ticker);
   beSaveLs();
+  beRenderChips();
   beRecalc();
 }
 
@@ -10030,7 +10050,7 @@ function beRenderTabla(resultados){
   if(!tbody)return;
 
   if(!resultados.length){
-    tbody.innerHTML=`<tr><td colspan="4" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:11px">Agregá bonos CER con +</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="4" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:11px">Elegí bonos CER con +/−</td></tr>`;
     return;
   }
 
@@ -10418,10 +10438,19 @@ function beTamarToggleSelector(){
 function beTamarRenderChips(){
   const chipsEl=document.getElementById('be-tamar-chips');
   if(!chipsEl)return;
-  const bonds=[...TAMAR_BONDS].filter(b=>b.vcto).sort((a,b)=>a.vcto.localeCompare(b.vcto));
+  // Los vencidos no se ofrecen: no tienen precio ni breakeven, y la tabla ya no
+  // los muestra.
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  const bonds=[...TAMAR_BONDS]
+    .filter(b=>b.vcto&&diasACT(liq,parseDate(b.vcto))>0)
+    .sort((a,b)=>a.vcto.localeCompare(b.vcto));
+  if(!bonds.length){
+    chipsEl.innerHTML='<span style="font-size:10px;color:var(--text3)">No hay bonos TAMAR sin vencer cargados.</span>';
+    return;
+  }
   chipsEl.innerHTML=bonds.map(b=>{
     const active=!BE_TAMAR_EXCLUDED.has(b.ticker);
-    return`<button onclick="beTamarToggleBond('${b.ticker}')"
+    return`<button onclick="beTamarToggleBond('${b.ticker}')" title="vence ${betrF(b.vcto)}"
       style="padding:3px 8px;font-size:10px;font-family:var(--mono);border-radius:3px;cursor:pointer;
       border:1px solid ${active?'var(--warn)':'var(--border2)'};
       background:${active?'var(--warn-dim)':'var(--surface2)'};
@@ -11517,14 +11546,13 @@ function beCPSaveModal(){
 }
 
 // Modal backdrop click-to-close (safe — elements exist by this point)
-;['be-cp-modal','cer-modal','fer-modal','be-modal','tamar-modal','modal','dlk-modal'].forEach(id=>{
+;['be-cp-modal','cer-modal','fer-modal','tamar-modal','modal','dlk-modal'].forEach(id=>{
   const el=document.getElementById(id);
   if(!el)return;
   const closeFn={
     'be-cp-modal': ()=>beCPCloseModal(),
     'cer-modal':   ()=>cerCloseModal(),
     'fer-modal':   ()=>ferCloseModal(),
-    'be-modal':    ()=>beCloseModal(),
     'tamar-modal': ()=>tamarCloseModal(),
     'modal':       ()=>closeModal(),
     'dlk-modal':   ()=>dlkCloseModal(),
