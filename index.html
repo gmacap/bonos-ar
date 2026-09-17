@@ -9936,6 +9936,24 @@ function bePromedioInfla(hastaAño,hastaMes0){
   return vals.reduce((s,v)=>s+v,0)/vals.length;
 }
 
+// El núcleo del breakeven, sin DOM ni estado: se usa para la rueda de hoy y para
+// reconstruir cualquier rueda pasada, así la serie histórica y la tabla no pueden
+// dar números distintos.
+//
+//   tasaDirecta   VF/precio − 1 de la LECAP par
+//   pfBE          el pago final que necesita el CER para empatar a la LECAP
+//   cerFinalBE    ese pago llevado a coeficiente CER con el de la emisión
+//   inflaBE       la variación diaria que va del último CER conocido a ese
+//                 coeficiente, elevada a 30,4 días
+function beNucleo(x){
+  if(!(x.psCER>0)||!(x.diasCER>0)||!(x.diasTF>0)||!(x.cerIni>0))return null;
+  if(!(x.cerConocido>0)||!(x.diasRestantes>0))return null;
+  const pfBE=x.psCER*(1+x.tasaDirecta*x.diasCER/x.diasTF);
+  const cerFinalBE=(pfBE/100)*x.cerIni;
+  const varDiaria=Math.pow(cerFinalBE/x.cerConocido,1/x.diasRestantes);
+  return{pfBE,cerFinalBE,varDiaria,inflaBE:(Math.pow(varDiaria,30.4)-1)*100};
+}
+
 function beCalcular(cerTicker){
   const cerBond=CER_BONDS.find(r=>r.ticker===cerTicker);
   if(!cerBond||!cerBond.precio||!cerBond.vcto)return null;
@@ -9951,17 +9969,17 @@ function beCalcular(cerTicker){
   const psTF=tfBond.precio; // precio sucio = precio limpio para zero coupon TF
   if(!psTF||diasTF<=0||!tfBond.vf)return{error:`Sin precio/VF para ${tfBond.ticker}`};
   const tasaDirecta=tfBond.vf/psTF-1;
-  const pfBE=psCER*(1+tasaDirecta*diasCER/diasTF);
   const cerIni=cerGetValorCer(parseDate(cerBond.emision));
   if(!cerIni)return{error:'Sin CER de emisión'};
-  const cerFinalBE=(pfBE/100)*cerIni;
   const lastReal=projGetLastCerReal();
   if(!lastReal)return{error:'Sin CER real'};
   const fixingVto=cerGetFechaCer(vctoDate);
   const diasRestantes=Math.round((fixingVto-parseDate(lastReal.fecha))/86400000);
   if(diasRestantes<=0)return{error:'Fixing ya pasó'};
-  const varDiaria=Math.pow(cerFinalBE/lastReal.valor,1/diasRestantes);
-  const inflaBE=(Math.pow(varDiaria,30.4)-1)*100;
+  const nuc=beNucleo({psCER,tasaDirecta,diasCER,diasTF,cerIni,
+    cerConocido:lastReal.valor,diasRestantes});
+  if(!nuc)return{error:'Sin datos para el breakeven'};
+  const{pfBE,cerFinalBE,varDiaria,inflaBE}=nuc;
   const hm=beHastaMes(cerBond.vcto);
   const promInfla=bePromedioInfla(hm.año,hm.mes);
 
@@ -16152,6 +16170,9 @@ const SERIES_CFG={
       {v:'DLK',   l:'Dollar Linked', c:'#a855f7', y:'TNA (%)',        yf:'Forward TNA (%)'},
       // El dinero no es un bono con duración: no admite forwards.
       {v:'DINERO',l:'Dinero',        c:'#22d3ee', y:'TNA (%)', fwd:false},
+      // El breakeven no es la tasa de un bono sino la comparación entre dos
+      // curvas: tampoco admite forwards.
+      {v:'BEINF',l:'BE inflación',   c:'#a8d5a2', y:'Inflación BE (% mensual)', fwd:false},
     ],
   },
   usd:{
@@ -16531,6 +16552,7 @@ async function seriesCargar(sec){
       st.cache=st.sector==='SLEG'   ? await seriesTraerSpread(desde,hasta)
              : st.sector==='FX'     ? await seriesTraerFX(desde,hasta)
              : st.sector==='DINERO' ? await seriesTraerDinero(desde,hasta)
+             : st.sector==='BEINF'  ? await seriesTraerBEInfla(desde,hasta)
              : await seriesTraerSector(st.sector,desde,hasta);
       st.filtro=null;   // al cambiar el rango, arrancan todos seleccionados
     }
@@ -16543,17 +16565,32 @@ async function seriesCargar(sec){
   }
 }
 
+// PostgREST corta en 1000 filas. Un rango largo pasa ese tope de sobra —un año
+// de CER son unas seis mil filas— y hasta acá se cortaba sin avisar: el gráfico
+// mostraba sólo el principio del rango y parecía que el histórico terminaba ahí.
+const SERIES_MAX_FILAS=40000;
+async function seriesFetchPag(fabrica){
+  const filas=[];
+  for(let off=0;off<SERIES_MAX_FILAS;off+=1000){
+    const{data,error}=await fabrica().range(off,off+999);
+    if(error)throw error;
+    if(!data||!data.length)break;
+    filas.push(...data);
+    if(data.length<1000)break;
+  }
+  return filas;
+}
+
 // Serie normal: una línea por bono, con su tasa en cada rueda.
 async function seriesTraerSector(sector,desde,hasta){
   // El monto se pide junto a la tasa. Si la tabla todavía no tiene la columna,
   // la consulta falla entera, así que se prueba primero.
   const conLibro=await curvasSoportaLibro();
-  const{data,error}=await supa.from('bond_price_snapshots')
+  const data=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
     .select('snapshot_date,ticker,tir'+(conLibro?',monto':''))
     .eq('sector',sector).gte('snapshot_date',desde).lte('snapshot_date',hasta)
     .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
-    .order('snapshot_date',{ascending:true});
-  if(error)throw error;
+    .order('snapshot_date',{ascending:true}));
   const fechas=[...new Set((data||[]).map(r=>r.snapshot_date))].sort();
   const porBono=new Map(),montos=new Map();
   for(const r of data||[]){
@@ -16568,13 +16605,130 @@ async function seriesTraerSector(sector,desde,hasta){
   return{fechas,porBono,montos};
 }
 
+// ── BE inflación, reconstruido rueda por rueda ──────────────────────────────
+// La tabla del Resumen dice lo que el mercado descuenta HOY. Esto es lo mismo
+// para cada rueda guardada, con el mismo núcleo de cálculo (beNucleo), así que
+// las dos no pueden dar números distintos.
+//
+// Lo delicado es no usar datos que ese día no existían. El CER del BCRA se
+// publica un mes adelantado: el coeficiente del 16 de un mes al 15 del siguiente
+// sale del IPC de dos meses antes. La serie de hoy tiene valores posteriores a
+// cada rueda pasada, y usarlos tal cual haría que el breakeven de marzo se
+// calcule con inflación que en marzo nadie conocía: la serie saldría más suave y
+// más "acertada" de lo que fue. Por eso cada rueda se calcula con el CER que
+// estaba publicado ESE día.
+//
+// El corte usa la convención de toda la app: el IPC de un mes se publica el 15
+// del siguiente (projFechaPublicacion). En los días 10 a 14, cuando el INDEC
+// publica antes del 15, la reconstrucción es conservadora: toma un mes menos de
+// inflación conocida que la que había. Es la única aproximación del método y
+// está acotada a esos días.
+function beHorizonteCer(fecha){
+  const d=parseDate(fecha);
+  const y=d.getFullYear(),m=d.getMonth();
+  return fmtDate(d.getDate()>=15?new Date(y,m+1,15):new Date(y,m,15));
+}
+// Último CER publicado a esa fecha: {fecha,valor}.
+function beCerConocidoAl(fecha,ordenado){
+  const tope=beHorizonteCer(fecha);
+  const serie=ordenado||CER_INDEX;
+  for(let i=serie.length-1;i>=0;i--)if(serie[i].fecha<=tope)return serie[i];
+  return null;
+}
+// El último IPC mensual publicado a esa fecha, leído del propio CER: la variación
+// del coeficiente entre el horizonte y un mes antes.
+function beIpcPublicadoAl(fecha,ordenado,mapa){
+  const h=beCerConocidoAl(fecha,ordenado);
+  if(!h)return null;
+  const d=parseDate(h.fecha);
+  const prev=mapa.get(fmtDate(new Date(d.getFullYear(),d.getMonth()-1,d.getDate())));
+  if(!(prev>0)||!(h.valor>0))return null;
+  return(h.valor/prev-1)*100;
+}
+
+const SERIES_BE_IPC='IPC publicado';
+async function seriesTraerBEInfla(desde,hasta){
+  if(!CER_INDEX.length)throw new Error('Sin la serie de CER del BCRA');
+  // Los bonos son los que estén elegidos en BE · Inflación del Resumen. Así la
+  // serie y la tabla hablan de lo mismo.
+  const elegidos=(BE_BONOS||[]).map(t=>CER_BONDS.find(b=>b.ticker===t))
+    .filter(b=>b&&b.vcto&&b.emision);
+  if(!elegidos.length)throw new Error('Elegí bonos CER en el Resumen, en BE · Inflación');
+  const tickers=elegidos.map(b=>b.ticker);
+  const filas=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
+    .select('snapshot_date,ticker,sector,price,tir,dias')
+    .in('sector',['TF','CER']).gte('snapshot_date',desde).lte('snapshot_date',hasta)
+    .order('snapshot_date',{ascending:true}));
+  // Por rueda: las LECAPs con su tasa directa y los CER elegidos con su precio.
+  const porFecha=new Map();
+  for(const r of filas){
+    if(!(r.price>0)||!(r.dias>0))continue;
+    if(r.sector==='TF'&&r.tir==null)continue;
+    if(r.sector==='CER'&&!tickers.includes(r.ticker))continue;
+    if(!porFecha.has(r.snapshot_date))porFecha.set(r.snapshot_date,{tf:[],cer:new Map()});
+    const d=porFecha.get(r.snapshot_date);
+    if(r.sector==='TF')d.tf.push(r);else d.cer.set(r.ticker,r);
+  }
+  const ordenado=[...CER_INDEX].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const mapaCer=new Map(ordenado.map(x=>[x.fecha,x.valor]));
+  // Constantes de cada bono: no dependen de la rueda.
+  const fijos=new Map(elegidos.map(b=>{
+    const cerIni=cerIndexGet(fmtDate(restarHabiles(parseDate(b.emision),10)));
+    return[b.ticker,{bono:b,cerIni,vcto:parseDate(b.vcto),
+      fixingVto:cerGetFechaCer(parseDate(b.vcto))}];
+  }));
+  const fechas=[...porFecha.keys()].sort();
+  const porBono=new Map();
+  for(const f of fechas){
+    const{tf,cer}=porFecha.get(f);
+    if(!tf.length)continue;
+    const liqD=addHabiles(parseDate(f),1);
+    // Vencimiento implícito de cada LECAP: la rueda más los días que le quedaban.
+    const tfConVto=tf.map(r=>({...r,vcto:new Date(liqD.getTime()+r.dias*86400000)}))
+      .sort((a,b)=>a.vcto-b.vcto);
+    const conocido=beCerConocidoAl(f,ordenado);
+    if(!conocido)continue;
+    for(const[tk,fj]of fijos){
+      const row=cer.get(tk);
+      if(!row)continue;
+      // La LECAP par: la primera que vence el mismo día que el CER o después.
+      const par=tfConVto.find(x=>x.vcto>=fj.vcto);
+      if(!par)continue;
+      const cc=fj.bono.tipo==='cupon'?cerCuponCorrido(fj.bono,liqD):0;
+      const nuc=beNucleo({
+        psCER:row.price+cc,
+        tasaDirecta:par.tir/100*par.dias/365,
+        diasCER:row.dias,diasTF:par.dias,cerIni:fj.cerIni,
+        cerConocido:conocido.valor,
+        diasRestantes:Math.round((fj.fixingVto-parseDate(conocido.fecha))/86400000),
+      });
+      if(!nuc||!isFinite(nuc.inflaBE))continue;
+      if(!porBono.has(tk))porBono.set(tk,new Map());
+      porBono.get(tk).set(f,nuc.inflaBE);
+    }
+    // Al lado, el último IPC publicado a esa fecha: sirve para ver si el mercado
+    // pagó prima sobre lo que ya estaba pasando.
+    const ipc=beIpcPublicadoAl(f,ordenado,mapaCer);
+    if(ipc!=null&&isFinite(ipc)){
+      if(!porBono.has(SERIES_BE_IPC))porBono.set(SERIES_BE_IPC,new Map());
+      porBono.get(SERIES_BE_IPC).set(f,ipc);
+    }
+  }
+  if(!porBono.size)throw new Error('Sin ruedas con LECAP y CER para reconstruir');
+  const orden=[...tickers.filter(t=>porBono.has(t))];
+  if(porBono.has(SERIES_BE_IPC))orden.push(SERIES_BE_IPC);
+  return{fechas:fechas.filter(f=>[...porBono.values()].some(m=>m.has(f))),porBono,orden,
+    colores:new Map([[SERIES_BE_IPC,'#8fa3b8']]),
+    trazos:new Map([[SERIES_BE_IPC,[5,4]]]),
+    nota:'reconstruido con el CER publicado a cada rueda'};
+}
+
 // Spread de legislación: una línea por par Global/Bonar.
 async function seriesTraerSpread(desde,hasta){
-  const{data,error}=await supa.from('bond_price_snapshots')
+  const data=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
     .select('snapshot_date,ticker,sector,price')
     .in('sector',['BON','GLO']).gte('snapshot_date',desde).lte('snapshot_date',hasta)
-    .order('snapshot_date',{ascending:true});
-  if(error)throw error;
+    .order('snapshot_date',{ascending:true}));
   const precios=new Map();   // fecha -> Map(ticker -> price)
   for(const r of data||[]){
     if(r.price==null)continue;

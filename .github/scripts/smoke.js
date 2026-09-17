@@ -2547,6 +2547,91 @@ const omitir = (label, motivo) =>
   check(betr.feriados2027, 'el calendario tiene los feriados de 2027');
   check(/CER/.test(betr.sinCer || ''), 'sin bonos CER no se inventa un número', betr.sinCer);
 
+  // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
+  // que cuidar es no usar CER que ese día no estaba publicado.
+  console.log('\nSerie histórica del BE de inflación');
+  const serieBE = await page.evaluate(async () => {
+    const out = {};
+    // El horizonte del CER: hasta el 15 del mes siguiente si la rueda es del 15
+    // en adelante, y hasta el 15 del propio mes si es antes.
+    out.horizontes = ['2026-09-17', '2026-09-05', '2026-03-31', '2026-03-01']
+      .map(f => beHorizonteCer(f));
+    // Y en ninguna fecha pasada se usa un CER posterior a su horizonte.
+    out.sinFuturo = ['2026-01-20', '2026-05-06', '2026-08-31'].every(f => {
+      const c = beCerConocidoAl(f);
+      return c && c.fecha <= beHorizonteCer(f);
+    });
+    const guardado = [...(BE_BONOS || [])];
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    // Dos CER cero cupón con LECAP de su plazo. Con menos de tres meses por
+    // delante el fixing puede haber pasado ya y no hay número con el que comparar.
+    const cands = CER_BONDS.filter(b => b.tipo !== 'cupon' && b.vcto && b.precio > 0 && b.emision &&
+      diasACT(liq, parseDate(b.vcto)) > 90 && beFindTF(b.vcto))
+      .sort((a, b) => a.vcto.localeCompare(b.vcto)).map(b => b.ticker).slice(0, 2);
+    if (!cands.length) return { ...out, sinBonos: true };
+    BE_BONOS = cands;
+    const hasta = fmtDate(TODAY);
+    const d = parseDate(hasta); d.setMonth(d.getMonth() - 4);
+    let serie = null, error = null;
+    try { serie = await seriesTraerBEInfla(fmtDate(d), hasta); } catch (e) { error = e.message; }
+    BE_BONOS = guardado; beSaveLs();
+    if (!serie) return { ...out, error };
+    const ipc = serie.porBono.get('IPC publicado');
+    const ult = t => { const m = serie.porBono.get(t); if (!m) return null;
+      const k = [...m.keys()].sort(); return m.get(k[k.length - 1]); };
+    // El último punto de cada bono contra la tabla de hoy: el precio de la rueda
+    // archivada no es el de la pantalla, así que se compara con tolerancia.
+    out.contraPanel = cands.map(t => {
+      const p = beCalcular(t);
+      return { t, serie: ult(t), panel: p && p.inflaBE };
+    });
+    // El IPC publicado tiene que coincidir con el último mes que el sendero marca
+    // como publicado, que se detecta por otro camino.
+    const pub = [...PROJ_INFLACION].filter(r => r.tipo === 'publicado').pop();
+    out.ipc = { serie: ult('IPC publicado'), sendero: pub && pub.infla };
+    out.series = [...serie.porBono.keys()];
+    out.ruedas = serie.fechas.length;
+    out.conIpc = !!ipc;
+    out.nota = serie.nota;
+    return out;
+  });
+  check(serieBE.horizontes[0] === '2026-10-15' && serieBE.horizontes[1] === '2026-09-15'
+        && serieBE.horizontes[2] === '2026-04-15' && serieBE.horizontes[3] === '2026-03-15',
+        'el horizonte del CER de cada rueda sigue la convención del 15',
+        (serieBE.horizontes || []).join(' · '));
+  check(serieBE.sinFuturo, 'ninguna rueda pasada usa un CER que todavía no estaba publicado');
+  if (serieBE.sinBonos) omitir('la serie del BE de inflación', 'ningún CER cero cupón con LECAP de su plazo');
+  else if (serieBE.error) omitir('la serie del BE de inflación', serieBE.error);
+  else {
+    check(serieBE.ruedas > 20 && serieBE.conIpc && /CER publicado/.test(serieBE.nota || ''),
+          'la serie trae varias ruedas y el IPC publicado al lado',
+          `${serieBE.ruedas} ruedas · ${serieBE.series.join(', ')}`);
+    // La tabla usa el precio de pantalla y la serie el de la rueda archivada, así
+    // que se comparan con tolerancia. Alcanza con que un bono se pueda comparar:
+    // el otro puede no tener número hoy (sin LECAP del plazo, fixing pasado).
+    const comparables = serieBE.contraPanel.filter(x => x.serie > 0 && x.panel > 0);
+    const fmt = x => `${x.t} serie ${x.serie.toFixed(2)}% vs tabla ${x.panel.toFixed(2)}%`;
+    if (!comparables.length) omitir('la serie contra la tabla', 'ningún bono con número en las dos');
+    else check(comparables.every(x => x.serie > 0.3 && x.serie < 6 && Math.abs(x.serie - x.panel) < 0.5),
+               'el último punto de la serie coincide con la tabla del Resumen',
+               comparables.map(fmt).join(' · '));
+    check(serieBE.ipc.sendero == null || Math.abs(serieBE.ipc.serie - serieBE.ipc.sendero) < 0.06,
+          'el IPC publicado de la serie es el último mes publicado',
+          `serie ${serieBE.ipc.serie} · sendero ${serieBE.ipc.sendero}`);
+  }
+
+  // Paginado: sin él, un rango largo se cortaba en las primeras 1000 filas.
+  const pagSeries = await page.evaluate(async () => {
+    const hasta = fmtDate(TODAY);
+    const d = parseDate(hasta); d.setMonth(d.getMonth() - 8);
+    const s = await seriesTraerSector('CER', fmtDate(d), hasta);
+    let filas = 0; for (const m of s.porBono.values()) filas += m.size;
+    return { fechas: s.fechas.length, bonos: s.porBono.size, filas };
+  });
+  check(pagSeries.filas > 1000 && pagSeries.fechas > 100,
+        'un rango largo trae todas las ruedas y no las primeras mil filas',
+        `${pagSeries.fechas} ruedas · ${pagSeries.bonos} bonos · ${pagSeries.filas} puntos`);
+
   // Los dos selectores del Resumen son chips ordenados por vencimiento, y los
   // bonos vencidos no se ofrecen.
   console.log('\nResumen: chips para elegir bonos');
