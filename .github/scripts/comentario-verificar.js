@@ -23,16 +23,31 @@
 
 const fs = require('fs');
 
-const [, , comPath, fichaPath] = process.argv;
-if (!comPath || !fichaPath) {
-  console.error('uso: node comentario-verificar.js <comentario.json> <ficha.json>');
+// El comentario se publica en dos archivos por su cadencia: el diario lleva día
+// y semana, y el del mes lleva mes, trimestre y año. Se pasan los dos, en
+// cualquier orden respecto de la ficha; cada período se verifica donde esté.
+const args = process.argv.slice(2);
+const fichaPath = args.find(a => /ficha/i.test(a)) || args[args.length - 1];
+const comPaths = args.filter(a => a !== fichaPath);
+if (!comPaths.length || !fichaPath) {
+  console.error('uso: node comentario-verificar.js <comentario.json> [comentarios/AAAA-MM.json] <ficha.json>');
   process.exit(2);
 }
 
 const leer = p => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); }
                     catch (e) { console.error(`✗ no se pudo leer ${p}: ${e.message}`); process.exit(2); } };
 
-const com = leer(comPath), fichas = leer(fichaPath);
+const fichas = leer(fichaPath);
+const archivos = comPaths.map(p => ({ ruta: p, com: leer(p) }));
+// Un solo objeto con todos los períodos publicados y de qué archivo salió cada
+// uno, para poder mirar después la cabecera del archivo que corresponde.
+const com = { periodos: {}, _de: {} };
+for (const a of archivos) {
+  for (const [k, v] of Object.entries((a.com && a.com.periodos) || {})) {
+    com.periodos[k] = v;
+    com._de[k] = a.com;
+  }
+}
 let errores = 0, avisos = 0;
 const mal = m => { errores++; console.log(`  ✗ ${m}`); };
 const ojo = m => { avisos++; console.log(`  ! ${m}`); };
@@ -46,12 +61,25 @@ const tweetsDe = x => (Array.isArray(x && x.twitter) ? x.twitter : [])
 
 // ── 1. Forma ────────────────────────────────────────────────────────────────
 console.log('\nForma');
-if (!com || typeof com !== 'object') { mal('el comentario no es un objeto'); process.exit(1); }
-for (const k of ['generado', 'ruedaFin', 'periodos'])
-  if (!com[k]) mal(`falta el campo ${k}`);
-if (!Array.isArray(com.fuentes)) ojo('no hay lista de fuentes');
-
-const esperados = Object.keys(fichas.periodos || {});
+for (const a of archivos) {
+  if (!a.com || typeof a.com !== 'object') { mal(`${a.ruta} no es un objeto`); process.exit(1); }
+  for (const k of ['generado', 'ruedaFin', 'periodos'])
+    if (!a.com[k]) mal(`${a.ruta}: falta el campo ${k}`);
+  if (!Array.isArray(a.com.fuentes)) ojo(`${a.ruta}: no hay lista de fuentes`);
+  if (a.com.ruedaFin !== fichas.ruedaFin)
+    mal(`${a.ruta}: ruedaFin ${a.com.ruedaFin} no coincide con la ficha (${fichas.ruedaFin})`);
+}
+// Se verifica lo que se publica. El día va siempre; la semana sale los jueves y
+// mes, trimestre y año en el último cierre del mes, así que pueden no estar.
+const esperados = Object.keys(fichas.periodos || {}).filter(p => com.periodos[p]);
+if (!com.periodos.dia) mal('falta el período día, que se publica todos los cierres');
+for (const p of Object.keys(com.periodos))
+  if (!(fichas.periodos || {})[p]) mal(`el período ${p} no está en la ficha`);
+// El diario tiene que decir dónde están los períodos largos, y el archivo que
+// apunta tiene que ser el que se está verificando si se pasaron los dos.
+const diario = archivos.find(a => a.com.periodos && a.com.periodos.dia);
+if (diario && !diario.com.archivoLargos)
+  ojo(`${diario.ruta}: no apunta a ningún archivo de mes, trimestre y año (archivoLargos)`);
 const erroresAntes = errores;
 for (const p of esperados) {
   const x = com.periodos && com.periodos[p];
@@ -72,9 +100,8 @@ for (const p of esperados) {
   if (x.ini !== f.ini || x.fin !== f.fin)
     mal(`${p}: las fechas no coinciden con la ficha (${x.ini}→${x.fin} vs ${f.ini}→${f.fin})`);
 }
-if (com.ruedaFin !== fichas.ruedaFin)
-  mal(`ruedaFin ${com.ruedaFin} no coincide con la ficha (${fichas.ruedaFin})`);
-if (errores === erroresAntes) bien('los cinco períodos, con pesos por curva, dólares, contexto y fechas de la ficha');
+if (errores === erroresAntes)
+  bien(`${esperados.length} período(s) publicados —${esperados.join(', ')}—, con pesos por curva, dólares, contexto y fechas de la ficha`);
 
 // ── 2. Dólares contra Treasuries y riesgo país ──────────────────────────────
 // Es lo que pidió quien lee esto: la curva en dólares no se comenta sola. Y si

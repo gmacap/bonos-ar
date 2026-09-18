@@ -76,8 +76,21 @@ estructural que sepas, con fecha.
 
 ### 3. Redactar
 
-Cinco períodos: `dia`, `semana`, `mes`, `trimestre`, `anio`. La estructura está
-en `preambulo`; en concreto, por período:
+**Qué se escribe depende del día.** Mes, trimestre y año no cambian de lectura de
+una rueda a la otra, y arrastran una ficha de 25 KB cada una:
+
+| Cuándo | Qué se escribe | Dónde va |
+|---|---|---|
+| Todos los cierres | `dia` | `comentario.json` |
+| Jueves | `dia` y `semana` | `comentario.json` |
+| Último cierre del mes | `dia`, `semana`, `mes`, `trimestre`, `anio` | el diario y `comentarios/AAAA-MM.json` |
+
+Fuera de los jueves, **el bloque `semana` no se reescribe: se copia tal cual** del
+`comentario.json` publicado, con su ficha y su hilo. Lo mismo con el archivo del
+mes, que no se toca hasta el cierre siguiente. Si el usuario pide expresamente
+uno fuera de fecha, se hace y se le avisa que va a quedar fechado en esa rueda.
+
+La estructura de cada período está en `preambulo`; en concreto:
 
 - **`titular`** — una línea, **sin ningún número**.
 - **`pesos.resumen`** — un párrafo corto sobre la curva de pesos en conjunto.
@@ -165,15 +178,26 @@ Cada tweet lleva `graficos`: los sectores cuya imagen se adjunta, **sólo entre 
 que la ficha marca con "gráfico: sí"**, hasta 4 por tweet. Si ninguno se movió lo
 suficiente, el hilo va sin imágenes y está bien.
 
-### 5. Escribir el archivo
+### 5. Escribir los archivos
 
-`comentario.json` en la raíz del repo, al lado de `rem.json`:
+Dos archivos, por la cadencia y por el peso. El diario pesa 60 KB y lo baja toda
+visita; los tres largos pesan 74 KB y se piden sólo cuando alguien los abre.
+
+- **`comentario.json`** (raíz, al lado de `rem.json`): `dia` y `semana`, más
+  `archivoLargos` con la ruta del archivo del mes. Sin ese campo el panel no sabe
+  dónde buscar los períodos largos.
+- **`comentarios/AAAA-MM.json`**: `mes`, `trimestre` y `anio`, con la misma
+  cabecera (`generado`, `modelo`, `ruedaFin`, `fuentes`). Se escribe en el último
+  cierre del mes y queda publicado: es el histórico de los períodos largos.
+
+La forma de cada período no cambia:
 
 ```json
 {
   "generado": "<ISO 8601 de ahora>",
   "modelo": "claude-opus-5 (Claude Code)",
   "ruedaFin": "<el ruedaFin de la ficha>",
+  "archivoLargos": "comentarios/2026-09.json",
   "fuentes": [{"titulo": "...", "url": "...", "fecha": "YYYY-MM-DD"}],
   "periodos": {
     "dia": {
@@ -200,8 +224,14 @@ El archivo va en **CRLF**, como todo el repo.
 ### 6. Verificar
 
 ```
-node .github/scripts/comentario-verificar.js comentario.json <scratchpad>/ficha.json
+node .github/scripts/comentario-verificar.js comentario.json comentarios/AAAA-MM.json <scratchpad>/ficha.json
 ```
+
+Se le pasan **todos los archivos que acabás de escribir**: verifica los períodos
+que estén, así que en un día común alcanza con el diario. Si volvés a medir
+después de redactar, corré el verificador otra vez: un dato puede haberse movido
+un punto básico entre las dos mediciones y el texto queda desfasado sin que se
+note.
 
 Chequea la forma, que dólares mencione Treasuries y riesgo país, que todo número
 esté en la ficha, que no haya conectores causales, y el hilo: cantidad, largo,
@@ -235,7 +265,7 @@ producción código que todavía no se mergeó.
 
 ```
 git checkout main && git pull --ff-only
-git add comentario.json
+git add comentario.json comentarios/
 git commit -m "data(comentario): cierre del <fecha>"
 git push origin main
 git checkout dev && git merge --no-edit main && git push origin dev

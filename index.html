@@ -18757,6 +18757,19 @@ function fichaTexto(f){
 // no se pierde al pegar.
 const COM_LS='bonosAR_comentario_v1';
 const COM_URL='comentario.json';
+// El comentario se publica en dos archivos, por cadencia y por peso:
+//
+//   comentario.json          día (todos los cierres) y semana (los jueves)
+//   comentarios/YYYY-MM.json mes, trimestre y año, en el último cierre del mes
+//
+// Mes, trimestre y año no cambian de lectura de un día para el otro, y su ficha
+// pesa 25 KB cada una: dejarlas en el archivo diario hacía que toda visita se
+// bajara 132 KB cuando con el diario alcanzan 60 KB. El archivo largo se pide
+// sólo cuando alguien abre uno de esos períodos, y su ruta viene adentro del
+// diario, en `archivoLargos`, para no adivinar meses probando URLs.
+const COM_LARGOS=['mes','trimestre','anio'];
+const COM_LARGOS_LS='bonosAR_comentario_largos_v1';
+let COM_LARGOS_DATA=null;   // {ruta,data}
 // El REM sale una vez por mes y por eso su TTL es de 24 horas. Esto cambia todos
 // los días hábiles a las seis de la tarde y la app suele quedar abierta todo el
 // día: con 24 horas nadie vería el de hoy.
@@ -18854,6 +18867,37 @@ function comSetPeriodo(sec,p){
   comCargar(sec);
 }
 
+// El archivo de los períodos largos. La ruta la dice el diario; si no la trae,
+// no hay comentario mensual publicado todavía y el panel lo dice.
+async function comFetchLargos(ruta,forzar){
+  if(!ruta)return null;
+  if(!forzar&&COM_LARGOS_DATA&&COM_LARGOS_DATA.ruta===ruta)return COM_LARGOS_DATA.data;
+  let cache=null;
+  try{
+    const r=localStorage.getItem(COM_LARGOS_LS);
+    if(r){
+      const p=JSON.parse(r);
+      if(p&&p.data&&p.ruta===ruta){
+        cache=p.data;
+        if(!forzar&&Date.now()-p.ts<COM_TTL_MS){COM_LARGOS_DATA={ruta,data:p.data};return p.data;}
+      }
+    }
+  }catch(e){}
+  try{
+    const res=await fetch(ruta,{cache:'no-cache'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const d=await res.json();
+    if(!d||!d.periodos)throw new Error('archivo de períodos largos sin la forma esperada');
+    COM_LARGOS_DATA={ruta,data:d};
+    try{localStorage.setItem(COM_LARGOS_LS,JSON.stringify({ts:Date.now(),ruta,data:d}));}catch(e){}
+    return d;
+  }catch(e){
+    // Sin red se sirve la caché vencida; sin caché, el panel queda con la ficha.
+    if(cache){COM_LARGOS_DATA={ruta,data:cache};return cache;}
+    return null;
+  }
+}
+
 async function comCargar(sec,forzar){
   const p=comEstado[sec].periodo;
   const clave=sec+'|'+p;
@@ -18862,7 +18906,13 @@ async function comCargar(sec,forzar){
   const cuerpo=document.getElementById(`com-${sec}-cuerpo`);
   if(cuerpo&&forzar)cuerpo.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Midiendo la curva…</div>';
   try{
-    const[ficha,com]=await Promise.all([fichaCacheada(p,forzar),comFetch(forzar)]);
+    const[ficha,diario]=await Promise.all([fichaCacheada(p,forzar),comFetch(forzar)]);
+    // Mes, trimestre y año viven en el archivo del mes; el resto, en el diario.
+    let com=diario;
+    if(COM_LARGOS.includes(p)){
+      const ruta=diario&&diario.archivoLargos;
+      com=await comFetchLargos(ruta,forzar);
+    }
     comRender(sec,ficha,com);
   }catch(e){
     console.error('comCargar:',e);
@@ -18930,17 +18980,26 @@ function comCaja(color,titulo,sub,html){
 }
 
 function comBloqueLectura(sec,p,viejo,com,f,fg){
+  // Mes, trimestre y año se escriben al cierre de mes: que estén fechados antes
+  // que la ficha no es un problema, es la cadencia.
+  const largo=COM_LARGOS.includes(f.periodo);
   if(!p)return comCaja('var(--accent)','Lectura',
     'escrita por IA sobre los números de abajo',
-    `<div style="font-size:12px;color:var(--text3);line-height:1.6">
-      Todavía no hay comentario generado para este período.
-      Apretá <strong style="color:var(--text2)">⧉ Prompt</strong>, pegalo en Claude y pedile el comentario:
-      sale con los mismos números que están acá abajo.
-    </div>`);
-  const aviso=viejo
-    ? `<div style="font-size:10px;color:var(--warn);margin-bottom:.6rem;font-family:var(--mono)">
+    `<div style="font-size:12px;color:var(--text3);line-height:1.6">`
+    +(largo
+      ?`El comentario de este período se publica en el último cierre del mes. Los números de abajo son de la ficha de hoy.`
+      :`Todavía no hay comentario generado para este período.
+        Apretá <strong style="color:var(--text2)">⧉ Prompt</strong>, pegalo en Claude y pedile el comentario:
+        sale con los mismos números que están acá abajo.`)
+    +`</div>`);
+  const aviso=!viejo?''
+    : largo
+    ? `<div style="font-size:10px;color:var(--text3);margin-bottom:.6rem;font-family:var(--mono)">
+         Comentario del cierre del ${_fF(com.ruedaFin)}; los números de abajo son de la rueda del ${_fF(f.fin)}.
+       </div>`
+    : `<div style="font-size:10px;color:var(--warn);margin-bottom:.6rem;font-family:var(--mono)">
          ⚠ Este comentario es de la rueda del ${_fF(com.ruedaFin)} y los números de abajo son del ${_fF(f.fin)}.
-       </div>` : '';
+       </div>`;
   const tit=p.titular?`<div style="font-family:var(--serif);font-size:16px;font-style:italic;color:var(--text);margin-bottom:.6rem">${comEsc(p.titular)}</div>`:'';
   const sub='escrita por IA sobre los números de abajo'+(com&&com.generado?' · '+_fF(String(com.generado).slice(0,10)):'');
   // Un comentario de antes de separar pesos y dólares: se muestra como era.
@@ -19301,12 +19360,20 @@ async function comCopiar(sec,modo){
   }
   const f=await fichaCacheada(comEstado[sec].periodo,false);
   if(!f){alert('No hay ficha para ese período todavía.');return;}
-  const txt=comTextoCompleto(f,COM_DATA,modo==='prompt');
+  const txt=comTextoCompleto(f,comFuente(sec),modo==='prompt');
   comCopiarTexto(txt);
 }
 
+// De qué archivo sale el comentario del período que se está mirando: el diario,
+// o el del mes para mes, trimestre y año.
+function comFuente(sec){
+  const p=comEstado[sec].periodo;
+  if(COM_LARGOS.includes(p))return COM_LARGOS_DATA?COM_LARGOS_DATA.data:null;
+  return COM_DATA;
+}
 function comPeriodoActual(sec){
-  return COM_DATA&&COM_DATA.periodos?COM_DATA.periodos[comEstado[sec].periodo]:null;
+  const src=comFuente(sec);
+  return src&&src.periodos?src.periodos[comEstado[sec].periodo]:null;
 }
 function comTweets(p){
   return(p&&Array.isArray(p.twitter)?p.twitter:[])

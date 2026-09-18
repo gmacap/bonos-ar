@@ -2416,6 +2416,46 @@ const omitir = (label, motivo) =>
     check(pan.viejo, 'un comentario de la forma vieja se sigue mostrando');
   }
 
+  // El comentario se publica en dos archivos por su cadencia: el diario con día y
+  // semana, y el del mes con mes, trimestre y año. El panel tiene que pedir el
+  // segundo sólo cuando hace falta y no tratar su fecha como si fuera vieja.
+  console.log('\nComentario: la cadencia y sus dos archivos');
+  const cad = await page.evaluate(() => {
+    const out = { largos: [...COM_LARGOS] };
+    const guardadoD = COM_DATA, guardadoL = COM_LARGOS_DATA, guardadoP = comEstado.ars.periodo;
+    COM_DATA = { ruedaFin: '2026-09-17', archivoLargos: 'comentarios/2026-09.json', periodos: { dia: { titular: 'd' } } };
+    COM_LARGOS_DATA = { ruta: 'comentarios/2026-09.json', data: { ruedaFin: '2026-09-30', periodos: { mes: { titular: 'm' } } } };
+    comEstado.ars.periodo = 'dia';
+    out.fuenteDia = comFuente('ars') === COM_DATA;
+    comEstado.ars.periodo = 'mes';
+    out.fuenteMes = comFuente('ars') === COM_LARGOS_DATA.data;
+    out.periodoMes = (comPeriodoActual('ars') || {}).titular;
+    comEstado.ars.periodo = guardadoP;
+    // Sin comentario publicado, el mensaje depende del período.
+    const vacio = p => comBloqueLectura('ars', null, false, null, { periodo: p, fin: '2026-09-17' }, null);
+    out.vacioMes = /cierre del mes/i.test(vacio('mes'));
+    out.vacioDia = /Prompt/.test(vacio('dia'));
+    // Con fecha anterior a la ficha: en el día es un aviso, en el mes es la cadencia.
+    const p = { titular: 't', pesos: { resumen: 'r' }, dolares: { resumen: 'd' } };
+    const com = { ruedaFin: '2026-08-31', generado: '2026-08-31T20:00:00Z' };
+    const f = { periodo: 'mes', fin: '2026-09-17', bloques: [] };
+    out.avisoMes = comBloqueLectura('ars', p, true, com, f, f);
+    out.avisoDia = comBloqueLectura('ars', p, true, com, { ...f, periodo: 'dia' }, f);
+    // Sin ruta no se pide nada.
+    out.sinRuta = null;
+    COM_DATA = guardadoD; COM_LARGOS_DATA = guardadoL;
+    return out;
+  });
+  const sinRuta = await page.evaluate(async () => (await comFetchLargos(null, false)) === null);
+  check(cad.largos.join(',') === 'mes,trimestre,anio' && cad.fuenteDia && cad.fuenteMes && cad.periodoMes === 'm',
+        'cada período lee su archivo: el diario o el del mes',
+        `largos: ${cad.largos.join(', ')}`);
+  check(cad.vacioMes && cad.vacioDia,
+        'sin comentario, el mes avisa que se publica al cierre y el día ofrece el prompt');
+  check(!/⚠/.test(cad.avisoMes) && /cierre del/.test(cad.avisoMes) && /⚠/.test(cad.avisoDia),
+        'una fecha anterior es aviso en el día y cadencia normal en el mes');
+  check(sinRuta, 'sin archivo de períodos largos no se pide nada y no se rompe');
+
   // El dato solo dice poco: la ficha trae contra qué compararlo. Volumen contra las
   // ruedas previas y las implícitas contra el REM, medidos y no buscados, para que
   // el comentario les dé contexto con números que el verificador puede chequear.
