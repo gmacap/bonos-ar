@@ -2450,6 +2450,45 @@ const omitir = (label, motivo) =>
     COM_DATA = guardadoD; COM_LARGOS_DATA = guardadoL;
     return out;
   });
+  // La vista del cierre: para semana, mes, trimestre y año el panel muestra el
+  // tramo del comentario que existe —a mitad de octubre, el de septiembre— y de
+  // ahí salen también los tiles. El link cambia a la ventana móvil.
+  const vista = await page.evaluate(() => {
+    const out = {};
+    const guardado = comEstado.ars.periodo;
+    const f = { periodo: 'mes', ini: '2026-08-31', fin: '2026-09-30', dias: 30, enVivo: false,
+                bloques: [], fx: {}, ust: null, riesgoPais: null,
+                implicitasIni: [], implicitasFin: [], volumen: {} };
+    const com = { ruedaFin: '2026-09-30', generado: '2026-09-30T20:00:00Z',
+                  periodos: { mes: { ini: f.ini, fin: f.fin, titular: 'cierre de septiembre',
+                                     pesos: { resumen: 'r' }, dolares: { resumen: 'd' } } } };
+    comEstado.ars.periodo = 'mes';
+    comRender('ars', f, com, { cierre: true, hayCierre: true });
+    const rango = () => document.getElementById('com-ars-rango').innerHTML;
+    const cuerpo = () => document.getElementById('com-ars-cuerpo').textContent.replace(/\s+/g, ' ');
+    out.cierre = { rango: rango().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+                   guardado: /guardado con el comentario del cierre del 30\/09\/2026/.test(cuerpo()),
+                   link: /medir el tramo actual/.test(rango()) };
+    comRender('ars', f, com, { cierre: false, hayCierre: true });
+    out.vivo = { tramoActual: /tramo actual/.test(rango()), link: /ver el cierre/.test(rango()),
+                 calculado: /calculado en tu navegador/.test(cuerpo()) };
+    // Los dos sentidos del cambio de vista quedan anotados por período.
+    comEstado.ars.medirAhora.delete('mes');
+    comEstado.ars.medirAhora.add('mes');
+    out.trasMedir = comEstado.ars.medirAhora.has('mes');
+    comEstado.ars.medirAhora.delete('mes');
+    out.trasVolver = !comEstado.ars.medirAhora.has('mes');
+    comEstado.ars.periodo = guardado;
+    return out;
+  });
+  check(/31\/08\/2026 → 30\/09\/2026/.test(vista.cierre.rango) && /cierre del 30\/09\/2026/.test(vista.cierre.rango)
+        && vista.cierre.guardado && vista.cierre.link,
+        'el cierre manda: el título trae su tramo y los tiles son los guardados con el comentario',
+        vista.cierre.rango);
+  check(vista.vivo.tramoActual && vista.vivo.link && vista.vivo.calculado,
+        'con el tramo actual el título lo dice y ofrece volver al cierre');
+  check(vista.trasMedir && vista.trasVolver, 'el cambio de vista se recuerda por período');
+
   const sinRuta = await page.evaluate(async () => (await comFetchLargos(null, false)) === null);
   check(cad.largos.join(',') === 'mes,trimestre,anio' && cad.fuenteDia && cad.fuenteMes && cad.periodoMes === 'm',
         'cada período lee su archivo: el diario o el del mes',

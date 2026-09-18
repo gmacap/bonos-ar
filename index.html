@@ -18781,8 +18781,8 @@ const COM_TTL_MS=3*60*60*1000;
 const FICHA_TTL_MS=5*60*1000;
 let COM_DATA=null;
 const comEstado={
-  ars:{periodo:'dia',sectores:FICHA_SECT_ARS},
-  usd:{periodo:'dia',sectores:FICHA_SECT_USD},
+  ars:{periodo:'dia',sectores:FICHA_SECT_ARS,medirAhora:new Set()},
+  usd:{periodo:'dia',sectores:FICHA_SECT_USD,medirAhora:new Set()},
 };
 // La ficha es la misma para las dos entradas: se cachea por período para que
 // cambiar de sección no vuelva a pedir veinte mil filas de monto.
@@ -18910,14 +18910,24 @@ async function comCargar(sec,forzar){
   const cuerpo=document.getElementById(`com-${sec}-cuerpo`);
   if(cuerpo&&forzar)cuerpo.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Midiendo la curva…</div>';
   try{
-    const[ficha,diario]=await Promise.all([fichaCacheada(p,forzar),comFetch(forzar)]);
+    const diario=await comFetch(forzar);
     // Mes, trimestre y año viven en el archivo del mes; el resto, en el diario.
     let com=diario;
     if(COM_LARGOS.includes(p)){
       const ruta=diario&&diario.archivoLargos;
       com=await comFetchLargos(ruta,forzar);
     }
-    comRender(sec,ficha,com);
+    // Los períodos que se escriben por cadencia se muestran tal como quedaron en
+    // su cierre. El comentario viaja con su ficha, así que el título, los
+    // gráficos y los tiles son los de ESA rueda: a mitad de octubre, Mes muestra
+    // el cierre de septiembre de arriba a abajo. Además no hay que volver a
+    // pedir veinte mil filas de volumen para un período que no cambió.
+    const bloque=com&&com.periodos?com.periodos[p]:null;
+    const hayCierre=!!(bloque&&bloque.ficha&&Array.isArray(bloque.ficha.bloques)
+                       &&COM_CADENCIA.includes(p));
+    const cierre=hayCierre&&!comEstado[sec].medirAhora.has(p);
+    const ficha=cierre?bloque.ficha:await fichaCacheada(p,forzar);
+    comRender(sec,ficha,com,{cierre,hayCierre});
   }catch(e){
     console.error('comCargar:',e);
     if(cuerpo)cuerpo.innerHTML=`<div style="padding:2rem;text-align:center;color:var(--danger);font-size:12px">No se pudo medir: ${comEsc(e.message)}</div>`;
@@ -18932,16 +18942,22 @@ function comParrafos(t){
     .map(x=>`<p style="margin:0 0 .7rem">${comEsc(x.trim()).replace(/\n/g,'<br>')}</p>`).join('');
 }
 
-function comRender(sec,f,com){
+function comRender(sec,f,com,opts){
+  opts=opts||{};
   const cuerpo=document.getElementById(`com-${sec}-cuerpo`);
   if(!cuerpo)return;
+  const enlace=(fn,t)=>`<button onclick="${fn}('${sec}')" style="background:none;border:none;padding:0;color:var(--accent2);cursor:pointer;font-family:var(--mono);font-size:11px;text-decoration:underline">${t}</button>`;
   const rango=document.getElementById(`com-${sec}-rango`);
   if(rango){
-    rango.innerHTML=f
-      ?`${_fF(f.ini)} → ${_fF(f.fin)} · ${f.dias} días corridos · `
-       +(f.enVivo?'<span style="color:var(--warn)">precios en vivo, la rueda no cerró</span>'
-                 :'última rueda archivada')
-      :'sin historia para ese período';
+    rango.innerHTML=!f?'sin historia para ese período'
+      :`${_fF(f.ini)} → ${_fF(f.fin)} · ${f.dias} días corridos · `
+       +(opts.cierre
+         // La vista es la del cierre: las fechas son las del comentario que se
+         // escribió, y lo de abajo son esos mismos números.
+         ?`<span style="color:var(--text2)">cierre del ${_fF(f.fin)}</span> · `+enlace('comMedirAhora','medir el tramo actual')
+         :(f.enVivo?'<span style="color:var(--warn)">precios en vivo, la rueda no cerró</span>'
+                   :'última rueda archivada')
+          +(opts.hayCierre?' · tramo actual · '+enlace('comVerCierre','ver el cierre'):''));
   }
   if(!f){
     cuerpo.innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">No hay suficiente historia archivada para ese período.</div>';
@@ -18965,9 +18981,20 @@ function comRender(sec,f,com){
     comBloqueContexto(p,com)+
     // Sin comentario, los gráficos van con lo medido; con comentario van al lado
     // del párrafo de cada curva y no se repiten abajo.
-    comBloqueMedido(sec,f,!conLectura)+
+    comBloqueMedido(sec,f,!conLectura,opts.cierre)+
     comPie();
   comDibujarGraficos(sec,cuerpo);
+}
+
+// Los dos sentidos del cambio de vista: mirar la ventana móvil hasta la última
+// rueda, o volver al cierre con el que se escribió el comentario.
+function comMedirAhora(sec){
+  comEstado[sec].medirAhora.add(comEstado[sec].periodo);
+  comCargar(sec,false);
+}
+function comVerCierre(sec){
+  comEstado[sec].medirAhora.delete(comEstado[sec].periodo);
+  comCargar(sec,false);
 }
 
 const COM_COLOR={TF:'#fbbf24',CER:'#4ade80',TAMAR:'#38bdf8',DLK:'#a855f7',
@@ -19217,7 +19244,7 @@ function comBloqueContexto(p,com){
     `<div style="font-size:13px;line-height:1.65;color:var(--text2)">${comParrafos(p.contexto)}</div>`+links);
 }
 
-function comBloqueMedido(sec,f,conGraficos){
+function comBloqueMedido(sec,f,conGraficos,cierre){
   const abiertos=new Set(comEstado[sec].sectores);
   const orden=[...f.bloques].sort((a,b)=>
     (abiertos.has(b.sector)?1:0)-(abiertos.has(a.sector)?1:0));
@@ -19226,7 +19253,8 @@ function comBloqueMedido(sec,f,conGraficos){
     ?orden.filter(b=>b.grafico&&b.puntos).map(b=>comGraficoCaja(sec,b.sector,'medido',b)).join('')
     :'';
   return comCaja('var(--text3)','Medido',
-    'calculado en tu navegador sobre el histórico de curvas',
+    cierre?`guardado con el comentario del cierre del ${_fF(f.fin)}`
+          :'calculado en tu navegador sobre el histórico de curvas',
     `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(285px,1fr));gap:.7rem;margin-bottom:1rem">${tiles}</div>`
     +(graf?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:.7rem;margin-bottom:1rem">${graf}</div>`:'')
     +comFilaFX(f)+comFilaExternos(f)+comFilaImplicitas(f));
@@ -19366,7 +19394,10 @@ async function comCopiar(sec,modo){
     comCopiarTexto(txt);
     return;
   }
-  const f=await fichaCacheada(comEstado[sec].periodo,false);
+  // La ficha que se copia es la que se está viendo: si el período está mostrando
+  // su cierre, se copia ese, no una medición nueva que no es la del texto.
+  const f=(_comFichaGraf[sec]&&_comFichaGraf[sec].medido)
+          ||await fichaCacheada(comEstado[sec].periodo,false);
   if(!f){alert('No hay ficha para ese período todavía.');return;}
   const txt=comTextoCompleto(f,comFuente(sec),modo==='prompt');
   comCopiarTexto(txt);
