@@ -2434,12 +2434,16 @@ const omitir = (label, motivo) =>
     // Sin comentario publicado, el mensaje depende del período.
     const vacio = p => comBloqueLectura('ars', null, false, null, { periodo: p, fin: '2026-09-17' }, null);
     out.vacioMes = /cierre del mes/i.test(vacio('mes'));
+    out.vacioSemana = /los jueves/i.test(vacio('semana'));
     out.vacioDia = /Prompt/.test(vacio('dia'));
-    // Con fecha anterior a la ficha: en el día es un aviso, en el mes es la cadencia.
-    const p = { titular: 't', pesos: { resumen: 'r' }, dolares: { resumen: 'd' } };
-    const com = { ruedaFin: '2026-08-31', generado: '2026-08-31T20:00:00Z' };
-    const f = { periodo: 'mes', fin: '2026-09-17', bloques: [] };
+    // Con fecha anterior a la ficha: en el día es un aviso; en la semana y en los
+    // largos es la cadencia, y se dice el tramo que cubre el comentario.
+    const p = { titular: 't', pesos: { resumen: 'r' }, dolares: { resumen: 'd' },
+                ini: '2026-08-31', fin: '2026-09-30' };
+    const com = { ruedaFin: '2026-09-30', generado: '2026-09-30T20:00:00Z' };
+    const f = { periodo: 'mes', fin: '2026-10-09', bloques: [] };
     out.avisoMes = comBloqueLectura('ars', p, true, com, f, f);
+    out.avisoSemana = comBloqueLectura('ars', p, true, com, { ...f, periodo: 'semana' }, f);
     out.avisoDia = comBloqueLectura('ars', p, true, com, { ...f, periodo: 'dia' }, f);
     // Sin ruta no se pide nada.
     out.sinRuta = null;
@@ -2450,10 +2454,13 @@ const omitir = (label, motivo) =>
   check(cad.largos.join(',') === 'mes,trimestre,anio' && cad.fuenteDia && cad.fuenteMes && cad.periodoMes === 'm',
         'cada período lee su archivo: el diario o el del mes',
         `largos: ${cad.largos.join(', ')}`);
-  check(cad.vacioMes && cad.vacioDia,
-        'sin comentario, el mes avisa que se publica al cierre y el día ofrece el prompt');
-  check(!/⚠/.test(cad.avisoMes) && /cierre del/.test(cad.avisoMes) && /⚠/.test(cad.avisoDia),
-        'una fecha anterior es aviso en el día y cadencia normal en el mes');
+  check(cad.vacioMes && cad.vacioSemana && cad.vacioDia,
+        'sin comentario, cada período dice cuándo se publica y sólo el día ofrece el prompt');
+  check(!/⚠/.test(cad.avisoMes) && !/⚠/.test(cad.avisoSemana) && /⚠/.test(cad.avisoDia),
+        'una fecha anterior es aviso sólo en el día: en la semana y el mes es la cadencia');
+  check(/tramo 31\/08\/2026 → 30\/09\/2026/.test(cad.avisoMes)
+        && /cierre del 30\/09\/2026/.test(cad.avisoMes),
+        'el comentario en cadencia muestra su cierre y el tramo que cubre');
   check(sinRuta, 'sin archivo de períodos largos no se pide nada y no se rompe');
 
   // El dato solo dice poco: la ficha trae contra qué compararlo. Volumen contra las

@@ -18768,6 +18768,10 @@ const COM_URL='comentario.json';
 // sólo cuando alguien abre uno de esos períodos, y su ruta viene adentro del
 // diario, en `archivoLargos`, para no adivinar meses probando URLs.
 const COM_LARGOS=['mes','trimestre','anio'];
+// La semana se escribe los jueves y los largos al cierre de mes: cualquier otro
+// día están fechados antes que la ficha, y eso es la cadencia y no un comentario
+// olvidado. Sólo el día merece el aviso en ámbar.
+const COM_CADENCIA=['semana','mes','trimestre','anio'];
 const COM_LARGOS_LS='bonosAR_comentario_largos_v1';
 let COM_LARGOS_DATA=null;   // {ruta,data}
 // El REM sale una vez por mes y por eso su TTL es de 24 horas. Esto cambia todos
@@ -18980,22 +18984,26 @@ function comCaja(color,titulo,sub,html){
 }
 
 function comBloqueLectura(sec,p,viejo,com,f,fg){
-  // Mes, trimestre y año se escriben al cierre de mes: que estén fechados antes
-  // que la ficha no es un problema, es la cadencia.
+  // Mes, trimestre y año se escriben al cierre de mes y la semana los jueves: que
+  // estén fechados antes que la ficha no es un problema, es la cadencia.
   const largo=COM_LARGOS.includes(f.periodo);
+  const cadencia=COM_CADENCIA.includes(f.periodo);
   if(!p)return comCaja('var(--accent)','Lectura',
     'escrita por IA sobre los números de abajo',
     `<div style="font-size:12px;color:var(--text3);line-height:1.6">`
     +(largo
       ?`El comentario de este período se publica en el último cierre del mes. Los números de abajo son de la ficha de hoy.`
+      :f.periodo==='semana'
+      ?`El comentario semanal se publica los jueves. Los números de abajo son de la ficha de hoy.`
       :`Todavía no hay comentario generado para este período.
         Apretá <strong style="color:var(--text2)">⧉ Prompt</strong>, pegalo en Claude y pedile el comentario:
         sale con los mismos números que están acá abajo.`)
     +`</div>`);
   const aviso=!viejo?''
-    : largo
+    : cadencia
     ? `<div style="font-size:10px;color:var(--text3);margin-bottom:.6rem;font-family:var(--mono)">
-         Comentario del cierre del ${_fF(com.ruedaFin)}; los números de abajo son de la rueda del ${_fF(f.fin)}.
+         Comentario del cierre del ${_fF(com.ruedaFin)}${p.ini&&p.fin?` · tramo ${_fF(p.ini)} → ${_fF(p.fin)}`:''};
+         los números de abajo son de la rueda del ${_fF(f.fin)}.
        </div>`
     : `<div style="font-size:10px;color:var(--warn);margin-bottom:.6rem;font-family:var(--mono)">
          ⚠ Este comentario es de la rueda del ${_fF(com.ruedaFin)} y los números de abajo son del ${_fF(f.fin)}.
