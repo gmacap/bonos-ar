@@ -2890,6 +2890,136 @@ const omitir = (label, motivo) =>
              'la diferencia es el breakeven menos el REM de los mismos meses',
              `${beRem.cuentas.length} bono(s)`);
 
+  // El precio al lado de la tasa, en el globo de cada gráfico de tasa. Mostrarlo
+  // es fácil; lo que hay que sostener es que salga de la misma fila que la tasa
+  // —un precio de otra rueda junto a la tasa de hoy no se nota mirando— y que
+  // lleve el símbolo de su moneda: los sectores USD guardan el precio MEP.
+  console.log('\nPrecio junto a la tasa');
+  const pxFmt = await page.evaluate(() => ({
+    chico: fmtPrecio(72.35),
+    medio: fmtPrecio(980.25),
+    grande: fmtPrecio(132480.17),
+    vacio: fmtPrecio(null),
+    usd: fmtPrecio(72.35, 'US$'),
+    tip: curvasPxTip({ precio: 980.25 }, '$'),
+    tipUsd: curvasPxTip({ precio: 72.35 }, 'US$'),
+    tipSin: curvasPxTip({}, '$'),
+  }));
+  check(pxFmt.chico === '$72,35' && pxFmt.medio === '$980,25' && pxFmt.grande === '$132.480'
+        && pxFmt.vacio === '—' && pxFmt.usd === 'US$72,35',
+        'el precio se escribe como en las tablas: centavos abajo de mil, redondeado arriba',
+        JSON.stringify(pxFmt));
+  check(/\$980,25$/.test(pxFmt.tip) && /US\$72,35$/.test(pxFmt.tipUsd) && pxFmt.tipSin === '',
+        'las curvas lo agregan con el símbolo de su moneda, y un punto sin precio no agrega nada',
+        JSON.stringify([pxFmt.tip, pxFmt.tipUsd, pxFmt.tipSin]));
+
+  const pxScatter = await page.evaluate(() => {
+    switchSection('pesos'); switchTab('cer');
+    cerRenderTabChart();
+    if (!cerTabChart) return { sinChart: true };
+    const lab = cerTabChart.options.plugins.tooltip.callbacks.label;
+    const con = lab({ raw: { x: 512, y: 9.84, precio: 1284.5 } });
+    const sin = lab({ raw: { x: 512, y: 9.84, precio: null } });
+    // El punto tiene que traer el precio de SU bono, no el de otro.
+    const pts = cerTabChart.data.datasets[1].data;
+    const p = pts[0] || {};
+    const bono = CER_BONDS.find(b => b.ticker === p.ticker);
+    return { con, sin, n: pts.length, ticker: p.ticker,
+             precio: p.precio, delBono: bono ? bono.precio : null };
+  });
+  if (pxScatter.sinChart) omitir('el globo de los scatter de tasa', 'sin índice CER: no se dibujó la curva');
+  else {
+    check(Array.isArray(pxScatter.con) && pxScatter.con.length === 2 && /^Precio \$1\.285$/.test(pxScatter.con[1]),
+          'el globo de la curva CER suma una línea con el precio', JSON.stringify(pxScatter.con));
+    check(Array.isArray(pxScatter.sin) && pxScatter.sin.length === 1,
+          'sin precio queda sólo la tasa: la caución y los sintéticos no tienen precio',
+          JSON.stringify(pxScatter.sin));
+    check(pxScatter.precio != null && pxScatter.precio === pxScatter.delBono,
+          'el punto lleva el precio de ese bono',
+          `${pxScatter.ticker}: ${pxScatter.precio} vs ${pxScatter.delBono}`);
+  }
+
+  const pxUsd = await page.evaluate(() => {
+    switchSection('usd'); switchUsdTab('usd-bonares');
+    usdFamChartRender(USD_FAM.bon);
+    const out = { moneda: usdCurrency, simbolo: usdSimbolo() };
+    const ch = USD_FAM.bon.chart;
+    if (ch && ch.data.datasets[0].data.length) {
+      const p = ch.data.datasets[0].data[0];
+      const b = BON_BONDS.find(x => x.ticker === p.ticker);
+      out.fam = ch.options.plugins.tooltip.callbacks.label({ datasetIndex: 0, dataIndex: 0 });
+      out.famPrecio = p.precio;
+      out.famDelBono = b ? (b.lastPrecioDisplay ?? b.lastPrecio) : null;
+    }
+    // Resumen: el globo es HTML propio, así que se lee el nodo que escribe. El
+    // gráfico dibuja los bonos que el usuario haya elegido; si no eligió
+    // ninguno se le prestan tres y se le devuelve la selección.
+    switchUsdTab('usd-resumen');
+    const elegidos = [...usdResState.chartBonds];
+    if (!BON_BONDS.length) bonLoad();
+    if (!elegidos.length) usdResState.chartBonds = BON_BONDS.slice(0, 3).map(b => b.ticker);
+    usdResChartRenderIndep();
+    if (usdResChart) {
+      const ds = usdResChart.data.datasets.findIndex(d => d.showLine === false);
+      if (ds >= 0 && usdResChart.data.datasets[ds].data.length) {
+        usdResChart.options.plugins.tooltip.external({
+          chart: usdResChart,
+          tooltip: { opacity: 1, caretX: 0, caretY: 0,
+                     dataPoints: [{ datasetIndex: ds, dataIndex: 0, raw: usdResChart.data.datasets[ds].data[0] }] },
+        });
+        const el = document.getElementById('ures-chart-tooltip');
+        out.res = el ? el.textContent : '';
+      }
+    }
+    usdResState.chartBonds = elegidos;
+    usdResChartRenderIndep();
+    return out;
+  });
+  if (pxUsd.famDelBono == null) omitir('el globo de los Bonares', 'sin precios en vivo');
+  else {
+    check(/TIR .*% · MD .*· (US\$|\$)[\d.,]+$/.test(pxUsd.fam || ''),
+          'el globo de los Bonares cierra con el precio', pxUsd.fam);
+    check(pxUsd.famPrecio === pxUsd.famDelBono,
+          'y es el precio que muestra la tabla, en la moneda del selector',
+          `${pxUsd.famPrecio} vs ${pxUsd.famDelBono} (${pxUsd.moneda})`);
+  }
+  if (!pxUsd.res) omitir('el globo del Resumen USD', 'sin precios en vivo');
+  else check(/MD .*TIR .*% · (US\$|\$)[\d.,]+$/.test(pxUsd.res),
+             'el globo del Resumen USD cierra con el precio', pxUsd.res);
+
+  // En Series el precio no sale del bono en memoria sino del snapshot de esa
+  // rueda: es el único lugar donde la tasa y el precio podrían terminar siendo
+  // de días distintos.
+  for (const [sec, tab, ir, sector, simb] of [
+    ['ars', 'series-ars', 'switchTab', 'CER', '$'],
+    ['usd', 'usd-series', 'switchUsdTab', 'BON', 'US$'],
+  ]) {
+    const r = await page.evaluate(async ([s, t, fn, sector, simb]) => {
+      if (fn === 'switchTab') { switchSection('pesos'); switchTab(t); }
+      else { switchSection('usd'); switchUsdTab(t); }
+      seriesSetSector(s, sector);
+      await new Promise(r => setTimeout(r, 4000));
+      const st = seriesEstado[s];
+      if (!st.chart || !st.cache.precios || !st.cache.precios.size) return { sinDatos: true };
+      const tk = [...st.cache.precios.keys()][0];
+      const serie = st.cache.precios.get(tk);
+      const idx = st.cache.fechas.findIndex(f => serie.has(f));
+      if (idx < 0) return { sinDatos: true };
+      const lab = st.chart.options.plugins.tooltip.callbacks.label;
+      const out = lab({ parsed: { y: 12.34 }, raw: 12.34, dataset: { label: tk }, dataIndex: idx });
+      // Una serie sin precio guardado no puede inventar uno.
+      const vacio = lab({ parsed: { y: 12.34 }, raw: 12.34, dataset: { label: '__no_existe__' }, dataIndex: idx });
+      const fecha = st.cache.fechas[idx];
+      return { tk, fecha, out, vacio, esperado: `Precio ${fmtPrecio(serie.get(fecha), simb)}` };
+    }, [sec, tab, ir, sector, simb]);
+    if (r.sinDatos) { omitir(`${sec}: el globo de la serie trae el precio`, 'sin ruedas con precio guardado'); continue; }
+    check(Array.isArray(r.out) && r.out.length === 2 && r.out[1] === r.esperado,
+          `${sec}: el globo de la serie trae el precio de esa rueda`,
+          `${r.tk} ${r.fecha} → ${JSON.stringify(r.out)}`);
+    check(typeof r.vacio === 'string',
+          `${sec}: una serie sin precio guardado muestra sólo la tasa`, JSON.stringify(r.vacio));
+  }
+
   console.log('\nEscenarios');
   const esc = await page.evaluate(() => {
     switchSection('pesos'); switchTab('escenarios');

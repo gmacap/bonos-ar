@@ -3236,7 +3236,7 @@ function usdFamChartRender(fam){
     const tir=bopTIR(b,chartLiq,b.lastPrecio,flows);
     if(tir==null)continue;
     const dur=bopDuracion(b,chartLiq,tir,flows);
-    pts.push({x:+dur.mod,y:+tir,ticker:b.ticker});
+    pts.push({x:+dur.mod,y:+tir,ticker:b.ticker,precio:b.lastPrecioDisplay??b.lastPrecio});
   }
   if(fam.chart){fam.chart.destroy();fam.chart=null;}
   if(!pts.length)return;
@@ -3285,7 +3285,8 @@ function usdFamChartRender(fam){
         tooltip:{callbacks:{label:function(ctx){
           if(ctx.datasetIndex!==0)return null;
           var p=pts[ctx.dataIndex];
-          return p.ticker+': TIR '+p.y.toFixed(2)+'% · MD '+p.x.toFixed(2);
+          return p.ticker+': TIR '+p.y.toFixed(2)+'% · MD '+p.x.toFixed(2)
+            +(p.precio!=null?' · '+fmtPrecio(p.precio,usdSimbolo()):'');
         }}},
         datalabels:{},
       },
@@ -3710,6 +3711,19 @@ const fmtP2=n=>isNaN(n)||n===undefined?'—':n.toFixed(2)+'%';
 const fmtN=(n,d=6)=>isNaN(n)||n===undefined?'—':n.toFixed(d);
 const fmtARS=n=>n==null||isNaN(n)||n===undefined?'—':'$'+n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:4});
 const fmtARSk=n=>n==null||isNaN(n)||n===undefined?'—':'$'+Math.round(n).toLocaleString('es-AR');
+// El precio como lo escriben las tablas: dos decimales hasta 1.000 y redondeado
+// de ahí para arriba, donde el centavo de un CER a $132.480 no dice nada. El
+// símbolo lo elige quien llama, porque en las solapas de dólares el precio
+// puede estar en pesos, en MEP o en cable.
+const fmtPrecio=(n,simb='$')=>{if(n==null||isNaN(n))return'—';const d=Math.abs(n)>=1000?0:2;return simb+n.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});};
+// Lo que se ve en vivo en las solapas de dólares sigue al selector de moneda.
+const usdSimbolo=()=>(typeof usdCurrency!=='undefined'&&usdCurrency==='ARS')?'$':'US$';
+// El precio de la rueda, al lado de la tasa, en el globo de las curvas. Sale de
+// la misma fila del snapshot que el punto: en pesos las curvas de pesos, en MEP
+// las de dólares, que es la base con la que se guardó y con la que se calculó
+// la TIR. Va acá arriba y no junto a las curvas para que exista antes del
+// primer dibujo, que puede ocurrir mientras el resto del archivo se parsea.
+const curvasPxTip=(raw,simb)=>raw&&raw.precio!=null?`  ·  ${fmtPrecio(raw.precio,simb)}`:'';
 const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
 
 document.getElementById('hoy').textContent=
@@ -4409,6 +4423,7 @@ function renderChart(){
   const yVals=pts.map(r=>r[chartMode]);
   const tickers=pts.map(r=>r.ticker);
   const overrides=pts.map(r=>!!r.manualOverride);
+  const precios=pts.map(r=>r.precio);
 
   // regression
   const lx=xVals.map(x=>Math.log(x));
@@ -4493,7 +4508,8 @@ function renderChart(){
           const ovr=overrides[i]?' <span style="color:#d4a96a">✎ manual</span>':'';
           tooltipEl.innerHTML=
             `<div style="color:#a8d5a2;margin-bottom:3px">${tickers[i]} · ${xVals[i]} días</div>`+
-            `<div style="color:#8a9489">${chartMode.toUpperCase()}: <span style="color:#e8ede9">${rate}%</span>${ovr}</div>`;
+            `<div style="color:#8a9489">${chartMode.toUpperCase()}: <span style="color:#e8ede9">${rate}%</span>${ovr}</div>`+
+            `<div style="color:#8a9489">Precio: <span style="color:#e8ede9">${fmtPrecio(precios[i])}</span></div>`;
           // position near cursor using caretX/Y relative to canvas bounding rect
           const rect=chart.canvas.getBoundingClientRect();
           const x=rect.left+tooltip.caretX+12;
@@ -11717,7 +11733,7 @@ function cerRenderTabChart(){
     if(dias<=0)return null;
     const e=cerEnrich(r);
     if(isNaN(e.tir))return null;
-    return{ticker:r.ticker,dias,val:e.tir};
+    return{ticker:r.ticker,dias,val:e.tir,precio:r.precio};
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
   if(cerTabChart){cerTabChart.destroy();cerTabChart=null;}
   if(!pts.length){if(status)status.textContent='(sin datos)';return;}
@@ -11737,7 +11753,7 @@ function tamarRenderTabChart(){
     if(!vctoDate)return null;
     const dias=diasACT(liq,vctoDate);
     if(dias<=0)return null;
-    return{ticker:r.ticker,dias,val:r.margenTNA};
+    return{ticker:r.ticker,dias,val:r.margenTNA,precio:r.precio};
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
   if(tamarTabChart){tamarTabChart.destroy();tamarTabChart=null;}
   if(!pts.length)return;
@@ -11850,13 +11866,13 @@ function beRenderChartTF(){
       const e=beEnrichForTipo(b,tipo);
       const val=beGetChartRate(e,tipo,beChartTFMode);
       if(val==null||isNaN(val))return null;
-      return{ticker:b.ticker,dias,val};
+      return{ticker:b.ticker,dias,val,precio:b.precio};
     }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
     if(!pts.length)continue;
     const c=CHART_TIPO_COLORS[tipo];
     const trend=beCalcTrend(pts);
     if(trend.length) datasets.push({label:'_trend_'+tipo,data:trend,type:'line',borderColor:c.trend,borderWidth:1.5,pointRadius:0,fill:false,tension:0.4,order:tipoOrder,datalabels:{display:false}});
-    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker})),backgroundColor:c.point,borderColor:c.border,pointRadius:5,pointHoverRadius:7,order:10+tipoOrder});
+    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:c.point,borderColor:c.border,pointRadius:5,pointHoverRadius:7,order:10+tipoOrder});
     tipoOrder++;
   }
 
@@ -11915,7 +11931,12 @@ function beRenderChartTF(){
         legend:{display:false},
         tooltip:{callbacks:{
           title:ctx=>ctx[0]?.raw.ticker||'',
-          label:ctx=>`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`
+          label:ctx=>{
+            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`];
+            // La caución y los sintéticos no son un bono con precio: van sin la línea.
+            if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
+            return l;
+          }
         }},
         datalabels:{
           display:'auto',
@@ -11965,13 +11986,13 @@ function beRenderChartCER(){
       const e=beEnrichForTipo(b,tipo);
       const val=beGetChartRate(e,tipo,beChartCERMode);
       if(val==null||isNaN(val))return null;
-      return{ticker:b.ticker,dias,val};
+      return{ticker:b.ticker,dias,val,precio:b.precio};
     }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
     if(!pts.length)continue;
     const c=CHART_TIPO_COLORS[tipo];
     const trend=beCalcTrend(pts);
     if(trend.length) datasets.push({label:'_trend_'+tipo,data:trend,type:'line',borderColor:c.trend,borderWidth:1.5,pointRadius:0,fill:false,tension:0.4,order:tipoOrder,datalabels:{display:false}});
-    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker})),backgroundColor:c.point,borderColor:c.border,pointRadius:5,pointHoverRadius:7,order:10+tipoOrder});
+    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:c.point,borderColor:c.border,pointRadius:5,pointHoverRadius:7,order:10+tipoOrder});
     tipoOrder++;
   }
 
@@ -11991,7 +12012,12 @@ function beRenderChartCER(){
         legend:{display:false},
         tooltip:{callbacks:{
           title:ctx=>ctx[0]?.raw.ticker||'',
-          label:ctx=>`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`
+          label:ctx=>{
+            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`];
+            // La caución y los sintéticos no son un bono con precio: van sin la línea.
+            if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
+            return l;
+          }
         }},
         datalabels:{
           display:'auto',
@@ -12026,7 +12052,7 @@ function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel){
     type:'scatter',
     data:{datasets:[
       {label:'Tendencia',data:trendData,type:'line',borderColor:'rgba(168,213,162,0.4)',borderWidth:1.5,pointRadius:0,fill:false,tension:0.4,order:1},
-      {label:yLabel,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker})),backgroundColor:ptColor,borderColor:ptBorder,pointRadius:5,pointHoverRadius:7,order:2}
+      {label:yLabel,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:ptColor,borderColor:ptBorder,pointRadius:5,pointHoverRadius:7,order:2}
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,animation:{duration:0},
@@ -12034,7 +12060,12 @@ function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel){
         legend:{display:false},
         tooltip:{callbacks:{
           title:ctx=>ctx[0]?.raw.ticker||'',
-          label:ctx=>`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`
+          label:ctx=>{
+            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`];
+            // La caución y los sintéticos no son un bono con precio: van sin la línea.
+            if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
+            return l;
+          }
         }},
         datalabels:{display:ctx=>ctx.datasetIndex===1,
           formatter:(v,ctx)=>ctx.chart.data.datasets[1].data[ctx.dataIndex].ticker||'',
@@ -12196,7 +12227,7 @@ function dlkRenderTabChart(){
     if(!r.vcto||!r.precio||r.tir==null||isNaN(r.tir))return null;
     const dias=diasACT(liq,parseDate(r.vcto));
     if(dias<=0)return null;
-    return{ticker:r.ticker,dias,val:r.tir};
+    return{ticker:r.ticker,dias,val:r.tir,precio:r.precio};
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
   if(dlkTabChart){dlkTabChart.destroy();dlkTabChart=null;}
   if(!pts.length)return;
@@ -15491,11 +15522,16 @@ function usdResChartRender(enriched){
             const info=dsInfo[dp.datasetIndex];
             if(!info||info.type!=='scatter'){tipEl.style.display='none';return;}
             const g=groups[info.grpIdx];
-            const ticker=g.pts[dp.dataIndex]?.ticker||'';
+            const pt=g.pts[dp.dataIndex]||{};
+            const ticker=pt.ticker||'';
+            // El precio va en la moneda del selector, igual que la tabla de arriba:
+            // la TIR sale siempre del MEP, el precio es el que se está mirando.
+            const px=pt.b?(pt.b.lastPrecioDisplay??pt.b.lastPrecio):null;
             const{x,y}=dp.raw;
             tipEl.innerHTML=`<span style="color:${g.col}">${ticker}</span>`+
               `<span style="color:#5a6b5c"> · MD ${x.toFixed(2)} · TIR </span>`+
-              `<span style="color:#e0ede1">${y.toFixed(2)}%</span>`;
+              `<span style="color:#e0ede1">${y.toFixed(2)}%</span>`+
+              (px!=null?`<span style="color:#5a6b5c"> · </span><span style="color:#e0ede1">${fmtPrecio(px,usdSimbolo())}</span>`:'');
             const rect=chart.canvas.getBoundingClientRect();
             tipEl.style.left=(rect.left+tooltip.caretX+12)+'px';
             tipEl.style.top=(rect.top+tooltip.caretY-10)+'px';
@@ -16138,7 +16174,7 @@ function _curvasArsDraw(){
   const SEC_COLORS={TF:'#fbbf24',CER:'#4ade80',TAMAR:'#38bdf8',DLK:'#a855f7'};
   const col=SEC_COLORS[sector]||'#a8d5a2';
 
-  const toAll=rows=>rows.filter(r=>r.sector===sector&&r.dias>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.dias,y:r.tir,ticker:r.ticker})).sort((a,b)=>a.x-b.x);
+  const toAll=rows=>rows.filter(r=>r.sector===sector&&r.dias>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.dias,y:r.tir,ticker:r.ticker,precio:r.price})).sort((a,b)=>a.x-b.x);
   const allPts1=toAll(snap1), allPts2=toAll(snap2);
   const diasMap=new Map([...allPts1,...allPts2].map(p=>[p.ticker,p.x]));
   const allTickers=ordenarPorVencimiento([...new Set([...allPts1.map(p=>p.ticker),...allPts2.map(p=>p.ticker)])],t=>diasMap.get(t));
@@ -16166,13 +16202,13 @@ function _curvasArsDraw(){
   const datasets=[];
   if(pts1.length){
     const t1=pts1.map(p=>p.ticker);
-    datasets.push({label:curvasFmtDate(d1),data:pts1.map(p=>({x:p.x,y:p.y})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
+    datasets.push({label:curvasFmtDate(d1),data:pts1.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
     const r1=curvasLogReg(pts1);
     if(r1)datasets.push({label:'_t1',data:curvasTrendPts(r1,pts1),type:'line',borderColor:col2,borderWidth:1.5,borderDash:[4,3],pointRadius:0,fill:false,datalabels:{display:false}});
   }
   if(pts2.length){
     const t2=pts2.map(p=>p.ticker);
-    datasets.push({label:curvasFmtDate(d2),data:pts2.map(p=>({x:p.x,y:p.y})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
+    datasets.push({label:curvasFmtDate(d2),data:pts2.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
     const r2=curvasLogReg(pts2);
     if(r2)datasets.push({label:'_t2',data:curvasTrendPts(r2,pts2),type:'line',borderColor:col,borderWidth:2,pointRadius:0,fill:false,datalabels:{display:false}});
   }
@@ -16182,7 +16218,7 @@ function _curvasArsDraw(){
   const yLabel={TF:'TNA (%)',CER:'TIR real (%)',TAMAR:'Margen TNA (%)',DLK:'TNA (%)'}[sector]||'Tasa (%)';
   const textColor=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#e0e0e0';
   const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a302a';
-  curvasArsChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — ${i.parsed.x}d, ${i.parsed.y.toFixed(2)}%`}}},scales:{x:{type:'linear',title:{display:true,text:'Días al vencimiento',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:yLabel,color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
+  curvasArsChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — ${i.parsed.x}d, ${i.parsed.y.toFixed(2)}%`+curvasPxTip(i.raw,'$')}}},scales:{x:{type:'linear',title:{display:true,text:'Días al vencimiento',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:yLabel,color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
 }
 
 // ══════════════════════════════════════════════════════════════ SERIES DE TIEMPO
@@ -16622,12 +16658,12 @@ async function seriesTraerSector(sector,desde,hasta){
   // la consulta falla entera, así que se prueba primero.
   const conLibro=await curvasSoportaLibro();
   const data=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
-    .select('snapshot_date,ticker,tir'+(conLibro?',monto':''))
+    .select('snapshot_date,ticker,tir,price'+(conLibro?',monto':''))
     .eq('sector',sector).gte('snapshot_date',desde).lte('snapshot_date',hasta)
     .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
     .order('snapshot_date',{ascending:true}));
   const fechas=[...new Set((data||[]).map(r=>r.snapshot_date))].sort();
-  const porBono=new Map(),montos=new Map();
+  const porBono=new Map(),montos=new Map(),precios=new Map();
   for(const r of data||[]){
     if(r.tir==null)continue;
     if(!porBono.has(r.ticker))porBono.set(r.ticker,new Map());
@@ -16636,8 +16672,14 @@ async function seriesTraerSector(sector,desde,hasta){
       if(!montos.has(r.ticker))montos.set(r.ticker,new Map());
       montos.get(r.ticker).set(r.snapshot_date,+r.monto);
     }
+    // El precio viaja en la misma fila que la tasa: el globo no puede terminar
+    // mostrando el precio de una rueda y la tasa de otra.
+    if(r.price!=null){
+      if(!precios.has(r.ticker))precios.set(r.ticker,new Map());
+      precios.get(r.ticker).set(r.snapshot_date,+r.price);
+    }
   }
-  return{fechas,porBono,montos};
+  return{fechas,porBono,montos,precios};
 }
 
 // ── BE inflación, reconstruido rueda por rueda ──────────────────────────────
@@ -17272,6 +17314,11 @@ function seriesDibujar(sec,error){
   const trazos=!esFwd&&st.cache.trazos?st.cache.trazos:null;
   const dispersion=!esFwd&&st.cache.dispersion?st.cache.dispersion:null;
   const etqPunto=!esFwd&&st.cache.etiquetasPunto?st.cache.etiquetasPunto:null;
+  // Precio por bono y por rueda, para el globo. Los sectores de dólares guardan
+  // el precio MEP; los de pesos, pesos. Los forwards y las series derivadas
+  // (breakeven, monedas, dinero) no son un bono: ahí no hay precio que mostrar.
+  const precios=!esFwd&&st.cache.precios?st.cache.precios:null;
+  const simbPrecio=(st.sector==='BON'||st.sector==='GLO'||st.sector==='BOP')?'US$':'$';
   const tickers=esFwd?[...porBono.keys()]
     :orden?orden.filter(t=>porBono.has(t))
     :ordenarPorVencimiento([...porBono.keys()]);
@@ -17387,8 +17434,11 @@ function seriesDibujar(sec,error){
             // tasa un monto de 5.190 millones se leía "5190017294.91%".
             if(i.dataset.yAxisID==='yv')return `${i.dataset.label} — ${v!=null?'$'+libroMontoFmt(v):'—'}`;
             const quien=p&&p.ticker?`${p.ticker} · ${i.dataset.label}`:i.dataset.label;
-            if(esPesos)return `${quien} — ${v!=null?'$'+v.toFixed(2):'—'}`;
-            return `${quien} — ${v!=null?v.toFixed(2):'—'}%`;
+            const txt=esPesos?`${quien} — ${v!=null?'$'+v.toFixed(2):'—'}`
+                             :`${quien} — ${v!=null?v.toFixed(2):'—'}%`;
+            const serieP=precios&&precios.get(i.dataset.label);
+            const px=serieP?serieP.get(fechas[i.dataIndex]):null;
+            return px!=null?[txt,`Precio ${fmtPrecio(px,simbPrecio)}`]:txt;
           }}},
       },
       scales:{
@@ -17686,7 +17736,7 @@ function _curvasUsdDraw(){
   const USD_SECS=[sector];
   const secColors={GLO:'#6baed6',BON:'#d4a843',BOP:'#74c4a0'};
 
-  const toAll=(rows,sec)=>rows.filter(r=>r.sector===sec&&r.md!=null&&r.md>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.md,y:r.tir,ticker:r.ticker})).sort((a,b)=>a.x-b.x);
+  const toAll=(rows,sec)=>rows.filter(r=>r.sector===sec&&r.md!=null&&r.md>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.md,y:r.tir,ticker:r.ticker,precio:r.price})).sort((a,b)=>a.x-b.x);
   const allPtsFlat=USD_SECS.flatMap(sec=>[...toAll(snap1,sec),...toAll(snap2,sec)]);
   const mdMap=new Map(allPtsFlat.map(p=>[p.ticker,p.x]));
   const allTickers=ordenarPorVencimiento([...new Set(allPtsFlat.map(p=>p.ticker))],t=>mdMap.get(t));
@@ -17717,13 +17767,13 @@ function _curvasUsdDraw(){
     totalPts+=pts1.length+pts2.length;
     if(pts1.length){
       const t1=pts1.map(p=>p.ticker);
-      datasets.push({label:`${sec} ${curvasFmtDate(d1)}`,data:pts1.map(p=>({x:p.x,y:p.y})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
+      datasets.push({label:`${sec} ${curvasFmtDate(d1)}`,data:pts1.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
       const r1=curvasLogReg(pts1);
       if(r1)datasets.push({label:`_t_${sec}_1`,data:curvasTrendPts(r1,pts1),type:'line',borderColor:col2,borderWidth:1.5,borderDash:[4,3],pointRadius:0,fill:false,datalabels:{display:false}});
     }
     if(pts2.length){
       const t2=pts2.map(p=>p.ticker);
-      datasets.push({label:`${sec} ${curvasFmtDate(d2)}`,data:pts2.map(p=>({x:p.x,y:p.y})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
+      datasets.push({label:`${sec} ${curvasFmtDate(d2)}`,data:pts2.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
       const r2=curvasLogReg(pts2);
       if(r2)datasets.push({label:`_t_${sec}_2`,data:curvasTrendPts(r2,pts2),type:'line',borderColor:col,borderWidth:2,pointRadius:0,fill:false,datalabels:{display:false}});
     }
@@ -17742,7 +17792,7 @@ function _curvasUsdDraw(){
   if(window.ChartDataLabels)Chart.register(ChartDataLabels);
   const textColor=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#e0e0e0';
   const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a302a';
-  curvasUsdChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — MD ${i.parsed.x.toFixed(2)}, TIR ${i.parsed.y.toFixed(2)}%`}}},scales:{x:{type:'linear',title:{display:true,text:'Duration modificada (años)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:'TIR (%)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
+  curvasUsdChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — MD ${i.parsed.x.toFixed(2)}, TIR ${i.parsed.y.toFixed(2)}%`+curvasPxTip(i.raw,'US$')}}},scales:{x:{type:'linear',title:{display:true,text:'Duration modificada (años)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:'TIR (%)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
 }
 
 // ══════════════════════════════════════════════════════ FICHA DE MERCADO
