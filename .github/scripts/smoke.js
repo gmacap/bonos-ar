@@ -910,6 +910,137 @@ const omitir = (label, motivo) =>
     check(vuelta.bonos > 0 && !/Forward/.test(vuelta.ejeY), `${sec}: recupera la serie de tasas`, vuelta.ejeY);
   }
 
+  // Serie de precios: el mismo histórico leído en la otra columna. Lo que hay
+  // que sostener es la moneda —el tipo de cambio es el MEP de CADA rueda, no el
+  // de hoy— y que una rueda sin MEP no se dibuje en vez de heredar el de ayer.
+  console.log('\nSeries de precios');
+  const tc = await page.evaluate(async () => {
+    const t = await seriesMepSerie();
+    const fs = [...t.mapa.keys()].sort();
+    const medio = fs[Math.floor(fs.length / 2)];
+    return { n: t.mapa.size, ult: t.ult, vivo: t.vivo,
+             // Una rueda del medio tiene su propio MEP, distinto del último.
+             medio, mepMedio: t.de(medio), mepUlt: t.de(t.ult),
+             // Un hueco viejo no se rellena; una rueda posterior al último cierre
+             // toma el MEP en vivo, que es del mismo momento que el precio en vivo.
+             hueco: t.de('2021-01-04'), futura: t.de('2999-01-01') };
+  });
+  // El MEP sale del histórico de data912, que a veces no responde. Sin él no hay
+  // nada que probar sobre la conversión: se omite, no se falla.
+  const hayMep = tc.n > 0;
+  if (!hayMep) omitir('el MEP histórico se arma rueda a rueda', 'data912 no devolvió el histórico de AL30');
+  else {
+    check(tc.n > 100 && tc.ult > '2024-01-01', 'el MEP histórico se arma rueda a rueda',
+          `${tc.n} ruedas, última ${tc.ult}`);
+    check(tc.mepMedio > 0 && tc.mepUlt > 0 && tc.mepMedio !== tc.mepUlt,
+          'cada rueda tiene su propio MEP, no el de hoy',
+          `${tc.medio}: ${tc.mepMedio && tc.mepMedio.toFixed(2)} vs ${tc.ult}: ${tc.mepUlt && tc.mepUlt.toFixed(2)}`);
+    check(tc.hueco === null, 'una rueda sin MEP no hereda el del día anterior');
+  }
+  if (tc.vivo == null || !hayMep) omitir('la rueda que data912 no cerró toma el MEP en vivo', 'sin MEP en vivo');
+  else check(tc.futura === tc.vivo, 'la rueda que data912 no cerró toma el MEP en vivo',
+             String(tc.vivo && tc.vivo.toFixed(2)));
+
+  for (const [sec, tab, ir, sector, guardaUsd] of [
+    ['ars', 'series-ars', 'switchTab', 'CER', false],
+    ['usd', 'usd-series', 'switchUsdTab', 'BON', true],
+  ]) {
+    const pr = await page.evaluate(async ([s, t, fn, sector, guardaUsd]) => {
+      const esperar = ms => new Promise(r => setTimeout(r, ms));
+      if (fn === 'switchTab') { switchSection('pesos'); switchTab(t); }
+      else { switchSection('usd'); switchUsdTab(t); }
+      const modoPrevio = seriesEstado[s].modo, monedaPrevia = seriesEstado[s].moneda;
+      // La moneda "propia" del sector primero: ahí no hay conversión ninguna.
+      seriesSetModo(s, 'precios');
+      seriesSetSector(s, sector);
+      seriesSetMoneda(s, guardaUsd ? 'USD' : 'ARS');
+      await esperar(5000);
+      const st = seriesEstado[s];
+      const out = { modo: st.modo, ejeY: st.chart ? st.chart.options.scales.y.title.text : '',
+                    bonos: st.cache.porBono.size, ruedas: st.cache.fechas.length };
+      // Los chips que no son un bono quedan bloqueados en este modo.
+      out.bloqueados = SERIES_CFG[s].sectores.filter(o => {
+        const el = document.getElementById(`series-${s}-chip-${o.v}`);
+        return el && el.disabled;
+      }).map(o => o.v);
+      out.sinPrecio = SERIES_CFG[s].sectores.filter(o => o.precio === false).map(o => o.v);
+      if (!st.cache.porBono.size) { out.sinDatos = true; return out; }
+      const tk = [...st.cache.porBono.keys()][0];
+      const propia = new Map(st.cache.porBono.get(tk));
+      const idx = st.cache.fechas.length - 1;
+      out.tip = st.chart.options.plugins.tooltip.callbacks.label(
+        { parsed: { y: propia.get(st.cache.fechas[idx]) }, raw: propia.get(st.cache.fechas[idx]),
+          dataset: { label: tk }, dataIndex: idx });
+      // Y ahora la otra: cada punto tiene que ser el mismo, al MEP de SU rueda.
+      seriesSetMoneda(s, guardaUsd ? 'ARS' : 'USD');
+      await esperar(5000);
+      const st2 = seriesEstado[s];
+      out.ejeYOtra = st2.chart ? st2.chart.options.scales.y.title.text : '';
+      const elMsg = document.getElementById(`series-${s}-msg`);
+      out.msg = elMsg ? elMsg.textContent : '';
+      const otra = st2.cache.porBono.get(tk) || new Map();
+      const t2 = await seriesMepSerie();
+      let comparadas = 0, malas = 0, tcs = new Set();
+      for (const [f, v] of otra) {
+        const base = propia.get(f), mep = t2.de(f);
+        if (base == null || !(mep > 0)) continue;
+        const esperado = guardaUsd ? base * mep : base / mep;
+        comparadas++;
+        tcs.add(Math.round((guardaUsd ? v / base : base / v) * 100) / 100);
+        if (Math.abs(v - esperado) > Math.abs(esperado) * 1e-9) malas++;
+      }
+      out.comparadas = comparadas; out.malas = malas; out.tcsDistintos = tcs.size;
+      out.ticker = tk;
+      // Volver a tasas no puede dejar el gráfico roto.
+      seriesSetModo(s, 'tasas');
+      await esperar(4000);
+      out.vuelta = { modo: seriesEstado[s].modo,
+                     ejeY: seriesEstado[s].chart ? seriesEstado[s].chart.options.scales.y.title.text : '',
+                     bonos: seriesEstado[s].cache.porBono.size };
+      seriesSetModo(s, modoPrevio); seriesSetMoneda(s, monedaPrevia);
+      await esperar(3000);
+      return out;
+    }, [sec, tab, ir, sector, guardaUsd]);
+
+    const simb = guardaUsd ? 'US$' : '$';
+    const otro = guardaUsd ? '$' : 'US$';
+    check(pr.modo === 'precios' && pr.ejeY === `Precio (${simb})`,
+          `${sec}: el eje dice precio y en qué moneda`, pr.ejeY);
+    check(pr.sinPrecio.length > 0 && pr.sinPrecio.every(v => pr.bloqueados.includes(v)),
+          `${sec}: lo que no es un bono no se puede pedir en precios`,
+          `sin precio ${JSON.stringify(pr.sinPrecio)} · bloqueados ${JSON.stringify(pr.bloqueados)}`);
+    if (pr.sinDatos) { omitir(`${sec}: la serie de precios`, 'sin ruedas con precio guardado'); continue; }
+    check(pr.bonos > 0 && pr.ruedas > 0, `${sec}: trae un precio por bono y por rueda`,
+          `${pr.bonos} bonos · ${pr.ruedas} ruedas`);
+    check(Array.isArray(pr.tip) && pr.tip.length === 2 && pr.tip[0].includes(simb) && /%$/.test(pr.tip[1]),
+          `${sec}: el globo muestra el precio y debajo la tasa de esa rueda`, JSON.stringify(pr.tip));
+    if (!hayMep) {
+      omitir(`${sec}: el precio en la otra moneda`, 'data912 no devolvió el histórico de AL30');
+      check(/sin MEP/.test(pr.msg || ''), `${sec}: y el gráfico dice por qué quedó vacío`, pr.msg);
+    } else {
+      check(pr.ejeYOtra === `Precio (${otro})`, `${sec}: el botón de moneda cambia el eje`, pr.ejeYOtra);
+      check(pr.comparadas > 0 && pr.malas === 0,
+            `${sec}: cada punto es el mismo precio al MEP de su rueda`,
+            `${pr.ticker}: ${pr.comparadas} ruedas, ${pr.malas} mal`);
+      check(pr.tcsDistintos > 1, `${sec}: el tipo de cambio es el de cada rueda, no uno solo`,
+            `${pr.tcsDistintos} valores distintos en ${pr.comparadas} ruedas`);
+    }
+    check(pr.vuelta.modo === 'tasas' && pr.vuelta.bonos > 0 && /%/.test(pr.vuelta.ejeY),
+          `${sec}: volver a tasas recupera la serie`, pr.vuelta.ejeY);
+  }
+
+  // La moneda elegida sobrevive, como el modo: se guardan juntas.
+  const monLs = await page.evaluate(() => {
+    seriesFwdLoad();
+    const antes = JSON.parse(JSON.stringify(seriesFwdMoneda));
+    seriesFwdMoneda.ars = 'USD'; seriesFwdSave();
+    seriesFwdMoneda.ars = 'ARS'; seriesFwdLoad();
+    const leido = seriesFwdMoneda.ars;
+    seriesFwdMoneda = antes; seriesFwdSave();
+    return { leido, restaurado: seriesFwdMoneda.ars };
+  });
+  check(monLs.leido === 'USD', 'la moneda del precio se guarda junto al modo', JSON.stringify(monLs));
+
   console.log('\nMAE — mayorista y futuros de dólar');
 
   // Lo puro primero: no depende de la red ni del horario.
@@ -2898,6 +3029,7 @@ const omitir = (label, motivo) =>
   const pxFmt = await page.evaluate(() => ({
     chico: fmtPrecio(72.35),
     medio: fmtPrecio(980.25),
+    centavos: fmtPrecio(0.0958, 'US$'),
     grande: fmtPrecio(132480.17),
     vacio: fmtPrecio(null),
     usd: fmtPrecio(72.35, 'US$'),
@@ -2906,8 +3038,8 @@ const omitir = (label, motivo) =>
     tipSin: curvasPxTip({}, '$'),
   }));
   check(pxFmt.chico === '$72,35' && pxFmt.medio === '$980,25' && pxFmt.grande === '$132.480'
-        && pxFmt.vacio === '—' && pxFmt.usd === 'US$72,35',
-        'el precio se escribe como en las tablas: centavos abajo de mil, redondeado arriba',
+        && pxFmt.vacio === '—' && pxFmt.usd === 'US$72,35' && pxFmt.centavos === 'US$0,0958',
+        'el precio se escribe como en las tablas, con más decimales abajo de un peso',
         JSON.stringify(pxFmt));
   check(/\$980,25$/.test(pxFmt.tip) && /US\$72,35$/.test(pxFmt.tipUsd) && pxFmt.tipSin === '',
         'las curvas lo agregan con el símbolo de su moneda, y un punto sin precio no agrega nada',

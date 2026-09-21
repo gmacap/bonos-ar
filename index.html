@@ -3712,10 +3712,12 @@ const fmtN=(n,d=6)=>isNaN(n)||n===undefined?'—':n.toFixed(d);
 const fmtARS=n=>n==null||isNaN(n)||n===undefined?'—':'$'+n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:4});
 const fmtARSk=n=>n==null||isNaN(n)||n===undefined?'—':'$'+Math.round(n).toLocaleString('es-AR');
 // El precio como lo escriben las tablas: dos decimales hasta 1.000 y redondeado
-// de ahí para arriba, donde el centavo de un CER a $132.480 no dice nada. El
-// símbolo lo elige quien llama, porque en las solapas de dólares el precio
+// de ahí para arriba, donde el centavo de un CER a $132.480 no dice nada. Abajo
+// de un peso hacen falta cuatro: una LECAP llevada a dólares vale 0,0958, y con
+// dos decimales tres letras distintas se escriben todas 'US$0,10'.
+// El símbolo lo elige quien llama, porque en las solapas de dólares el precio
 // puede estar en pesos, en MEP o en cable.
-const fmtPrecio=(n,simb='$')=>{if(n==null||isNaN(n))return'—';const d=Math.abs(n)>=1000?0:2;return simb+n.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});};
+const fmtPrecio=(n,simb='$')=>{if(n==null||isNaN(n))return'—';const a=Math.abs(n);const d=a>=1000?0:a>=1?2:4;return simb+n.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});};
 // Lo que se ve en vivo en las solapas de dólares sigue al selector de moneda.
 const usdSimbolo=()=>(typeof usdCurrency!=='undefined'&&usdCurrency==='ARS')?'$':'US$';
 // El precio de la rueda, al lado de la tasa, en el globo de las curvas. Sale de
@@ -16237,12 +16239,11 @@ const SERIES_CFG={
       {v:'CER',   l:'CER',           c:'#4ade80', y:'TIR real (%)',   yf:'Forward TIR real (%)'},
       {v:'TAMAR', l:'TAMAR',         c:'#38bdf8', y:'Margen TNA (%)', yf:'Forward Margen TNA (%)'},
       {v:'DLK',   l:'Dollar Linked', c:'#a855f7', y:'TNA (%)',        yf:'Forward TNA (%)'},
-      // El dinero no es un bono con duración: no admite forwards.
-      {v:'DINERO',l:'Dinero',        c:'#22d3ee', y:'TNA (%)', fwd:false},
-      // El breakeven no es la tasa de un bono sino la comparación entre dos
-      // curvas: tampoco admite forwards.
-      {v:'BEINF',l:'BE inflación',   c:'#a8d5a2', y:'Inflación BE (% mensual)', fwd:false},
-      {v:'TAMARREAL',l:'TAMAR real', c:'#74c4a0', y:'TAMAR real (% TNA)', fwd:false},
+      // Ninguna de las tres es un bono: no tienen duración para armar un
+      // forward ni un precio que mirar.
+      {v:'DINERO',l:'Dinero',        c:'#22d3ee', y:'TNA (%)', fwd:false, precio:false},
+      {v:'BEINF',l:'BE inflación',   c:'#a8d5a2', y:'Inflación BE (% mensual)', fwd:false, precio:false},
+      {v:'TAMARREAL',l:'TAMAR real', c:'#74c4a0', y:'TAMAR real (% TNA)', fwd:false, precio:false},
     ],
   },
   usd:{
@@ -16251,9 +16252,10 @@ const SERIES_CFG={
       {v:'BON',  l:'Bonares',     c:'#d4a843', y:'TIR (%)', yf:'Forward TIR (%)'},
       {v:'GLO',  l:'Globales',    c:'#6baed6', y:'TIR (%)', yf:'Forward TIR (%)'},
       {v:'BOP',  l:'Bopreales',   c:'#74c4a0', y:'TIR (%)', yf:'Forward TIR (%)'},
-      // Ni el spread ni las monedas son tasas con duración: no admiten forwards.
-      {v:'SLEG', l:'Spread Leg.', c:'#c9807a', y:'Spread de legislación (%)', fwd:false},
-      {v:'FX',   l:'Monedas',     c:'#e8b04b', y:'$ / USD', y2:'Canje y brecha (%)', fwd:false},
+      // Ni el spread ni las monedas son un bono: no admiten forwards, y su
+      // precio no existe como tal —el spread ya es un cociente de precios.
+      {v:'SLEG', l:'Spread Leg.', c:'#c9807a', y:'Spread de legislación (%)', fwd:false, precio:false},
+      {v:'FX',   l:'Monedas',     c:'#e8b04b', y:'$ / USD', y2:'Canje y brecha (%)', fwd:false, precio:false},
     ],
   },
 };
@@ -16263,8 +16265,8 @@ const SERIES_CFG={
 // de tipo de cambio con porcentajes y no se pueden leer sobre la misma regla.
 let seriesVolumen=true;   // barras de monto operado bajo la tasa
 const seriesEstado={
-  ars:{sector:'TF',  modo:'tasas', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
-  usd:{sector:'BON', modo:'tasas', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
+  ars:{sector:'TF',  modo:'tasas', moneda:'ARS', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
+  usd:{sector:'BON', modo:'tasas', moneda:'USD', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
 };
 
 // ── Forwards históricos ─────────────────────────────────────────────────────
@@ -16277,16 +16279,20 @@ const SERIES_FWD_LS='bonosAR_series_fwd_v1';
 // mano cuesta, y perderla en cada recarga haría la pestaña inusable.
 let seriesFwdPares={ars:{},usd:{}};
 let seriesFwdModo={ars:'tasas',usd:'tasas'};
+// La moneda arranca en la de cada sección: pesos en Pesos, dólares en USD.
+let seriesFwdMoneda={ars:'ARS',usd:'USD'};
 
 function seriesFwdLoad(){
   try{
     const o=JSON.parse(localStorage.getItem(SERIES_FWD_LS)||'{}');
     seriesFwdPares={ars:(o.pares&&o.pares.ars)||{},usd:(o.pares&&o.pares.usd)||{}};
     seriesFwdModo={ars:(o.modo&&o.modo.ars)||'tasas',usd:(o.modo&&o.modo.usd)||'tasas'};
-  }catch(e){seriesFwdPares={ars:{},usd:{}};seriesFwdModo={ars:'tasas',usd:'tasas'};}
+    seriesFwdMoneda={ars:(o.moneda&&o.moneda.ars)||'ARS',usd:(o.moneda&&o.moneda.usd)||'USD'};
+  }catch(e){seriesFwdPares={ars:{},usd:{}};seriesFwdModo={ars:'tasas',usd:'tasas'};
+           seriesFwdMoneda={ars:'ARS',usd:'USD'};}
 }
 function seriesFwdSave(){
-  try{localStorage.setItem(SERIES_FWD_LS,JSON.stringify({pares:seriesFwdPares,modo:seriesFwdModo}));}catch(e){}
+  try{localStorage.setItem(SERIES_FWD_LS,JSON.stringify({pares:seriesFwdPares,modo:seriesFwdModo,moneda:seriesFwdMoneda}));}catch(e){}
 }
 function seriesFwdLista(sec,sector){
   if(!seriesFwdPares[sec])seriesFwdPares[sec]={};
@@ -16369,7 +16375,7 @@ function seriesSetModo(sec,modo){
   st.modo=modo;
   seriesFwdModo[sec]=modo;
   seriesFwdSave();
-  ['tasas','fwd'].forEach(m=>{
+  ['tasas','precios','fwd'].forEach(m=>{
     const el=document.getElementById(`series-${sec}-modo-${m}`);
     if(el)el.classList.toggle('active',m===modo);
   });
@@ -16377,27 +16383,49 @@ function seriesSetModo(sec,modo){
   if(bar)bar.style.display=modo==='fwd'?'flex':'none';
   const tod=document.getElementById(`series-${sec}-todos`);
   if(tod)tod.style.display=modo==='fwd'?'none':'flex';
+  const mon=document.getElementById(`series-${sec}-moneda`);
+  if(mon)mon.style.display=modo==='precios'?'flex':'none';
   seriesFwdAjustarSector(sec);
   seriesCargar(sec);
 }
 
-// El spread de legislación no tiene duración, así que no admite forwards: en
-// modo forward su chip queda deshabilitado y, si estaba elegido, se cae al
-// primer sector que sí sirva.
+// La moneda del precio. Cambiarla no mueve ninguna fecha ni pide otra cosa a
+// Supabase: es el mismo precio dividido o multiplicado por el MEP de su rueda.
+function seriesSetMoneda(sec,m){
+  const st=seriesEstado[sec];
+  if(st.moneda===m)return;
+  st.moneda=m;
+  seriesFwdMoneda[sec]=m;
+  seriesFwdSave();
+  ['ARS','USD'].forEach(x=>{
+    const el=document.getElementById(`series-${sec}-mon-${x}`);
+    if(el)el.classList.toggle('active',x===m);
+  });
+  seriesCargar(sec);
+}
+
+// No todo sector sirve para todo modo: el spread de legislación no tiene
+// duración para un forward, y ni él ni el dinero ni los breakeven son un bono
+// con precio. El chip que no sirve queda deshabilitado con el motivo a la
+// vista y, si estaba elegido, se cae al primero que sí sirva.
 function seriesFwdAjustarSector(sec){
   const cfg=SERIES_CFG[sec],st=seriesEstado[sec];
+  const sirve=o=>st.modo==='fwd'?o.fwd!==false:st.modo==='precios'?o.precio!==false:true;
+  const porQue=o=>st.modo==='fwd'
+    ?`${o.l} no es una tasa con duración: no se puede armar un forward`
+    :`${o.l} no es un bono: no tiene precio`;
   cfg.sectores.forEach(o=>{
     const el=document.getElementById(`series-${sec}-chip-${o.v}`);
     if(!el)return;
-    const bloqueado=st.modo==='fwd'&&o.fwd===false;
+    const bloqueado=!sirve(o);
     el.disabled=bloqueado;
     el.style.opacity=bloqueado?'.35':'1';
     el.style.cursor=bloqueado?'not-allowed':'pointer';
-    el.title=bloqueado?`${o.l} no es una tasa con duración: no se puede armar un forward`:'';
+    el.title=bloqueado?porQue(o):'';
   });
   const act=cfg.sectores.find(o=>o.v===st.sector);
-  if(st.modo==='fwd'&&act&&act.fwd===false){
-    const alt=cfg.sectores.find(o=>o.fwd!==false);
+  if(act&&!sirve(act)){
+    const alt=cfg.sectores.find(sirve);
     if(alt)seriesPintarSector(sec,alt.v);
   }
 }
@@ -16523,6 +16551,8 @@ async function seriesInit(sec){
   seriesFwdLoad();
   const modo=seriesFwdModo[sec]||'tasas';
   st.modo=modo;
+  const moneda=seriesFwdMoneda[sec]||(sec==='usd'?'USD':'ARS');
+  st.moneda=moneda;
   const chips=cfg.sectores.map(o=>{
     const act=o.v===st.sector;
     return `<button id="series-${sec}-chip-${o.v}" onclick="seriesSetSector('${sec}','${o.v}')"
@@ -16537,7 +16567,12 @@ async function seriesInit(sec){
     <div style="display:flex;gap:4px">${chips}</div>
     <div style="display:flex;gap:2px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:1px">
       <button class="chart-mode-btn${modo==='tasas'?' active':''}" id="series-${sec}-modo-tasas" onclick="seriesSetModo('${sec}','tasas')">Tasas</button>
+      <button class="chart-mode-btn${modo==='precios'?' active':''}" id="series-${sec}-modo-precios" onclick="seriesSetModo('${sec}','precios')">Precios</button>
       <button class="chart-mode-btn${modo==='fwd'?' active':''}" id="series-${sec}-modo-fwd" onclick="seriesSetModo('${sec}','fwd')">Forwards</button>
+    </div>
+    <div id="series-${sec}-moneda" style="display:${modo==='precios'?'flex':'none'};gap:2px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:1px">
+      <button class="chart-mode-btn${moneda==='ARS'?' active':''}" id="series-${sec}-mon-ARS" onclick="seriesSetMoneda('${sec}','ARS')" title="Precio en pesos">$</button>
+      <button class="chart-mode-btn${moneda==='USD'?' active':''}" id="series-${sec}-mon-USD" onclick="seriesSetMoneda('${sec}','USD')" title="Precio al MEP de cada rueda">US$</button>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:8px">
       <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">Desde</span>
@@ -16550,7 +16585,7 @@ async function seriesInit(sec){
       <button class="btn" style="padding:3px 8px;font-size:10px" onclick="seriesTodos('${sec}',true)">Todos</button>
       <button class="btn" style="padding:3px 8px;font-size:10px" onclick="seriesTodos('${sec}',false)">Ninguno</button>
       <button class="btn" id="series-${sec}-vol" style="padding:3px 8px;font-size:10px" onclick="seriesToggleVolumen()"
-        title="Monto operado como barras, bajo la tasa. Se dibuja cuando queda un solo bono elegido.">volumen</button>
+        title="Monto operado como barras, bajo la serie. Se dibuja cuando queda un solo bono elegido.">volumen</button>
     </div>
     <div id="series-${sec}-msg" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:auto"></div>
   </div>
@@ -16595,11 +16630,10 @@ function seriesPintarSector(sec,v){
 
 function seriesSetSector(sec,v){
   const st=seriesEstado[sec];
-  // En modo forwards, un sector sin duración (el spread) no es elegible.
-  if(st.modo==='fwd'){
-    const o=SERIES_CFG[sec].sectores.find(x=>x.v===v);
-    if(o&&o.fwd===false)return;
-  }
+  // Un sector que el modo no admite no es elegible: el spread no tiene
+  // duración para un forward, el dinero no tiene precio.
+  const o=SERIES_CFG[sec].sectores.find(x=>x.v===v);
+  if(o&&((st.modo==='fwd'&&o.fwd===false)||(st.modo==='precios'&&o.precio===false)))return;
   seriesPintarSector(sec,v);
   seriesCargar(sec);
 }
@@ -16618,6 +16652,9 @@ async function seriesCargar(sec){
       st.cacheFwd=await seriesTraerFwd(st.sector,desde,hasta);
       seriesFwdRenderControles(sec);
       st.cache=seriesFwdDerivar(sec);
+    }else if(st.modo==='precios'){
+      st.cache=await seriesTraerPrecios(st.sector,desde,hasta,st.moneda);
+      st.filtro=null;
     }else{
       st.cache=st.sector==='SLEG'   ? await seriesTraerSpread(desde,hasta)
              : st.sector==='FX'     ? await seriesTraerFX(desde,hasta)
@@ -16680,6 +16717,85 @@ async function seriesTraerSector(sector,desde,hasta){
     }
   }
   return{fechas,porBono,montos,precios};
+}
+
+// ── Serie de precios ────────────────────────────────────────────────────────
+// El mismo histórico leído en la otra columna: en vez de la tasa de cada
+// rueda, el precio al que cerró, en la moneda que se pida.
+//
+// El tipo de cambio es el MEP de ESA rueda —AL30 sobre AL30D, la misma cuenta
+// que la solapa Monedas—, no el de hoy: un precio de marzo llevado al dólar de
+// hoy no es un precio que alguien pudo pagar, y la serie mostraría el
+// movimiento del dólar disfrazado de movimiento del bono. Los sectores USD ya
+// guardan su precio en MEP, así que pasarlos a pesos es deshacer esa misma
+// división: las dos vistas cierran entre sí y con la tasa que se guardó al lado.
+//
+// Una rueda sin MEP no se dibuja y no se arrastra el del día anterior —un hueco
+// es un hueco, como en el resto de la pestaña—; el pie del gráfico dice cuántas
+// quedaron afuera.
+//
+// El precio es el que se vio en pantalla ese día, sin ajustar por amortizaciones
+// ni cupones: un bono que amortiza baja de escalón el día que paga, y eso es el
+// precio y no una caída de mercado.
+const SERIES_SEC_USD=new Set(['BON','GLO','BOP']);
+async function seriesMepSerie(){
+  const[ars,d]=await Promise.all([seriesHist912('AL30'),seriesHist912('AL30D')]);
+  const mapa=new Map();
+  for(const[f,px]of ars){const pd=d.get(f);if(px>0&&pd>0)mapa.set(f,px/pd);}
+  const ult=[...mapa.keys()].sort().pop()||'';
+  let vivo=null;
+  try{
+    const{map}=await usdFetchPriceMap();
+    if(map&&map['AL30']>0&&map['AL30D']>0)vivo=map['AL30']/map['AL30D'];
+  }catch(e){}
+  // data912 publica el cierre con un día de atraso, así que la rueda de hoy no
+  // está en el histórico. Para ESA rueda, y sólo para ésa, vale el MEP en vivo:
+  // es del mismo momento que el precio en vivo del bono. Un hueco viejo no se
+  // rellena con el MEP del día anterior, que daría un precio que nadie pudo pagar.
+  const de=f=>{const v=mapa.get(f);if(v>0)return v;return(f>ult&&vivo>0)?vivo:null;};
+  return{mapa,ult,vivo,de};
+}
+async function seriesTraerPrecios(sector,desde,hasta,moneda){
+  const conLibro=await curvasSoportaLibro();
+  const data=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
+    .select('snapshot_date,ticker,price,tir'+(conLibro?',monto':''))
+    .eq('sector',sector).gte('snapshot_date',desde).lte('snapshot_date',hasta)
+    .or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`)
+    .order('snapshot_date',{ascending:true}));
+  const guardaUsd=SERIES_SEC_USD.has(sector);
+  const pideUsd=moneda==='USD';
+  const tc=guardaUsd!==pideUsd?await seriesMepSerie():null;
+  const porBono=new Map(),montos=new Map(),tasas=new Map();
+  const fechas=new Set(),sinTc=new Set();
+  for(const r of data||[]){
+    if(!(r.price>0))continue;
+    let px=+r.price;
+    if(tc){
+      const v=tc.de(r.snapshot_date);
+      if(!(v>0)){sinTc.add(r.snapshot_date);continue;}
+      px=guardaUsd?px*v:px/v;
+    }
+    if(!isFinite(px)||px<=0)continue;
+    if(!porBono.has(r.ticker))porBono.set(r.ticker,new Map());
+    porBono.get(r.ticker).set(r.snapshot_date,px);
+    fechas.add(r.snapshot_date);
+    // La tasa de la misma fila, para el globo: mirando el precio, lo que falta
+    // saber es a qué tasa se estaba operando.
+    if(r.tir!=null){
+      if(!tasas.has(r.ticker))tasas.set(r.ticker,new Map());
+      tasas.get(r.ticker).set(r.snapshot_date,+r.tir);
+    }
+    if(r.monto>0){
+      if(!montos.has(r.ticker))montos.set(r.ticker,new Map());
+      montos.get(r.ticker).set(r.snapshot_date,+r.monto);
+    }
+  }
+  // Sin MEP no hay conversión, y sin conversión no hay serie: que lo diga, en vez
+  // de dejar un gráfico vacío con cara de que el bono no operó nunca.
+  const aviso=!sinTc.size?''
+    :!fechas.size?'sin MEP en el rango: no se pudo pasar de moneda'
+    :`${sinTc.size} rueda${sinTc.size===1?'':'s'} sin MEP, sin dibujar`;
+  return{fechas:[...fechas].sort(),porBono,montos,tasas,aviso};
 }
 
 // ── BE inflación, reconstruido rueda por rueda ──────────────────────────────
@@ -17306,6 +17422,7 @@ function seriesDibujar(sec,error){
   // sacarlas; se listan desde los pares guardados, no desde los datos, para
   // que un par sin datos en el rango también se pueda quitar.
   const esFwd=st.modo==='fwd';
+  const esPrecio=st.modo==='precios';
   // Las monedas traen su propio orden, sus colores y su unidad: no son bonos,
   // no tienen vencimiento por el cual ordenarlas y no todas se miden en %.
   const orden=!esFwd&&st.cache.orden&&st.cache.orden.length?st.cache.orden:null;
@@ -17317,8 +17434,13 @@ function seriesDibujar(sec,error){
   // Precio por bono y por rueda, para el globo. Los sectores de dólares guardan
   // el precio MEP; los de pesos, pesos. Los forwards y las series derivadas
   // (breakeven, monedas, dinero) no son un bono: ahí no hay precio que mostrar.
-  const precios=!esFwd&&st.cache.precios?st.cache.precios:null;
-  const simbPrecio=(st.sector==='BON'||st.sector==='GLO'||st.sector==='BOP')?'US$':'$';
+  const precios=!esFwd&&!esPrecio&&st.cache.precios?st.cache.precios:null;
+  // Y al revés en modo precios: debajo del precio, la tasa de esa misma rueda.
+  const tasas=esPrecio&&st.cache.tasas?st.cache.tasas:null;
+  const etqTasa=String(opt.y||'Tasa').replace(/\s*\(%\)\s*$/,'');
+  // En precios manda la moneda elegida; en tasas, la del dato guardado.
+  const simbPrecio=esPrecio?(st.moneda==='USD'?'US$':'$')
+    :((st.sector==='BON'||st.sector==='GLO'||st.sector==='BOP')?'US$':'$');
   const tickers=esFwd?[...porBono.keys()]
     :orden?orden.filter(t=>porBono.has(t))
     :ordenarPorVencimiento([...porBono.keys()]);
@@ -17363,14 +17485,15 @@ function seriesDibujar(sec,error){
   if(st.chart2){st.chart2.destroy();st.chart2=null;}
   mostrar(wrap1,true);mostrar(wrap2,false);
   if(error){if(msg)msg.textContent='';return;}
-  if(!fechas.length){if(msg)msg.textContent='Sin datos en el rango elegido';return;}
+  if(!fechas.length){if(msg)msg.textContent='Sin datos en el rango elegido'+(st.cache.aviso?` · ${st.cache.aviso}`:'');return;}
   if(esFwd&&!tickers.length){if(msg)msg.textContent='Agregá una combinación para ver su histórico';return;}
 
   const puntos=vis.reduce((n,t)=>n+porBono.get(t).size,0);
   if(msg)msg.textContent=esFwd
     ? `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length} combinaci${vis.length===1?'ón':'ones'} · ${puntos} puntos`
     : `${fechas.length} rueda${fechas.length===1?'':'s'} · ${vis.length}/${tickers.length} ${unidades||st.cache.nota?'series':'bonos'} · ${puntos} puntos`
-      + (st.cache.nota?` · ${st.cache.nota}`:'');
+      + (st.cache.nota?` · ${st.cache.nota}`:'')
+      + (st.cache.aviso?` · ${st.cache.aviso}`:'');
   if(!vis.length)return;
 
   const etiquetas=fechas.map(curvasFmtDate);
@@ -17413,6 +17536,10 @@ function seriesDibujar(sec,error){
   const textColor=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#e0e0e0';
   const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a302a';
   const fmtPesos=v=>'$'+Math.round(v).toLocaleString('es-AR');
+  // El eje del MEP se lee redondeado; el de un precio en dólares, no: un GD30 a
+  // 72,35 redondeado a 72 borra justo lo que se vino a mirar.
+  const fmtEjeDinero=esPrecio?(v=>fmtPrecio(v,simbPrecio)):fmtPesos;
+  const fmtTipDinero=esPrecio?(v=>fmtPrecio(v,simbPrecio)):(v=>'$'+v.toFixed(2));
   const fmtPct=v=>v.toFixed(1)+'%';
   // Config completa de un panel. Va factorizada porque las monedas dibujan dos,
   // y dos objetos de opciones que hay que mantener iguales a mano se
@@ -17434,11 +17561,16 @@ function seriesDibujar(sec,error){
             // tasa un monto de 5.190 millones se leía "5190017294.91%".
             if(i.dataset.yAxisID==='yv')return `${i.dataset.label} — ${v!=null?'$'+libroMontoFmt(v):'—'}`;
             const quien=p&&p.ticker?`${p.ticker} · ${i.dataset.label}`:i.dataset.label;
-            const txt=esPesos?`${quien} — ${v!=null?'$'+v.toFixed(2):'—'}`
+            const txt=esPesos?`${quien} — ${v!=null?fmtTipDinero(v):'—'}`
                              :`${quien} — ${v!=null?v.toFixed(2):'—'}%`;
-            const serieP=precios&&precios.get(i.dataset.label);
-            const px=serieP?serieP.get(fechas[i.dataIndex]):null;
-            return px!=null?[txt,`Precio ${fmtPrecio(px,simbPrecio)}`]:txt;
+            // Abajo, el dato de la otra unidad, siempre de la misma rueda: el
+            // precio cuando se mira la tasa, la tasa cuando se mira el precio.
+            const f=fechas[i.dataIndex];
+            const otraM=esPrecio?tasas:precios;
+            const serieO=otraM&&otraM.get(i.dataset.label);
+            const vo=serieO&&f?serieO.get(f):null;
+            if(vo==null)return txt;
+            return[txt,esPrecio?`${etqTasa} ${vo.toFixed(2)}%`:`Precio ${fmtPrecio(vo,simbPrecio)}`];
           }}},
       },
       scales:{
@@ -17454,7 +17586,7 @@ function seriesDibujar(sec,error){
             ticks:{display:ejeX,color:textColor,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:12}},
         y:{title:{display:true,text:tituloY,color:textColor,font:{size:10}},
            grid:{color:gridColor},
-           ticks:{color:textColor,font:{size:10},callback:esPesos?fmtPesos:fmtPct}},
+           ticks:{color:textColor,font:{size:10},callback:esPesos?fmtEjeDinero:fmtPct}},
         // Las barras viven en el cuarto de abajo: el máximo del eje se estira a
         // cuatro veces el monto más grande, así el volumen se lee sin taparle
         // el dibujo a la tasa, que es lo que se vino a mirar.
@@ -17485,7 +17617,8 @@ function seriesDibujar(sec,error){
           borderWidth:1,order:99,datalabels:{display:false}});
       }
     }
-    st.chart=armar(canvas,ds,esFwd&&opt.yf?opt.yf:opt.y,false,true,null,topeVol);
+    const tituloY=esPrecio?`Precio (${simbPrecio})`:(esFwd&&opt.yf?opt.yf:opt.y);
+    st.chart=armar(canvas,ds,tituloY,esPrecio,true,null,topeVol);
     return;
   }
 
