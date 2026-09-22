@@ -913,6 +913,80 @@ const omitir = (label, motivo) =>
   // Serie de precios: el mismo histórico leído en la otra columna. Lo que hay
   // que sostener es la moneda —el tipo de cambio es el MEP de CADA rueda, no el
   // de hoy— y que una rueda sin MEP no se dibuje en vez de heredar el de ayer.
+  // La barra de liquidación dejó de existir: sus 58px en todas las solapas se
+  // repartieron entre la barra de dólares (la fecha) y el header (las acciones).
+  // Lo que hay que sostener es que nada de eso dejó de funcionar por mudarse.
+  console.log('\nLa barra de liquidación, repartida');
+  const bar = await page.evaluate(() => {
+    // Con la sección USD activa el nav de pesos está oculto y mide 0: las barras se
+    // miden paradas donde el usuario abre la app.
+    switchSection('pesos');
+    const caja = sel => { const el = document.querySelector(sel);
+      return el ? Math.round(el.getBoundingClientRect().height) : null; };
+    const out = {
+      barraVieja: !!document.querySelector('.sbar'),
+      // Los tres campos siguen existiendo, ahora en la barra de dólares.
+      enUsdBar: ['g-fecha-op', 'g-plazo', 'g-liq-display']
+        .map(id => { const el = document.getElementById(id); return !!el && !!el.closest('#usd-bar'); }),
+      // Y las acciones, en el header.
+      enHeader: ['hdr-datos-btn', 'api-status', 'g-cer-status', 'g-tamar-status', 'g-dlk-status']
+        .map(id => { const el = document.getElementById(id); return !!el && !!el.closest('header.header'); }),
+      altos: { header: caja('header.header'), nav: caja('#nav-pesos'), usdBar: caja('#usd-bar') },
+    };
+    // La fecha sigue mandando sobre la liquidación, que es con la que calcula todo.
+    const f = document.getElementById('g-fecha-op'), p = document.getElementById('g-plazo');
+    const fAntes = f.value, pAntes = p.value;
+    f.value = '2026-09-21'; p.value = '2'; updateSettlement();
+    out.liq = G_LIQ ? fmtDate(G_LIQ) : null;
+    out.texto = document.getElementById('g-liq-display').textContent;
+    f.value = fAntes; p.value = pAntes; updateSettlement();
+    out.vuelta = G_LIQ ? fmtDate(G_LIQ) : null;
+    // El menú abre, cierra con un clic afuera y con Escape.
+    const m = document.getElementById('hdr-datos-menu');
+    hdrDatosToggle(); out.abre = m.style.display === 'block';
+    document.body.click(); out.cierraClic = m.style.display === 'none';
+    hdrDatosToggle();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    out.cierraEsc = m.style.display === 'none';
+    // Un clic adentro no lo cierra: Import abre el diálogo de archivos y el menú
+    // tiene que seguir ahí cuando el navegador devuelve el foco.
+    hdrDatosToggle();
+    m.querySelector('span').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    out.sigueAbierto = m.style.display === 'block';
+    hdrDatosCerrar();
+    return out;
+  });
+  check(!bar.barraVieja, 'la barra de liquidación ya no está');
+  check(bar.enUsdBar.every(Boolean), 'fecha, plazo y liquidación viven en la barra de dólares',
+        JSON.stringify(bar.enUsdBar));
+  check(bar.enHeader.every(Boolean), 'los refrescos y el portafolio viven en el header',
+        JSON.stringify(bar.enHeader));
+  check(bar.altos.header + bar.altos.nav + bar.altos.usdBar === 113,
+        'las barras fijas ocupan 113px, no 171', JSON.stringify(bar.altos));
+  // 21/09/2026 es lunes: dos hábiles caen el miércoles 23.
+  check(bar.liq === '2026-09-23' && /23\/09/.test(bar.texto),
+        'la fecha de operación sigue mandando sobre la liquidación', `${bar.liq} · ${bar.texto}`);
+  check(bar.vuelta != null, 'y vuelve al valor anterior', bar.vuelta);
+  check(bar.abre && bar.cierraClic && bar.cierraEsc && bar.sigueAbierto,
+        'el menú Datos abre, cierra afuera y con Escape, y no se cierra solo adentro',
+        JSON.stringify([bar.abre, bar.cierraClic, bar.cierraEsc, bar.sigueAbierto]));
+
+  // Cada página tiene que terminar donde termina la ventana: el alto sale de una
+  // variable CSS, y si quedara desfasada se ve como una franja muerta o como
+  // scroll de más en todas las solapas a la vez.
+  const altoPaginas = await page.evaluate(() => {
+    const ver = (fn, id) => { fn(); const el = document.getElementById(id);
+      return { id, sobra: Math.round(window.innerHeight - el.getBoundingClientRect().bottom) }; };
+    const out = [];
+    out.push(ver(() => { switchSection('pesos'); switchTab('breakeven'); }, 'page-breakeven'));
+    out.push(ver(() => switchTab('forwards'), 'page-forwards'));
+    out.push(ver(() => { switchSection('usd'); switchUsdTab('usd-forwards'); }, 'page-usd-forwards'));
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  check(altoPaginas.every(a => Math.abs(a.sobra) <= 1), 'cada página termina donde termina la ventana',
+        JSON.stringify(altoPaginas));
+
   console.log('\nSeries de precios');
   const tc = await page.evaluate(async () => {
     const t = await seriesMepSerie();

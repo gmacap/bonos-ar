@@ -9,6 +9,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
+  /* Lo que ocupan las barras fijas de arriba, que es lo que cada página tiene
+     que descontarle al alto de la ventana. Estaba escrito a mano en veintiún
+     lugares, así que sacar una barra era editarlos todos. ARS: header 50 +
+     nav 35 + barra USD 28. USD: eso más la sub-barra de moneda, 36. */
+  --alto-barras:113px; --alto-barras-usd:149px;
   --bg:#0d0f0e;--surface:#141715;--surface2:#1a1d1b;
   --border:#252825;--border2:#2e322e;
   --text:#e8ede9;--text2:#8a9489;--text3:#4d554e;
@@ -45,9 +50,6 @@ body.theme-light .nav-tab:hover{color:#1e3a1e;}
 body.theme-light .proy-subtab{color:#3a5e3a;}
 body.theme-light .proy-subtab.active{color:#145e10;border-bottom-color:#145e10;}
 body.theme-light .proy-subtab:hover{color:#1e3a1e;}
-body.theme-light .sbar{background:#e4ebe4;border-color:#9ab09a;}
-body.theme-light .sbar-label{color:#3a5e3a;}
-body.theme-light .sbar-result{color:#0a140a;font-weight:500;}
 body.theme-light .sbar-input{background:#f2f6f2;color:#0a140a;border-color:#7a9a7a;}
 body.theme-light .btn{background:#e4ebe4;border-color:#7a9a7a;color:#1e3a1e;}
 body.theme-light .btn:hover{border-color:#145e10;color:#145e10;background:#d4e8d0;}
@@ -119,18 +121,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 .col-resizer:hover,.col-resizer.dragging{background:var(--accent-dim);}
 
 /* settlement bar */
-.sbar{display:flex;align-items:center;gap:1rem;padding:7px 1.5rem;border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap;}
-.sbar-field{display:flex;flex-direction:column;gap:2px;flex-shrink:0;}
-.sbar-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);}
 .sbar-input{background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:4px 8px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;}
-.sbar-input:focus{border-color:var(--accent-dim);}
-.sbar-input.narrow{width:52px;text-align:center;}
-.sbar-input.date{width:135px;}
-.sbar-arrow{color:var(--text3);font-size:12px;margin-top:12px;flex-shrink:0;}
-.sbar-result{display:flex;flex-direction:column;gap:2px;flex-shrink:0;}
-.sbar-result-val{font-size:13px;font-weight:500;color:var(--accent);}
-.sbar-sep{width:1px;background:var(--border);height:34px;margin:0 4px;flex-shrink:0;}
-.sbar-refresh{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0;}
 .btn{padding:5px 12px;font-size:11px;font-family:var(--mono);border-radius:4px;border:1px solid var(--border2);background:none;color:var(--text2);cursor:pointer;transition:all .12s;white-space:nowrap;}
 .btn:hover{color:var(--text);border-color:var(--text3);}
 .btn.primary{border-color:var(--accent-dim);color:var(--accent);}
@@ -139,11 +130,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 .equiv-inp{width:100%;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--mono);font-size:12px;padding:2px 0;outline:none;}
 .equiv-inp:focus{border-bottom-color:var(--border2);}
 .api-status{font-size:11px;color:var(--text3);}
+/* La barra de arriba lleva la fecha de operación, los dólares y los ajustes de
+   la rueda en 28px. Abajo de ~1280 no entra: se corre sola en vez de aplastar
+   los campos o de estirar la página a lo ancho. */
+#usd-bar>*{flex-shrink:0;}
+#usd-bar::-webkit-scrollbar{height:0;}
 .api-status.ok{color:var(--accent2);}
 .api-status.err{color:var(--danger);}
 .api-status.loading{color:var(--warn);}
 
-.workspace{display:flex;flex-direction:column;height:calc(100vh - 164px);overflow:hidden;}
+.workspace{display:flex;flex-direction:column;height:calc(100vh - var(--alto-barras));overflow:hidden;}
 .workspace-top{display:flex;flex:1;min-height:0;overflow:hidden;}
 
 /* left pane */
@@ -314,7 +310,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 /* Patrones estructurales repetidos, antes duplicados inline.
    Solo estructura: los de color se dejaron inline a proposito, porque
    una clase puede perder contra otra regla mas especifica y el inline no. */
-.pg{display:none;height:calc(100vh - 200px);overflow:hidden;}
+.pg{display:none;height:calc(100vh - var(--alto-barras-usd));overflow:hidden;}
 .bb{border-bottom:1px solid var(--border);}
 .bb2{border-bottom:1px solid var(--border2);}
 </style>
@@ -329,6 +325,37 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     <span class="logo-seg"        id="logo-usd" onclick="switchSection('usd')">USD</span>
   </div>
   <div style="display:flex;align-items:center;gap:10px;">
+    <!-- Refrescar un índice o mover el portafolio se hace cada tanto: agrupado
+         acá no gasta alto de pantalla. Los tres span de estado siguen siendo
+         los mismos ids, que es donde cada fetch escribe su resultado. -->
+    <div style="position:relative;flex-shrink:0">
+      <button class="btn" id="hdr-datos-btn" onclick="hdrDatosToggle(event)" title="Índices y portafolio"
+        style="padding:3px 9px;font-size:11px;margin:0">Datos ▾</button>
+      <div id="hdr-datos-menu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:400;min-width:200px;
+                  background:var(--surface);border:1px solid var(--border2);border-radius:5px;padding:5px;box-shadow:0 8px 24px rgba(0,0,0,.4)">
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 4px">
+          <button class="btn" style="padding:3px 9px;font-size:11px;margin:0;flex:1;text-align:left" onclick="cerFetchIndex(true)">↻ CER</button>
+          <span class="api-status" id="g-cer-status" style="display:none"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 4px">
+          <button class="btn" style="padding:3px 9px;font-size:11px;margin:0;flex:1;text-align:left" onclick="tamarFetchIndex(true)">↻ TAMAR</button>
+          <span class="api-status" id="g-tamar-status" style="display:none"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 4px">
+          <button class="btn" style="padding:3px 9px;font-size:11px;margin:0;flex:1;text-align:left" onclick="dlkFetchIndex(true)">↻ DLK</button>
+          <span class="api-status" id="g-dlk-status" style="display:none"></span>
+        </div>
+        <div style="height:1px;background:var(--border);margin:4px 2px"></div>
+        <div style="display:flex;gap:6px;padding:3px 4px">
+          <button class="btn" style="padding:3px 9px;font-size:11px;margin:0;flex:1" onclick="exportarPortfolio()" title="Exportar bonos a JSON">⬇ Export</button>
+          <label class="btn" style="padding:3px 9px;font-size:11px;margin:0;flex:1;cursor:pointer;text-align:center" title="Importar bonos desde JSON">⬆ Import<input type="file" accept=".json" style="display:none" onchange="importarPortfolio(event)"></label>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <button class="btn primary" style="padding:3px 9px;font-size:11px;margin:0" onclick="fetchAllPrices()">↻ Precios</button>
+      <span class="api-status" id="api-status">sin datos</span>
+    </div>
     <div class="mode-row" id="theme-switcher">
       <button class="mode-btn active" id="theme-btn-dark"  onclick="setTheme('dark')" title="Oscuro">◐</button>
       <button class="mode-btn"        id="theme-btn-mid"   onclick="setTheme('mid')"  title="Medio">◑</button>
@@ -386,7 +413,23 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- USD BAR -->
-<div id="usd-bar" style="display:flex;align-items:center;gap:0;background:var(--surface);border-bottom:1px solid var(--border);padding:0 1rem;height:28px;font-family:var(--mono);font-size:11px;flex-shrink:0;">
+<div id="usd-bar" style="display:flex;align-items:center;gap:0;background:var(--surface);border-bottom:1px solid var(--border);padding:0 1rem;height:28px;font-family:var(--mono);font-size:11px;flex-shrink:0;overflow-x:auto;overflow-y:hidden;">
+  <!-- Fecha de operación y liquidación. Tenían una barra propia de 58px en
+       todas las solapas; acá comparten los 28 con el resto de los parámetros
+       de la rueda. La liquidación es la fecha con la que calcula toda la app,
+       así que va pegada a la fecha que la produce y no en otro lado. -->
+  <span style="color:var(--text3);margin-right:5px;font-size:10px;text-transform:uppercase;letter-spacing:.06em" title="Fecha de operación">Op</span>
+  <input type="date" id="g-fecha-op" oninput="updateSettlement()"
+    style="width:118px;background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:0 2px;outline:none;">
+  <span style="color:var(--text3);margin:0 5px">+</span>
+  <input type="number" id="g-plazo" value="1" min="0" max="5" oninput="updateSettlement()"
+    title="Días hábiles hasta la liquidación"
+    style="width:30px;background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:0 2px;outline:none;text-align:right;">
+  <span style="color:var(--text3);margin-left:3px;font-size:10px">háb</span>
+  <span style="color:var(--text3);margin:0 7px">→</span>
+  <span style="color:var(--text3);margin-right:5px;font-size:10px;text-transform:uppercase;letter-spacing:.06em">Liq</span>
+  <span id="g-liq-display" style="color:var(--accent)">—</span>
+  <span style="width:1px;background:var(--border);height:16px;margin:0 12px;flex-shrink:0;"></span>
   <span style="color:var(--text3);margin-right:8px;font-size:10px;text-transform:uppercase;letter-spacing:.06em">USD</span>
   <!-- MEP -->
   <span style="color:var(--text3);margin-right:5px">MEP</span>
@@ -431,49 +474,6 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     placeholder="—" title="Tasa de descuento para sintéticos (%). Vacío usa la caución más corta de BYMA." onchange="sintSetTasaDesc(this.value)">
   <span style="color:var(--text3);font-size:10px;margin-left:2px">%</span>
   <span id="sint-tdesc-fuente" style="color:var(--text3);font-size:10px;margin-left:5px;font-family:var(--mono)"></span>
-</div>
-
-<!-- SETTLEMENT BAR -->
-<div class="sbar">
-  <div class="sbar-field">
-    <div class="sbar-label">Fecha operación</div>
-    <input type="date" class="sbar-input date" id="g-fecha-op" oninput="updateSettlement()">
-  </div>
-  <div class="sbar-arrow">+</div>
-  <div class="sbar-field">
-    <div class="sbar-label">Días háb.</div>
-    <input type="number" class="sbar-input narrow" id="g-plazo" value="1" min="0" max="5" oninput="updateSettlement()">
-  </div>
-  <div class="sbar-arrow">→</div>
-  <div class="sbar-result">
-    <div class="sbar-label">Liquidación</div>
-    <div class="sbar-result-val" id="g-liq-display">—</div>
-  </div>
-  <div class="sbar-sep"></div>
-  <div style="display:flex;align-items:center;gap:8px;">
-    <button class="btn" style="padding:3px 9px;font-size:11px;margin:0;" onclick="cerFetchIndex(true)">↻ CER</button>
-    <span class="api-status" id="g-cer-status" style="display:none"></span>
-  </div>
-  <div class="sbar-sep"></div>
-  <div style="display:flex;align-items:center;gap:8px;">
-    <button class="btn" style="padding:3px 9px;font-size:11px;margin:0;" onclick="tamarFetchIndex(true)">↻ TAMAR</button>
-    <span class="api-status" id="g-tamar-status" style="display:none"></span>
-  </div>
-  <div class="sbar-sep"></div>
-  <div style="display:flex;align-items:center;gap:8px;">
-    <button class="btn" style="padding:3px 9px;font-size:11px;margin:0;" onclick="dlkFetchIndex(true)">↻ DLK</button>
-    <span class="api-status" id="g-dlk-status" style="display:none"></span>
-  </div>
-  <div class="sbar-sep"></div>
-  <div style="display:flex;align-items:center;gap:6px;">
-    <button class="btn" style="padding:3px 9px;font-size:11px;margin:0;" onclick="exportarPortfolio()" title="Exportar bonos a JSON">⬇ Export</button>
-    <label class="btn" style="padding:3px 9px;font-size:11px;margin:0;cursor:pointer;" title="Importar bonos desde JSON">⬆ Import<input type="file" accept=".json" style="display:none" onchange="importarPortfolio(event)"></label>
-  </div>
-  <div class="sbar-sep"></div>
-  <div class="sbar-refresh">
-    <button class="btn primary" onclick="fetchAllPrices()">↻ Precios</button>
-    <span class="api-status" id="api-status">sin datos</span>
-  </div>
 </div>
 
 <div class="workspace" id="lecap-workspace">
@@ -612,7 +612,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div><!-- end workspace-top -->
 
 <!-- CHART -->
-<div class="chart-area" id="chart-area" style="height:calc((100vh - 164px) / 2);">
+<div class="chart-area" id="chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);">
   <div class="chart-resize-handle" id="chart-resize-handle"></div>
   <div class="chart-toolbar">
     <span class="chart-title">Curva de tasas</span>
@@ -628,7 +628,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div><!-- end workspace -->
 
 <!-- ═══════════════════════════════════════════════════════ CER PAGE -->
-<div id="page-cer" style="display:none;height:calc(100vh - 164px);flex-direction:column;overflow:hidden;">
+<div id="page-cer" style="display:none;height:calc(100vh - var(--alto-barras));flex-direction:column;overflow:hidden;">
   <div id="cer-index-banner" class="index-banner">
     <span>Índice CER no cargado — la TIR real y las tasas proyectadas no están disponibles.</span>
     <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="cerFetchIndex(true)">↻ Cargar CER</button>
@@ -865,7 +865,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div><!-- end cer-workspace -->
 
   <!-- CER CHART: curva TIR real debajo -->
-  <div id="cer-chart-area" style="height:calc((100vh - 164px) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
+  <div id="cer-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="cer-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;gap:8px;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
       <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva CER · TIR Real</span>
@@ -879,7 +879,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div><!-- end page-cer -->
 
 <!-- ═══════════════════════════════════════════════════════ TAMAR PAGE -->
-<div id="page-tamar" style="display:none;height:calc(100vh - 164px);overflow:hidden;flex-direction:column;">
+<div id="page-tamar" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
   <div id="tamar-index-banner" class="index-banner">
     <span>Índice TAMAR no cargado — los cálculos de margen y TIR no están disponibles.</span>
     <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="tamarFetchIndex(true)">↻ Cargar TAMAR</button>
@@ -983,7 +983,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div>
 
   <!-- TAMAR CHART: curva Margen TNA debajo -->
-  <div id="tamar-chart-area" style="height:calc((100vh - 164px) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
+  <div id="tamar-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="tamar-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
       <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva TAMAR · Margen TNA</span>
@@ -1019,7 +1019,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ DLK PAGE -->
-<div id="page-dlk" style="display:none;height:calc(100vh - 164px);overflow:hidden;flex-direction:column;">
+<div id="page-dlk" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
   <div id="dlk-index-banner" class="index-banner">
     <span>Índice A3500 (DLK) no cargado — la paridad y TIR en USD no están disponibles.</span>
     <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="dlkFetchIndex(true)">↻ Cargar DLK</button>
@@ -1104,7 +1104,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div>
 
   <!-- DLK CHART -->
-  <div id="dlk-chart-area" style="height:calc((100vh - 164px) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
+  <div id="dlk-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="dlk-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
       <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva DLK · TIR %</span>
@@ -1117,7 +1117,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- SINTETICOS PAGE -->
-<div id="page-sintetico" style="display:none;height:calc(100vh - 164px);overflow:hidden;flex-direction:column;">
+<div id="page-sintetico" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
   <div id="sint-index-banner" class="index-banner">
     <span>Índice A3500 (DLK) no cargado — el TC del sintético no está disponible.</span>
     <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="dlkFetchIndex(true)">↻ Cargar DLK</button>
@@ -1255,7 +1255,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ FORWARDS PAGE -->
-<div id="page-forwards" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:1.5rem 2rem;">
+<div id="page-forwards" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto;padding:1.5rem 2rem;">
 
   <!-- CONTROLES -->
   <div style="display:flex;align-items:center;gap:1.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
@@ -1312,7 +1312,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ BREAKEVEN PAGE -->
-<div id="page-breakeven" style="display:none;height:calc(100vh - 164px);overflow:hidden;">
+<div id="page-breakeven" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;">
   <div id="be-columns" style="display:flex;height:100%;gap:0;min-height:0;">
 
 
@@ -1516,7 +1516,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div>
 </div>
 <!-- ═══════════════════════════════════════════════════════ PROYECCIONES PAGE -->
-<div id="page-proyecciones" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:2rem 2.5rem;">
+<div id="page-proyecciones" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto;padding:2rem 2.5rem;">
   <div style="max-width:900px;margin:0 auto;">
 
     <!-- HEADER -->
@@ -1769,7 +1769,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- ═══════════════════════════════════════════════════ ESCENARIOS PAGE -->
-<div id="page-escenarios" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:2rem 2.5rem;">
+<div id="page-escenarios" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto;padding:2rem 2.5rem;">
   <div style="max-width:1180px;margin:0 auto;">
 
     <!-- HEADER -->
@@ -1834,7 +1834,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ FERIADOS PAGE -->
-<div id="page-feriados" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:2rem 2.5rem;">
+<div id="page-feriados" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto;padding:2rem 2.5rem;">
   <div style="max-width:700px;margin:0 auto;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
       <div>
@@ -1891,7 +1891,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- CALENDARIO PAGE -->
-<div id="page-calendario" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:1.5rem 2rem;">
+<div id="page-calendario" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto;padding:1.5rem 2rem;">
   <div style="max-width:1100px;margin:0 auto;">
     <!-- Header navegación -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
@@ -1932,7 +1932,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       </div>
 
       <!-- Lista de eventos del mes -->
-      <div id="cal-side" style="width:258px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:calc(100vh - 290px);overflow-y:auto;"></div>
+      <div id="cal-side" style="width:258px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:calc(100vh - var(--alto-barras) - 126px);overflow-y:auto;"></div>
     </div>
   </div>
 </div>
@@ -1940,11 +1940,11 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <!-- ARS CURVAS PAGE -->
 <div id="page-curvas-ars" style="display:none;height:calc(100vh - 64px);flex-direction:column;overflow:hidden;"></div>
 <div id="page-series-ars" style="display:none;height:calc(100vh - 64px);flex-direction:column;overflow:hidden;"></div>
-<div id="page-comentario" style="display:none;height:calc(100vh - 164px);overflow-y:auto;padding:1.5rem 2rem;"></div>
+<div id="page-comentario" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto;padding:1.5rem 2rem;"></div>
 
 <!-- USD PAGES -->
 <div id="page-usd-resumen"   class="pg"></div>
-<div id="page-usd-forwards" style="display:none;height:calc(100vh - 200px);overflow-y:auto;padding:1.5rem 2rem;">
+<div id="page-usd-forwards" style="display:none;height:calc(100vh - var(--alto-barras-usd));overflow-y:auto;padding:1.5rem 2rem;">
 
   <!-- CONTROLES -->
   <div style="display:flex;align-items:center;gap:1.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
@@ -2401,9 +2401,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 </div>
 
-<div id="page-usd-curvas" style="display:none;height:calc(100vh - 200px);overflow:hidden;flex-direction:column;"></div>
-<div id="page-usd-series" style="display:none;height:calc(100vh - 200px);overflow:hidden;flex-direction:column;"></div>
-<div id="page-usd-comentario" style="display:none;height:calc(100vh - 200px);overflow-y:auto;padding:1.5rem 2rem;"></div>
+<div id="page-usd-curvas" style="display:none;height:calc(100vh - var(--alto-barras-usd));overflow:hidden;flex-direction:column;"></div>
+<div id="page-usd-series" style="display:none;height:calc(100vh - var(--alto-barras-usd));overflow:hidden;flex-direction:column;"></div>
+<div id="page-usd-comentario" style="display:none;height:calc(100vh - var(--alto-barras-usd));overflow-y:auto;padding:1.5rem 2rem;"></div>
 
 <div style="height:30px;"></div>
 <div class="status-bar">
@@ -3730,6 +3730,29 @@ const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
 
 document.getElementById('hoy').textContent=
   TODAY.toLocaleDateString('es-AR',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+
+// ── MENÚ DE DATOS DEL HEADER ──────────────────────────────────────────────────
+// Lo que antes era una barra de 58px presente en todas las solapas. Se usa poco
+// —refrescar el índice CER, TAMAR o DLK, y mover el portafolio—, así que un clic
+// de más vale más que el alto de pantalla que costaba estar siempre a la vista.
+function hdrDatosToggle(e){
+  if(e)e.stopPropagation();
+  const m=document.getElementById('hdr-datos-menu');
+  if(m)m.style.display=m.style.display==='none'?'block':'none';
+}
+function hdrDatosCerrar(){
+  const m=document.getElementById('hdr-datos-menu');
+  if(m)m.style.display='none';
+}
+document.addEventListener('click',e=>{
+  const m=document.getElementById('hdr-datos-menu');
+  if(!m||m.style.display==='none')return;
+  // Un clic adentro no cierra: Import abre el diálogo de archivos y el menú
+  // tiene que seguir abierto cuando el navegador devuelve el foco.
+  if(m.contains(e.target))return;
+  hdrDatosCerrar();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hdrDatosCerrar();});
 
 // ── FECHA LIQUIDACIÓN GLOBAL ──────────────────────────────────────────────────
 let G_LIQ=null;
