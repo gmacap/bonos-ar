@@ -1054,16 +1054,23 @@ const omitir = (label, motivo) =>
       out.msg = elMsg ? elMsg.textContent : '';
       const otra = st2.cache.porBono.get(tk) || new Map();
       const t2 = await seriesMepSerie();
-      let comparadas = 0, malas = 0, tcs = new Set();
+      let comparadas = 0, tcs = new Set();
+      const malas = [], vivas = [];
       for (const [f, v] of otra) {
         const base = propia.get(f), mep = t2.de(f);
         if (base == null || !(mep > 0)) continue;
         const esperado = guardaUsd ? base * mep : base / mep;
-        comparadas++;
+        const error = Math.abs(v - esperado) / Math.abs(esperado);
         tcs.add(Math.round((guardaUsd ? v / base : base / v) * 100) / 100);
-        if (Math.abs(v - esperado) > Math.abs(esperado) * 1e-9) malas++;
+        // La rueda que data912 todavía no cerró se valúa con el MEP EN VIVO, que
+        // se mueve entre una medición y la otra: ahí la igualdad exacta no aplica
+        // —cada vista es coherente en el momento en que se dibuja— y lo que se
+        // exige es que siga siendo el mismo tipo de cambio, no otro.
+        if (!t2.mapa.has(f)) { if (error > 0.02) vivas.push({ f, error: +error.toFixed(5) }); continue; }
+        comparadas++;
+        if (error > 1e-9) malas.push({ f, v, esperado: +esperado.toFixed(6) });
       }
-      out.comparadas = comparadas; out.malas = malas; out.tcsDistintos = tcs.size;
+      out.comparadas = comparadas; out.malas = malas; out.vivas = vivas; out.tcsDistintos = tcs.size;
       out.ticker = tk;
       // Volver a tasas no puede dejar el gráfico roto.
       seriesSetModo(s, 'tasas');
@@ -1093,9 +1100,12 @@ const omitir = (label, motivo) =>
       check(/sin MEP/.test(pr.msg || ''), `${sec}: y el gráfico dice por qué quedó vacío`, pr.msg);
     } else {
       check(pr.ejeYOtra === `Precio (${otro})`, `${sec}: el botón de moneda cambia el eje`, pr.ejeYOtra);
-      check(pr.comparadas > 0 && pr.malas === 0,
+      check(pr.comparadas > 0 && pr.malas.length === 0,
             `${sec}: cada punto es el mismo precio al MEP de su rueda`,
-            `${pr.ticker}: ${pr.comparadas} ruedas, ${pr.malas} mal`);
+            `${pr.ticker}: ${pr.comparadas} ruedas` + (pr.malas.length ? ' \u2014 ' + JSON.stringify(pr.malas.slice(0, 3)) : ''));
+      check(pr.vivas.length === 0,
+            `${sec}: la rueda con MEP en vivo sigue al mismo tipo de cambio`,
+            JSON.stringify(pr.vivas.slice(0, 3)));
       check(pr.tcsDistintos > 1, `${sec}: el tipo de cambio es el de cada rueda, no uno solo`,
             `${pr.tcsDistintos} valores distintos en ${pr.comparadas} ruedas`);
     }
