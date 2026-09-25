@@ -40,7 +40,8 @@
 
 const { chromium } = require('playwright');
 
-const APP_URL  = 'https://santosechezarreta5.github.io/bonos-ar/';
+const { appUrl } = require('./app-url');
+const APP_URL = appUrl();
 const EMAIL    = process.env.SUPABASE_BOT_EMAIL;
 const PASSWORD = process.env.SUPABASE_BOT_PASSWORD;
 const DESDE    = process.env.DESDE || '2025-01-01';

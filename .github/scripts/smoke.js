@@ -14,7 +14,8 @@
 const { chromium } = require('playwright');
 
 const USD_LABEL = { bop: 'Bopreales', bon: 'Bonares', glo: 'Globales' };
-const APP = process.env.APP_URL || 'https://santosechezarreta5.github.io/bonos-ar/';
+const { appUrl } = require('./app-url');
+const APP = appUrl();
 
 let ok = 0, bad = 0;
 const check = (cond, label, detalle = '') => {

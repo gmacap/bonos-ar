@@ -19,7 +19,8 @@
 
 const { chromium } = require('playwright');
 
-const APP = process.env.APP_URL || 'https://santosechezarreta5.github.io/bonos-ar/';
+const { appUrl } = require('./app-url');
+const APP = appUrl();
 const BYMA = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free'
            + '/bnown/fichatecnica/especies/general';
 const PAUSA_MS = 1100;   // BYMA pide no más de 1 req/s

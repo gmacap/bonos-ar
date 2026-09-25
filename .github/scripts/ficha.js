@@ -62,8 +62,8 @@ const args = process.argv.slice(2);
 const flag = n => args.includes('--' + n);
 const opt = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
 
-const APP = flag('local') ? 'http://localhost:8000/index.html'
-                         : (process.env.APP_URL || 'https://santosechezarreta5.github.io/bonos-ar/');
+const { appUrl } = require('./app-url');
+const APP = flag('local') ? 'http://localhost:8000/index.html' : appUrl();
 const SALIDA = opt('salida', null);
 const UNO = opt('periodo', null);
 // La rueda que cierra el período. Sin esto es la última archivada, y la app
