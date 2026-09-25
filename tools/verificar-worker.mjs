@@ -4,7 +4,7 @@
 //   SNAPSHOT_TOKEN=xxxx node tools/verificar-worker.mjs
 
 const W = process.env.WORKER_URL || 'https://royal-resonance-d470.santosechezarreta5.workers.dev';
-const APP = 'https://santosechezarreta5.github.io';
+const APP = 'https://gmacap.github.io';
 const TOKEN = process.env.SNAPSHOT_TOKEN || '';
 
 let ok = 0, bad = 0;
@@ -22,11 +22,18 @@ const get = async (path, init = {}) => {
 
 console.log(`\nVerificando ${W}\n`);
 
-console.log('SEC-1 · proxy /iol');
+// El proxy /iol se eliminó del Worker: aceptaba una URL arbitraria por
+// querystring y se había endurecido a mano. Estas dos pruebas verificaban ese
+// endurecimiento, y quedaron pidiendo un 403 que ya no puede llegar porque la
+// ruta no existe. Que no exista es más fuerte que que rechace bien, así que lo
+// que se verifica ahora es eso: que no haya vuelto.
+console.log('SEC-1 · el proxy /iol no existe más');
 const evil = await get('/iol?url=' + encodeURIComponent('https://example.com/'));
-check(evil.status === 403, 'host arbitrario rechazado', `devolvió ${evil.status} (esperado 403)`);
+check(evil.status >= 400 && !/example\.com/i.test(evil.body),
+  'no proxea un host arbitrario', `devolvió ${evil.status}`);
 const plain = await get('/iol?url=' + encodeURIComponent('http://169.254.169.254/'));
-check(plain.status === 400, 'http:// rechazado', `devolvió ${plain.status} (esperado 400)`);
+check(plain.status >= 400 && !/ami-id|instance-id/i.test(plain.body),
+  'no alcanza la metadata interna por http://', `devolvió ${plain.status}`);
 
 console.log('\nSEC-3 · /test-snapshot');
 const noTok = await get('/test-snapshot', { method: 'POST' });

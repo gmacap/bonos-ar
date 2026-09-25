@@ -8,7 +8,7 @@
 // La variable de entorno APP_URL la pisa: así los scripts corren contra
 // localhost o contra un deploy de prueba sin tocar este archivo. El CI la usa
 // para probar el código del commit antes de que llegue a Pages.
-const PUBLICADA = 'https://santosechezarreta5.github.io/bonos-ar/';
+const PUBLICADA = 'https://gmacap.github.io/bonos-ar/';
 
 module.exports = {
   PUBLICADA,
