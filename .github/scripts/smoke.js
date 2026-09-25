@@ -987,6 +987,77 @@ const omitir = (label, motivo) =>
   check(altoPaginas.every(a => Math.abs(a.sobra) <= 1), 'cada página termina donde termina la ventana',
         JSON.stringify(altoPaginas));
 
+  // Un pago que cae en día no hábil se cobra el hábil siguiente. El monto no se
+  // toca —se devenga contra la fecha nominal, y los fixings también— pero el
+  // descuento sí: un bono que vence sábado se cobra el lunes y rinde dos días
+  // menos. Los bonos en dólares ya lo hacían; los de pesos descontaban contra la
+  // fecha nominal y mostraban una TIR que nadie podía capturar.
+  console.log('\nPago en día no hábil');
+  const hab = await page.evaluate(() => {
+    const out = {};
+    // El helper solo: fin de semana al lunes, y un hábil no se mueve.
+    const f = s => fmtDate(siguienteHabil(parseDate(s)));
+    out.helper = { sabado: f('2026-11-07'), domingo: f('2026-11-08'), habil: f('2026-11-10') };
+    // El de dólares quedó como alias del mismo: un solo calendario.
+    out.mismoQueUsd = f('2026-11-07') === fmtDate(bopSiguienteHabil(parseDate('2026-11-07')));
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    // Los bonos que ya vencían en fin de semana descuentan al hábil siguiente.
+    out.finde = (CER_BONDS || []).filter(b => b.vcto && !esHabil(parseDate(b.vcto)) && b.precio)
+      .map(b => { const e = cerEnrich(b);
+        return { t: b.ticker, vcto: b.vcto, pago: f(b.vcto),
+                 dias: e.dias, nominal: diasACT(liq, parseDate(b.vcto)) }; });
+    // Y uno que vence en día hábil no se mueve ni un día.
+    const sano = (CER_BONDS || []).find(b => b.vcto && esHabil(parseDate(b.vcto)) && b.precio
+                                             && diasACT(liq, parseDate(b.vcto)) > 5);
+    if (sano) { const e = cerEnrich(sano);
+      out.sano = { t: sano.ticker, dias: e.dias, nominal: diasACT(liq, parseDate(sano.vcto)) }; }
+    // Declarar feriado el día del vencimiento corre el pago, alarga el plazo y
+    // baja la tasa; el monto —factor CER y fecha de fixing— queda igual.
+    const b = (CER_BONDS || []).find(x => x.precio && x.vcto && esHabil(parseDate(x.vcto))
+                                          && diasACT(liq, parseDate(x.vcto)) > 20);
+    if (b) {
+      const antes = cerEnrich(b);
+      const fixAntes = fmtDate(cerGetFechaCer(parseDate(b.vcto)));
+      _FERIADOS_EXTRA.push({ fecha: b.vcto, desc: 'Smoke: feriado de prueba' });
+      feriadosRebuildSet();
+      const despues = cerEnrich(b);
+      const fixDespues = fmtDate(cerGetFechaCer(parseDate(b.vcto)));
+      _FERIADOS_EXTRA.pop(); feriadosRebuildSet();
+      const vuelta = cerEnrich(b);
+      out.feriado = { t: b.ticker, vcto: b.vcto,
+        diasAntes: antes.dias, diasDespues: despues.dias, diasVuelta: vuelta.dias,
+        tirAntes: antes.tir, tirDespues: despues.tir,
+        factorIgual: antes.factor === despues.factor, fixIgual: fixAntes === fixDespues };
+    }
+    return out;
+  });
+  check(hab.helper.sabado === '2026-11-09' && hab.helper.domingo === '2026-11-09'
+        && hab.helper.habil === '2026-11-10',
+        'el fin de semana se cobra el lunes y un hábil no se mueve', JSON.stringify(hab.helper));
+  check(hab.mismoQueUsd, 'los bonos en dólares usan el mismo calendario, no otro');
+  if (!hab.finde.length) omitir('un vencimiento en fin de semana descuenta al hábil siguiente',
+                                'ningún bono CER vence en fin de semana');
+  else check(hab.finde.every(x => x.dias > x.nominal && x.pago > x.vcto),
+             'un vencimiento en fin de semana descuenta al hábil siguiente',
+             JSON.stringify(hab.finde));
+  if (!hab.sano) omitir('un vencimiento en día hábil no se mueve', 'sin bono con vencimiento lejano');
+  else check(hab.sano.dias === hab.sano.nominal, 'un vencimiento en día hábil no se mueve',
+             JSON.stringify(hab.sano));
+  if (!hab.feriado) omitir('declarar feriado el vencimiento corre el pago', 'sin bono CER con precio');
+  else {
+    check(hab.feriado.diasDespues === hab.feriado.diasAntes + 1,
+          'declarar feriado el día del vencimiento agrega un día de espera',
+          JSON.stringify(hab.feriado));
+    check(hab.feriado.tirDespues < hab.feriado.tirAntes,
+          'y con el mismo monto más lejos, la tasa baja',
+          `${hab.feriado.t}: ${hab.feriado.tirAntes.toFixed(4)}% \u2192 ${hab.feriado.tirDespues.toFixed(4)}%`);
+    check(hab.feriado.factorIgual && hab.feriado.fixIgual,
+          'el monto no cambia: mismo factor CER y mismo fixing',
+          JSON.stringify([hab.feriado.factorIgual, hab.feriado.fixIgual]));
+    check(hab.feriado.diasVuelta === hab.feriado.diasAntes,
+          'y sacando el feriado vuelve al plazo original', String(hab.feriado.diasVuelta));
+  }
+
   console.log('\nSeries de precios');
   const tc = await page.evaluate(async () => {
     const t = await seriesMepSerie();
@@ -1047,7 +1118,9 @@ const omitir = (label, motivo) =>
           dataset: { label: tk }, dataIndex: idx });
       // Y ahora la otra: cada punto tiene que ser el mismo, al MEP de SU rueda.
       seriesSetMoneda(s, guardaUsd ? 'ARS' : 'USD');
-      await esperar(5000);
+      // Convertir pide el MEP histórico y el vivo: se le da aire de sobra para que
+      // un data912 lento no se lea como un error de conversión.
+      await esperar(9000);
       const st2 = seriesEstado[s];
       out.ejeYOtra = st2.chart ? st2.chart.options.scales.y.title.text : '';
       const elMsg = document.getElementById(`series-${s}-msg`);
@@ -1427,8 +1500,16 @@ const omitir = (label, motivo) =>
     check(capa.con > 0 && capa.sin === 0, 'la capa entra al gráfico y el botón la saca',
           capa.con + ' puntos con, ' + capa.sin + ' sin');
     check(capa.montos, 'sólo entran los plazos con monto operado');
+    // La caución cubre el tramo corto SIEMPRE QUE las letras no lleguen ahí solas.
+    // Los días previos a un vencimiento la letra más corta queda en dos o tres días,
+    // debajo del plazo más corto que la rueda de cauciones opera con volumen, y la
+    // comparación deja de decir algo: no es que la capa falle, es que ese día no
+    // hay tramo que cerrar.
     if (capa.xTf == null) {
       omitir('la caución cierra el tramo corto', 'no hay LECAPs con precio ahora');
+    } else if (capa.xCau >= capa.xTf) {
+      omitir('la caución cierra el tramo que las letras no cubren',
+             `hay una letra a ${capa.xTf} días, más corta que la caución más corta (${capa.xCau})`);
     } else {
       check(capa.xCau < capa.xTf, 'la caución cierra el tramo que las letras no cubren',
             'caución desde ' + capa.xCau + ' días, letras desde ' + capa.xTf);

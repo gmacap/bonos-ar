@@ -3703,6 +3703,25 @@ function addHabiles(desde,n){
   return d;
 }
 
+// ── PAGO EN DÍA NO HÁBIL ──────────────────────────────────────────────────────
+// Un cupón o un vencimiento que cae en día no hábil se cobra el hábil siguiente:
+// es la convención "following business day" de los prospectos. Lo que NO cambia
+// es el monto —se devenga contra la fecha nominal, y el fixing de CER o de TAMAR
+// también—; lo que cambia es CUÁNDO entra la plata, y con eso el descuento.
+//
+// No es un detalle de un día: un bono que vence sábado se cobra el lunes y rinde
+// dos días menos. Los bonos en dólares ya lo hacían desde siempre (bopGenFlows);
+// los de pesos descontaban contra la fecha nominal, así que un vencimiento en
+// feriado o en fin de semana mostraba una TIR que nadie podía capturar.
+function siguienteHabil(d){
+  const dt=new Date(d.getTime());dt.setHours(0,0,0,0);
+  while(!esHabil(dt))dt.setDate(dt.getDate()+1);
+  return dt;
+}
+// Días de descuento hasta un flujo: hasta el día en que se cobra, no hasta la
+// fecha nominal del cupón.
+function diasAlPago(liq,fecha){return diasACT(liq,siguienteHabil(fecha));}
+
 // ── UTILIDADES ────────────────────────────────────────────────────────────────
 const TODAY=new Date();TODAY.setHours(0,0,0,0);
 const parseDate=s=>new Date(s+'T00:00:00');
@@ -3806,7 +3825,7 @@ function enrich(r){
   const em=parseDate(r.emision),vc=parseDate(r.vcto);
   const liq=G_LIQ||addHabiles(TODAY,1);
   const vf=calcVF(r.tem_emision,em,vc);
-  const dias=Math.max(0,diasACT(liq,vc));
+  const dias=Math.max(0,diasAlPago(liq,vc));
   const precio=r.precio;
   const tna=precio!=null&&dias>0?calcTNA(precio,vf,dias):NaN;
   const tir=calcTIR(tna,dias);
@@ -4299,7 +4318,7 @@ function recalcPanel(){
   if(!selectedTicker)return;
   const r=DATA.find(d=>d.ticker===selectedTicker);if(!r)return;
   const liq=G_LIQ||addHabiles(TODAY,1);
-  const dias=diasACT(liq,r.vctoDate);
+  const dias=diasAlPago(liq,r.vctoDate);
   const laminas=parseFloat(document.getElementById('p-laminas').value)||1;
   const vf=r.vf;
 
@@ -4999,7 +5018,7 @@ function cerBuildFlujos(r, precio, factor){
   flujos.push({fecha:new Date(liq), monto:-(precio/factor)});
 
   if(r.tipo==='lecer'){
-    flujos.push({fecha:parseDate(r.vcto), monto:100});
+    flujos.push({fecha:siguienteHabil(parseDate(r.vcto)), monto:100});
 
   } else if(r.tipo==='cupon'){
     const freq=r.freq||6;
@@ -5035,7 +5054,7 @@ function cerBuildFlujos(r, precio, factor){
       const tasaCash=tramo?tramo.tasaCash/100:(r.cupon||0)/100;
       const tasaPIK=tramo?tramo.tasaPIK/100:0;
       const cuponMonto=vnResidual*tasaCash*(freq/12);
-      flujos.push({fecha:new Date(d),monto:cuponMonto+amortMonto});
+      flujos.push({fecha:siguienteHabil(d),monto:cuponMonto+amortMonto});
       vnResidual=Math.max(0,vnResidual*(1+tasaPIK*(freq/12))-amortMonto);
     });
 
@@ -5044,7 +5063,7 @@ function cerBuildFlujos(r, precio, factor){
       const dA=parseDate(a.fecha);
       if(dA<=liq)return;
       const yaIncluida=dates.some(d=>fmtDate(d)===a.fecha);
-      if(!yaIncluida&&a.pct>0)flujos.push({fecha:dA,monto:a.pct});
+      if(!yaIncluida&&a.pct>0)flujos.push({fecha:siguienteHabil(dA),monto:a.pct});
     });
 
     flujos.sort((a,b)=>a.fecha-b.fecha);
@@ -5066,7 +5085,7 @@ function cerTirLecer(precio, dias, factor){
 function cerPrecioFromTir(tir, r, factor){
   const liq=G_LIQ||addHabiles(TODAY,1);
   if(r.tipo==='lecer'){
-    const dias=diasACT(liq,parseDate(r.vcto));
+    const dias=diasAlPago(liq,parseDate(r.vcto));
     const precioReal=100/Math.pow(1+tir/100,dias/365);
     return precioReal*factor;
   }
@@ -5131,7 +5150,7 @@ function cerBuildFlujosProy(r, precio, factor){
     if(!cerVto)return null;
     // CF_vto = 100 × factor × (CER_fixing_vto / CER_hoy)
     // = 100 × (CER_fixing_vto / CER_fixing_emision)
-    flujos.push({fecha:parseDate(r.vcto), monto:100*factor*(cerVto/cerHoy)});
+    flujos.push({fecha:siguienteHabil(parseDate(r.vcto)), monto:100*factor*(cerVto/cerHoy)});
 
   } else if(r.tipo==='cupon'){
     const freq=r.freq||6;
@@ -5168,7 +5187,7 @@ function cerBuildFlujosProy(r, precio, factor){
       const cfReal=vnResidual*tasaCash*(freq/12)+amortMonto;
       const cerFlujo=cerGetValorCerProyectado(d);
       if(!cerFlujo)return;
-      flujos.push({fecha:new Date(d),monto:cfReal*factor*(cerFlujo/cerHoy)});
+      flujos.push({fecha:siguienteHabil(d),monto:cfReal*factor*(cerFlujo/cerHoy)});
       vnResidual=Math.max(0,vnResidual*(1+tasaPIK*(freq/12))-amortMonto);
     });
 
@@ -5179,7 +5198,7 @@ function cerBuildFlujosProy(r, precio, factor){
       const yaIncluida=dates.some(d=>fmtDate(d)===a.fecha);
       if(!yaIncluida&&a.pct>0){
         const cerFlujo=cerGetValorCerProyectado(dA);
-        if(cerFlujo)flujos.push({fecha:dA,monto:a.pct*factor*(cerFlujo/cerHoy)});
+        if(cerFlujo)flujos.push({fecha:siguienteHabil(dA),monto:a.pct*factor*(cerFlujo/cerHoy)});
       }
     });
     flujos.sort((a,b)=>a.fecha-b.fecha);
@@ -5191,7 +5210,7 @@ function cerBuildFlujosProy(r, precio, factor){
 function cerEnrich(r){
   const liq=G_LIQ||addHabiles(TODAY,1);
   const vctoDate=r.vcto?parseDate(r.vcto):null;
-  const dias=vctoDate?Math.max(0,diasACT(liq,vctoDate)):0;
+  const dias=vctoDate?Math.max(0,diasAlPago(liq,vctoDate)):0;
   const factor=r.emision?cerFactor(r.emision):null;
   let tir=NaN,tem=NaN,tna=NaN,cc=0;
   let tirProy=NaN,temProy=NaN,tnaProy=NaN;
@@ -5228,7 +5247,7 @@ function cerEnrich(r){
   if(!isNaN(tir)&&dias>0&&r.precio!=null&&factor){
     let flujosDur=[];
     if(r.tipo==='lecer'){
-      flujosDur=[{fecha:parseDate(r.vcto),monto:100}];
+      flujosDur=[{fecha:siguienteHabil(parseDate(r.vcto)),monto:100}];
     } else {
       const fd=cerBuildFlujos(r,r.precio,factor);
       flujosDur=fd.slice(1); // sin CF0
@@ -9324,12 +9343,12 @@ function tamarEnrich(r){
   const emDate=r.emision?parseDate(r.emision):null;
   const vctoDate=r.vcto?parseDate(r.vcto):null;
   if(!emDate||!vctoDate||!r.precio||!TAMAR_INDEX.length){
-    const dias=vctoDate?Math.max(0,diasACT(liq,vctoDate)):0;
+    const dias=vctoDate?Math.max(0,diasAlPago(liq,vctoDate)):0;
     return{...r,dias,modDuration:NaN,tir:NaN,tna:NaN,tem:NaN,margenTNA:NaN,_debug:null};
   }
 
   const liqDate=liq;
-  const DIAS=Math.max(0,diasACT(liqDate,vctoDate));
+  const DIAS=Math.max(0,diasAlPago(liqDate,vctoDate));
   const DIAS_360=dias360(emDate,vctoDate);
   const duration=DIAS/365;
 
@@ -10000,7 +10019,7 @@ function beCalcular(cerTicker){
   if(!cerBond||!cerBond.precio||!cerBond.vcto)return null;
   const liq=G_LIQ||addHabiles(TODAY,1);
   const vctoDate=parseDate(cerBond.vcto);
-  const diasCER=diasACT(liq,vctoDate);
+  const diasCER=diasAlPago(liq,vctoDate);
   if(diasCER<=0)return null;
   const psCER=bePrecioSucioCER(cerBond);
   if(!psCER)return null;
@@ -10473,7 +10492,7 @@ function betrDe(tamarTicker,cerTickers,opts){
   // El dual TAMAR/dólar cotiza por lámina en dólares: se normaliza con su TC
   // inicial, igual que la solapa TAMAR.
   const precioTamar=tt.precio/(tt.tcInicial||1);
-  const diasTamar=diasACT(liq,parseDate(tt.vcto));
+  const diasTamar=diasAlPago(liq,parseDate(tt.vcto));
   const cers=[];
   for(const tk of (cerTickers||[])){
     const cb=CER_BONDS.find(b=>b.ticker===tk);
@@ -10482,7 +10501,7 @@ function betrDe(tamarTicker,cerTickers,opts){
     if(!(cerEm>0))continue;
     cers.push({ticker:tk,vcto:cb.vcto,tipo:cb.tipo,
       precio:opts.mismoPrecio?precioTamar:cb.precio,
-      cerEm,vpv:100*cerC/cerEm,dias:diasACT(liq,parseDate(cb.vcto)),peso:1});
+      cerEm,vpv:100*cerC/cerEm,dias:diasAlPago(liq,parseDate(cb.vcto)),peso:1});
   }
   if(!cers.length)return{error:'Elegí al menos un bono CER'};
   betrPesos(cers,tt.vcto);
@@ -11754,7 +11773,7 @@ function cerRenderTabChart(){
     if(!r.vcto||!r.precio)return null;
     const vctoDate=parseDate(r.vcto);
     if(!vctoDate)return null;
-    const dias=diasACT(liq,vctoDate);
+    const dias=diasAlPago(liq,vctoDate);
     if(dias<=0)return null;
     const e=cerEnrich(r);
     if(isNaN(e.tir))return null;
@@ -11776,7 +11795,7 @@ function tamarRenderTabChart(){
     if(!r.vcto||!r.precio||isNaN(r.margenTNA))return null;
     const vctoDate=parseDate(r.vcto);
     if(!vctoDate)return null;
-    const dias=diasACT(liq,vctoDate);
+    const dias=diasAlPago(liq,vctoDate);
     if(dias<=0)return null;
     return{ticker:r.ticker,dias,val:r.margenTNA,precio:r.precio};
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
@@ -11886,7 +11905,7 @@ function beRenderChartTF(){
     const pts=bonds.filter(b=>!excluded.has(b.ticker)).map(b=>{
       const vctoDate=b.vcto?parseDate(b.vcto):null;
       if(!vctoDate)return null;
-      const dias=diasACT(liq,vctoDate);
+      const dias=diasAlPago(liq,vctoDate);
       if(dias<=0)return null;
       const e=beEnrichForTipo(b,tipo);
       const val=beGetChartRate(e,tipo,beChartTFMode);
@@ -12006,7 +12025,7 @@ function beRenderChartCER(){
     const pts=bonds.filter(b=>!excluded.has(b.ticker)).map(b=>{
       const vctoDate=b.vcto?parseDate(b.vcto):null;
       if(!vctoDate)return null;
-      const dias=diasACT(liq,vctoDate);
+      const dias=diasAlPago(liq,vctoDate);
       if(dias<=0)return null;
       const e=beEnrichForTipo(b,tipo);
       const val=beGetChartRate(e,tipo,beChartCERMode);
@@ -12250,7 +12269,7 @@ function dlkRenderTabChart(){
   if(!DLK_DATA.length&&DLK_BONDS.length) DLK_DATA=DLK_BONDS.map(dlkEnrich);
   const pts=DLK_DATA.map(r=>{
     if(!r.vcto||!r.precio||r.tir==null||isNaN(r.tir))return null;
-    const dias=diasACT(liq,parseDate(r.vcto));
+    const dias=diasAlPago(liq,parseDate(r.vcto));
     if(dias<=0)return null;
     return{ticker:r.ticker,dias,val:r.tir,precio:r.precio};
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
@@ -12381,7 +12400,7 @@ function dlkBuildFF(bond, liq){
   const ff=[];
   eventos.forEach(ev=>{
     const cfUSD=(ev.amort+ev.interes); // en USD sobre base 100
-    const diasDesdeliq=diasACT(liqDate,new Date(ev.fecha+'T00:00:00'));
+    const diasDesdeliq=diasAlPago(liqDate,new Date(ev.fecha+'T00:00:00'));
     ff.push({fecha:ev.fecha,amort:ev.amort,interes:ev.interes,cf:cfUSD,dias:diasDesdeliq,vnAntes:vn});
     vn-=ev.amort;
   });
@@ -12496,7 +12515,7 @@ function dlkEnrich(bond){
   const liq=G_LIQ||addHabiles(TODAY,1);
   const tc=dlkTCHoy();
   const vctoDate=parseDate(bond.vcto);
-  const dias=vctoDate?diasACT(liq,vctoDate):0;
+  const dias=vctoDate?diasAlPago(liq,vctoDate):0;
   const tir=bond.precio&&tc?dlkCalcTIR(bond.precio,bond,liq,tc):null;
   const tna=tir!=null?dlkCalcTNA(tir,dias):null;
   const paridad=bond.precio&&tc?dlkCalcParidad(bond.precio,tc):null;
@@ -12730,7 +12749,7 @@ function dlkOnTNAChange(val){
   const tc=dlkTCHoy();
   if(!tc||tc<=0) return;
   const vctoDate=parseDate(bond.vcto);
-  const dias=vctoDate?diasACT(liq,vctoDate):0;
+  const dias=vctoDate?diasAlPago(liq,vctoDate):0;
   const tir=dlkTNAtoTIR(tna,dias);
   const precio=dlkTIRtoPrice(tir,bond,liq,tc);
   if(!precio||precio<=0) return;
@@ -12996,7 +13015,7 @@ function fwdDuration(bond, tipo){
     vctoDate=parseDate(bond.vcto);
   }
   if(!vctoDate)return null;
-  const dias=diasACT(liq,vctoDate);
+  const dias=diasAlPago(liq,vctoDate);
   return dias>0?dias/365:null;
 }
 
@@ -13095,7 +13114,7 @@ function calcLecap(r){
   if(!r||!r.precio||!r.vcto)return null;
   const liq=G_LIQ||addHabiles(TODAY,1);
   const vctoDate=parseDate(r.vcto);
-  const dias=diasACT(liq,vctoDate);
+  const dias=diasAlPago(liq,vctoDate);
   if(dias<=0)return null;
   const emDate=r.emision?parseDate(r.emision):null;
   // VF usa tem_emision (TEM de emisión del bono), igual que lecapEnrich
@@ -13836,11 +13855,8 @@ function bopYearFrac(d1,d2,conv){
     default:       return act/365;
   }
 }
-function bopSiguienteHabil(d){
-  const dt=new Date(d.getTime());
-  while(!esHabil(dt))dt.setDate(dt.getDate()+1);
-  return dt;
-}
+// Quedó como alias: la regla es una sola y vive arriba, con el calendario.
+function bopSiguienteHabil(d){return siguienteHabil(d);}
 
 function bopGetRate(bond,d1){
   if(bond.tipoCupon==='fijo')return bond.tasa;
@@ -16761,16 +16777,27 @@ async function seriesTraerSector(sector,desde,hasta){
 // ni cupones: un bono que amortiza baja de escalón el día que paga, y eso es el
 // precio y no una caída de mercado.
 const SERIES_SEC_USD=new Set(['BON','GLO','BOP']);
+// El MEP en vivo se cachea un minuto. No es por la red: es para que alternar
+// entre pesos y dólares dos veces seguidas no devuelva dos series distintas
+// porque el AL30 se movió tres centavos en el medio.
+const SERIES_MEP_VIVO_TTL=60*1000;
+let _seriesMepVivo=null;
+async function seriesMepVivo(){
+  if(_seriesMepVivo&&Date.now()-_seriesMepVivo.ts<SERIES_MEP_VIVO_TTL)return _seriesMepVivo.v;
+  let v=null;
+  try{
+    const{map}=await usdFetchPriceMap();
+    if(map&&map['AL30']>0&&map['AL30D']>0)v=map['AL30']/map['AL30D'];
+  }catch(e){}
+  if(v>0)_seriesMepVivo={ts:Date.now(),v};
+  return v;
+}
 async function seriesMepSerie(){
   const[ars,d]=await Promise.all([seriesHist912('AL30'),seriesHist912('AL30D')]);
   const mapa=new Map();
   for(const[f,px]of ars){const pd=d.get(f);if(px>0&&pd>0)mapa.set(f,px/pd);}
   const ult=[...mapa.keys()].sort().pop()||'';
-  let vivo=null;
-  try{
-    const{map}=await usdFetchPriceMap();
-    if(map&&map['AL30']>0&&map['AL30D']>0)vivo=map['AL30']/map['AL30D'];
-  }catch(e){}
+  const vivo=await seriesMepVivo();
   // data912 publica el cierre con un día de atraso, así que la rueda de hoy no
   // está en el histórico. Para ESA rueda, y sólo para ésa, vale el MEP en vivo:
   // es del mismo momento que el precio en vivo del bono. Un hueco viejo no se
