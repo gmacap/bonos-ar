@@ -1,27 +1,38 @@
 {
-  "generado": "2026-09-18T02:05:38Z",
-  "modelo": "claude-opus-5 (Claude Code)",
-  "ruedaFin": "2026-09-17",
+  "generado": "2026-09-26T02:49:55Z",
+  "modelo": "claude-opus-5-5 (Claude Code)",
+  "ruedaFin": "2026-09-25",
+  "archivoLargos": "comentarios/2026-09.json",
   "fuentes": [
     {
-      "titulo": "Treasury yields move lower after Fed kicks off hiking cycle",
-      "url": "https://www.cnbc.com/2026/09/17/treasury-yields-move-lower-after-fed-kicks-off-hiking-cycle.html",
-      "fecha": "2026-09-17"
+      "titulo": "Mercados: la Bolsa porteña cae por quinto día y el riesgo país se acerca a los 600 puntos",
+      "url": "https://www.infobae.com/economia/2026/09/25/mercados-la-bolsa-portena-cae-por-quinto-dia-y-el-riesgo-pais-se-acerca-a-los-600-puntos/",
+      "fecha": "2026-09-25"
     },
     {
-      "titulo": "Los bonos argentinos suben pese al giro hawkish de la Fed y acompañan el rebote de Wall Street",
-      "url": "https://www.ambito.com/finanzas/los-bonos-argentinos-suben-pese-al-giro-hawkish-la-fed-y-acompanan-el-rebote-wall-street-n6323455",
-      "fecha": "2026-09-17"
+      "titulo": "El riesgo país sube 50 puntos en el día y ya se ubica por encima de 600",
+      "url": "https://www.lanacion.com.ar/economia/el-riesgo-pais-vuelve-a-subir-y-ya-supera-los-600-puntos-nid25092026/",
+      "fecha": "2026-09-25"
     },
     {
-      "titulo": "Mercados: suben las acciones y los bonos argentinos de la mano del rebote de Wall Street",
-      "url": "https://www.infobae.com/economia/2026/09/17/mercados-suben-las-acciones-y-los-bonos-argentinos-de-la-mano-del-rebote-de-wall-street/",
-      "fecha": "2026-09-17"
+      "titulo": "El riesgo país se dispara por encima de los 600 puntos y los bonos en dólares no detienen su caída",
+      "url": "https://www.ambito.com/finanzas/el-riesgo-pais-se-acerca-los-600-puntos-y-los-bonos-dolares-no-detienen-su-caida-n6326633",
+      "fecha": "2026-09-25"
     },
     {
-      "titulo": "Las 10 claves del Presupuesto 2027: qué proyecta el Gobierno para el dólar, la inflación y la actividad",
-      "url": "https://www.infobae.com/economia/2026/09/16/las-10-claves-del-presupuesto-2027-que-proyecta-el-gobierno-para-el-dolar-la-inflacion-y-la-actividad-economica/",
-      "fecha": "2026-09-16"
+      "titulo": "Las 5 razones que identificaron los analistas para explicar el fuerte repunte del riesgo país",
+      "url": "https://www.infobae.com/economia/2026/09/24/las-5-razones-que-identificaron-los-analistas-para-explicar-el-fuerte-repunte-del-riesgo-pais/",
+      "fecha": "2026-09-24"
+    },
+    {
+      "titulo": "El Banco Central redujo a mínimos la compra de reservas en septiembre para mantener estable el dólar",
+      "url": "https://www.infobae.com/economia/2026/09/18/el-banco-central-redujo-a-minimos-la-compra-de-reservas-en-septiembre-para-mantener-estable-el-dolar/",
+      "fecha": "2026-09-18"
+    },
+    {
+      "titulo": "Treasury yields are little changed as traders await Fed comments",
+      "url": "https://www.cnbc.com/2026/09/22/treasury-yield-us-bond-market-trump.html",
+      "fecha": "2026-09-22"
     },
     {
       "titulo": "Fed meeting recap: Warsh says inflation is still too high as Fed hikes for the first time since 2023",
@@ -29,63 +40,61 @@
       "fecha": "2026-09-16"
     },
     {
-      "titulo": "Inflación de agosto 2026: de cuánto fue el IPC del mes pasado, según el INDEC",
-      "url": "https://www.cronista.com/economia-politica/inflacion-de-agosto-2026-de-cuanto-fue-el-ipc-del-mes-pasado-segun-el-indec/",
-      "fecha": "2026-09-10"
+      "titulo": "US 10 Year Treasury Note Yield",
+      "url": "https://tradingeconomics.com/united-states/government-bond-yield",
+      "fecha": "2026-09-25"
     }
   ],
-  "archivoLargos": "comentarios/2026-09.json",
   "periodos": {
     "dia": {
-      "ini": "2026-09-16",
-      "fin": "2026-09-17",
+      "ini": "2026-09-24",
+      "fin": "2026-09-25",
       "ruedas": 1,
-      "titular": "Rally de tasas en pesos y afuera, con el crédito argentino sin acompañar",
+      "titular": "Los bonos en dólares siguen cayendo aunque los Treasuries bajan, y en pesos el CER encabeza la suba de tasas",
       "pesos": {
-        "resumen": "Buen día para los pesos: comprimieron las tres curvas de tasa, con tasa fija 45 bps abajo y ningún bono en suba. La convicción estuvo en CER y TAMAR, que operaron 1,4 veces su volumen promedio; tasa fija operó en su promedio y dollar linked apenas 0,6 veces. La inflación implícita a tres meses subió a 1,84% mensual y quedó 0,14 pp arriba del 1,70% que espera el REM: es una diferencia chica y el CER ajusta con rezago, así que no la leemos como señal.",
-        "TF": "Tasa fija comprimió 45 bps y el nivel a tres meses quedó en 24,72% TNA, con la baja pareja entre cortas (-40 bps) y medianas (-43 bps) y ninguna letra en suba. La S30O6 lideró con 133 bps de compresión, aunque sigue siendo la más cara contra su curva, 245 bps por debajo. Con volumen en su promedio, 1,0 veces, se lee como una corrección hacia abajo de la tasa esperada en todo el tramo relevante, más que como un flujo puntual.",
-        "CER": "CER comprimió 26 bps de tasa real, hasta 6,26%, y empinó: el tramo corto bajó 65 bps contra 20 bps del medio y 15 bps del largo. El TX26 se llevó la punta, 411 bps abajo, y la curva operó 1,4 veces su volumen promedio. Es consistente con demanda de cobertura de inflación en lo inmediato, y va de la mano con la implícita a 90 días subiendo mientras la de 270 días queda casi igual, en 1,67% mensual.",
-        "TAMAR": "En TAMAR el margen comprimió 23 bps, hasta 6,79%, con el tramo medio a la cabeza (-37 bps) y los largos atrás (-17 bps), sin ningún bono en suba y con 1,4 veces el volumen promedio. Si el mercado estuviera descontando una TAMAR más baja que la del REM, que la ve en 23,45% para diciembre desde 23,63% hoy, los largos tendrían que ampliar, y comprimieron: se lee como demanda por el tramo medio. El más operado fue el TMVE8, con $71,7 mil millones, que es dual y también aparece en dollar linked.",
-        "DLK": "Dollar linked quedó casi igual, 3 bps abajo en 5,38%, con todo el movimiento en las letras cortas: la D30S6, a días de vencer, subió 744 bps con $77,8 mil millones operados, y la D30N6 bajó 902 bps con $1,5 mil millones. A ese plazo son saltos de tasa que en precio son centavos. El volumen fue flojo, 0,6 veces el promedio, y la devaluación implícita a tres meses bajó a 21,46% anual, 7,09 pp por debajo del 28,55% del REM: el mercado sigue pagando bastante menos cobertura que los analistas."
+        "resumen": "Otra rueda con toda la curva en pesos pagando más tasa, pero con intensidades muy distintas: el CER subió 20 bps y el dollar linked 18 bps, mientras la tasa fija sumó 7 bps y el margen TAMAR 6 bps. El volumen total, 929 mil millones, quedó en 0,9 veces el promedio de las 20 ruedas previas: una rueda de ajuste sin urgencia.",
+        "TF": "Tasa fija casi quieta: la TNA a 88 días pasó de 25,77% a 25,84%, con las letras cortas bajando 4 bps y el tramo medio subiendo 10 bps. Se lee como algo de demanda en lo más corto y un poco más de prima pedida en el tramo medio. Con 0,6 veces el volumen promedio fue una rueda flaca, así que el movimiento tiene poca convicción.",
+        "CER": "CER fue la curva que más se movió: la TIR real a 498 días subió 20 bps, a 7,59%, con los cortos algo más arriba, 21 bps, que los medios y los largos, 16 bps y 15 bps. Como la tasa fija subió menos, la inflación implícita a 90 días bajó de 23,09% a 22,82% anual, 1,73% mensual contra 1,70% del REM: prácticamente en línea con los analistas, y con algo menos de demanda de cobertura que la rueda anterior. Volumen de 1,1 veces el promedio.",
+        "TAMAR": "TAMAR sumó 6 bps de margen, a 7,35% a 580 días, y empinó: los dos bonos más cortos bajaron 28 bps y el tramo medio subió 14 bps, con los largos 7 bps arriba. Que el margen suba en los plazos más largos puede leerse como un mercado que empieza a descontar una TAMAR algo más baja hacia adelante, en línea con el REM, que la ve pasar de 23,75% hoy a 23,45% en diciembre; la baja de los cortos, en bonos a pocos meses de vencer, es poco precio. Volumen en su promedio, 1,0 veces.",
+        "DLK": "En dollar linked los cortos bajaron 55 bps mientras los medios subieron 31 bps y los largos 30 bps. La mayor parte del volumen fue a la D30O6, que bajó 175 bps con 180 mil millones operados: demanda de cobertura concentrada en el vencimiento de octubre. La devaluación implícita a 90 días, en cambio, bajó de 20,91% a 20,45% y sigue 8,10 pp debajo del 28,55% que espera el REM: la cobertura se buscó en un bono puntual, no en toda la curva. La D30S6 subió 365 bps, pero vence en días y es poco precio."
       },
       "dolares": {
-        "resumen": "Afuera fue un buen día: la curva de Treasuries bajó parejo, con el 2 años en 4,67% (-7 bps) y el 10 años en 4,94% (-7 bps). Los Globales terminaron 1 bps abajo, en 9,31%, pero la descomposición muestra que no fue mérito propio: 8 bps vinieron de los Treasuries y 7 bps en contra del spread, que quedó en 445 bps. Adentro empinaron, con los cortos comprimiendo 27 bps (el GD29, 33 bps) y el largo ampliando 6 bps. Los Bonares bajaron 6 bps, hasta 9,42%, con 7 bps de Treasuries y 1 bps de spread, en 462 bps. Los Bopreales subieron 12 bps: -4 bps corresponden a los Treasuries y 16 bps a su spread, que sigue negativo en -175 bps y no se lee como riesgo de crédito. El volumen fue flojo en las tres curvas: 1,0 veces el promedio en Globales, 0,8 en Bonares y 0,5 en Bopreales. El riesgo país, que es otra medida, subió 5 bps, hasta 515 bps."
+        "resumen": "En dólares el ajuste fue todo de spread. Los Treasuries bajaron en la rueda, el 2 años de 4,87% a 4,81% y el 5 años de 5,03% a 4,98%, y aun así los Bonares sumaron 43 bps de TIR, a 11,11%, y los Globales 37 bps, a 10,44%. De los 43 bps de los Bonares, los Treasuries restaron 5 bps y el spread sumó 48 bps; en los Globales, 5 bps y 42 bps. El riesgo país, que es otra medida, subió 31 bps a 609 bps. En Globales el castigo se concentró en los cortos, 114 bps contra 29 bps en los medios, y todo con volumen alto: 1,5 veces el promedio en Bonares y 2,2 veces en Globales, así que el movimiento tuvo convicción. Los Bopreales subieron 56 bps, pero rinden por debajo del Treasury de su plazo, así que no se leen como riesgo crédito."
       },
-      "contexto": "El día después de la Fed las tasas largas de Estados Unidos aflojaron: el bono del Tesoro a diez años cerró cerca de 4,94%, con Kevin Warsh insistiendo en el compromiso con la inflación y el petróleo en baja. La Fed dejó señalada al menos otra suba más en el año. Acá el Merval subió 1,1% y los ADR treparon hasta 6,7%, con los bonos en dólares operando con leves subas según la prensa, y la confianza del consumidor mejoró 2,4% en el mes. El mercado sigue leyendo el Presupuesto 2027 que el Gobierno presentó el 15 de septiembre: crecimiento de 4%, inflación de 18% interanual a diciembre de 2027 y un dólar de $1.600 a fin de este año, por debajo de lo que espera el REM.",
+      "contexto": "El riesgo país encadenó su décima suba seguida y cerró por encima de los 600 puntos, algo que no pasaba desde el 7 de abril. Los analistas lo atan a las encuestas de la campaña rumbo a 2027, que muestran un margen más estrecho para el oficialismo, y a un Banco Central que en septiembre llevó al mínimo sus compras de dólares para priorizar la estabilidad del tipo de cambio y de las tasas. Afuera, después de la suba de septiembre, el mercado le asigna en torno a dos tercios de probabilidad a otra suba de la Fed en octubre, con el Treasury a 10 años cerca de sus máximos en casi dos décadas.",
       "twitter": [
         {
-          "texto": "1/4 Cierre del 17/09. Rally de tasas en pesos: tasa fija -45 bps (24,72% TNA a tres meses), CER -26 bps y TAMAR -23 bps de margen, con CER y TAMAR operando 1,4 veces su volumen promedio. Afuera, el Treasury a 10 años bajó 7 bps, a 4,94%.",
-          "graficos": []
+          "texto": "1/4 Sigue la presión sobre la deuda argentina. El riesgo país subió 31 bps a 609 bps y los Bonares sumaron 43 bps de TIR, con los Treasuries cortos en baja: todo el ajuste fue spread. En pesos, el CER subió 20 bps y el dollar linked 18 bps.",
+          "graficos": [
+            "BON"
+          ]
         },
         {
-          "texto": "2/4 Pesos. Tasa fija bajó parejo: cortas -40 bps y medianas -43 bps, sin ningún bono en suba. CER empinó, con el tramo corto -65 bps. TAMAR comprimió el margen en el medio (-37 bps) y no en los largos. Dollar linked casi igual, -3 bps.",
+          "texto": "2/4 Pesos: la tasa fija casi no se movió, 7 bps, con 0,6 veces el volumen promedio. El CER subió 20 bps y la inflación implícita a 90 días bajó a 22,82% anual: 1,73% mensual contra 1,70% del REM. En dollar linked, la D30O6 bajó 175 bps con 180 mil millones operados.",
           "graficos": [
-            "TF",
             "CER",
-            "TAMAR"
+            "DLK"
           ]
         },
         {
-          "texto": "3/4 Dólares. Globales -1 bps, a 9,31%: 8 bps de Treasuries y 7 bps en contra de spread, que quedó en 445 bps. Bonares -6 bps, a 9,42%. Bopreales +12 bps. El riesgo país subió 5 bps, a 515 bps.",
+          "texto": "3/4 Dólares: de los 43 bps de los Bonares, los Treasuries restaron 5 bps y el spread sumó 48 bps; en Globales, de 37 bps, 5 bps y 42 bps. En Globales se castigaron los cortos, 114 bps, con 2,2 veces el volumen promedio. El riesgo país es otra medida: 609 bps.",
           "graficos": [
-            "GLO",
-            "BON",
-            "BOP"
+            "GLO"
           ]
         },
         {
-          "texto": "4/4 Contexto. Un día después de la suba de la Fed, las tasas largas de Estados Unidos aflojaron y el petróleo bajó. Acá las acciones subieron y el mercado sigue analizando el Presupuesto 2027 que el Gobierno mandó al Congreso.",
+          "texto": "4/4 Contexto: el riesgo país encadenó diez subas seguidas y cerró en su nivel más alto desde abril. Los analistas lo atan a encuestas más ajustadas rumbo a 2027 y a un BCRA que casi no compra dólares en septiembre. Afuera, el mercado ve probable otra suba de la Fed en octubre.",
           "graficos": []
         }
       ],
       "ficha": {
         "periodo": "dia",
         "label": "Día",
-        "ini": "2026-09-16",
-        "fin": "2026-09-17",
+        "ini": "2026-09-24",
+        "fin": "2026-09-25",
         "enVivo": false,
         "dias": 1,
-        "generado": "2026-09-18T02:04:05.741Z",
+        "generado": "2026-09-26T02:46:02.758Z",
         "bloques": [
           {
             "sector": "TF",
@@ -95,57 +104,79 @@
             "n": 10,
             "entraron": [],
             "salieron": [],
-            "tenor": 96.5,
+            "tenor": 87.5,
             "rangoComun": [
-              13,
-              285
+              5,
+              275
             ],
             "sinComparacion": null,
-            "nivelIni": 25.166698610894656,
-            "nivelFin": 24.721379225411642,
-            "dNivelBps": -44.5319385483014,
-            "pendIni": 2.155415784634872,
-            "pendFin": 2.1211901492175897,
-            "dPend": -0.034225635417282074,
+            "nivelIni": 25.769961289853924,
+            "nivelFin": 25.838200801435413,
+            "dNivelBps": 6.823951158148844,
+            "pendIni": 1.803204515724253,
+            "pendFin": 1.8496944191492202,
+            "dPend": 0.04648990342496706,
             "forma": "sin cambio de forma",
-            "r2Ini": 0.8812546959857314,
-            "r2Fin": 0.7934949140764411,
+            "r2Ini": 0.8296091592393134,
+            "r2Fin": 0.8261706461947483,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 7,
-                "bps": -40.33529999999992
+                "bps": -4.242999999999952
               },
               {
                 "l": "medio",
                 "n": 3,
-                "bps": -42.794999999999916
+                "bps": 9.952200000000033
               }
             ],
             "movers": {
-              "suben": [],
+              "suben": [
+                {
+                  "ticker": "T15E7",
+                  "bps": 31.27849999999981,
+                  "x": 109,
+                  "dias": 109,
+                  "monto": 3687925913.95
+                },
+                {
+                  "ticker": "T31Y7",
+                  "bps": 17.728500000000125,
+                  "x": 245,
+                  "dias": 245,
+                  "monto": 69896608155.32
+                },
+                {
+                  "ticker": "T30A7",
+                  "bps": 9.952200000000033,
+                  "x": 214,
+                  "dias": 214,
+                  "monto": 32874584436.85
+                }
+              ],
               "bajan": [
                 {
                   "ticker": "S30O6",
-                  "bps": -133.4858999999998,
-                  "x": 42,
-                  "dias": 42,
-                  "monto": 8032319323.41
+                  "bps": -43.601899999999816,
+                  "x": 32,
+                  "dias": 32,
+                  "monto": 2472460095.42
                 },
                 {
-                  "ticker": "S13N6",
-                  "bps": -81.62969999999987,
-                  "x": 56,
-                  "dias": 56,
-                  "monto": 66548497476.81
+                  "ticker": "S30N6",
+                  "bps": -15.626799999999719,
+                  "x": 63,
+                  "dias": 63,
+                  "monto": 29495486762.53
                 },
                 {
-                  "ticker": "S29E7",
-                  "bps": -61.155700000000124,
-                  "x": 133,
-                  "dias": 133,
-                  "monto": 35801159712.78
+                  "ticker": "S16O6",
+                  "bps": -14.28609999999999,
+                  "x": 18,
+                  "dias": 18,
+                  "monto": 39473655884.48
                 }
               ]
             },
@@ -153,41 +184,41 @@
               "baratos": [
                 {
                   "ticker": "S30S6",
-                  "bps": 150.6519883060168,
-                  "x": 12,
-                  "monto": 28133286521.97
-                },
-                {
-                  "ticker": "T30J7",
-                  "bps": 85.14060225708846,
-                  "x": 285,
-                  "monto": 1360073702.62
+                  "bps": 154.8051194503806,
+                  "x": 5,
+                  "monto": null
                 },
                 {
                   "ticker": "T31Y7",
-                  "bps": 76.8214744107162,
-                  "x": 255,
-                  "monto": 46851410065.4
+                  "bps": 124.62909087569258,
+                  "x": 245,
+                  "monto": 69896608155.32
+                },
+                {
+                  "ticker": "T30A7",
+                  "bps": 74.82096308258441,
+                  "x": 214,
+                  "monto": 32874584436.85
                 }
               ],
               "ricos": [
                 {
                   "ticker": "S30O6",
-                  "bps": -245.2067585016792,
-                  "x": 42,
-                  "monto": 8032319323.41
+                  "bps": -190.38168385534036,
+                  "x": 32,
+                  "monto": 2472460095.42
                 },
                 {
-                  "ticker": "T15E7",
-                  "bps": -68.32752851667792,
-                  "x": 119,
-                  "monto": 4685312166.58
+                  "ticker": "S30N6",
+                  "bps": -117.40876620894127,
+                  "x": 63,
+                  "monto": 29495486762.53
                 },
                 {
-                  "ticker": "S29E7",
-                  "bps": -60.56240067030565,
-                  "x": 133,
-                  "monto": 35801159712.78
+                  "ticker": "S13N6",
+                  "bps": -55.531610490922034,
+                  "x": 46,
+                  "monto": 20674854226.12
                 }
               ]
             },
@@ -195,113 +226,113 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 1,
-              "total": 389945852610.37,
-              "prom": 389945852610.37,
+              "total": 208593579661.6,
+              "prom": 208593579661.6,
               "ruedas": 1,
               "top": {
-                "ticker": "S30N6",
-                "monto": 130397173624.12
+                "ticker": "T31Y7",
+                "monto": 69896608155.32
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 376662275402.6019,
-              "vsRef": 1.0352665453251715
+              "ref": 370271008146.157,
+              "vsRef": 0.5633538005202446
             },
             "puntos": [
               {
                 "ticker": "S13N6",
-                "xi": 57,
-                "yi": 24.032534,
-                "xf": 56,
-                "yf": 23.216237
+                "xi": 49,
+                "yi": 24.135966,
+                "xf": 46,
+                "yf": 24.093536
               },
               {
                 "ticker": "S16O6",
-                "xi": 29,
-                "yi": 22.950161,
-                "xf": 28,
-                "yf": 22.807643
+                "xi": 21,
+                "yi": 23.429808,
+                "xf": 18,
+                "yf": 23.286947
               },
               {
                 "ticker": "S29E7",
-                "xi": 134,
-                "yi": 25.407803,
-                "xf": 133,
-                "yf": 24.796246
+                "xi": 126,
+                "yi": 26.093661,
+                "xf": 123,
+                "yf": 26.178517
               },
               {
                 "ticker": "S30N6",
-                "xi": 74,
-                "yi": 24.315206,
-                "xf": 73,
-                "yf": 23.911853
+                "xi": 66,
+                "yi": 24.212749,
+                "xf": 63,
+                "yf": 24.056481
               },
               {
                 "ticker": "S30O6",
-                "xi": 43,
-                "yi": 21.839609,
-                "xf": 42,
-                "yf": 20.50475
+                "xi": 35,
+                "yi": 22.50979,
+                "xf": 32,
+                "yf": 22.073771
               },
               {
                 "ticker": "S30S6",
-                "xi": 13,
-                "yi": 21.947155,
-                "xf": 12,
-                "yf": 21.805989
+                "xi": 5,
+                "yi": 22.092055,
+                "xf": 5,
+                "yf": 22.092055
               },
               {
                 "ticker": "T15E7",
-                "xi": 120,
-                "yi": 24.818884,
-                "xf": 119,
-                "yf": 24.482664
+                "xi": 112,
+                "yi": 25.388884,
+                "xf": 109,
+                "yf": 25.701669
               },
               {
                 "ticker": "T30A7",
-                "xi": 225,
-                "yi": 27.407868,
-                "xf": 224,
-                "yf": 26.979918
+                "xi": 217,
+                "yi": 28.141139,
+                "xf": 214,
+                "yf": 28.240661
               },
               {
                 "ticker": "T30J7",
-                "xi": 286,
-                "yi": 28.027537,
-                "xf": 285,
-                "yf": 27.86992
+                "xi": 278,
+                "yi": 28.646565,
+                "xf": 275,
+                "yf": 28.505923
               },
               {
                 "ticker": "T31Y7",
-                "xi": 256,
-                "yi": 28.005531,
-                "xf": 255,
-                "yf": 27.550798
+                "xi": 248,
+                "yi": 28.811688,
+                "xf": 245,
+                "yf": 28.988973
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 15.317433482140052,
-                  "b": 2.155415784634872
+                  "a": 17.706682024972984,
+                  "b": 1.803204515724253
                 },
                 "n": 10,
-                "r2": 0.8812546959857314,
-                "xMin": 13,
-                "xMax": 286
+                "r2": 0.8296091592393134,
+                "xMin": 5,
+                "xMax": 278
               },
               "fin": {
                 "reg": {
-                  "a": 15.028509609684244,
-                  "b": 2.1211901492175897
+                  "a": 17.567035480899666,
+                  "b": 1.8496944191492202
                 },
                 "n": 10,
-                "r2": 0.7934949140764411,
-                "xMin": 12,
-                "xMax": 285
+                "r2": 0.8261706461947483,
+                "xMin": 5,
+                "xMax": 275
               }
             },
-            "grafico": "nivel -45 bps"
+            "grafico": null
           },
           {
             "sector": "CER",
@@ -311,84 +342,84 @@
             "n": 26,
             "entraron": [],
             "salieron": [],
-            "tenor": 507,
+            "tenor": 498,
             "rangoComun": [
-              13,
-              2661
+              5,
+              2653
             ],
             "sinComparacion": null,
-            "nivelIni": 6.517169579309117,
-            "nivelFin": 6.259851801451752,
-            "dNivelBps": -25.731777785736476,
-            "pendIni": 2.143783406632157,
-            "pendFin": 2.4347043099948653,
-            "dPend": 0.2909209033627085,
-            "forma": "empinó",
-            "r2Ini": 0.7896039946524915,
-            "r2Fin": 0.8224513219025855,
+            "nivelIni": 7.3873511152037725,
+            "nivelFin": 7.587245074705897,
+            "dNivelBps": 19.98939595021243,
+            "pendIni": 1.7764180054149958,
+            "pendFin": 1.719134733228628,
+            "dPend": -0.05728327218636786,
+            "forma": "aplanó",
+            "r2Ini": 0.7472977167101698,
+            "r2Fin": 0.7293301496043043,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 6,
-                "bps": -64.96334999999999
+                "bps": 20.557899999999997
               },
               {
                 "l": "medio",
                 "n": 7,
-                "bps": -19.76130000000005
+                "bps": 16.499099999999967
               },
               {
                 "l": "largo",
                 "n": 13,
-                "bps": -15.395099999999928
+                "bps": 15.317800000000048
               }
             ],
             "movers": {
               "suben": [
                 {
                   "ticker": "TZXA7",
-                  "bps": 79.9852,
-                  "x": 224,
-                  "dias": 224,
-                  "monto": 1904633521.25
+                  "bps": 140.1846,
+                  "x": 214,
+                  "dias": 214,
+                  "monto": 210674283.9
                 },
                 {
-                  "ticker": "TZXY7",
-                  "bps": 71.00849999999998,
-                  "x": 255,
-                  "dias": 255,
-                  "monto": 14621866.05
+                  "ticker": "TZXO6",
+                  "bps": 63.85050000000003,
+                  "x": 32,
+                  "dias": 32,
+                  "monto": 15640760257.37
                 },
                 {
-                  "ticker": "TZXD8",
-                  "bps": 29.840700000000098,
-                  "x": 819,
-                  "dias": 819,
-                  "monto": 364665.27
+                  "ticker": "X29E7",
+                  "bps": 49.873500000000035,
+                  "x": 123,
+                  "dias": 123,
+                  "monto": 30257936996.85
                 }
               ],
               "bajan": [
                 {
-                  "ticker": "TX26",
-                  "bps": -410.9717,
-                  "x": 52,
-                  "dias": 52,
-                  "monto": 16106428740.24
+                  "ticker": "TZXY7",
+                  "bps": -38.07730000000005,
+                  "x": 245,
+                  "dias": 245,
+                  "monto": 12794005.19
                 },
                 {
-                  "ticker": "TZXO6",
-                  "bps": -162.1529,
-                  "x": 42,
-                  "dias": 42,
-                  "monto": 15715518384.04
+                  "ticker": "TX31",
+                  "bps": -14.718700000000062,
+                  "x": 1890,
+                  "dias": 1890,
+                  "monto": 953365159.92
                 },
                 {
-                  "ticker": "X30N6",
-                  "bps": -67.51840000000003,
-                  "x": 73,
-                  "dias": 73,
-                  "monto": 19559009887.37
+                  "ticker": "TZXD6",
+                  "bps": -6.387600000000004,
+                  "x": 78,
+                  "dias": 78,
+                  "monto": 8852008976.48
                 }
               ]
             },
@@ -396,41 +427,41 @@
               "baratos": [
                 {
                   "ticker": "TZX28",
-                  "bps": 240.593943561365,
-                  "x": 651,
-                  "monto": 18984840344.24
+                  "bps": 236.3658810627495,
+                  "x": 641,
+                  "monto": 5091431134.04
                 },
                 {
-                  "ticker": "TZXM8",
-                  "bps": 215.33328231216302,
-                  "x": 560,
-                  "monto": 4174422084.11
+                  "ticker": "TZXS8",
+                  "bps": 219.14278575961123,
+                  "x": 732,
+                  "monto": 9081291819.12
                 },
                 {
-                  "ticker": "TZXD8",
-                  "bps": 202.00045530771203,
-                  "x": 819,
-                  "monto": 364665.27
+                  "ticker": "TZXM9",
+                  "bps": 197.73907957807708,
+                  "x": 912,
+                  "monto": 267513600.6
                 }
               ],
               "ricos": [
                 {
-                  "ticker": "TX26",
-                  "bps": -221.53553276281954,
-                  "x": 52,
-                  "monto": 16106428740.24
+                  "ticker": "TXMD8",
+                  "bps": -236.33312531303093,
+                  "x": 809,
+                  "monto": 4345980465.02
                 },
                 {
                   "ticker": "TXMJ0",
-                  "bps": -220.73889318649015,
-                  "x": 1379,
-                  "monto": 28500820333.89
+                  "bps": -230.88875730286284,
+                  "x": 1369,
+                  "monto": 11772277242.04
                 },
                 {
-                  "ticker": "TXMD8",
-                  "bps": -198.52244469228805,
-                  "x": 819,
-                  "monto": 15643083764.72
+                  "ticker": "TXMD9",
+                  "bps": -205.2464790756706,
+                  "x": 1173,
+                  "monto": 51768403536.89
                 }
               ]
             },
@@ -438,225 +469,225 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 1,
-              "total": 286801587094.37006,
-              "prom": 286801587094.37006,
+              "total": 244717643010.47995,
+              "prom": 244717643010.47995,
               "ruedas": 1,
               "top": {
-                "ticker": "TZXD6",
-                "monto": 44404111531.65
+                "ticker": "TXMD9",
+                "monto": 51768403536.89
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 206188042428.16446,
-              "vsRef": 1.3909709977206424
+              "ref": 217834231301.959,
+              "vsRef": 1.123412245852469
             },
             "puntos": [
               {
                 "ticker": "DICP",
-                "xi": 2662,
-                "yi": 10.018157,
-                "xf": 2661,
-                "yf": 9.90038
+                "xi": 2654,
+                "yi": 10.616365,
+                "xf": 2653,
+                "yf": 10.602924
               },
               {
                 "ticker": "TX26",
-                "xi": 53,
-                "yi": 2.609741,
-                "xf": 52,
-                "yf": -1.499976
+                "xi": 45,
+                "yi": 4.546558,
+                "xf": 42,
+                "yf": 4.76137
               },
               {
                 "ticker": "TX28",
-                "xi": 784,
-                "yi": 7.653224,
-                "xf": 783,
-                "yf": 7.571536
+                "xi": 776,
+                "yi": 8.528276,
+                "xf": 773,
+                "yf": 8.681454
               },
               {
                 "ticker": "TX31",
-                "xi": 1900,
-                "yi": 10.617451,
-                "xf": 1899,
-                "yf": 10.400235
+                "xi": 1892,
+                "yi": 11.463364,
+                "xf": 1890,
+                "yf": 11.316177
               },
               {
                 "ticker": "TXMD8",
-                "xi": 820,
-                "yi": 5.632072,
-                "xf": 819,
-                "yf": 5.442246
+                "xi": 812,
+                "yi": 6.014849,
+                "xf": 809,
+                "yf": 6.058036
               },
               {
                 "ticker": "TXMD9",
-                "xi": 1184,
-                "yi": 6.583756,
-                "xf": 1183,
-                "yf": 6.422999
+                "xi": 1176,
+                "yi": 6.979891,
+                "xf": 1173,
+                "yf": 7.007597
               },
               {
                 "ticker": "TXMJ0",
-                "xi": 1380,
-                "yi": 6.642586,
-                "xf": 1379,
-                "yf": 6.488635
+                "xi": 1372,
+                "yi": 6.953931,
+                "xf": 1369,
+                "yf": 7.016808
               },
               {
                 "ticker": "TXMJ8",
-                "xi": 652,
-                "yi": 5.269423,
-                "xf": 651,
-                "yf": 4.907432
+                "xi": 644,
+                "yi": 5.538057,
+                "xf": 641,
+                "yf": 5.986226
               },
               {
                 "ticker": "TXMJ9",
-                "xi": 1016,
-                "yi": 6.581816,
-                "xf": 1015,
-                "yf": 6.373341
+                "xi": 1008,
+                "yi": 6.930058,
+                "xf": 1005,
+                "yf": 7.008774
               },
               {
                 "ticker": "TZX27",
-                "xi": 286,
-                "yi": 4.256422,
-                "xf": 285,
-                "yf": 3.86531
+                "xi": 278,
+                "yi": 5.136313,
+                "xf": 275,
+                "yf": 5.301304
               },
               {
                 "ticker": "TZX28",
-                "xi": 652,
-                "yi": 9.296118,
-                "xf": 651,
-                "yf": 9.274464
+                "xi": 644,
+                "yi": 10.110962,
+                "xf": 641,
+                "yf": 10.384864
               },
               {
                 "ticker": "TZXA7",
-                "xi": 225,
-                "yi": 3.053673,
-                "xf": 224,
-                "yf": 3.853525
+                "xi": 217,
+                "yi": 5.798942,
+                "xf": 214,
+                "yf": 7.200788
               },
               {
                 "ticker": "TZXD6",
-                "xi": 89,
-                "yi": 3.390515,
-                "xf": 88,
-                "yf": 2.875687
+                "xi": 81,
+                "yi": 3.71659,
+                "xf": 78,
+                "yf": 3.652714
               },
               {
                 "ticker": "TZXD7",
-                "xi": 454,
-                "yi": 7.511436,
-                "xf": 453,
-                "yf": 7.386623
+                "xi": 446,
+                "yi": 8.377316,
+                "xf": 443,
+                "yf": 8.584286
               },
               {
                 "ticker": "TZXD8",
-                "xi": 820,
-                "yi": 9.149068,
-                "xf": 819,
-                "yf": 9.447475
+                "xi": 812,
+                "yi": 10.196757,
+                "xf": 809,
+                "yf": 10.365709
               },
               {
                 "ticker": "TZXM7",
-                "xi": 195,
-                "yi": 3.943885,
-                "xf": 194,
-                "yf": 3.577739
+                "xi": 187,
+                "yi": 4.578368,
+                "xf": 184,
+                "yf": 4.889411
               },
               {
                 "ticker": "TZXM8",
-                "xi": 561,
-                "yi": 8.801659,
-                "xf": 560,
-                "yf": 8.655257
+                "xi": 553,
+                "yi": 9.428167,
+                "xf": 550,
+                "yf": 9.664285
               },
               {
                 "ticker": "TZXM9",
-                "xi": 923,
-                "yi": 9.813344,
-                "xf": 922,
-                "yf": 9.710133
+                "xi": 915,
+                "yi": 10.337876,
+                "xf": 912,
+                "yf": 10.604781
               },
               {
                 "ticker": "TZXO6",
-                "xi": 43,
-                "yi": 1.598147,
-                "xf": 42,
-                "yf": -0.023382
+                "xi": 35,
+                "yi": 2.503964,
+                "xf": 32,
+                "yf": 3.142469
               },
               {
                 "ticker": "TZXO7",
-                "xi": 407,
-                "yi": 5.833018,
-                "xf": 406,
-                "yf": 5.28939
+                "xi": 399,
+                "yi": 6.969564,
+                "xf": 396,
+                "yf": 6.972152
               },
               {
                 "ticker": "TZXS7",
-                "xi": 378,
-                "yi": 5.826965,
-                "xf": 377,
-                "yf": 5.629352
+                "xi": 370,
+                "yi": 6.712403,
+                "xf": 367,
+                "yf": 6.787099
               },
               {
                 "ticker": "TZXS8",
-                "xi": 743,
-                "yi": 9.328086,
-                "xf": 742,
-                "yf": 9.14298
+                "xi": 735,
+                "yi": 10.19965,
+                "xf": 732,
+                "yf": 10.44085
               },
               {
                 "ticker": "TZXY7",
-                "xi": 256,
-                "yi": 2.998243,
-                "xf": 255,
-                "yf": 3.708328
+                "xi": 248,
+                "yi": 5.859117,
+                "xf": 245,
+                "yf": 5.478344
               },
               {
                 "ticker": "X29E7",
-                "xi": 134,
-                "yi": 3.572107,
-                "xf": 133,
-                "yf": 2.948024
+                "xi": 126,
+                "yi": 3.662804,
+                "xf": 123,
+                "yf": 4.161539
               },
               {
                 "ticker": "X30N6",
-                "xi": 74,
-                "yi": 3.145535,
-                "xf": 73,
-                "yf": 2.470351
+                "xi": 66,
+                "yi": 3.647692,
+                "xf": 63,
+                "yf": 3.844038
               },
               {
                 "ticker": "X30S6",
-                "xi": 13,
-                "yi": -1.954748,
-                "xf": 12,
-                "yf": -2.288457
+                "xi": 5,
+                "yi": -0.442956,
+                "xf": 5,
+                "yf": -0.442956
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": -6.835408958215464,
-                  "b": 2.143783406632157
+                  "a": -3.6452706860545807,
+                  "b": 1.7764180054149958
                 },
                 "n": 26,
-                "r2": 0.7896039946524915,
-                "xMin": 13,
-                "xMax": 2662
+                "r2": 0.7472977167101698,
+                "xMin": 5,
+                "xMax": 2654
               },
               "fin": {
                 "reg": {
-                  "a": -8.904730783842146,
-                  "b": 2.4347043099948653
+                  "a": -3.089613231899576,
+                  "b": 1.719134733228628
                 },
                 "n": 26,
-                "r2": 0.8224513219025855,
-                "xMin": 12,
-                "xMax": 2661
+                "r2": 0.7293301496043043,
+                "xMin": 5,
+                "xMax": 2653
               }
             },
-            "grafico": "nivel -26 bps"
+            "grafico": "nivel +20 bps"
           },
           {
             "sector": "TAMAR",
@@ -666,62 +697,84 @@
             "n": 12,
             "entraron": [],
             "salieron": [],
-            "tenor": 588.5,
+            "tenor": 579.5,
             "rangoComun": [
-              89,
-              1379
+              81,
+              1369
             ],
             "sinComparacion": null,
-            "nivelIni": 7.014137759481017,
-            "nivelFin": 6.785340481882354,
-            "dNivelBps": -22.879727759866242,
-            "pendIni": 3.7990354099888908,
-            "pendFin": 3.832562269981425,
-            "dPend": 0.03352685999253424,
-            "forma": "sin cambio de forma",
-            "r2Ini": 0.9109977071542973,
-            "r2Fin": 0.9025532148189533,
+            "nivelIni": 7.29516002571663,
+            "nivelFin": 7.3529457738281465,
+            "dNivelBps": 5.778574811151671,
+            "pendIni": 3.717561266324488,
+            "pendFin": 3.893579530559361,
+            "dPend": 0.17601826423487266,
+            "forma": "empinó",
+            "r2Ini": 0.8908292565591418,
+            "r2Fin": 0.8379542455915159,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 2,
-                "bps": -25.12919999999999
+                "bps": -28.262049999999988
               },
               {
                 "l": "medio",
                 "n": 4,
-                "bps": -36.686299999999996
+                "bps": 13.621249999999963
               },
               {
                 "l": "largo",
                 "n": 6,
-                "bps": -16.90360000000002
+                "bps": 7.22365000000007
               }
             ],
             "movers": {
-              "suben": [],
-              "bajan": [
+              "suben": [
                 {
-                  "ticker": "TMVE8",
-                  "bps": -42.33659999999997,
-                  "x": 500,
-                  "dias": 500,
-                  "monto": 71710386390
-                },
-                {
-                  "ticker": "TMG27",
-                  "bps": -38.007899999999985,
-                  "x": 347,
-                  "dias": 347,
-                  "monto": 529065224.42
+                  "ticker": "TMF28",
+                  "bps": 84.39990000000002,
+                  "x": 515,
+                  "dias": 515,
+                  "monto": 489238.2
                 },
                 {
                   "ticker": "TXMJ8",
-                  "bps": -35.43879999999993,
-                  "x": 651,
-                  "dias": 651,
-                  "monto": 4743480162.12
+                  "bps": 44.142300000000034,
+                  "x": 641,
+                  "dias": 641,
+                  "monto": 4169525127
+                },
+                {
+                  "ticker": "TML27",
+                  "bps": 20.69989999999997,
+                  "x": 305,
+                  "dias": 305,
+                  "monto": 17039720254.28
+                }
+              ],
+              "bajan": [
+                {
+                  "ticker": "TMG27",
+                  "bps": -143.3253,
+                  "x": 337,
+                  "dias": 337,
+                  "monto": 27923358
+                },
+                {
+                  "ticker": "TTD26",
+                  "bps": -38.166599999999995,
+                  "x": 78,
+                  "dias": 78,
+                  "monto": 4197596858.19
+                },
+                {
+                  "ticker": "TMF27",
+                  "bps": -18.35749999999998,
+                  "x": 151,
+                  "dias": 151,
+                  "monto": 16798638895.45
                 }
               ]
             },
@@ -729,41 +782,41 @@
               "baratos": [
                 {
                   "ticker": "TMF28",
-                  "bps": 146.366935821756,
-                  "x": 525,
-                  "monto": 5138335040.3
-                },
-                {
-                  "ticker": "TMG28",
-                  "bps": 109.01895960696137,
-                  "x": 713,
-                  "monto": 17664724796.61
+                  "bps": 193.23357909783283,
+                  "x": 515,
+                  "monto": 489238.2
                 },
                 {
                   "ticker": "TTD26",
-                  "bps": 95.72510761254263,
-                  "x": 88,
-                  "monto": 8006898658.06
+                  "bps": 123.9912912593053,
+                  "x": 78,
+                  "monto": 4197596858.19
+                },
+                {
+                  "ticker": "TMG28",
+                  "bps": 114.31568113336948,
+                  "x": 703,
+                  "monto": 7901062318.03
                 }
               ],
               "ricos": [
                 {
                   "ticker": "TMG27",
-                  "bps": -206.50552351983086,
-                  "x": 347,
-                  "monto": 529065224.42
+                  "bps": -352.27915429789596,
+                  "x": 337,
+                  "monto": 27923358
                 },
                 {
                   "ticker": "TML27",
-                  "bps": -160.04396295971782,
-                  "x": 315,
-                  "monto": 44187118122.43
+                  "bps": -163.7311621017333,
+                  "x": 305,
+                  "monto": 17039720254.28
                 },
                 {
                   "ticker": "TXMJ0",
-                  "bps": -56.63588721362949,
-                  "x": 1379,
-                  "monto": 28500820333.89
+                  "bps": -69.5229921604435,
+                  "x": 1369,
+                  "monto": 11772277242.04
                 }
               ]
             },
@@ -771,127 +824,127 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 1,
-              "total": 253493922267.08002,
-              "prom": 253493922267.08002,
+              "total": 174129603368.9,
+              "prom": 174129603368.9,
               "ruedas": 1,
               "top": {
-                "ticker": "TMVE8",
-                "monto": 71710386390
+                "ticker": "TXMD9",
+                "monto": 51768403536.89
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 180524760460.6425,
-              "vsRef": 1.4042058364749697
+              "ref": 183036249165.077,
+              "vsRef": 0.9513394432151838
             },
             "puntos": [
               {
                 "ticker": "TMF27",
-                "xi": 162,
-                "yi": 2.05652,
-                "xf": 161,
-                "yf": 1.772215
+                "xi": 154,
+                "yi": 2.254024,
+                "xf": 151,
+                "yf": 2.070449
               },
               {
                 "ticker": "TMF28",
-                "xi": 526,
-                "yi": 7.897859,
-                "xf": 525,
-                "yf": 7.811413
+                "xi": 518,
+                "yi": 7.981845,
+                "xf": 515,
+                "yf": 8.825844
               },
               {
                 "ticker": "TMG27",
-                "xi": 348,
-                "yi": 3.075805,
-                "xf": 347,
-                "yf": 2.695726
+                "xi": 340,
+                "yi": 3.152765,
+                "xf": 337,
+                "yf": 1.719512
               },
               {
                 "ticker": "TMG28",
-                "xi": 714,
-                "yi": 8.762797,
-                "xf": 713,
-                "yf": 8.611016
+                "xi": 706,
+                "yi": 9.10733,
+                "xf": 703,
+                "yf": 9.248308
               },
               {
                 "ticker": "TML27",
-                "xi": 316,
-                "yi": 3.14318,
-                "xf": 315,
-                "yf": 2.789533
+                "xi": 308,
+                "yi": 3.009526,
+                "xf": 305,
+                "yf": 3.216525
               },
               {
                 "ticker": "TMVE8",
-                "xi": 501,
-                "yi": 6.695715,
-                "xf": 500,
-                "yf": 6.272349
+                "xi": 493,
+                "yi": 7.099116,
+                "xf": 490,
+                "yf": 7.164542
               },
               {
                 "ticker": "TTD26",
-                "xi": 89,
-                "yi": 0.678082,
-                "xf": 88,
-                "yf": 0.459803
+                "xi": 81,
+                "yi": 1.166119,
+                "xf": 78,
+                "yf": 0.784453
               },
               {
                 "ticker": "TXMD8",
-                "xi": 820,
-                "yi": 8.657976,
-                "xf": 819,
-                "yf": 8.474127
+                "xi": 812,
+                "yi": 9.047184,
+                "xf": 809,
+                "yf": 9.096003
               },
               {
                 "ticker": "TXMD9",
-                "xi": 1184,
-                "yi": 9.564499,
-                "xf": 1183,
-                "yf": 9.410276
+                "xi": 1176,
+                "yi": 9.957959,
+                "xf": 1173,
+                "yf": 9.989465
               },
               {
                 "ticker": "TXMJ0",
-                "xi": 1380,
-                "yi": 9.63016,
-                "xf": 1379,
-                "yf": 9.48255
+                "xi": 1372,
+                "yi": 9.940234,
+                "xf": 1369,
+                "yf": 10.00491
               },
               {
                 "ticker": "TXMJ8",
-                "xi": 652,
-                "yi": 7.821787,
-                "xf": 651,
-                "yf": 7.467399
+                "xi": 644,
+                "yi": 8.098663,
+                "xf": 641,
+                "yf": 8.540086
               },
               {
                 "ticker": "TXMJ9",
-                "xi": 1016,
-                "yi": 9.064037,
-                "xf": 1015,
-                "yf": 8.862711
+                "xi": 1008,
+                "yi": 9.408691,
+                "xf": 1005,
+                "yf": 9.488488
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": -17.214502814981664,
-                  "b": 3.7990354099888908
+                  "a": -16.356580612173243,
+                  "b": 3.717561266324488
                 },
                 "n": 12,
-                "r2": 0.9109977071542973,
-                "xMin": 89,
-                "xMax": 1380
+                "r2": 0.8908292565591418,
+                "xMin": 81,
+                "xMax": 1372
               },
               "fin": {
                 "reg": {
-                  "a": -17.657120221293425,
-                  "b": 3.832562269981425
+                  "a": -17.418652220798936,
+                  "b": 3.893579530559361
                 },
                 "n": 12,
-                "r2": 0.9025532148189533,
-                "xMin": 88,
-                "xMax": 1379
+                "r2": 0.8379542455915159,
+                "xMin": 78,
+                "xMax": 1369
               }
             },
-            "grafico": "nivel -23 bps"
+            "grafico": "empinó"
           },
           {
             "sector": "DLK",
@@ -901,126 +954,126 @@
             "n": 10,
             "entraron": [],
             "salieron": [],
-            "tenor": 214.5,
+            "tenor": 205.5,
             "rangoComun": [
-              13,
-              819
+              5,
+              809
             ],
             "sinComparacion": null,
-            "nivelIni": 5.411391392393447,
-            "nivelFin": 5.376581035757632,
-            "dNivelBps": -3.4810356635814443,
-            "pendIni": 2.1457187646455345,
-            "pendFin": 1.080731818490535,
+            "nivelIni": 5.935257694208304,
+            "nivelFin": 6.115683387065815,
+            "dNivelBps": 18.042569285751053,
+            "pendIni": -0.18859150702411945,
+            "pendFin": -0.5170100886785445,
             "dPend": null,
             "forma": null,
-            "r2Ini": 0.42355762042553924,
-            "r2Fin": 0.2292512589115957,
+            "r2Ini": 0.008315820986710909,
+            "r2Fin": 0.04006023492554245,
             "r2ok": false,
             "tramos": [
               {
                 "l": "corto",
                 "n": 4,
-                "bps": 164.36045
+                "bps": -55.00409999999998
               },
               {
                 "l": "medio",
                 "n": 4,
-                "bps": 13.918049999999987
+                "bps": 30.584450000000007
               },
               {
                 "l": "largo",
                 "n": 2,
-                "bps": 1.9612500000000033
+                "bps": 30.417700000000014
               }
             ],
             "movers": {
               "suben": [
                 {
                   "ticker": "D30S6",
-                  "bps": 743.9048,
-                  "x": 12,
-                  "dias": 12,
-                  "monto": 77785098401.6
+                  "bps": 365.12030000000004,
+                  "x": 5,
+                  "dias": 5,
+                  "monto": null
                 },
                 {
-                  "ticker": "D30O6",
-                  "bps": 264.71549999999996,
-                  "x": 42,
-                  "dias": 42,
-                  "monto": 46952845545.6
+                  "ticker": "D10Y7",
+                  "bps": 88.63029999999998,
+                  "x": 224,
+                  "dias": 224,
+                  "monto": null
                 },
                 {
-                  "ticker": "D15E7",
-                  "bps": 64.00540000000001,
-                  "x": 119,
-                  "dias": 119,
-                  "monto": 278519494
+                  "ticker": "TZV28",
+                  "bps": 55.415999999999954,
+                  "x": 641,
+                  "dias": 641,
+                  "monto": 2040752640
                 }
               ],
               "bajan": [
                 {
+                  "ticker": "D30O6",
+                  "bps": -175.26200000000003,
+                  "x": 32,
+                  "dias": 32,
+                  "monto": 179950836793
+                },
+                {
+                  "ticker": "D15E7",
+                  "bps": -97.46249999999996,
+                  "x": 109,
+                  "dias": 109,
+                  "monto": 76156850
+                },
+                {
                   "ticker": "D30N6",
-                  "bps": -901.8525000000001,
-                  "x": 73,
-                  "dias": 73,
-                  "monto": 1543547500
-                },
-                {
-                  "ticker": "TMVE8",
-                  "bps": -43.06239999999999,
-                  "x": 500,
-                  "dias": 500,
-                  "monto": 71710386390
-                },
-                {
-                  "ticker": "TZVD8",
-                  "bps": -7.981499999999997,
-                  "x": 819,
-                  "dias": 819,
-                  "monto": 793919448
+                  "bps": -12.545699999999993,
+                  "x": 63,
+                  "dias": 63,
+                  "monto": 1686099408
                 }
               ]
             },
             "residuos": {
               "baratos": [
                 {
+                  "ticker": "D30S6",
+                  "bps": 640.4249924506148,
+                  "x": 5,
+                  "monto": null
+                },
+                {
                   "ticker": "TZVD8",
-                  "bps": 344.9313199479399,
-                  "x": 819,
-                  "monto": 793919448
+                  "bps": 529.6451878558094,
+                  "x": 809,
+                  "monto": 2574450987.5
                 },
                 {
                   "ticker": "TZV28",
-                  "bps": 311.371360327681,
-                  "x": 651,
-                  "monto": 648229508
-                },
-                {
-                  "ticker": "D30S6",
-                  "bps": 258.65794276047336,
-                  "x": 12,
-                  "monto": 77785098401.6
+                  "bps": 465.7235719330583,
+                  "x": 641,
+                  "monto": 2040752640
                 }
               ],
               "ricos": [
                 {
                   "ticker": "D10Y7",
-                  "bps": -443.1242999441,
-                  "x": 234,
-                  "monto": 973500
+                  "bps": -347.14751081575497,
+                  "x": 224,
+                  "monto": null
                 },
                 {
-                  "ticker": "D30N6",
-                  "bps": -284.96049239828426,
-                  "x": 73,
-                  "monto": 1543547500
+                  "ticker": "D30O6",
+                  "bps": -334.8027286881117,
+                  "x": 32,
+                  "monto": 179950836793
                 },
                 {
-                  "ticker": "TMVE8",
-                  "bps": -185.93896014044785,
-                  "x": 500,
-                  "monto": 71710386390
+                  "ticker": "D15E7",
+                  "bps": -334.6329528710827,
+                  "x": 109,
+                  "monto": 76156850
                 }
               ]
             },
@@ -1028,113 +1081,113 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 1,
-              "total": 208253468641.7,
-              "prom": 208253468641.7,
+              "total": 221826520254.8,
+              "prom": 221826520254.8,
               "ruedas": 1,
               "top": {
-                "ticker": "D30S6",
-                "monto": 77785098401.6
+                "ticker": "D30O6",
+                "monto": 179950836793
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 338035385558.795,
-              "vsRef": 0.6160700256200787
+              "ref": 252645135248.38004,
+              "vsRef": 0.8780161946784303
             },
             "puntos": [
               {
                 "ticker": "D10Y7",
-                "xi": 235,
-                "yi": 0.827838,
-                "xf": 234,
-                "yf": 1.039374
+                "xi": 227,
+                "yi": 1.713339,
+                "xf": 224,
+                "yf": 2.599642
               },
               {
                 "ticker": "D15E7",
-                "xi": 120,
-                "yi": 4.31424,
-                "xf": 119,
-                "yf": 4.954294
+                "xi": 112,
+                "yi": 4.071814,
+                "xf": 109,
+                "yf": 3.097189
               },
               {
                 "ticker": "D30N6",
-                "xi": 74,
-                "yi": 10.380634,
-                "xf": 73,
-                "yf": 1.362109
+                "xi": 66,
+                "yi": 3.939241,
+                "xf": 63,
+                "yf": 3.813784
               },
               {
                 "ticker": "D30O6",
-                "xi": 43,
-                "yi": 1.750374,
-                "xf": 42,
-                "yf": 4.397529
+                "xi": 35,
+                "yi": 5.481765,
+                "xf": 32,
+                "yf": 3.729145
               },
               {
                 "ticker": "D30S6",
-                "xi": 13,
-                "yi": -2.592073,
-                "xf": 12,
-                "yf": 4.846975
+                "xi": 5,
+                "yi": 10.789944,
+                "xf": 5,
+                "yf": 14.441147
               },
               {
                 "ticker": "D31M7",
-                "xi": 195,
-                "yi": 4.844799,
-                "xf": 194,
-                "yf": 5.378664
+                "xi": 187,
+                "yi": 3.764214,
+                "xf": 184,
+                "yf": 4.181845
               },
               {
                 "ticker": "TMVE8",
-                "xi": 501,
-                "yi": 4.862437,
-                "xf": 500,
-                "yf": 4.431813
+                "xi": 493,
+                "yi": 5.328958,
+                "xf": 490,
+                "yf": 5.500481
               },
               {
                 "ticker": "TZV27",
-                "xi": 286,
-                "yi": 4.499167,
-                "xf": 285,
-                "yf": 4.565992
+                "xi": 278,
+                "yi": 4.648983,
+                "xf": 275,
+                "yf": 4.843041
               },
               {
                 "ticker": "TZV28",
-                "xi": 652,
-                "yi": 9.571083,
-                "xf": 651,
-                "yf": 9.690123
+                "xi": 644,
+                "yi": 9.630617,
+                "xf": 641,
+                "yf": 10.184777
               },
               {
                 "ticker": "TZVD8",
-                "xi": 820,
-                "yi": 10.353646,
-                "xf": 819,
-                "yf": 10.273831
+                "xi": 812,
+                "yi": 10.649455,
+                "xf": 809,
+                "yf": 10.703649
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": -6.107491547652285,
-                  "b": 2.1457187646455345
+                  "a": 6.939591587323969,
+                  "b": -0.18859150702411945
                 },
                 "n": 10,
-                "r2": 0.42355762042553924,
-                "xMin": 13,
-                "xMax": 820
+                "r2": 0.008315820986710909,
+                "xMin": 5,
+                "xMax": 812
               },
               "fin": {
                 "reg": {
-                  "a": -0.4251221100093424,
-                  "b": 1.080731818490535
+                  "a": 8.868992713324019,
+                  "b": -0.5170100886785445
                 },
                 "n": 10,
-                "r2": 0.2292512589115957,
-                "xMin": 12,
-                "xMax": 819
+                "r2": 0.04006023492554245,
+                "xMin": 5,
+                "xMax": 809
               }
             },
-            "grafico": null
+            "grafico": "nivel +18 bps"
           },
           {
             "sector": "BOP",
@@ -1144,109 +1197,94 @@
             "n": 6,
             "entraron": [],
             "salieron": [],
-            "tenor": 0.84,
+            "tenor": 0.815,
             "rangoComun": [
-              0.84,
-              1.97
+              0.81,
+              1.93
             ],
             "sinComparacion": null,
-            "nivelIni": 2.5258512499999997,
-            "nivelFin": 2.643644707710866,
-            "dNivelBps": 11.779345771086636,
-            "pendIni": 5.62981209788489,
-            "pendFin": 5.4867785136816085,
-            "dPend": -0.14303358420328127,
-            "forma": "aplanó",
-            "r2Ini": 0.9981818760404167,
-            "r2Fin": 0.9987640421236846,
+            "nivelIni": 2.3972263631652155,
+            "nivelFin": 2.956802432632191,
+            "dNivelBps": 55.95760694669756,
+            "pendIni": 6.415577404725513,
+            "pendFin": 6.767245202342314,
+            "dPend": 0.351667797616801,
+            "forma": "empinó",
+            "r2Ini": 0.9903724986590453,
+            "r2Fin": 0.9946797566440428,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 6,
-                "bps": 3.723950000000009
+                "bps": 54.90429999999995
               }
             ],
             "movers": {
               "suben": [
                 {
                   "ticker": "BPOA7",
-                  "bps": 24.1946,
-                  "x": 0.83,
-                  "dias": 408,
-                  "monto": 19791501.5
+                  "bps": 128.53900000000002,
+                  "x": 0.8,
+                  "dias": 398,
+                  "monto": 441941189.27
                 },
                 {
                   "ticker": "BPOA8",
-                  "bps": 9.456699999999962,
-                  "x": 1.97,
-                  "dias": 774,
-                  "monto": 9478196.39
-                },
-                {
-                  "ticker": "BPOC7",
-                  "bps": 6.628100000000003,
-                  "x": 0.83,
-                  "dias": 408,
-                  "monto": 671342258.36
-                }
-              ],
-              "bajan": [
-                {
-                  "ticker": "BPOB7",
-                  "bps": -10.809400000000036,
-                  "x": 0.83,
-                  "dias": 408,
-                  "monto": 825286138.54
+                  "bps": 82.33320000000006,
+                  "x": 1.93,
+                  "dias": 764,
+                  "monto": 821302601.74
                 },
                 {
                   "ticker": "BPOB8",
-                  "bps": -10.282000000000036,
-                  "x": 1.97,
-                  "dias": 774,
-                  "monto": 553212972.25
+                  "bps": 77.0491999999999,
+                  "x": 1.93,
+                  "dias": 764,
+                  "monto": 394372993.53
                 }
-              ]
+              ],
+              "bajan": []
             },
             "residuos": {
               "baratos": [
                 {
                   "ticker": "BPOA7",
-                  "bps": 16.072599999999994,
-                  "x": 0.83,
-                  "monto": 19791501.5
+                  "bps": 36.54415235131165,
+                  "x": 0.8,
+                  "monto": 441941189.27
                 },
                 {
-                  "ticker": "BPOB8",
-                  "bps": 1.4115999999999573,
-                  "x": 1.97,
-                  "monto": 553212972.25
+                  "ticker": "BPOC7",
+                  "bps": 3.7924284651879248,
+                  "x": 0.81,
+                  "monto": 4522353560.2
                 },
                 {
                   "ticker": "BPOA8",
-                  "bps": -1.4116000000000462,
-                  "x": 1.97,
-                  "monto": 9478196.39
+                  "bps": 1.452631126562487,
+                  "x": 1.93,
+                  "monto": 821302601.74
                 }
               ],
               "ricos": [
                 {
                   "ticker": "BPOD7",
-                  "bps": -7.302199999999992,
-                  "x": 0.83,
-                  "monto": 1010453447.05
-                },
-                {
-                  "ticker": "BPOC7",
-                  "bps": -7.302199999999992,
-                  "x": 0.83,
-                  "monto": 671342258.36
+                  "bps": -32.520371534812085,
+                  "x": 0.81,
+                  "monto": 4808750372.54
                 },
                 {
                   "ticker": "BPOB7",
-                  "bps": -1.4682000000000084,
-                  "x": 0.83,
-                  "monto": 825286138.54
+                  "bps": -8.339071534812081,
+                  "x": 0.81,
+                  "monto": 1067365803.73
+                },
+                {
+                  "ticker": "BPOB8",
+                  "bps": -0.9297688734376308,
+                  "x": 1.93,
+                  "monto": 394372993.53
                 }
               ]
             },
@@ -1254,93 +1292,93 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 1,
-              "total": 3089564514.09,
-              "prom": 3089564514.09,
+              "total": 12056086521.009998,
+              "prom": 12056086521.009998,
               "ruedas": 1,
               "top": {
                 "ticker": "BPOD7",
-                "monto": 1010453447.05
+                "monto": 4808750372.54
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 5760409852.132502,
-              "vsRef": 0.5363445646052849
+              "ref": 5411073728.073,
+              "vsRef": 2.2280395956281733
             },
             "puntos": [
               {
                 "ticker": "BPOA7",
-                "xi": 0.84,
-                "yi": 2.496714,
-                "xf": 0.83,
-                "yf": 2.73866
+                "xi": 0.82,
+                "yi": 1.911143,
+                "xf": 0.8,
+                "yf": 3.196533
               },
               {
                 "ticker": "BPOA8",
-                "xi": 1.97,
-                "yi": 7.21182,
-                "xf": 1.97,
-                "yf": 7.306387
+                "xi": 1.95,
+                "yi": 7.981952,
+                "xf": 1.93,
+                "yf": 8.805284
               },
               {
                 "ticker": "BPOB7",
-                "xi": 0.84,
-                "yi": 2.671346,
-                "xf": 0.83,
-                "yf": 2.563252
+                "xi": 0.82,
+                "yi": 2.504173,
+                "xf": 0.81,
+                "yf": 2.831767
               },
               {
                 "ticker": "BPOB8",
-                "xi": 1.97,
-                "yi": 7.437439,
-                "xf": 1.97,
-                "yf": 7.334619
+                "xi": 1.95,
+                "yi": 8.010968,
+                "xf": 1.93,
+                "yf": 8.78146
               },
               {
                 "ticker": "BPOC7",
-                "xi": 0.84,
-                "yi": 2.438631,
-                "xf": 0.83,
-                "yf": 2.504912
+                "xi": 0.81,
+                "yi": 2.683374,
+                "xf": 0.81,
+                "yf": 2.953082
               },
               {
                 "ticker": "BPOD7",
-                "xi": 0.84,
-                "yi": 2.496714,
-                "xf": 0.83,
-                "yf": 2.504912
+                "xi": 0.82,
+                "yi": 2.56384,
+                "xf": 0.81,
+                "yf": 2.589954
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 3.507428058254878,
-                  "b": 5.62981209788489
+                  "a": 3.7096428494436746,
+                  "b": 6.415577404725513
                 },
                 "n": 6,
-                "r2": 0.9981818760404167,
-                "xMin": 0.84,
-                "xMax": 1.97
+                "r2": 0.9903724986590453,
+                "xMin": 0.81,
+                "xMax": 1.95
               },
               "fin": {
                 "reg": {
-                  "a": 3.600283126084444,
-                  "b": 5.4867785136816085
+                  "a": 4.341158603551595,
+                  "b": 6.767245202342314
                 },
                 "n": 6,
-                "r2": 0.9987640421236846,
-                "xMin": 0.83,
-                "xMax": 1.97
+                "r2": 0.9946797566440428,
+                "xMin": 0.8,
+                "xMax": 1.93
               }
             },
-            "grafico": "nivel +12 bps",
+            "grafico": "nivel +56 bps",
             "ust": {
-              "plazo": 0.8649803749218336,
-              "ini": 4.436140919670573,
-              "fin": 4.393211269387698,
-              "dBps": -4,
-              "dSpreadBps": 16,
-              "spreadFin": -175,
-              "spreadIni": -191
+              "plazo": 0.839321982080871,
+              "ini": 4.505014724286749,
+              "fin": 4.494772748306364,
+              "dBps": -1,
+              "dSpreadBps": 57,
+              "spreadFin": -154,
+              "spreadIni": -211
             }
           },
           {
@@ -1351,121 +1389,99 @@
             "n": 9,
             "entraron": [],
             "salieron": [],
-            "tenor": 2.73,
+            "tenor": 2.665,
             "rangoComun": [
-              1.08,
-              5.48
+              1.05,
+              5.27
             ],
             "sinComparacion": null,
-            "nivelIni": 9.476852624613397,
-            "nivelFin": 9.420821300659554,
-            "dNivelBps": -5.603132395384236,
-            "pendIni": 3.301056325758205,
-            "pendFin": 3.4184617718519585,
-            "dPend": 0.1174054460937537,
+            "nivelIni": 10.679514080661509,
+            "nivelFin": 11.110139494335122,
+            "dNivelBps": 43.06254136736136,
+            "pendIni": 3.6990528869796964,
+            "pendFin": 3.7961897984041197,
+            "dPend": 0.09713691142442338,
             "forma": "empinó",
-            "r2Ini": 0.7347646331068226,
-            "r2Fin": 0.7583055237904057,
+            "r2Ini": 0.6612642992122446,
+            "r2Fin": 0.6313474035353119,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 6,
-                "bps": -8.770350000000038
+                "bps": 37.3672
               },
               {
                 "l": "medio",
                 "n": 3,
-                "bps": 1.3550999999999647
+                "bps": 37.04280000000004
               }
             ],
             "movers": {
               "suben": [
                 {
+                  "ticker": "AN29",
+                  "bps": 93.77389999999988,
+                  "x": 2.65,
+                  "dias": 1159,
+                  "monto": 1601323297.13
+                },
+                {
                   "ticker": "AL41",
-                  "bps": 17.701100000000025,
-                  "x": 5.48,
-                  "dias": 5408,
-                  "monto": 401092233.72
+                  "bps": 44.447800000000015,
+                  "x": 5.27,
+                  "dias": 5398,
+                  "monto": 2663830220.29
                 },
-                {
-                  "ticker": "AL35",
-                  "bps": 1.3550999999999647,
-                  "x": 5.12,
-                  "dias": 3216,
-                  "monto": 3401792851.51
-                },
-                {
-                  "ticker": "AO28",
-                  "bps": 0.7472999999999175,
-                  "x": 1.97,
-                  "dias": 774,
-                  "monto": 4300791913.21
-                }
-              ],
-              "bajan": [
                 {
                   "ticker": "AO29",
-                  "bps": -29.685200000000123,
-                  "x": 2.8,
-                  "dias": 1139,
-                  "monto": 1295845332.2
-                },
-                {
-                  "ticker": "AO27",
-                  "bps": -17.799699999999994,
-                  "x": 1.07,
-                  "dias": 406,
-                  "monto": 14736883033.73
-                },
-                {
-                  "ticker": "AN29",
-                  "bps": -8.961100000000144,
-                  "x": 2.73,
-                  "dias": 1169,
-                  "monto": 267838703.08
+                  "bps": 42.386500000000105,
+                  "x": 2.76,
+                  "dias": 1129,
+                  "monto": 12845415828.15
                 }
-              ]
+              ],
+              "bajan": []
             },
             "residuos": {
               "baratos": [
                 {
-                  "ticker": "AO28",
-                  "bps": 91.18426118654703,
-                  "x": 1.97,
-                  "monto": 4300791913.21
-                },
-                {
                   "ticker": "AN29",
-                  "bps": 85.99096993404451,
-                  "x": 2.73,
-                  "monto": 267838703.08
+                  "bps": 178.1249786250628,
+                  "x": 2.65,
+                  "monto": 1601323297.13
                 },
                 {
-                  "ticker": "AL30",
-                  "bps": 80.66733579908991,
-                  "x": 1.86,
-                  "monto": 68730230277.5
+                  "ticker": "AO29",
+                  "bps": 133.03128001335924,
+                  "x": 2.76,
+                  "monto": 12845415828.15
+                },
+                {
+                  "ticker": "AO28",
+                  "bps": 112.9904826634606,
+                  "x": 1.94,
+                  "monto": 11695156688.22
                 }
               ],
               "ricos": [
                 {
                   "ticker": "AO27",
-                  "bps": -228.89751455535614,
-                  "x": 1.07,
-                  "monto": 14736883033.73
-                },
-                {
-                  "ticker": "AL35",
-                  "bps": -81.93486596382513,
-                  "x": 5.12,
-                  "monto": 3401792851.51
+                  "bps": -321.25801216106964,
+                  "x": 1.04,
+                  "monto": 12915981978.76
                 },
                 {
                   "ticker": "AL41",
-                  "bps": -81.92733997445228,
-                  "x": 5.48,
-                  "monto": 401092233.72
+                  "bps": -139.22675574147033,
+                  "x": 5.27,
+                  "monto": 2663830220.29
+                },
+                {
+                  "ticker": "AL35",
+                  "bps": -129.41786347992306,
+                  "x": 5,
+                  "monto": 13475785390.54
                 }
               ]
             },
@@ -1473,114 +1489,114 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 1,
-              "total": 95978689832.20999,
-              "prom": 95978689832.20999,
+              "total": 178209947208.83002,
+              "prom": 178209947208.83002,
               "ruedas": 1,
               "top": {
                 "ticker": "AL30",
-                "monto": 68730230277.5
+                "monto": 110640136996
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 124093259663.11902,
-              "vsRef": 0.7734399925730633
+              "ref": 118239942707.98299,
+              "vsRef": 1.5071890524249902
             },
             "puntos": [
               {
                 "ticker": "AE38",
-                "xi": 4.3,
-                "yi": 11.085295,
-                "xf": 4.31,
-                "yf": 10.998921
+                "xi": 4.16,
+                "yi": 12.307093,
+                "xf": 4.12,
+                "yf": 12.677521
               },
               {
                 "ticker": "AL29",
-                "xi": 1.44,
-                "yi": 8.060327,
-                "xf": 1.44,
-                "yf": 7.974531
+                "xi": 1.41,
+                "yi": 9.105206,
+                "xf": 1.4,
+                "yf": 9.52238
               },
               {
                 "ticker": "AL30",
-                "xi": 1.86,
-                "yi": 8.978694,
-                "xf": 1.86,
-                "yf": 8.915745
+                "xi": 1.82,
+                "yi": 10.183899,
+                "xf": 1.8,
+                "yf": 10.508464
               },
               {
                 "ticker": "AL35",
-                "xi": 5.12,
-                "yi": 10.737631,
-                "xf": 5.12,
-                "yf": 10.751182
+                "xi": 5.02,
+                "yi": 11.986297,
+                "xf": 5,
+                "yf": 12.204652
               },
               {
                 "ticker": "AL41",
-                "xi": 5.51,
-                "yi": 10.806533,
-                "xf": 5.48,
-                "yf": 10.983544
+                "xi": 5.34,
+                "yi": 11.861736,
+                "xf": 5.27,
+                "yf": 12.306214
               },
               {
                 "ticker": "AN29",
-                "xi": 2.73,
-                "yi": 10.370342,
-                "xf": 2.73,
-                "yf": 10.280731
+                "xi": 2.68,
+                "yi": 11.932223,
+                "xf": 2.65,
+                "yf": 12.869962
               },
               {
                 "ticker": "AO27",
-                "xi": 1.08,
-                "yi": 4.107965,
-                "xf": 1.07,
-                "yf": 3.929968
+                "xi": 1.05,
+                "yi": 4.242878,
+                "xf": 1.04,
+                "yf": 4.325408
               },
               {
                 "ticker": "AO28",
-                "xi": 1.97,
-                "yi": 9.209856,
-                "xf": 1.97,
-                "yf": 9.217329
+                "xi": 1.95,
+                "yi": 10.704523,
+                "xf": 1.94,
+                "yf": 11.034693
               },
               {
                 "ticker": "AO29",
-                "xi": 2.8,
-                "yi": 10.395929,
-                "xf": 2.8,
-                "yf": 10.099077
+                "xi": 2.77,
+                "yi": 12.149555,
+                "xf": 2.76,
+                "yf": 12.57342
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 6.161596444604929,
-                  "b": 3.301056325758205
+                  "a": 7.053687431501145,
+                  "b": 3.6990528869796964
                 },
                 "n": 9,
-                "r2": 0.7347646331068226,
-                "xMin": 1.08,
-                "xMax": 5.51
+                "r2": 0.6612642992122446,
+                "xMin": 1.05,
+                "xMax": 5.34
               },
               "fin": {
                 "reg": {
-                  "a": 5.987654642210655,
-                  "b": 3.4184617718519585
+                  "a": 7.3890988504520765,
+                  "b": 3.7961897984041197
                 },
                 "n": 9,
-                "r2": 0.7583055237904057,
-                "xMin": 1.07,
-                "xMax": 5.48
+                "r2": 0.6313474035353119,
+                "xMin": 1.04,
+                "xMax": 5.27
               }
             },
-            "grafico": "empinó",
+            "grafico": "nivel +43 bps",
             "ust": {
-              "plazo": 2.9583812298457244,
-              "ini": 4.874974486603723,
-              "fin": 4.802997700438327,
-              "dBps": -7,
-              "dSpreadBps": 1,
-              "spreadFin": 462,
-              "spreadIni": 461
+              "plazo": 2.8919604550428493,
+              "ini": 5.039281343407964,
+              "fin": 4.986617437341678,
+              "dBps": -5,
+              "dSpreadBps": 48,
+              "spreadFin": 612,
+              "spreadIni": 564
             }
           },
           {
@@ -1591,126 +1607,99 @@
             "n": 6,
             "entraron": [],
             "salieron": [],
-            "tenor": 4.827500000000001,
+            "tenor": 4.717499999999999,
             "rangoComun": [
-              1.48,
-              6.1
+              1.46,
+              5.89
             ],
             "sinComparacion": null,
-            "nivelIni": 9.325048465787795,
-            "nivelFin": 9.314663035143317,
-            "dNivelBps": -1.0385430644477722,
-            "pendIni": 2.8130463919910444,
-            "pendFin": 3.0665378024600587,
-            "dPend": 0.25349141046901424,
-            "forma": "empinó",
-            "r2Ini": 0.9770969406295316,
-            "r2Fin": 0.9736162862249319,
+            "nivelIni": 10.074271228333195,
+            "nivelFin": 10.441157898247127,
+            "dNivelBps": 36.68866699139315,
+            "pendIni": 3.2329094200736304,
+            "pendFin": 2.4444874018778777,
+            "dPend": -0.7884220181957526,
+            "forma": "aplanó",
+            "r2Ini": 0.8817243492293453,
+            "r2Fin": 0.9315105518441058,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 2,
-                "bps": -26.997950000000024
+                "bps": 113.95994999999996
               },
               {
                 "l": "medio",
-                "n": 3,
-                "bps": 2.27170000000001
-              },
-              {
-                "l": "largo",
-                "n": 1,
-                "bps": 5.697499999999955
+                "n": 4,
+                "bps": 29.250299999999996
               }
             ],
             "movers": {
               "suben": [
                 {
-                  "ticker": "GD38",
-                  "bps": 8.642599999999945,
-                  "x": 4.46,
-                  "dias": 4131,
-                  "monto": 736024634.6
-                },
-                {
-                  "ticker": "GD46",
-                  "bps": 5.697499999999955,
-                  "x": 6.1,
-                  "dias": 7234,
-                  "monto": 208629355.21
-                },
-                {
-                  "ticker": "GD35",
-                  "bps": 2.27170000000001,
-                  "x": 5.19,
-                  "dias": 3216,
-                  "monto": 4620195157.54
-                }
-              ],
-              "bajan": [
-                {
                   "ticker": "GD29",
-                  "bps": -32.99310000000002,
-                  "x": 1.48,
-                  "dias": 1025,
-                  "monto": 102221077.8
+                  "bps": 171.502,
+                  "x": 1.43,
+                  "dias": 1015,
+                  "monto": 49486472.6
                 },
                 {
                   "ticker": "GD30",
-                  "bps": -21.002800000000033,
-                  "x": 1.91,
-                  "dias": 1390,
-                  "monto": 2197863204.23
+                  "bps": 56.41789999999993,
+                  "x": 1.84,
+                  "dias": 1380,
+                  "monto": 4953330274.89
                 },
                 {
-                  "ticker": "GD41",
-                  "bps": -10.111500000000007,
-                  "x": 5.68,
-                  "dias": 5408,
-                  "monto": 509865435.09
+                  "ticker": "GD46",
+                  "bps": 36.68769999999988,
+                  "x": 5.89,
+                  "dias": 7224,
+                  "monto": 126113481.31
                 }
-              ]
+              ],
+              "bajan": []
             },
             "residuos": {
               "baratos": [
                 {
                   "ticker": "GD38",
-                  "bps": 41.158833387767935,
-                  "x": 4.46,
-                  "monto": 736024634.6
+                  "bps": 44.534967325398256,
+                  "x": 4.32,
+                  "monto": 1525231091.92
                 },
                 {
                   "ticker": "GD30",
-                  "bps": 19.100599134926277,
-                  "x": 1.91,
-                  "monto": 2197863204.23
+                  "bps": 36.06238118724274,
+                  "x": 1.84,
+                  "monto": 4953330274.89
                 },
                 {
                   "ticker": "GD35",
-                  "bps": 18.30034122357027,
-                  "x": 5.19,
-                  "monto": 4620195157.54
+                  "bps": 13.779391363354065,
+                  "x": 5.09,
+                  "monto": 7029658293.6
                 }
               ],
               "ricos": [
                 {
                   "ticker": "GD46",
-                  "bps": -38.0913329369033,
-                  "x": 6.1,
-                  "monto": 208629355.21
+                  "bps": -55.40098767942361,
+                  "x": 5.89,
+                  "monto": 126113481.31
                 },
                 {
                   "ticker": "GD29",
-                  "bps": -26.126233710430835,
-                  "x": 1.48,
-                  "monto": 102221077.8
+                  "bps": -40.91276031975583,
+                  "x": 1.43,
+                  "monto": 49486472.6
                 },
                 {
                   "ticker": "GD41",
-                  "bps": -14.34220709892955,
-                  "x": 5.68,
-                  "monto": 509865435.09
+                  "bps": 1.9370081231837588,
+                  "x": 5.48,
+                  "monto": 4313244141.67
                 }
               ]
             },
@@ -1718,233 +1707,233 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 1,
-              "total": 8374798864.47,
-              "prom": 8374798864.47,
+              "total": 17997063755.99,
+              "prom": 17997063755.99,
               "ruedas": 1,
               "top": {
                 "ticker": "GD35",
-                "monto": 4620195157.54
+                "monto": 7029658293.6
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 8533615891.397,
-              "vsRef": 0.9813892459013642
+              "ref": 8211402747.886,
+              "vsRef": 2.1917161182507203
             },
             "puntos": [
               {
                 "ticker": "GD29",
-                "xi": 1.47,
-                "yi": 5.757805,
-                "xf": 1.48,
-                "yf": 5.427874
+                "xi": 1.46,
+                "yi": 5.399259,
+                "xf": 1.43,
+                "yf": 7.114279
               },
               {
                 "ticker": "GD30",
-                "xi": 1.9,
-                "yi": 6.872325,
-                "xf": 1.91,
-                "yf": 6.662297
+                "xi": 1.86,
+                "yi": 7.936085,
+                "xf": 1.84,
+                "yf": 8.500264
               },
               {
                 "ticker": "GD35",
-                "xi": 5.19,
-                "yi": 9.696982,
-                "xf": 5.19,
-                "yf": 9.719699
+                "xi": 5.11,
+                "yi": 10.610288,
+                "xf": 5.09,
+                "yf": 10.76473
               },
               {
                 "ticker": "GD38",
-                "xi": 4.47,
-                "yi": 9.397017,
-                "xf": 4.46,
-                "yf": 9.483443
+                "xi": 4.35,
+                "yi": 10.415574,
+                "xf": 4.32,
+                "yf": 10.671335
               },
               {
                 "ticker": "GD41",
-                "xi": 5.67,
-                "yi": 9.771044,
-                "xf": 5.68,
-                "yf": 9.669929
+                "xi": 5.53,
+                "yi": 10.497531,
+                "xf": 5.48,
+                "yf": 10.826776
               },
               {
                 "ticker": "GD46",
-                "xi": 6.12,
-                "yi": 9.594222,
-                "xf": 6.1,
-                "yf": 9.651197
+                "xi": 5.98,
+                "yi": 10.062891,
+                "xf": 5.89,
+                "yf": 10.429768
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 4.896388697086548,
-                  "b": 2.8130463919910444
+                  "a": 5.059126741694221,
+                  "b": 3.2329094200736304
                 },
                 "n": 6,
-                "r2": 0.9770969406295316,
-                "xMin": 1.47,
-                "xMax": 6.12
+                "r2": 0.8817243492293453,
+                "xMin": 1.46,
+                "xMax": 5.98
               },
               "fin": {
                 "reg": {
-                  "a": 4.486924454783767,
-                  "b": 3.0665378024600587
+                  "a": 6.649075930201433,
+                  "b": 2.4444874018778777
                 },
                 "n": 6,
-                "r2": 0.9736162862249319,
-                "xMin": 1.48,
-                "xMax": 6.1
+                "r2": 0.9315105518441058,
+                "xMin": 1.43,
+                "xMax": 5.89
               }
             },
-            "grafico": "empinó",
+            "grafico": "nivel +37 bps",
             "ust": {
-              "plazo": 5.557744964796203,
-              "ini": 4.942500425117591,
-              "fin": 4.859965247095999,
-              "dBps": -8,
-              "dSpreadBps": 7,
-              "spreadFin": 445,
-              "spreadIni": 438
+              "plazo": 5.44708884108094,
+              "ini": 5.109595036814785,
+              "fin": 5.060330653682676,
+              "dBps": -5,
+              "dSpreadBps": 42,
+              "spreadFin": 538,
+              "spreadIni": 496
             }
           }
         ],
         "fx": {
           "A3500": {
-            "ini": 1509.1055,
-            "fin": 1510.0024,
-            "fechaIni": "2026-09-16",
-            "fechaFin": "2026-09-17",
+            "ini": 1518.7415,
+            "fin": 1523.9662,
+            "fechaIni": "2026-09-24",
+            "fechaFin": "2026-09-25",
             "esPct": false,
-            "var": 0.059432557896066385
+            "var": 0.3440150940762443
           },
           "MEP": {
-            "ini": 1537.560799855882,
-            "fin": 1533.8251169485427,
-            "fechaIni": "2026-09-16",
-            "fechaFin": "2026-09-17",
+            "ini": 1544.3526170798898,
+            "fin": 1552.5004613397307,
+            "fechaIni": "2026-09-24",
+            "fechaFin": "2026-09-25",
             "esPct": false,
-            "var": -0.24296163817972838
+            "var": 0.5275896300967364
           },
           "Cable": {
-            "ini": 1597.4171813587873,
-            "fin": 1593.4579439252336,
-            "fechaIni": "2026-09-16",
-            "fechaFin": "2026-09-17",
+            "ini": 1612.7733026467204,
+            "fin": 1620.0654727517813,
+            "fechaIni": "2026-09-24",
+            "fechaFin": "2026-09-25",
             "esPct": false,
-            "var": -0.2478524382832692
+            "var": 0.4521509683409253
           },
           "Canje": {
-            "ini": 3.8929440389294356,
-            "fin": 3.887850467289722,
-            "fechaIni": "2026-09-16",
-            "fechaFin": "2026-09-17",
+            "ini": 4.430379746835444,
+            "fin": 4.352012324282684,
+            "fechaIni": "2026-09-24",
+            "fechaFin": "2026-09-25",
             "esPct": true,
-            "var": -0.005093571639713801
+            "var": -0.07836742255276086
           },
           "Brecha": {
-            "ini": 1.8855739281237849,
-            "fin": 1.5776608665352132,
-            "fechaIni": "2026-09-16",
-            "fechaFin": "2026-09-17",
+            "ini": 1.6863381345600725,
+            "fin": 1.8723683858428597,
+            "fechaIni": "2026-09-24",
+            "fechaFin": "2026-09-25",
             "esPct": true,
-            "var": -0.3079130615885717
+            "var": 0.18603025128278716
           }
         },
         "ust": {
-          "fechaIni": "2026-09-16",
-          "fechaFin": "2026-09-17",
+          "fechaIni": "2026-09-24",
+          "fechaFin": "2026-09-25",
           "desfasado": false,
           "refs": [
             {
               "plazo": 2,
-              "ini": 4.74,
-              "fin": 4.67,
-              "dBps": -7
+              "ini": 4.87,
+              "fin": 4.81,
+              "dBps": -6
             },
             {
               "plazo": 5,
-              "ini": 4.86,
-              "fin": 4.78,
-              "dBps": -8
+              "ini": 5.03,
+              "fin": 4.98,
+              "dBps": -5
             },
             {
               "plazo": 10,
-              "ini": 5.01,
-              "fin": 4.94,
-              "dBps": -7
+              "ini": 5.18,
+              "fin": 5.17,
+              "dBps": -1
             },
             {
               "plazo": 30,
-              "ini": 5.35,
-              "fin": 5.29,
-              "dBps": -6
+              "ini": 5.47,
+              "fin": 5.49,
+              "dBps": 2
             }
           ]
         },
         "riesgoPais": {
-          "fechaIni": "2026-09-16",
-          "fechaFin": "2026-09-17",
-          "ini": 510,
-          "fin": 515,
+          "fechaIni": "2026-09-24",
+          "fechaFin": "2026-09-25",
+          "ini": 578,
+          "fin": 609,
           "desfasado": false,
-          "dBps": 5
+          "dBps": 31
         },
         "implicitasIni": [
           {
             "tenor": 90,
-            "tf": 27.475200156714095,
-            "cer": 2.811208346041475,
-            "dlk": 3.5955366465513228,
-            "infla": 23.989594332612718,
-            "inflaMensual": 1.8080462666147712,
-            "deval": 23.05086134322152
+            "tf": 28.443751729633604,
+            "cer": 4.348272233260619,
+            "dlk": 6.232169381738162,
+            "infla": 23.091402455145428,
+            "inflaMensual": 1.7463823667305034,
+            "deval": 20.908527498934546
           },
           {
             "tenor": 180,
-            "tf": 28.293579261101698,
-            "cer": 4.297165770079749,
-            "dlk": 5.099397754773194,
-            "infla": 23.007733061434664,
-            "inflaMensual": 1.7406171986620533,
-            "deval": 22.068805342202946
+            "tf": 28.930016242800384,
+            "cer": 5.579591365209945,
+            "dlk": 6.050296222577578,
+            "infla": 22.116419068926962,
+            "inflaMensual": 1.678977847276819,
+            "deval": 21.57440463174476
           },
           {
             "tenor": 270,
-            "tf": 28.320775637944173,
-            "cer": 5.166395140810346,
-            "dlk": 5.992324419730211,
-            "infla": 22.01690042349722,
-            "inflaMensual": 1.6720700021480628,
-            "deval": 21.06610204130741
+            "tf": 28.76638822891917,
+            "cer": 6.299866883820826,
+            "dlk": 5.970323825320922,
+            "infla": 21.135041843140655,
+            "inflaMensual": 1.6106312664804001,
+            "deval": 21.511743647376935
           }
         ],
         "implicitasFin": [
           {
             "tenor": 90,
-            "tf": 26.944211215175894,
-            "cer": 2.050975214667524,
-            "dlk": 4.512718812438421,
-            "infla": 24.392942789762316,
-            "inflaMensual": 1.8356043714589543,
-            "deval": 21.462930691711968
+            "tf": 28.527756893723357,
+            "cer": 4.646165865283245,
+            "dlk": 6.705587068883623,
+            "infla": 22.82127666214184,
+            "inflaMensual": 1.7277566377031706,
+            "deval": 20.450822139943313
           },
           {
             "tenor": 180,
-            "tf": 27.764663991934825,
-            "cer": 3.7385836426376127,
-            "dlk": 5.255273349049783,
-            "infla": 23.160216291426437,
-            "inflaMensual": 1.7511212338053195,
-            "deval": 21.385522954502157
+            "tf": 29.045805019762394,
+            "cer": 5.837779258623342,
+            "dlk": 6.281128785064061,
+            "infla": 21.92792207443084,
+            "inflaMensual": 1.6658894116144074,
+            "deval": 21.41930227400588
           },
           {
             "tenor": 270,
-            "tf": 27.80828676488718,
-            "cer": 4.725771288901095,
-            "dlk": 5.704379808692406,
-            "infla": 22.040912367510423,
-            "inflaMensual": 1.6737372055378952,
-            "deval": 20.91106063551882
+            "tf": 28.895233173263346,
+            "cer": 6.534828409084388,
+            "dlk": 6.063790261229207,
+            "infla": 20.98882130669697,
+            "inflaMensual": 1.6004045345002327,
+            "deval": 21.526142763521428
           }
         ],
         "rem": {
@@ -1967,8 +1956,8 @@
                 "anual": 28.55404292871475,
                 "conAncla": false
               },
-              "difInflaMensualPp": 0.13563714760849166,
-              "difDevalPp": -7.091112237002783
+              "difInflaMensualPp": 0.027789413852707945,
+              "difDevalPp": -8.103220788771438
             },
             {
               "tenor": 180,
@@ -1987,8 +1976,8 @@
                 "anual": 26.993690094125377,
                 "conAncla": true
               },
-              "difInflaMensualPp": 0.07175670732704198,
-              "difDevalPp": -5.6081671396232196
+              "difInflaMensualPp": -0.013475114863870097,
+              "difDevalPp": -5.574387820119497
             },
             {
               "tenor": 270,
@@ -2007,14 +1996,14 @@
                 "anual": 25.687123779875453,
                 "conAncla": true
               },
-              "difInflaMensualPp": 0.03438933451636039,
-              "difDevalPp": -4.776063144356634
+              "difInflaMensualPp": -0.03894333652130211,
+              "difDevalPp": -4.160981016354025
             }
           ],
           "tamar": {
             "hoy": {
-              "fecha": "2026-09-16",
-              "v": 23.625
+              "fecha": "2026-09-24",
+              "v": 23.75
             },
             "esperada": [
               {
@@ -2037,43 +2026,43 @@
         },
         "habiles": 1,
         "volumen": {
-          "total": 1080512850187.9502,
+          "total": 929366271334.86,
           "ruedas": 1,
           "habiles": 1,
-          "prom": 1080512850187.9502,
+          "prom": 929366271334.86,
           "truncado": false,
           "sinColumna": false,
           "parcial": false,
-          "ref": 1148519581820.824,
+          "ref": 1053719833660.8313,
           "refRuedas": 20,
-          "vsRef": 0.9407874861610472
+          "vsRef": 0.8819861234898252
         }
       }
     },
     "semana": {
-      "ini": "2026-09-10",
-      "fin": "2026-09-17",
+      "ini": "2026-09-18",
+      "fin": "2026-09-25",
       "ruedas": 5,
-      "titular": "Semana de compresión fuerte en pesos y de más prima para el crédito argentino",
+      "titular": "Semana de ventas sin refugio: todas las curvas, en pesos y en dólares, cerraron con más tasa",
       "pesos": {
-        "resumen": "Semana de compresión en las cuatro curvas de pesos, liderada por tasa fija (-96 bps) y CER (-84 bps de tasa real), con CER operando 1,6 veces su volumen promedio. La inflación implícita a tres meses subió de 23,44% a 24,39% anual, 1,84% mensual, y quedó 0,14 pp arriba del REM. La devaluación implícita fue para el otro lado: bajó a 20,94% anual, 7,61 pp debajo de lo que proyecta el REM.",
-        "TF": "Tasa fija comprimió 96 bps y el nivel a tres meses cerró en 24,79% TNA, con las cortas llevándose la baja (-145 bps contra 54 bps de las medianas) y ninguna letra en suba en toda la semana: empinó. Con volumen en su promedio, 1,0 veces, se lee como expectativa de tasas cortas más bajas antes que como flujo.",
-        "CER": "CER fue la curva con más convicción: comprimió 84 bps de tasa real, hasta 6,27%, con 1,6 veces su volumen promedio y la baja concentrada en cortos (-227 bps) y medios (-176 bps) contra apenas 21 bps en los largos. Con la inflación implícita subiendo al mismo tiempo, se lee como demanda de cobertura en los plazos cercanos.",
-        "TAMAR": "TAMAR comprimió 46 bps de margen, hasta 6,80%, sin bonos en suba pero con 0,8 veces el volumen promedio: la baja tiene menos respaldo de flujo que en CER. El TMG27 fue el que más comprimió, 149 bps, y sigue siendo el más caro contra su curva, 207 bps por debajo.",
-        "DLK": "Dollar linked comprimió 41 bps, hasta 5,76%, con las cortas (-156 bps) y las largas (-87 bps) bajando y el tramo medio quieto (+2 bps). La devaluación implícita a tres meses quedó en 20,94% anual contra 28,55% del REM, con volumen 0,7 veces el promedio: el mercado no está pagando por cobertura cambiaria."
+        "resumen": "Semana de suba de tasas en toda la curva en pesos: 104 bps en tasa fija, 116 bps en CER, 64 bps de margen en TAMAR y 168 bps en dollar linked. En tasa fija y en CER no hubo un solo bono que bajara de tasa. El volumen total, 4,7 billones en cinco ruedas, quedó en 0,8 veces el promedio: fue un ajuste de precios más que una salida masiva.",
+        "TF": "En tasa fija la TNA a 90 días subió 104 bps, de 24,84% a 25,88%, y más en el tramo medio, 108 bps, que en las letras cortas, 63 bps: el mercado pidió más prima por plazo. Pasó con volumen flaco, 0,6 veces el promedio, así que la suba tuvo menos convicción que en las demás curvas.",
+        "CER": "CER subió 116 bps a 500 días, a 7,59% real, con los cortos a la cabeza: 177 bps contra 78 bps en los largos. Como en la punta corta subió más que la tasa fija, la inflación implícita a 90 días bajó de 24,01% a 22,82% anual y quedó en 1,73% mensual contra el 1,70% del REM: la semana le sacó a la curva la prima de inflación que tenía sobre los analistas. Volumen apenas arriba de su promedio, 1,1 veces.",
+        "TAMAR": "TAMAR amplió 64 bps de margen, a 7,37% a 582 días, en todos los tramos: 30 bps los cortos, 102 bps el medio y 60 bps los largos. Si el mercado estuviera recalculando la TAMAR esperada, que el REM ve bajando de 23,75% a 23,45% en diciembre, el movimiento se habría concentrado en los largos, y se concentró en el medio: se lee más como precio que como un cambio de sendero. Volumen de 1,1 veces el promedio.",
+        "DLK": "Dollar linked fue la curva que más tasa sumó, 168 bps a 208 días, con cortos y medios subiendo parecido, 79 bps y 82 bps. La devaluación implícita a 90 días cayó de 24,85% a 20,45% y quedó 8,10 pp debajo del 28,55% que espera el REM: en una semana de ventas, la curva le pidió menos cobertura cambiaria, no más. Volumen de 0,8 veces el promedio. La D30S6 sumó 2158 bps, pero vence en días y es poco precio."
       },
       "dolares": {
-        "resumen": "En dólares la semana fue negativa y esta vez el golpe fue local. Los Treasuries quedaron mixtos: el 2 años subió 11 bps, hasta 4,67%, y el 10 años bajó 1 bps, a 4,94%. Los Globales subieron 29 bps de tasa, hasta 9,32%, y de esos 29 bps sólo 3 bps corresponden a los Treasuries: 26 bps son más spread, que quedó en 446 bps. En los Bonares, de 30 bps de suba, 12 bps son Treasuries y 18 bps spread, con el nivel en 9,43%. En ninguna de las dos curvas bajó un bono. Los Bopreales subieron 13 bps y fueron todos Treasuries, con su spread negativo sin cambios en -169 bps. El riesgo país, que es otra medida, subió 24 bps en la semana, hasta 515 bps. El volumen acompañó poco, 0,7 veces el promedio en Globales y 0,8 en Bonares."
+        "resumen": "En dólares la semana fue de spread, no de Treasuries. Los Treasuries subieron, el 10 años de 5,01% a 5,17%, pero explican poco: de los 161 bps que sumaron los Bonares, 11 bps corresponden a los Treasuries y 150 bps al spread; en los Globales, de 101 bps, 13 bps y 88 bps. El riesgo país, que es otra medida, pasó de 524 bps a 609 bps. Los Bonares, de ley local, se separaron de los Globales: arrancaron con un spread casi igual, 465 bps contra 452 bps, y terminaron en 615 bps contra 540 bps, lo que se lee como más prima por legislación. Volumen arriba del promedio en las dos curvas, 1,2 veces en Bonares y 1,6 veces en Globales. Los Bopreales subieron 29 bps con spread negativo, así que no se leen como riesgo crédito."
       },
-      "contexto": "La semana la ordenó la Fed: subió su tasa 25 puntos básicos el miércoles 16, la primera suba desde 2023, y dejó señalada al menos otra más en el año. Las tasas largas de Estados Unidos tocaron el martes su nivel más alto desde 2007 y aflojaron el jueves, con el petróleo en baja. Acá, el INDEC publicó el jueves 10 la inflación de agosto, 1,7% mensual, y el Gobierno presentó el 15 el Presupuesto 2027, con 4% de crecimiento, 18% de inflación interanual a diciembre de 2027 y un dólar de $1.600 a fin de este año.",
+      "contexto": "El riesgo país subió diez ruedas seguidas y el viernes cerró por encima de los 600 puntos, su nivel más alto desde abril. Los analistas lo atan a dos cosas: encuestas que muestran un margen más estrecho para el oficialismo de cara a 2027, y un Banco Central que desde mediados de mes compra el mínimo de dólares —unos 13 millones por día— para sostener el tipo de cambio y las tasas. Con estos niveles, la vuelta a los mercados internacionales de deuda queda lejos. Afuera, fue una semana de Treasuries en alza: después de la suba de septiembre, el mercado le asigna en torno a dos tercios de probabilidad a otra suba de la Fed en octubre, y el 10 años operó cerca de sus máximos en casi dos décadas.",
       "ficha": {
         "periodo": "semana",
         "label": "Semana",
-        "ini": "2026-09-10",
-        "fin": "2026-09-17",
+        "ini": "2026-09-18",
+        "fin": "2026-09-25",
         "enVivo": false,
         "dias": 7,
-        "generado": "2026-09-18T02:04:08.641Z",
+        "generado": "2026-09-26T02:46:05.542Z",
         "bloques": [
           {
             "sector": "TF",
@@ -2082,102 +2071,100 @@
             "ejeX": "dias",
             "n": 10,
             "entraron": [],
-            "salieron": [
-              "S15S6"
-            ],
-            "tenor": 99.5,
+            "salieron": [],
+            "tenor": 89.5,
             "rangoComun": [
-              19,
-              285
+              9,
+              275
             ],
             "sinComparacion": null,
-            "nivelIni": 25.74905999258764,
-            "nivelFin": 24.786318689334074,
-            "dNivelBps": -96.27413032535657,
-            "pendIni": 1.9923924546891723,
-            "pendFin": 2.1211901492175897,
-            "dPend": 0.1287976945284175,
-            "forma": "empinó",
-            "r2Ini": 0.904277053668191,
-            "r2Fin": 0.7934949140764411,
+            "nivelIni": 24.838855536575736,
+            "nivelFin": 25.88000358440644,
+            "dNivelBps": 104.11480478307062,
+            "pendIni": 2.012349207852295,
+            "pendFin": 1.8496944191492202,
+            "dPend": -0.1626547887030747,
+            "forma": "aplanó",
+            "r2Ini": 0.81883806185599,
+            "r2Fin": 0.8261706461947483,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 7,
-                "bps": -144.62399999999997
+                "bps": 63.34839999999993
               },
               {
                 "l": "medio",
                 "n": 3,
-                "bps": -54.309299999999894
+                "bps": 107.97099999999986
               }
             ],
             "movers": {
-              "suben": [],
-              "bajan": [
+              "suben": [
                 {
-                  "ticker": "S30O6",
-                  "bps": -282.5485999999998,
-                  "x": 42,
-                  "dias": 42,
-                  "monto": 8032319323.41
+                  "ticker": "T15E7",
+                  "bps": 131.30290000000002,
+                  "x": 109,
+                  "dias": 109,
+                  "monto": 3687925913.95
                 },
                 {
-                  "ticker": "S13N6",
-                  "bps": -216.10310000000013,
-                  "x": 56,
-                  "dias": 56,
-                  "monto": 66548497476.81
+                  "ticker": "S29E7",
+                  "bps": 130.53799999999995,
+                  "x": 123,
+                  "dias": 123,
+                  "monto": 9455630236.27
                 },
                 {
-                  "ticker": "S30N6",
-                  "bps": -149.40999999999997,
-                  "x": 73,
-                  "dias": 73,
-                  "monto": 130397173624.12
+                  "ticker": "T31Y7",
+                  "bps": 117.9468,
+                  "x": 245,
+                  "dias": 245,
+                  "monto": 69896608155.32
                 }
-              ]
+              ],
+              "bajan": []
             },
             "residuos": {
               "baratos": [
                 {
                   "ticker": "S30S6",
-                  "bps": 150.6519883060168,
-                  "x": 12,
-                  "monto": 28133286521.97
-                },
-                {
-                  "ticker": "T30J7",
-                  "bps": 85.14060225708846,
-                  "x": 285,
-                  "monto": 1360073702.62
+                  "bps": 154.8051194503806,
+                  "x": 5,
+                  "monto": null
                 },
                 {
                   "ticker": "T31Y7",
-                  "bps": 76.8214744107162,
-                  "x": 255,
-                  "monto": 46851410065.4
+                  "bps": 124.62909087569258,
+                  "x": 245,
+                  "monto": 69896608155.32
+                },
+                {
+                  "ticker": "T30A7",
+                  "bps": 74.82096308258441,
+                  "x": 214,
+                  "monto": 32874584436.85
                 }
               ],
               "ricos": [
                 {
                   "ticker": "S30O6",
-                  "bps": -245.2067585016792,
-                  "x": 42,
-                  "monto": 8032319323.41
+                  "bps": -190.38168385534036,
+                  "x": 32,
+                  "monto": 2472460095.42
                 },
                 {
-                  "ticker": "T15E7",
-                  "bps": -68.32752851667792,
-                  "x": 119,
-                  "monto": 4685312166.58
+                  "ticker": "S30N6",
+                  "bps": -117.40876620894127,
+                  "x": 63,
+                  "monto": 29495486762.53
                 },
                 {
-                  "ticker": "S29E7",
-                  "bps": -60.56240067030565,
-                  "x": 133,
-                  "monto": 35801159712.78
+                  "ticker": "S13N6",
+                  "bps": -55.531610490922034,
+                  "x": 46,
+                  "monto": 20674854226.12
                 }
               ]
             },
@@ -2185,113 +2172,113 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 5,
-              "total": 1838979338432.5898,
-              "prom": 367795867686.51794,
+              "total": 1118163192269.06,
+              "prom": 223632638453.812,
               "ruedas": 5,
               "top": {
                 "ticker": "S30N6",
-                "monto": 450336414499.67
+                "monto": 226516121933.03
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 372499538062.55444,
-              "vsRef": 0.9873726813179386
+              "ref": 373872409075.949,
+              "vsRef": 0.598152292132322
             },
             "puntos": [
               {
                 "ticker": "S13N6",
-                "xi": 63,
-                "yi": 25.377268,
-                "xf": 56,
-                "yf": 23.216237
+                "xi": 53,
+                "yi": 23.924637,
+                "xf": 46,
+                "yf": 24.093536
               },
               {
                 "ticker": "S16O6",
-                "xi": 35,
-                "yi": 23.450632,
-                "xf": 28,
-                "yf": 22.807643
+                "xi": 25,
+                "yi": 22.921695,
+                "xf": 18,
+                "yf": 23.286947
               },
               {
                 "ticker": "S29E7",
-                "xi": 140,
-                "yi": 25.878724,
-                "xf": 133,
-                "yf": 24.796246
+                "xi": 130,
+                "yi": 24.873137,
+                "xf": 123,
+                "yf": 26.178517
               },
               {
                 "ticker": "S30N6",
-                "xi": 80,
-                "yi": 25.405953,
-                "xf": 73,
-                "yf": 23.911853
+                "xi": 70,
+                "yi": 23.815018,
+                "xf": 63,
+                "yf": 24.056481
               },
               {
                 "ticker": "S30O6",
-                "xi": 49,
-                "yi": 23.330236,
-                "xf": 42,
-                "yf": 20.50475
+                "xi": 39,
+                "yi": 21.068303,
+                "xf": 32,
+                "yf": 22.073771
               },
               {
                 "ticker": "S30S6",
-                "xi": 19,
-                "yi": 23.252229,
-                "xf": 12,
-                "yf": 21.805989
+                "xi": 9,
+                "yi": 21.458571,
+                "xf": 5,
+                "yf": 22.092055
               },
               {
                 "ticker": "T15E7",
-                "xi": 126,
-                "yi": 25.563004,
-                "xf": 119,
-                "yf": 24.482664
+                "xi": 116,
+                "yi": 24.38864,
+                "xf": 109,
+                "yf": 25.701669
               },
               {
                 "ticker": "T30A7",
-                "xi": 231,
-                "yi": 27.523011,
-                "xf": 224,
-                "yf": 26.979918
+                "xi": 221,
+                "yi": 27.160951,
+                "xf": 214,
+                "yf": 28.240661
               },
               {
                 "ticker": "T30J7",
-                "xi": 292,
-                "yi": 28.278282,
-                "xf": 285,
-                "yf": 27.86992
+                "xi": 282,
+                "yi": 28.043524,
+                "xf": 275,
+                "yf": 28.505923
               },
               {
                 "ticker": "T31Y7",
-                "xi": 262,
-                "yi": 28.197238,
-                "xf": 255,
-                "yf": 27.550798
+                "xi": 252,
+                "yi": 27.809505,
+                "xf": 245,
+                "yf": 28.988973
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 16.58374061197348,
-                  "b": 1.9923924546891723
+                  "a": 15.79487799909271,
+                  "b": 2.012349207852295
                 },
                 "n": 10,
-                "r2": 0.904277053668191,
-                "xMin": 19,
-                "xMax": 292
+                "r2": 0.81883806185599,
+                "xMin": 9,
+                "xMax": 282
               },
               "fin": {
                 "reg": {
-                  "a": 15.028509609684244,
-                  "b": 2.1211901492175897
+                  "a": 17.567035480899666,
+                  "b": 1.8496944191492202
                 },
                 "n": 10,
-                "r2": 0.7934949140764411,
-                "xMin": 12,
-                "xMax": 285
+                "r2": 0.8261706461947483,
+                "xMin": 5,
+                "xMax": 275
               }
             },
-            "grafico": "nivel -96 bps"
+            "grafico": "nivel +104 bps"
           },
           {
             "sector": "CER",
@@ -2301,126 +2288,104 @@
             "n": 26,
             "entraron": [],
             "salieron": [],
-            "tenor": 510,
+            "tenor": 500,
             "rangoComun": [
-              19,
-              2661
+              9,
+              2653
             ],
             "sinComparacion": null,
-            "nivelIni": 7.110379071505213,
-            "nivelFin": 6.274215880342588,
-            "dNivelBps": -83.61631911626253,
-            "pendIni": 1.915165216628113,
-            "pendFin": 2.4347043099948653,
-            "dPend": 0.5195390933667523,
-            "forma": "empinó",
-            "r2Ini": 0.7153588076777948,
-            "r2Fin": 0.8224513219025855,
+            "nivelIni": 6.4379119884718055,
+            "nivelFin": 7.594135403501929,
+            "dNivelBps": 115.62234150301238,
+            "pendIni": 2.216678257134774,
+            "pendFin": 1.719134733228628,
+            "dPend": -0.49754352390614587,
+            "forma": "aplanó",
+            "r2Ini": 0.8103884801449959,
+            "r2Fin": 0.7293301496043043,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 6,
-                "bps": -226.885
+                "bps": 177.32229999999998
               },
               {
                 "l": "medio",
                 "n": 7,
-                "bps": -175.99989999999997
+                "bps": 118.76730000000002
               },
               {
                 "l": "largo",
                 "n": 13,
-                "bps": -20.63550000000003
+                "bps": 78.1841
               }
             ],
             "movers": {
               "suben": [
                 {
-                  "ticker": "TX31",
-                  "bps": 27.078700000000033,
-                  "x": 1899,
-                  "dias": 1899,
-                  "monto": 1089984494.66
-                },
-                {
-                  "ticker": "DICP",
-                  "bps": 18.00069999999998,
-                  "x": 2661,
-                  "dias": 2661,
-                  "monto": 384941846.25
+                  "ticker": "TZXA7",
+                  "bps": 301.70599999999996,
+                  "x": 214,
+                  "dias": 214,
+                  "monto": 210674283.9
                 },
                 {
                   "ticker": "X30S6",
-                  "bps": 16.033199999999994,
-                  "x": 12,
-                  "dias": 12,
-                  "monto": 4901256771.33
-                }
-              ],
-              "bajan": [
+                  "bps": 293.1694,
+                  "x": 5,
+                  "dias": 5,
+                  "monto": null
+                },
                 {
                   "ticker": "TX26",
-                  "bps": -540.4273,
-                  "x": 52,
-                  "dias": 52,
-                  "monto": 16106428740.24
-                },
-                {
-                  "ticker": "X29E7",
-                  "bps": -260.4411,
-                  "x": 133,
-                  "dias": 133,
-                  "monto": 10528124951.3
-                },
-                {
-                  "ticker": "TZXO6",
-                  "bps": -255.87259999999995,
+                  "bps": 244.9771,
                   "x": 42,
                   "dias": 42,
-                  "monto": 15715518384.04
+                  "monto": 16781985372.66
                 }
-              ]
+              ],
+              "bajan": []
             },
             "residuos": {
               "baratos": [
                 {
                   "ticker": "TZX28",
-                  "bps": 240.593943561365,
-                  "x": 651,
-                  "monto": 18984840344.24
+                  "bps": 236.3658810627495,
+                  "x": 641,
+                  "monto": 5091431134.04
                 },
                 {
-                  "ticker": "TZXM8",
-                  "bps": 215.33328231216302,
-                  "x": 560,
-                  "monto": 4174422084.11
+                  "ticker": "TZXS8",
+                  "bps": 219.14278575961123,
+                  "x": 732,
+                  "monto": 9081291819.12
                 },
                 {
-                  "ticker": "TZXD8",
-                  "bps": 202.00045530771203,
-                  "x": 819,
-                  "monto": 364665.27
+                  "ticker": "TZXM9",
+                  "bps": 197.73907957807708,
+                  "x": 912,
+                  "monto": 267513600.6
                 }
               ],
               "ricos": [
                 {
-                  "ticker": "TX26",
-                  "bps": -221.53553276281954,
-                  "x": 52,
-                  "monto": 16106428740.24
+                  "ticker": "TXMD8",
+                  "bps": -236.33312531303093,
+                  "x": 809,
+                  "monto": 4345980465.02
                 },
                 {
                   "ticker": "TXMJ0",
-                  "bps": -220.73889318649015,
-                  "x": 1379,
-                  "monto": 28500820333.89
+                  "bps": -230.88875730286284,
+                  "x": 1369,
+                  "monto": 11772277242.04
                 },
                 {
-                  "ticker": "TXMD8",
-                  "bps": -198.52244469228805,
-                  "x": 819,
-                  "monto": 15643083764.72
+                  "ticker": "TXMD9",
+                  "bps": -205.2464790756706,
+                  "x": 1173,
+                  "monto": 51768403536.89
                 }
               ]
             },
@@ -2428,225 +2393,225 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 5,
-              "total": 1482921047045.5698,
-              "prom": 296584209409.11395,
+              "total": 1106838097671.63,
+              "prom": 221367619534.326,
               "ruedas": 5,
               "top": {
-                "ticker": "TZXM7",
-                "monto": 141593798377.96
+                "ticker": "TXMD9",
+                "monto": 161856671687.27002
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 184656964126.31494,
-              "vsRef": 1.6061360632260528
+              "ref": 205773633423.1025,
+              "vsRef": 1.0757822362943839
             },
             "puntos": [
               {
                 "ticker": "DICP",
-                "xi": 2668,
-                "yi": 9.720373,
-                "xf": 2661,
-                "yf": 9.90038
+                "xi": 2658,
+                "yi": 9.987658,
+                "xf": 2653,
+                "yf": 10.602924
               },
               {
                 "ticker": "TX26",
-                "xi": 59,
-                "yi": 3.904297,
-                "xf": 52,
-                "yf": -1.499976
+                "xi": 49,
+                "yi": 2.311599,
+                "xf": 42,
+                "yf": 4.76137
               },
               {
                 "ticker": "TX28",
-                "xi": 790,
-                "yi": 8.535677,
-                "xf": 783,
-                "yf": 7.571536
+                "xi": 780,
+                "yi": 7.717981,
+                "xf": 773,
+                "yf": 8.681454
               },
               {
                 "ticker": "TX31",
-                "xi": 1906,
-                "yi": 10.129448,
-                "xf": 1899,
-                "yf": 10.400235
+                "xi": 1896,
+                "yi": 10.574939,
+                "xf": 1890,
+                "yf": 11.316177
               },
               {
                 "ticker": "TXMD8",
-                "xi": 826,
-                "yi": 5.704611,
-                "xf": 819,
-                "yf": 5.442246
+                "xi": 816,
+                "yi": 5.408868,
+                "xf": 809,
+                "yf": 6.058036
               },
               {
                 "ticker": "TXMD9",
-                "xi": 1190,
-                "yi": 6.629354,
-                "xf": 1183,
-                "yf": 6.422999
+                "xi": 1180,
+                "yi": 6.430806,
+                "xf": 1173,
+                "yf": 7.007597
               },
               {
                 "ticker": "TXMJ0",
-                "xi": 1386,
-                "yi": 6.637671,
-                "xf": 1379,
-                "yf": 6.488635
+                "xi": 1376,
+                "yi": 6.453063,
+                "xf": 1369,
+                "yf": 7.016808
               },
               {
                 "ticker": "TXMJ8",
-                "xi": 658,
-                "yi": 5.33563,
-                "xf": 651,
-                "yf": 4.907432
+                "xi": 648,
+                "yi": 5.049642,
+                "xf": 641,
+                "yf": 5.986226
               },
               {
                 "ticker": "TXMJ9",
-                "xi": 1022,
-                "yi": 6.773569,
-                "xf": 1015,
-                "yf": 6.373341
+                "xi": 1012,
+                "yi": 6.368193,
+                "xf": 1005,
+                "yf": 7.008774
               },
               {
                 "ticker": "TZX27",
-                "xi": 292,
-                "yi": 5.625309,
-                "xf": 285,
-                "yf": 3.86531
+                "xi": 282,
+                "yi": 3.316746,
+                "xf": 275,
+                "yf": 5.301304
               },
               {
                 "ticker": "TZX28",
-                "xi": 658,
-                "yi": 9.366523,
-                "xf": 651,
-                "yf": 9.274464
+                "xi": 648,
+                "yi": 9.382576,
+                "xf": 641,
+                "yf": 10.384864
               },
               {
                 "ticker": "TZXA7",
-                "xi": 231,
-                "yi": 6.308224,
-                "xf": 224,
-                "yf": 3.853525
+                "xi": 221,
+                "yi": 4.183728,
+                "xf": 214,
+                "yf": 7.200788
               },
               {
                 "ticker": "TZXD6",
-                "xi": 95,
-                "yi": 4.854661,
-                "xf": 88,
-                "yf": 2.875687
+                "xi": 85,
+                "yi": 3.000697,
+                "xf": 78,
+                "yf": 3.652714
               },
               {
                 "ticker": "TZXD7",
-                "xi": 460,
-                "yi": 8.014247,
-                "xf": 453,
-                "yf": 7.386623
+                "xi": 450,
+                "yi": 7.396613,
+                "xf": 443,
+                "yf": 8.584286
               },
               {
                 "ticker": "TZXD8",
-                "xi": 826,
-                "yi": 9.44124,
-                "xf": 819,
-                "yf": 9.447475
+                "xi": 816,
+                "yi": 9.440236,
+                "xf": 809,
+                "yf": 10.365709
               },
               {
                 "ticker": "TZXM7",
-                "xi": 201,
-                "yi": 5.343057,
-                "xf": 194,
-                "yf": 3.577739
+                "xi": 191,
+                "yi": 3.727569,
+                "xf": 184,
+                "yf": 4.889411
               },
               {
                 "ticker": "TZXM8",
-                "xi": 567,
-                "yi": 9.226089,
-                "xf": 560,
-                "yf": 8.655257
+                "xi": 557,
+                "yi": 8.882444,
+                "xf": 550,
+                "yf": 9.664285
               },
               {
                 "ticker": "TZXM9",
-                "xi": 929,
-                "yi": 9.907719,
-                "xf": 922,
-                "yf": 9.710133
+                "xi": 919,
+                "yi": 9.568485,
+                "xf": 912,
+                "yf": 10.604781
               },
               {
                 "ticker": "TZXO6",
-                "xi": 49,
-                "yi": 2.535344,
-                "xf": 42,
-                "yf": -0.023382
+                "xi": 39,
+                "yi": 1.436382,
+                "xf": 32,
+                "yf": 3.142469
               },
               {
                 "ticker": "TZXO7",
-                "xi": 413,
-                "yi": 6.9013,
-                "xf": 406,
-                "yf": 5.28939
+                "xi": 403,
+                "yi": 5.569886,
+                "xf": 396,
+                "yf": 6.972152
               },
               {
                 "ticker": "TZXS7",
-                "xi": 384,
-                "yi": 6.777633,
-                "xf": 377,
-                "yf": 5.629352
+                "xi": 374,
+                "yi": 5.646919,
+                "xf": 367,
+                "yf": 6.787099
               },
               {
                 "ticker": "TZXS8",
-                "xi": 749,
-                "yi": 9.358102,
-                "xf": 742,
-                "yf": 9.14298
+                "xi": 739,
+                "yi": 9.346213,
+                "xf": 732,
+                "yf": 10.44085
               },
               {
                 "ticker": "TZXY7",
-                "xi": 262,
-                "yi": 5.730253,
-                "xf": 255,
-                "yf": 3.708328
+                "xi": 252,
+                "yi": 4.30103,
+                "xf": 245,
+                "yf": 5.478344
               },
               {
                 "ticker": "X29E7",
-                "xi": 140,
-                "yi": 5.552435,
-                "xf": 133,
-                "yf": 2.948024
+                "xi": 130,
+                "yi": 3.316415,
+                "xf": 123,
+                "yf": 4.161539
               },
               {
                 "ticker": "X30N6",
-                "xi": 80,
-                "yi": 4.36806,
-                "xf": 73,
-                "yf": 2.470351
+                "xi": 70,
+                "yi": 2.003679,
+                "xf": 63,
+                "yf": 3.844038
               },
               {
                 "ticker": "X30S6",
-                "xi": 19,
-                "yi": -2.448789,
-                "xf": 12,
-                "yf": -2.288457
+                "xi": 9,
+                "yi": -3.37465,
+                "xf": 5,
+                "yf": -0.442956
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": -4.829547496563841,
-                  "b": 1.915165216628113
+                  "a": -7.337874659914348,
+                  "b": 2.216678257134774
                 },
                 "n": 26,
-                "r2": 0.7153588076777948,
-                "xMin": 19,
-                "xMax": 2668
+                "r2": 0.8103884801449959,
+                "xMin": 9,
+                "xMax": 2658
               },
               "fin": {
                 "reg": {
-                  "a": -8.904730783842146,
-                  "b": 2.4347043099948653
+                  "a": -3.089613231899576,
+                  "b": 1.719134733228628
                 },
                 "n": 26,
-                "r2": 0.8224513219025855,
-                "xMin": 12,
-                "xMax": 2661
+                "r2": 0.7293301496043043,
+                "xMin": 5,
+                "xMax": 2653
               }
             },
-            "grafico": "nivel -84 bps"
+            "grafico": "nivel +116 bps"
           },
           {
             "sector": "TAMAR",
@@ -2655,65 +2620,71 @@
             "ejeX": "dias",
             "n": 12,
             "entraron": [],
-            "salieron": [
-              "TTS26"
-            ],
-            "tenor": 591.5,
+            "salieron": [],
+            "tenor": 581.5,
             "rangoComun": [
-              95,
-              1379
+              85,
+              1369
             ],
             "sinComparacion": null,
-            "nivelIni": 7.2622813730212865,
-            "nivelFin": 6.80482812863222,
-            "dNivelBps": -45.74532443890664,
-            "pendIni": 3.610423440031336,
-            "pendFin": 3.832562269981425,
-            "dPend": 0.22213882995008882,
+            "nivelIni": 6.725951959154944,
+            "nivelFin": 7.366360359123611,
+            "dNivelBps": 64.0408399968667,
+            "pendIni": 3.8212888342208857,
+            "pendFin": 3.893579530559361,
+            "dPend": 0.07229069633847507,
             "forma": "empinó",
-            "r2Ini": 0.9248290826837027,
-            "r2Fin": 0.9025532148189533,
+            "r2Ini": 0.8914156139894305,
+            "r2Fin": 0.8379542455915159,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 2,
-                "bps": -82.5057
+                "bps": 29.897899999999993
               },
               {
                 "l": "medio",
                 "n": 4,
-                "bps": -72.31329999999998
+                "bps": 102.3731
               },
               {
                 "l": "largo",
                 "n": 6,
-                "bps": -27.367200000000036
+                "bps": 59.92044999999999
               }
             ],
             "movers": {
-              "suben": [],
-              "bajan": [
+              "suben": [
                 {
-                  "ticker": "TMG27",
-                  "bps": -149.1837,
-                  "x": 347,
-                  "dias": 347,
-                  "monto": 529065224.42
-                },
-                {
-                  "ticker": "TMF27",
-                  "bps": -105.661,
-                  "x": 161,
-                  "dias": 161,
-                  "monto": 12542746788.92
+                  "ticker": "TMF28",
+                  "bps": 125.10950000000003,
+                  "x": 515,
+                  "dias": 515,
+                  "monto": 489238.2
                 },
                 {
                   "ticker": "TML27",
-                  "bps": -85.4571,
-                  "x": 315,
-                  "dias": 315,
-                  "monto": 44187118122.43
+                  "bps": 115.3597,
+                  "x": 305,
+                  "dias": 305,
+                  "monto": 17039720254.28
+                },
+                {
+                  "ticker": "TXMJ8",
+                  "bps": 92.65470000000002,
+                  "x": 641,
+                  "dias": 641,
+                  "monto": 4169525127
+                }
+              ],
+              "bajan": [
+                {
+                  "ticker": "TMG27",
+                  "bps": -120.9546,
+                  "x": 337,
+                  "dias": 337,
+                  "monto": 27923358
                 }
               ]
             },
@@ -2721,41 +2692,41 @@
               "baratos": [
                 {
                   "ticker": "TMF28",
-                  "bps": 146.366935821756,
-                  "x": 525,
-                  "monto": 5138335040.3
-                },
-                {
-                  "ticker": "TMG28",
-                  "bps": 109.01895960696137,
-                  "x": 713,
-                  "monto": 17664724796.61
+                  "bps": 193.23357909783283,
+                  "x": 515,
+                  "monto": 489238.2
                 },
                 {
                   "ticker": "TTD26",
-                  "bps": 95.72510761254263,
-                  "x": 88,
-                  "monto": 8006898658.06
+                  "bps": 123.9912912593053,
+                  "x": 78,
+                  "monto": 4197596858.19
+                },
+                {
+                  "ticker": "TMG28",
+                  "bps": 114.31568113336948,
+                  "x": 703,
+                  "monto": 7901062318.03
                 }
               ],
               "ricos": [
                 {
                   "ticker": "TMG27",
-                  "bps": -206.50552351983086,
-                  "x": 347,
-                  "monto": 529065224.42
+                  "bps": -352.27915429789596,
+                  "x": 337,
+                  "monto": 27923358
                 },
                 {
                   "ticker": "TML27",
-                  "bps": -160.04396295971782,
-                  "x": 315,
-                  "monto": 44187118122.43
+                  "bps": -163.7311621017333,
+                  "x": 305,
+                  "monto": 17039720254.28
                 },
                 {
                   "ticker": "TXMJ0",
-                  "bps": -56.63588721362949,
-                  "x": 1379,
-                  "monto": 28500820333.89
+                  "bps": -69.5229921604435,
+                  "x": 1369,
+                  "monto": 11772277242.04
                 }
               ]
             },
@@ -2763,258 +2734,242 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 5,
-              "total": 756439408230.6799,
-              "prom": 151287881646.136,
+              "total": 990902434477.7,
+              "prom": 198180486895.53998,
               "ruedas": 5,
               "top": {
                 "ticker": "TMVE8",
-                "monto": 176585375951.40002
+                "monto": 218828147649.9
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 192889502529.00348,
-              "vsRef": 0.7843240801732477
+              "ref": 186966826986.99698,
+              "vsRef": 1.059976735388053
             },
             "puntos": [
               {
                 "ticker": "TMF27",
-                "xi": 168,
-                "yi": 2.828825,
-                "xf": 161,
-                "yf": 1.772215
+                "xi": 158,
+                "yi": 1.782561,
+                "xf": 151,
+                "yf": 2.070449
               },
               {
                 "ticker": "TMF28",
-                "xi": 532,
-                "yi": 8.351781,
-                "xf": 525,
-                "yf": 7.811413
+                "xi": 522,
+                "yi": 7.574749,
+                "xf": 515,
+                "yf": 8.825844
               },
               {
                 "ticker": "TMG27",
-                "xi": 354,
-                "yi": 4.187563,
-                "xf": 347,
-                "yf": 2.695726
+                "xi": 344,
+                "yi": 2.929058,
+                "xf": 337,
+                "yf": 1.719512
               },
               {
                 "ticker": "TMG28",
-                "xi": 720,
-                "yi": 8.921087,
-                "xf": 713,
-                "yf": 8.611016
+                "xi": 710,
+                "yi": 8.676332,
+                "xf": 703,
+                "yf": 9.248308
               },
               {
                 "ticker": "TML27",
-                "xi": 322,
-                "yi": 3.644104,
-                "xf": 315,
-                "yf": 2.789533
+                "xi": 312,
+                "yi": 2.062928,
+                "xf": 305,
+                "yf": 3.216525
               },
               {
                 "ticker": "TMVE8",
-                "xi": 507,
-                "yi": 6.864044,
-                "xf": 500,
-                "yf": 6.272349
+                "xi": 497,
+                "yi": 6.270677,
+                "xf": 490,
+                "yf": 7.164542
               },
               {
                 "ticker": "TTD26",
-                "xi": 95,
-                "yi": 1.053307,
-                "xf": 88,
-                "yf": 0.459803
+                "xi": 85,
+                "yi": 0.474383,
+                "xf": 78,
+                "yf": 0.784453
               },
               {
                 "ticker": "TXMD8",
-                "xi": 826,
-                "yi": 8.7114,
-                "xf": 819,
-                "yf": 8.474127
+                "xi": 816,
+                "yi": 8.449006,
+                "xf": 809,
+                "yf": 9.096003
               },
               {
                 "ticker": "TXMD9",
-                "xi": 1190,
-                "yi": 9.597641,
-                "xf": 1183,
-                "yf": 9.410276
+                "xi": 1180,
+                "yi": 9.42277,
+                "xf": 1173,
+                "yf": 9.989465
               },
               {
                 "ticker": "TXMJ0",
-                "xi": 1386,
-                "yi": 9.616629,
-                "xf": 1379,
-                "yf": 9.48255
+                "xi": 1376,
+                "yi": 9.452434,
+                "xf": 1369,
+                "yf": 10.00491
               },
               {
                 "ticker": "TXMJ8",
-                "xi": 658,
-                "yi": 7.868905,
-                "xf": 651,
-                "yf": 7.467399
+                "xi": 648,
+                "yi": 7.613539,
+                "xf": 641,
+                "yf": 8.540086
               },
               {
                 "ticker": "TXMJ9",
-                "xi": 1022,
-                "yi": 9.239295,
-                "xf": 1015,
-                "yf": 8.862711
+                "xi": 1012,
+                "yi": 8.862055,
+                "xf": 1005,
+                "yf": 9.488488
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": -15.781829978582524,
-                  "b": 3.610423440031336
+                  "a": -17.59888617098487,
+                  "b": 3.8212888342208857
                 },
                 "n": 12,
-                "r2": 0.9248290826837027,
-                "xMin": 95,
-                "xMax": 1386
+                "r2": 0.8914156139894305,
+                "xMin": 85,
+                "xMax": 1376
               },
               "fin": {
                 "reg": {
-                  "a": -17.657120221293425,
-                  "b": 3.832562269981425
+                  "a": -17.418652220798936,
+                  "b": 3.893579530559361
                 },
                 "n": 12,
-                "r2": 0.9025532148189533,
-                "xMin": 88,
-                "xMax": 1379
+                "r2": 0.8379542455915159,
+                "xMin": 78,
+                "xMax": 1369
               }
             },
-            "grafico": "nivel -46 bps"
+            "grafico": "nivel +64 bps"
           },
           {
             "sector": "DLK",
             "nombre": "Dollar linked",
             "unidad": "TNA USD",
             "ejeX": "dias",
-            "n": 9,
-            "entraron": [
-              "D30N6"
-            ],
+            "n": 10,
+            "entraron": [],
             "salieron": [],
-            "tenor": 237.5,
+            "tenor": 207.5,
             "rangoComun": [
-              19,
-              819
+              9,
+              809
             ],
             "sinComparacion": null,
-            "nivelIni": 6.162884822369991,
-            "nivelFin": 5.755999883781306,
-            "dNivelBps": -40.68849385886848,
-            "pendIni": 0.7797581414959999,
-            "pendFin": 0.9072399857126711,
+            "nivelIni": 4.431145147659063,
+            "nivelFin": 6.110675986289161,
+            "dNivelBps": 167.95308386300985,
+            "pendIni": 2.9959084651666443,
+            "pendFin": -0.5170100886785445,
             "dPend": null,
             "forma": null,
-            "r2Ini": 0.09055209375009321,
-            "r2Fin": 0.19099629592463974,
+            "r2Ini": 0.774739896526347,
+            "r2Fin": 0.04006023492554245,
             "r2ok": false,
             "tramos": [
               {
                 "l": "corto",
-                "n": 3,
-                "bps": -155.55010000000004
+                "n": 4,
+                "bps": 78.87584999999999
               },
               {
                 "l": "medio",
                 "n": 4,
-                "bps": 2.0729999999999693
+                "bps": 82.07809999999998
               },
               {
                 "l": "largo",
                 "n": 2,
-                "bps": -86.96535000000002
+                "bps": 58.181
               }
             ],
             "movers": {
               "suben": [
                 {
-                  "ticker": "D15E7",
-                  "bps": 146.733,
-                  "x": 119,
-                  "dias": 119,
-                  "monto": 278519494
+                  "ticker": "D30S6",
+                  "bps": 2157.9996,
+                  "x": 5,
+                  "dias": 5,
+                  "monto": null
                 },
                 {
-                  "ticker": "TZV27",
-                  "bps": 45.204699999999946,
-                  "x": 285,
-                  "dias": 285,
-                  "monto": 4163285950.5
+                  "ticker": "D30O6",
+                  "bps": 135.09669999999997,
+                  "x": 32,
+                  "dias": 32,
+                  "monto": 179950836793
                 },
                 {
-                  "ticker": "D31M7",
-                  "bps": 20.113199999999942,
-                  "x": 194,
-                  "dias": 194,
-                  "monto": 4376662904
+                  "ticker": "D10Y7",
+                  "bps": 130.15909999999997,
+                  "x": 224,
+                  "dias": 224,
+                  "monto": null
                 }
               ],
               "bajan": [
                 {
-                  "ticker": "D30S6",
-                  "bps": -215.62340000000003,
-                  "x": 12,
-                  "dias": 12,
-                  "monto": 77785098401.6
-                },
-                {
-                  "ticker": "D30O6",
-                  "bps": -155.55010000000004,
-                  "x": 42,
-                  "dias": 42,
-                  "monto": 46952845545.6
-                },
-                {
-                  "ticker": "TMVE8",
-                  "bps": -110.29200000000002,
-                  "x": 500,
-                  "dias": 500,
-                  "monto": 71710386390
+                  "ticker": "D15E7",
+                  "bps": -33.818899999999985,
+                  "x": 109,
+                  "dias": 109,
+                  "monto": 76156850
                 }
               ]
             },
             "residuos": {
               "baratos": [
                 {
+                  "ticker": "D30S6",
+                  "bps": 640.4249924506148,
+                  "x": 5,
+                  "monto": null
+                },
+                {
                   "ticker": "TZVD8",
-                  "bps": 339.4743804391537,
-                  "x": 819,
-                  "monto": 793919448
+                  "bps": 529.6451878558094,
+                  "x": 809,
+                  "monto": 2574450987.5
                 },
                 {
                   "ticker": "TZV28",
-                  "bps": 301.93149175490885,
-                  "x": 651,
-                  "monto": 648229508
-                },
-                {
-                  "ticker": "D30S6",
-                  "bps": 179.93232393348052,
-                  "x": 12,
-                  "monto": 77785098401.6
+                  "bps": 465.7235719330583,
+                  "x": 641,
+                  "monto": 2040752640
                 }
               ],
               "ricos": [
                 {
                   "ticker": "D10Y7",
-                  "bps": -470.31565379693615,
-                  "x": 234,
-                  "monto": 973500
+                  "bps": -347.14751081575497,
+                  "x": 224,
+                  "monto": null
                 },
                 {
-                  "ticker": "TMVE8",
-                  "bps": -199.9573049636606,
-                  "x": 500,
-                  "monto": 71710386390
+                  "ticker": "D30O6",
+                  "bps": -334.8027286881117,
+                  "x": 32,
+                  "monto": 179950836793
                 },
                 {
-                  "ticker": "TZV27",
-                  "bps": -135.54172903621665,
-                  "x": 285,
-                  "monto": 4163285950.5
+                  "ticker": "D15E7",
+                  "bps": -334.6329528710827,
+                  "x": 109,
+                  "monto": 76156850
                 }
               ]
             },
@@ -3022,106 +2977,113 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 5,
-              "total": 1173303373845.0999,
-              "prom": 234660674769.01996,
+              "total": 1341900466819.7,
+              "prom": 268380093363.94,
               "ruedas": 5,
               "top": {
-                "ticker": "D30S6",
-                "monto": 558812933652.5
+                "ticker": "D30O6",
+                "monto": 792702444756.8
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 321183819585.45496,
-              "vsRef": 0.7306117570676239
+              "ref": 344012777248.24994,
+              "vsRef": 0.7801457129316708
             },
             "puntos": [
               {
                 "ticker": "D10Y7",
-                "xi": 241,
-                "yi": 1.199046,
-                "xf": 234,
-                "yf": 1.039374
+                "xi": 231,
+                "yi": 1.298051,
+                "xf": 224,
+                "yf": 2.599642
               },
               {
                 "ticker": "D15E7",
-                "xi": 126,
-                "yi": 3.486964,
-                "xf": 119,
-                "yf": 4.954294
+                "xi": 116,
+                "yi": 3.435378,
+                "xf": 109,
+                "yf": 3.097189
+              },
+              {
+                "ticker": "D30N6",
+                "xi": 70,
+                "yi": 3.587234,
+                "xf": 63,
+                "yf": 3.813784
               },
               {
                 "ticker": "D30O6",
-                "xi": 49,
-                "yi": 5.95303,
-                "xf": 42,
-                "yf": 4.397529
+                "xi": 39,
+                "yi": 2.378178,
+                "xf": 32,
+                "yf": 3.729145
               },
               {
                 "ticker": "D30S6",
-                "xi": 19,
-                "yi": 7.003209,
-                "xf": 12,
-                "yf": 4.846975
+                "xi": 9,
+                "yi": -7.138849,
+                "xf": 5,
+                "yf": 14.441147
               },
               {
                 "ticker": "D31M7",
-                "xi": 201,
-                "yi": 5.177532,
-                "xf": 194,
-                "yf": 5.378664
+                "xi": 191,
+                "yi": 4.041161,
+                "xf": 184,
+                "yf": 4.181845
               },
               {
                 "ticker": "TMVE8",
-                "xi": 507,
-                "yi": 5.534733,
-                "xf": 500,
-                "yf": 4.431813
+                "xi": 497,
+                "yi": 4.390107,
+                "xf": 490,
+                "yf": 5.500481
               },
               {
                 "ticker": "TZV27",
-                "xi": 292,
-                "yi": 4.113945,
-                "xf": 285,
-                "yf": 4.565992
+                "xi": 282,
+                "yi": 4.311853,
+                "xf": 275,
+                "yf": 4.843041
               },
               {
                 "ticker": "TZV28",
-                "xi": 658,
-                "yi": 10.695478,
-                "xf": 651,
-                "yf": 9.690123
+                "xi": 648,
+                "yi": 9.573069,
+                "xf": 641,
+                "yf": 10.184777
               },
               {
                 "ticker": "TZVD8",
-                "xi": 826,
-                "yi": 11.007783,
-                "xf": 819,
-                "yf": 10.273831
+                "xi": 816,
+                "yi": 10.151737,
+                "xf": 809,
+                "yf": 10.703649
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 1.897477082617772,
-                  "b": 0.7797581414959999
+                  "a": -11.552419995636408,
+                  "b": 2.9959084651666443
                 },
-                "n": 9,
-                "r2": 0.09055209375009321,
-                "xMin": 19,
-                "xMax": 826
+                "n": 10,
+                "r2": 0.774739896526347,
+                "xMin": 9,
+                "xMax": 816
               },
               "fin": {
                 "reg": {
-                  "a": 0.7932450872142075,
-                  "b": 0.9072399857126711
+                  "a": 8.868992713324019,
+                  "b": -0.5170100886785445
                 },
-                "n": 9,
-                "r2": 0.19099629592463974,
-                "xMin": 12,
-                "xMax": 819
+                "n": 10,
+                "r2": 0.04006023492554245,
+                "xMin": 5,
+                "xMax": 809
               }
             },
-            "grafico": "nivel -41 bps"
+            "grafico": "nivel +168 bps"
           },
           {
             "sector": "BOP",
@@ -3131,67 +3093,60 @@
             "n": 6,
             "entraron": [],
             "salieron": [],
-            "tenor": 0.85,
+            "tenor": 0.82,
             "rangoComun": [
-              0.85,
-              1.97
+              0.82,
+              1.93
             ],
             "sinComparacion": null,
-            "nivelIni": 2.5773590000000013,
-            "nivelFin": 2.7085777556495163,
-            "dNivelBps": 13.121875564951502,
-            "pendIni": 5.49305460470796,
-            "pendFin": 5.4867785136816085,
-            "dPend": -0.006276091026351516,
-            "forma": "sin cambio de forma",
-            "r2Ini": 0.9946500618719334,
-            "r2Fin": 0.9987640421236846,
+            "nivelIni": 2.7042717028031005,
+            "nivelFin": 2.998192440572372,
+            "dNivelBps": 29.39207377692714,
+            "pendIni": 5.454543752420147,
+            "pendFin": 6.767245202342314,
+            "dPend": 1.3127014499221676,
+            "forma": "empinó",
+            "r2Ini": 0.9975345476183256,
+            "r2Fin": 0.9946797566440428,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 6,
-                "bps": 5.012799999999995
+                "bps": 42.70190000000002
               }
             ],
             "movers": {
               "suben": [
                 {
-                  "ticker": "BPOC7",
-                  "bps": 11.322799999999988,
-                  "x": 0.83,
-                  "dias": 408,
-                  "monto": 671342258.36
-                },
-                {
                   "ticker": "BPOA8",
-                  "bps": 9.826599999999974,
-                  "x": 1.97,
-                  "dias": 774,
-                  "monto": 9478196.39
+                  "bps": 135.47750000000002,
+                  "x": 1.93,
+                  "dias": 764,
+                  "monto": 821302601.74
                 },
                 {
-                  "ticker": "BPOB7",
-                  "bps": 5.760699999999996,
-                  "x": 0.83,
-                  "dias": 408,
-                  "monto": 825286138.54
+                  "ticker": "BPOB8",
+                  "bps": 131.3885999999999,
+                  "x": 1.93,
+                  "dias": 764,
+                  "monto": 394372993.53
+                },
+                {
+                  "ticker": "BPOA7",
+                  "bps": 48.97170000000002,
+                  "x": 0.8,
+                  "dias": 398,
+                  "monto": 441941189.27
                 }
               ],
               "bajan": [
                 {
-                  "ticker": "BPOA7",
-                  "bps": -16.7802,
-                  "x": 0.83,
-                  "dias": 408,
-                  "monto": 19791501.5
-                },
-                {
                   "ticker": "BPOD7",
-                  "bps": -0.07329999999998726,
-                  "x": 0.83,
-                  "dias": 408,
-                  "monto": 1010453447.05
+                  "bps": -29.443599999999968,
+                  "x": 0.81,
+                  "dias": 398,
+                  "monto": 4808750372.54
                 }
               ]
             },
@@ -3199,41 +3154,41 @@
               "baratos": [
                 {
                   "ticker": "BPOA7",
-                  "bps": 16.072599999999994,
-                  "x": 0.83,
-                  "monto": 19791501.5
+                  "bps": 36.54415235131165,
+                  "x": 0.8,
+                  "monto": 441941189.27
                 },
                 {
-                  "ticker": "BPOB8",
-                  "bps": 1.4115999999999573,
-                  "x": 1.97,
-                  "monto": 553212972.25
+                  "ticker": "BPOC7",
+                  "bps": 3.7924284651879248,
+                  "x": 0.81,
+                  "monto": 4522353560.2
                 },
                 {
                   "ticker": "BPOA8",
-                  "bps": -1.4116000000000462,
-                  "x": 1.97,
-                  "monto": 9478196.39
+                  "bps": 1.452631126562487,
+                  "x": 1.93,
+                  "monto": 821302601.74
                 }
               ],
               "ricos": [
                 {
                   "ticker": "BPOD7",
-                  "bps": -7.302199999999992,
-                  "x": 0.83,
-                  "monto": 1010453447.05
-                },
-                {
-                  "ticker": "BPOC7",
-                  "bps": -7.302199999999992,
-                  "x": 0.83,
-                  "monto": 671342258.36
+                  "bps": -32.520371534812085,
+                  "x": 0.81,
+                  "monto": 4808750372.54
                 },
                 {
                   "ticker": "BPOB7",
-                  "bps": -1.4682000000000084,
-                  "x": 0.83,
-                  "monto": 825286138.54
+                  "bps": -8.339071534812081,
+                  "x": 0.81,
+                  "monto": 1067365803.73
+                },
+                {
+                  "ticker": "BPOB8",
+                  "bps": -0.9297688734376308,
+                  "x": 1.93,
+                  "monto": 394372993.53
                 }
               ]
             },
@@ -3241,93 +3196,93 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 5,
-              "total": 20639158313.15,
-              "prom": 4127831662.63,
+              "total": 39092299066.06,
+              "prom": 7818459813.212,
               "ruedas": 5,
               "top": {
                 "ticker": "BPOD7",
-                "monto": 7793785482.0199995
+                "monto": 13890934422.079998
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 5966237969.018,
-              "vsRef": 0.691865072104962
+              "ref": 5177527088.06,
+              "vsRef": 1.510076080768811
             },
             "puntos": [
               {
                 "ticker": "BPOA7",
-                "xi": 0.85,
-                "yi": 2.906462,
-                "xf": 0.83,
-                "yf": 2.73866
+                "xi": 0.83,
+                "yi": 2.706816,
+                "xf": 0.8,
+                "yf": 3.196533
               },
               {
                 "ticker": "BPOA8",
-                "xi": 1.99,
-                "yi": 7.208121,
-                "xf": 1.97,
-                "yf": 7.306387
+                "xi": 1.96,
+                "yi": 7.450509,
+                "xf": 1.93,
+                "yf": 8.805284
               },
               {
                 "ticker": "BPOB7",
-                "xi": 0.85,
-                "yi": 2.505645,
-                "xf": 0.83,
-                "yf": 2.563252
+                "xi": 0.82,
+                "yi": 2.765942,
+                "xf": 0.81,
+                "yf": 2.831767
               },
               {
                 "ticker": "BPOB8",
-                "xi": 1.99,
-                "yi": 7.29197,
-                "xf": 1.97,
-                "yf": 7.334619
+                "xi": 1.96,
+                "yi": 7.467574,
+                "xf": 1.93,
+                "yf": 8.78146
               },
               {
                 "ticker": "BPOC7",
-                "xi": 0.85,
-                "yi": 2.391684,
-                "xf": 0.83,
-                "yf": 2.504912
+                "xi": 0.83,
+                "yi": 2.588761,
+                "xf": 0.81,
+                "yf": 2.953082
               },
               {
                 "ticker": "BPOD7",
-                "xi": 0.85,
-                "yi": 2.505645,
-                "xf": 0.83,
-                "yf": 2.504912
+                "xi": 0.82,
+                "yi": 2.88439,
+                "xf": 0.81,
+                "yf": 2.589954
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 3.470084354029962,
-                  "b": 5.49305460470796
+                  "a": 3.786731030781126,
+                  "b": 5.454543752420147
                 },
                 "n": 6,
-                "r2": 0.9946500618719334,
-                "xMin": 0.85,
-                "xMax": 1.99
+                "r2": 0.9975345476183256,
+                "xMin": 0.82,
+                "xMax": 1.96
               },
               "fin": {
                 "reg": {
-                  "a": 3.600283126084444,
-                  "b": 5.4867785136816085
+                  "a": 4.341158603551595,
+                  "b": 6.767245202342314
                 },
                 "n": 6,
-                "r2": 0.9987640421236846,
-                "xMin": 0.83,
-                "xMax": 1.97
+                "r2": 0.9946797566440428,
+                "xMin": 0.8,
+                "xMax": 1.93
               }
             },
-            "grafico": "nivel +13 bps",
+            "grafico": "nivel +29 bps",
             "ust": {
-              "plazo": 0.8754991993347305,
-              "ini": 4.272078250236588,
-              "fin": 4.397510272867788,
-              "dBps": 13,
-              "dSpreadBps": 0,
-              "spreadFin": -169,
-              "spreadIni": -169
+              "plazo": 0.8445780775923937,
+              "ini": 4.4255844854067306,
+              "fin": 4.496599549751479,
+              "dBps": 7,
+              "dSpreadBps": 22,
+              "spreadFin": -150,
+              "spreadIni": -172
             }
           },
           {
@@ -3338,56 +3293,56 @@
             "n": 9,
             "entraron": [],
             "salieron": [],
-            "tenor": 2.74,
+            "tenor": 2.685,
             "rangoComun": [
-              1.09,
-              5.48
+              1.06,
+              5.27
             ],
             "sinComparacion": null,
-            "nivelIni": 9.134097923368817,
-            "nivelFin": 9.433320260733382,
-            "dNivelBps": 29.922233736456505,
-            "pendIni": 3.2947663084805385,
-            "pendFin": 3.4184617718519585,
-            "dPend": 0.12369546337142001,
+            "nivelIni": 9.530019682309522,
+            "nivelFin": 11.138522354017326,
+            "dNivelBps": 160.85026717078037,
+            "pendIni": 3.404265973036204,
+            "pendFin": 3.7961897984041197,
+            "dPend": 0.3919238253679156,
             "forma": "empinó",
-            "r2Ini": 0.7267887636562826,
-            "r2Fin": 0.7583055237904057,
+            "r2Ini": 0.735301709635477,
+            "r2Fin": 0.6313474035353119,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 6,
-                "bps": 15.872149999999952
+                "bps": 156.42090000000007
               },
               {
                 "l": "medio",
                 "n": 3,
-                "bps": 40.77099999999998
+                "bps": 131.4451
               }
             ],
             "movers": {
               "suben": [
                 {
-                  "ticker": "AE38",
-                  "bps": 43.348299999999895,
-                  "x": 4.31,
-                  "dias": 4131,
-                  "monto": 2441935710.46
+                  "ticker": "AN29",
+                  "bps": 247.4615,
+                  "x": 2.65,
+                  "dias": 1159,
+                  "monto": 1601323297.13
                 },
                 {
-                  "ticker": "AL35",
-                  "bps": 40.77099999999998,
-                  "x": 5.12,
-                  "dias": 3216,
-                  "monto": 3401792851.51
+                  "ticker": "AO29",
+                  "bps": 228.3123,
+                  "x": 2.76,
+                  "dias": 1129,
+                  "monto": 12845415828.15
                 },
                 {
-                  "ticker": "AL41",
-                  "bps": 37.522700000000064,
-                  "x": 5.48,
-                  "dias": 5408,
-                  "monto": 401092233.72
+                  "ticker": "AO28",
+                  "bps": 170.7306000000001,
+                  "x": 1.94,
+                  "dias": 764,
+                  "monto": 11695156688.22
                 }
               ],
               "bajan": []
@@ -3395,42 +3350,42 @@
             "residuos": {
               "baratos": [
                 {
-                  "ticker": "AO28",
-                  "bps": 91.18426118654703,
-                  "x": 1.97,
-                  "monto": 4300791913.21
-                },
-                {
                   "ticker": "AN29",
-                  "bps": 85.99096993404451,
-                  "x": 2.73,
-                  "monto": 267838703.08
+                  "bps": 178.1249786250628,
+                  "x": 2.65,
+                  "monto": 1601323297.13
                 },
                 {
-                  "ticker": "AL30",
-                  "bps": 80.66733579908991,
-                  "x": 1.86,
-                  "monto": 68730230277.5
+                  "ticker": "AO29",
+                  "bps": 133.03128001335924,
+                  "x": 2.76,
+                  "monto": 12845415828.15
+                },
+                {
+                  "ticker": "AO28",
+                  "bps": 112.9904826634606,
+                  "x": 1.94,
+                  "monto": 11695156688.22
                 }
               ],
               "ricos": [
                 {
                   "ticker": "AO27",
-                  "bps": -228.89751455535614,
-                  "x": 1.07,
-                  "monto": 14736883033.73
-                },
-                {
-                  "ticker": "AL35",
-                  "bps": -81.93486596382513,
-                  "x": 5.12,
-                  "monto": 3401792851.51
+                  "bps": -321.25801216106964,
+                  "x": 1.04,
+                  "monto": 12915981978.76
                 },
                 {
                   "ticker": "AL41",
-                  "bps": -81.92733997445228,
-                  "x": 5.48,
-                  "monto": 401092233.72
+                  "bps": -139.22675574147033,
+                  "x": 5.27,
+                  "monto": 2663830220.29
+                },
+                {
+                  "ticker": "AL35",
+                  "bps": -129.41786347992306,
+                  "x": 5,
+                  "monto": 13475785390.54
                 }
               ]
             },
@@ -3438,114 +3393,114 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 5,
-              "total": 549026454630.99,
-              "prom": 109805290926.198,
+              "total": 717591731915.3601,
+              "prom": 143518346383.07202,
               "ruedas": 5,
               "top": {
                 "ticker": "AL30",
-                "monto": 394553467266.1
+                "monto": 486611974505.5
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 130832587231.07602,
-              "vsRef": 0.8392808951508413
+              "ref": 116003681997.04199,
+              "vsRef": 1.2371878539745973
             },
             "puntos": [
               {
                 "ticker": "AE38",
-                "xi": 4.37,
-                "yi": 10.565438,
-                "xf": 4.31,
-                "yf": 10.998921
+                "xi": 4.28,
+                "yi": 11.185051,
+                "xf": 4.12,
+                "yf": 12.677521
               },
               {
                 "ticker": "AL29",
-                "xi": 1.46,
-                "yi": 7.655964,
-                "xf": 1.44,
-                "yf": 7.974531
+                "xi": 1.43,
+                "yi": 8.341883,
+                "xf": 1.4,
+                "yf": 9.52238
               },
               {
                 "ticker": "AL30",
-                "xi": 1.88,
-                "yi": 8.631186,
-                "xf": 1.86,
-                "yf": 8.915745
+                "xi": 1.85,
+                "yi": 9.087352,
+                "xf": 1.8,
+                "yf": 10.508464
               },
               {
                 "ticker": "AL35",
-                "xi": 5.16,
-                "yi": 10.343472,
-                "xf": 5.12,
-                "yf": 10.751182
+                "xi": 5.1,
+                "yi": 10.890201,
+                "xf": 5,
+                "yf": 12.204652
               },
               {
                 "ticker": "AL41",
-                "xi": 5.55,
-                "yi": 10.608317,
-                "xf": 5.48,
-                "yf": 10.983544
+                "xi": 5.46,
+                "yi": 11.053329,
+                "xf": 5.27,
+                "yf": 12.306214
               },
               {
                 "ticker": "AN29",
-                "xi": 2.75,
-                "yi": 10.250386,
-                "xf": 2.73,
-                "yf": 10.280731
+                "xi": 2.72,
+                "yi": 10.395347,
+                "xf": 2.65,
+                "yf": 12.869962
               },
               {
                 "ticker": "AO27",
-                "xi": 1.09,
-                "yi": 3.767711,
-                "xf": 1.07,
-                "yf": 3.929968
+                "xi": 1.06,
+                "yi": 3.913412,
+                "xf": 1.04,
+                "yf": 4.325408
               },
               {
                 "ticker": "AO28",
-                "xi": 1.99,
-                "yi": 9.062143,
-                "xf": 1.97,
-                "yf": 9.217329
+                "xi": 1.96,
+                "yi": 9.327387,
+                "xf": 1.94,
+                "yf": 11.034693
               },
               {
                 "ticker": "AO29",
-                "xi": 2.82,
-                "yi": 9.972183,
-                "xf": 2.8,
-                "yf": 10.099077
+                "xi": 2.79,
+                "yi": 10.290297,
+                "xf": 2.76,
+                "yf": 12.57342
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 5.813112126868858,
-                  "b": 3.2947663084805385
+                  "a": 6.167691787888847,
+                  "b": 3.404265973036204
                 },
                 "n": 9,
-                "r2": 0.7267887636562826,
-                "xMin": 1.09,
-                "xMax": 5.55
+                "r2": 0.735301709635477,
+                "xMin": 1.06,
+                "xMax": 5.46
               },
               "fin": {
                 "reg": {
-                  "a": 5.987654642210655,
-                  "b": 3.4184617718519585
+                  "a": 7.3890988504520765,
+                  "b": 3.7961897984041197
                 },
                 "n": 9,
-                "r2": 0.7583055237904057,
-                "xMin": 1.07,
-                "xMax": 5.48
+                "r2": 0.6313474035353119,
+                "xMin": 1.04,
+                "xMax": 5.27
               }
             },
-            "grafico": "nivel +30 bps",
+            "grafico": "nivel +161 bps",
             "ust": {
-              "plazo": 2.970058444004516,
-              "ini": 4.680993127866229,
-              "fin": 4.803954050907944,
-              "dBps": 12,
-              "dSpreadBps": 18,
-              "spreadFin": 463,
-              "spreadIni": 445
+              "plazo": 2.9154345249827482,
+              "ini": 4.881874196161173,
+              "fin": 4.9897442506507295,
+              "dBps": 11,
+              "dSpreadBps": 150,
+              "spreadFin": 615,
+              "spreadIni": 465
             }
           },
           {
@@ -3556,61 +3511,56 @@
             "n": 6,
             "entraron": [],
             "salieron": [],
-            "tenor": 4.8425,
+            "tenor": 4.755000000000001,
             "rangoComun": [
-              1.5,
-              6.1
+              1.46,
+              5.89
             ],
             "sinComparacion": null,
-            "nivelIni": 9.02923761302187,
-            "nivelFin": 9.324176603691463,
-            "dNivelBps": 29.493899066959273,
-            "pendIni": 2.99241460575875,
-            "pendFin": 3.0665378024600587,
-            "dPend": 0.07412319670130874,
-            "forma": "empinó",
-            "r2Ini": 0.9660744507879794,
-            "r2Fin": 0.9736162862249319,
+            "nivelIni": 9.452881720576322,
+            "nivelFin": 10.460512610616576,
+            "dNivelBps": 100.76308900402537,
+            "pendIni": 2.6880081960937856,
+            "pendFin": 2.4444874018778777,
+            "dPend": -0.2435207942159079,
+            "forma": "aplanó",
+            "r2Ini": 0.9764463959038042,
+            "r2Fin": 0.9315105518441058,
             "r2ok": true,
             "tramos": [
               {
                 "l": "corto",
                 "n": 2,
-                "bps": 19.38095
+                "bps": 123.17364999999998
               },
               {
                 "l": "medio",
-                "n": 3,
-                "bps": 22.982399999999892
-              },
-              {
-                "l": "largo",
-                "n": 1,
-                "bps": 39.82119999999991
+                "n": 4,
+                "bps": 96.16600000000001
               }
             ],
             "movers": {
               "suben": [
                 {
-                  "ticker": "GD46",
-                  "bps": 39.82119999999991,
-                  "x": 6.1,
-                  "dias": 7234,
-                  "monto": 208629355.21
-                },
-                {
-                  "ticker": "GD35",
-                  "bps": 29.667000000000066,
-                  "x": 5.19,
-                  "dias": 3216,
-                  "monto": 4620195157.54
-                },
-                {
                   "ticker": "GD30",
-                  "bps": 23.79319999999998,
-                  "x": 1.91,
-                  "dias": 1390,
-                  "monto": 2197863204.23
+                  "bps": 153.53579999999997,
+                  "x": 1.84,
+                  "dias": 1380,
+                  "monto": 4953330274.89
+                },
+                {
+                  "ticker": "GD38",
+                  "bps": 100.74099999999984,
+                  "x": 4.32,
+                  "dias": 4121,
+                  "monto": 1525231091.92
+                },
+                {
+                  "ticker": "GD41",
+                  "bps": 97.6293,
+                  "x": 5.48,
+                  "dias": 5398,
+                  "monto": 4313244141.67
                 }
               ],
               "bajan": []
@@ -3619,41 +3569,41 @@
               "baratos": [
                 {
                   "ticker": "GD38",
-                  "bps": 41.158833387767935,
-                  "x": 4.46,
-                  "monto": 736024634.6
+                  "bps": 44.534967325398256,
+                  "x": 4.32,
+                  "monto": 1525231091.92
                 },
                 {
                   "ticker": "GD30",
-                  "bps": 19.100599134926277,
-                  "x": 1.91,
-                  "monto": 2197863204.23
+                  "bps": 36.06238118724274,
+                  "x": 1.84,
+                  "monto": 4953330274.89
                 },
                 {
                   "ticker": "GD35",
-                  "bps": 18.30034122357027,
-                  "x": 5.19,
-                  "monto": 4620195157.54
+                  "bps": 13.779391363354065,
+                  "x": 5.09,
+                  "monto": 7029658293.6
                 }
               ],
               "ricos": [
                 {
                   "ticker": "GD46",
-                  "bps": -38.0913329369033,
-                  "x": 6.1,
-                  "monto": 208629355.21
+                  "bps": -55.40098767942361,
+                  "x": 5.89,
+                  "monto": 126113481.31
                 },
                 {
                   "ticker": "GD29",
-                  "bps": -26.126233710430835,
-                  "x": 1.48,
-                  "monto": 102221077.8
+                  "bps": -40.91276031975583,
+                  "x": 1.43,
+                  "monto": 49486472.6
                 },
                 {
                   "ticker": "GD41",
-                  "bps": -14.34220709892955,
-                  "x": 5.68,
-                  "monto": 509865435.09
+                  "bps": 1.9370081231837588,
+                  "x": 5.48,
+                  "monto": 4313244141.67
                 }
               ]
             },
@@ -3661,233 +3611,233 @@
               "truncado": false,
               "sinColumna": false,
               "habiles": 5,
-              "total": 36323836872.240005,
-              "prom": 7264767374.448001,
+              "total": 61162279191.69,
+              "prom": 12232455838.338001,
               "ruedas": 5,
               "top": {
                 "ticker": "GD35",
-                "monto": 17626929993.57
+                "monto": 30114267147.629997
               },
               "cobertura": 1,
               "parcial": false,
-              "ref": 10336975963.0605,
-              "vsRef": 0.7027942601790765
+              "ref": 7844987560.7265,
+              "vsRef": 1.5592702657141233
             },
             "puntos": [
               {
                 "ticker": "GD29",
-                "xi": 1.5,
-                "yi": 5.278187,
-                "xf": 1.48,
-                "yf": 5.427874
+                "xi": 1.46,
+                "yi": 6.186164,
+                "xf": 1.43,
+                "yf": 7.114279
               },
               {
                 "ticker": "GD30",
-                "xi": 1.93,
-                "yi": 6.424365,
-                "xf": 1.91,
-                "yf": 6.662297
+                "xi": 1.89,
+                "yi": 6.964906,
+                "xf": 1.84,
+                "yf": 8.500264
               },
               {
                 "ticker": "GD35",
-                "xi": 5.22,
-                "yi": 9.423029,
-                "xf": 5.19,
-                "yf": 9.719699
+                "xi": 5.17,
+                "yi": 9.817703,
+                "xf": 5.09,
+                "yf": 10.76473
               },
               {
                 "ticker": "GD38",
-                "xi": 4.5,
-                "yi": 9.253619,
-                "xf": 4.46,
-                "yf": 9.483443
+                "xi": 4.44,
+                "yi": 9.663925,
+                "xf": 4.32,
+                "yf": 10.671335
               },
               {
                 "ticker": "GD41",
-                "xi": 5.72,
-                "yi": 9.536069,
-                "xf": 5.68,
-                "yf": 9.669929
+                "xi": 5.64,
+                "yi": 9.850483,
+                "xf": 5.48,
+                "yf": 10.826776
               },
               {
                 "ticker": "GD46",
-                "xi": 6.22,
-                "yi": 9.252985,
-                "xf": 6.1,
-                "yf": 9.651197
+                "xi": 6.07,
+                "yi": 9.736004,
+                "xf": 5.89,
+                "yf": 10.429768
               }
             ],
             "_aj": {
               "ini": {
                 "reg": {
-                  "a": 4.308909701030372,
-                  "b": 2.99241460575875
+                  "a": 5.261748222413085,
+                  "b": 2.6880081960937856
                 },
                 "n": 6,
-                "r2": 0.9660744507879794,
-                "xMin": 1.5,
-                "xMax": 6.22
+                "r2": 0.9764463959038042,
+                "xMin": 1.46,
+                "xMax": 6.07
               },
               "fin": {
                 "reg": {
-                  "a": 4.486924454783767,
-                  "b": 3.0665378024600587
+                  "a": 6.649075930201433,
+                  "b": 2.4444874018778777
                 },
                 "n": 6,
-                "r2": 0.9736162862249319,
-                "xMin": 1.48,
-                "xMax": 6.1
+                "r2": 0.9315105518441058,
+                "xMin": 1.43,
+                "xMax": 5.89
               }
             },
-            "grafico": "nivel +29 bps",
+            "grafico": "nivel +101 bps",
             "ust": {
-              "plazo": 5.577659601801097,
-              "ini": 4.832791156806193,
-              "fin": 4.860780961413846,
-              "dBps": 3,
-              "dSpreadBps": 26,
-              "spreadFin": 446,
-              "spreadIni": 420
+              "plazo": 5.497184771595275,
+              "ini": 4.936094997521034,
+              "fin": 5.062384575667123,
+              "dBps": 13,
+              "dSpreadBps": 88,
+              "spreadFin": 540,
+              "spreadIni": 452
             }
           }
         ],
         "fx": {
           "A3500": {
-            "ini": 1512.9956,
-            "fin": 1510.0024,
-            "fechaIni": "2026-09-10",
-            "fechaFin": "2026-09-17",
+            "ini": 1512.3332,
+            "fin": 1523.9662,
+            "fechaIni": "2026-09-18",
+            "fechaFin": "2026-09-25",
             "esPct": false,
-            "var": -0.19783269693579575
+            "var": 0.7692087960510241
           },
           "MEP": {
-            "ini": 1536.3929723915383,
-            "fin": 1533.8251169485427,
-            "fechaIni": "2026-09-10",
-            "fechaFin": "2026-09-17",
+            "ini": 1538.322813345356,
+            "fin": 1552.5004613397307,
+            "fechaIni": "2026-09-18",
+            "fechaFin": "2026-09-25",
             "esPct": false,
-            "var": -0.16713532860010982
+            "var": 0.9216302242533114
           },
           "Cable": {
-            "ini": 1601.8691588785048,
-            "fin": 1593.4579439252336,
-            "fechaIni": "2026-09-10",
-            "fechaFin": "2026-09-17",
+            "ini": 1598.8753514526709,
+            "fin": 1620.0654727517813,
+            "fechaIni": "2026-09-18",
+            "fechaFin": "2026-09-25",
             "esPct": false,
-            "var": -0.5250875145857758
+            "var": 1.3253141515914946
           },
           "Canje": {
-            "ini": 4.261682242990661,
-            "fin": 3.887850467289722,
-            "fechaIni": "2026-09-10",
-            "fechaFin": "2026-09-17",
+            "ini": 3.936269915651347,
+            "fin": 4.352012324282684,
+            "fechaIni": "2026-09-18",
+            "fechaFin": "2026-09-25",
             "esPct": true,
-            "var": -0.37383177570093906
+            "var": 0.4157424086313366
           },
           "Brecha": {
-            "ini": 1.5464269949984288,
-            "fin": 1.5776608665352132,
-            "fechaIni": "2026-09-10",
-            "fechaFin": "2026-09-17",
+            "ini": 1.7185110625989042,
+            "fin": 1.8723683858428597,
+            "fechaIni": "2026-09-18",
+            "fechaFin": "2026-09-25",
             "esPct": true,
-            "var": 0.031233871536784363
+            "var": 0.1538573232439555
           }
         },
         "ust": {
-          "fechaIni": "2026-09-10",
-          "fechaFin": "2026-09-17",
+          "fechaIni": "2026-09-18",
+          "fechaFin": "2026-09-25",
           "desfasado": false,
           "refs": [
             {
               "plazo": 2,
-              "ini": 4.56,
-              "fin": 4.67,
-              "dBps": 11
+              "ini": 4.76,
+              "fin": 4.81,
+              "dBps": 5
             },
             {
               "plazo": 5,
-              "ini": 4.75,
-              "fin": 4.78,
-              "dBps": 3
+              "ini": 4.86,
+              "fin": 4.98,
+              "dBps": 12
             },
             {
               "plazo": 10,
-              "ini": 4.95,
-              "fin": 4.94,
-              "dBps": -1
+              "ini": 5.01,
+              "fin": 5.17,
+              "dBps": 16
             },
             {
               "plazo": 30,
-              "ini": 5.37,
-              "fin": 5.29,
-              "dBps": -8
+              "ini": 5.34,
+              "fin": 5.49,
+              "dBps": 15
             }
           ]
         },
         "riesgoPais": {
-          "fechaIni": "2026-09-10",
-          "fechaFin": "2026-09-17",
-          "ini": 491,
-          "fin": 515,
+          "fechaIni": "2026-09-18",
+          "fechaFin": "2026-09-25",
+          "ini": 524,
+          "fin": 609,
           "desfasado": false,
-          "dBps": 24
+          "dBps": 85
         },
         "implicitasIni": [
           {
             "tenor": 90,
-            "tf": 28.11605684237557,
-            "cer": 3.788331465499499,
-            "dlk": 5.517352860068647,
-            "infla": 23.439749953936673,
-            "inflaMensual": 1.7703464072421848,
-            "deval": 21.41704977405574
+            "tf": 27.275610065052014,
+            "cer": 2.636755597551545,
+            "dlk": 1.9426553767636134,
+            "infla": 24.005878132110638,
+            "inflaMensual": 1.8091604206151857,
+            "deval": 24.85020092390362
           },
           {
             "tenor": 180,
-            "tf": 28.7702583694363,
-            "cer": 5.115822835711753,
-            "dlk": 6.036371629428272,
-            "infla": 22.503211120455834,
-            "inflaMensual": 1.705777165496647,
-            "deval": 21.43970638627424
+            "tf": 27.992528397608794,
+            "cer": 4.173239881693046,
+            "dlk": 4.045864300001956,
+            "infla": 22.86507412361056,
+            "inflaMensual": 1.7307791117658677,
+            "deval": 23.01548865850154
           },
           {
             "tenor": 270,
-            "tf": 28.69826669473783,
-            "cer": 5.892355507316867,
-            "dlk": 6.360951730968956,
-            "infla": 21.536881560676168,
-            "inflaMensual": 1.6386779525822348,
-            "deval": 21.001424489195266
+            "tf": 27.97570146185311,
+            "cer": 5.072025570863216,
+            "dlk": 5.2880591702004764,
+            "infla": 21.798072100116773,
+            "inflaMensual": 1.656862383582336,
+            "deval": 21.54816269808675
           }
         ],
         "implicitasFin": [
           {
             "tenor": 90,
-            "tf": 26.944211215175894,
-            "cer": 2.050975214667524,
-            "dlk": 4.965944366183805,
-            "infla": 24.392942789762316,
-            "inflaMensual": 1.8356043714589543,
-            "deval": 20.938473884747587
+            "tf": 28.527756893723357,
+            "cer": 4.646165865283245,
+            "dlk": 6.705587068883623,
+            "infla": 22.82127666214184,
+            "inflaMensual": 1.7277566377031706,
+            "deval": 20.450822139943313
           },
           {
             "tenor": 180,
-            "tf": 27.764663991934825,
-            "cer": 3.7385836426376127,
-            "dlk": 5.581308904837412,
-            "infla": 23.160216291426437,
-            "inflaMensual": 1.7511212338053195,
-            "deval": 21.010683914793795
+            "tf": 29.045805019762394,
+            "cer": 5.837779258623342,
+            "dlk": 6.281128785064061,
+            "infla": 21.92792207443084,
+            "inflaMensual": 1.6658894116144074,
+            "deval": 21.41930227400588
           },
           {
             "tenor": 270,
-            "tf": 27.80828676488718,
-            "cer": 4.725771288901095,
-            "dlk": 5.958568797286912,
-            "infla": 22.040912367510423,
-            "inflaMensual": 1.6737372055378952,
-            "deval": 20.621001411789308
+            "tf": 28.895233173263346,
+            "cer": 6.534828409084388,
+            "dlk": 6.063790261229207,
+            "infla": 20.98882130669697,
+            "inflaMensual": 1.6004045345002327,
+            "deval": 21.526142763521428
           }
         ],
         "rem": {
@@ -3910,8 +3860,8 @@
                 "anual": 28.55404292871475,
                 "conAncla": false
               },
-              "difInflaMensualPp": 0.13563714760849166,
-              "difDevalPp": -7.615569043967163
+              "difInflaMensualPp": 0.027789413852707945,
+              "difDevalPp": -8.103220788771438
             },
             {
               "tenor": 180,
@@ -3930,8 +3880,8 @@
                 "anual": 26.993690094125377,
                 "conAncla": true
               },
-              "difInflaMensualPp": 0.07175670732704198,
-              "difDevalPp": -5.983006179331582
+              "difInflaMensualPp": -0.013475114863870097,
+              "difDevalPp": -5.574387820119497
             },
             {
               "tenor": 270,
@@ -3950,14 +3900,14 @@
                 "anual": 25.687123779875453,
                 "conAncla": true
               },
-              "difInflaMensualPp": 0.03438933451636039,
-              "difDevalPp": -5.066122368086145
+              "difInflaMensualPp": -0.03894333652130211,
+              "difDevalPp": -4.160981016354025
             }
           ],
           "tamar": {
             "hoy": {
-              "fecha": "2026-09-16",
-              "v": 23.625
+              "fecha": "2026-09-24",
+              "v": 23.75
             },
             "esperada": [
               {
@@ -3980,16 +3930,16 @@
         },
         "habiles": 5,
         "volumen": {
-          "total": 5386024357627.069,
+          "total": 4666843442482.581,
           "ruedas": 5,
           "habiles": 5,
-          "prom": 1077204871525.4138,
+          "prom": 933368688496.5162,
           "truncado": false,
           "sinColumna": false,
           "parcial": false,
-          "ref": 1117890276926.9246,
+          "ref": 1143428843974.6792,
           "refRuedas": 20,
-          "vsRef": 0.9636051889516789
+          "vsRef": 0.8162892631359799
         }
       }
     }
