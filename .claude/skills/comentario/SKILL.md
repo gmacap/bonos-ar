@@ -54,7 +54,31 @@ formateada, que es lo que tenés que respetar al pie de la letra), y trae
 **Leelas de ahí, no de acá.** Si cambian en `index.html` cambian solas para vos
 también.
 
-### 2. Buscar el contexto
+### 2. Leer las referencias
+
+Si existe la carpeta de referencias —`../../Referencias comentario` desde la raíz
+del repo; la mantiene la skill `referencias`—, leé `INDICE.md`, `marcos.md` y
+`estilo.md` antes de redactar. Son cortos a propósito. Después, con los temas del
+día a la vista —una licitación, un dato de inflación, una movida del BCRA, la
+Fed—, abrí sólo las notas **vigentes** de esos temas; el documento original,
+únicamente si la nota no alcanza.
+
+Sirven para tres cosas: una lectura de la curva más fina (los marcos), un
+contexto mejor encuadrado y la forma (la guía de estilo). No cambian ninguna
+regla:
+
+- **Ningún número de una referencia** entra en pesos, dólares o Twitter: la
+  proyección de un reporte no es la ficha ni el REM.
+- **En `fuentes` del comentario van sólo las citables.** Lo que tiene
+  `citable: no` te sirve para entender, pero no se nombra ni se parafrasea de
+  cerca: `comentario.json` es público.
+- **Si la guía de estilo choca con una regla** de esta skill o del preámbulo,
+  gana la regla, y se lo decís al usuario para que decida si la cambia.
+
+Si la carpeta no existe o está vacía, seguí sin ella: es un complemento, no un
+requisito.
+
+### 3. Buscar el contexto
 
 Con `WebSearch`, buscá qué pasó entre `ini` y `fin` del período **día** que le
 importe a un operador de renta fija argentina. Entre tres y seis búsquedas. Cubrí:
@@ -74,7 +98,7 @@ ficha; el 5,04% sólo puede aparecer en el contexto, dicho como máximo del día
 Para los períodos largos no busques de nuevo: usá los mismos hechos y sumá lo
 estructural que sepas, con fecha.
 
-### 3. Redactar
+### 4. Redactar
 
 **Qué se escribe depende del día.** Mes, trimestre y año no cambian de lectura de
 una rueda a la otra, y arrastran una ficha de 25 KB cada una:
@@ -162,7 +186,7 @@ Antes y después, con los mismos números (TAMAR, 16/09):
 > puntual por los bonos de mediano plazo y algo de oferta en los que vencen antes.
 > Volumen en su promedio, 1,0 veces.
 
-### 4. El hilo de Twitter
+### 5. El hilo de Twitter
 
 Entre 3 y 5 tweets, **cada uno de hasta 280 caracteres contando la numeración**, y
 la numeración `1/4` al principio. Twitter cuenta distinto que un editor: las
@@ -178,7 +202,7 @@ Cada tweet lleva `graficos`: los sectores cuya imagen se adjunta, **sólo entre 
 que la ficha marca con "gráfico: sí"**, hasta 4 por tweet. Si ninguno se movió lo
 suficiente, el hilo va sin imágenes y está bien.
 
-### 5. Escribir los archivos
+### 6. Escribir los archivos
 
 Dos archivos, por la cadencia y por el peso. El diario pesa 60 KB y lo baja toda
 visita; los tres largos pesan 74 KB y se piden sólo cuando alguien los abre.
@@ -221,7 +245,7 @@ martes.
 
 El archivo va en **CRLF**, como todo el repo.
 
-### 6. Verificar
+### 7. Verificar
 
 ```
 node .github/scripts/comentario-verificar.js comentario.json comentarios/AAAA-MM.json <scratchpad>/ficha.json
@@ -238,7 +262,7 @@ esté en la ficha, que no haya conectores causales, y el hilo: cantidad, largo,
 numeración y que las imágenes existan. **Si sale en rojo, corregí el texto y volvé
 a correrlo. No commitees con errores.** Los avisos (`!`) son para mirar.
 
-### 7. Mostrar y commitear
+### 8. Mostrar y commitear
 
 Mostrale al usuario, antes de commitear:
 
@@ -254,6 +278,12 @@ puede llevar varias vueltas: "el párrafo de CER más corto", "sacá el tweet 4"
 - Si pide un cambio, hacelo en `comentario.json`, **volvé a correr el
   verificador** y mostrale sólo lo que cambió. Un cambio de redacción puede
   meter un número mal redondeado o un "porque" sin que se note.
+- Si el cambio suena a una regla general —"siempre", "no me gusta cuando",
+  algo que valdría para cualquier día— y no a un ajuste de ese comentario,
+  preguntale si lo sumás a `estilo.md` de la carpeta de referencias, con un
+  fragmento de antes y después. Con su OK, va en la sección del formato que
+  corresponda: comentario o hilo. Sus correcciones son la mejor fuente de
+  estilo que hay: son su voz, no la de un tercero.
 - Si lo que pide choca con una regla (un número que la ficha no trae, una
   causa en pesos o dólares), decíselo y proponé cómo decirlo dentro de la regla.
 - **No publiques hasta un OK explícito** ("dale", "publicalo", "ok"). Un "está
@@ -288,3 +318,4 @@ con el botón ⤓ PNG de cada curva.
   charla.
 - **No tomes números de mercado de la búsqueda web** para pesos, dólares o Twitter.
 - **No commitees sin que el verificador pase.**
+- **No cites ni parafrasees de cerca una referencia marcada `citable: no`.**
