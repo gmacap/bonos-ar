@@ -1702,6 +1702,44 @@ const omitir = (label, motivo) =>
         'encontrados: ' + resumenProy.selectores);
   check(resumenProy.sincronizados, 'los selectores de TAMAR están sincronizados');
   check(resumenProy.dlkLlena, 'en el Resumen los DLK ya no tienen la columna proyectada vacía');
+
+  // La fuente de inflación se elige también desde la solapa CER y el Resumen, y
+  // cambiarla ahí mueve la TIR c/proy de la tabla.
+  const inflaSel = await page.evaluate(async () => {
+    const prev = PROJ_FUENTE.infla;
+    const otro = prev === 'rem' ? 'manual' : 'rem';
+    const mapa = f => { const g = PROJ_FUENTE.infla; PROJ_FUENTE.infla = f; const m = JSON.stringify([...inflaFuenteMapa()]); PROJ_FUENTE.infla = g; return m; };
+    const iguales = mapa(prev) === mapa(otro);
+    switchSection('pesos'); switchTab('cer');
+    await new Promise(r => setTimeout(r, 300));
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const b = CER_BONDS.find(x => x.precio != null && x.vcto && diasACT(liq, parseDate(x.vcto)) > 90);
+    const tirDe = () => { const e = b && (CER_DATA || []).find(r => r.ticker === b.ticker); return e ? e.tirProy : null; };
+    const antes = tirDe();
+    const sel = document.querySelector('#cer-left-pane [data-proy-sel="infla"] select');
+    if (sel) { sel.value = otro; sel.dispatchEvent(new Event('change')); }
+    const despues = tirDe();
+    const sincronizados = [...document.querySelectorAll('[data-proy-sel="infla"] select')].every(s => s.value === otro);
+    proySetFuente('infla', prev);
+    const vuelta = tirDe();
+    return {
+      selectores: document.querySelectorAll('[data-proy-sel="infla"] select').length,
+      enCer: !!sel, enResumen: !!document.querySelector('#be-col2 [data-proy-sel="infla"] select'),
+      ticker: b && b.ticker, antes, despues, vuelta, sincronizados, iguales,
+    };
+  });
+  check(inflaSel.enCer && inflaSel.enResumen && inflaSel.selectores >= 3,
+        'el selector de inflación está en Proyecciones, en la solapa CER y en el Resumen',
+        JSON.stringify({ n: inflaSel.selectores, cer: inflaSel.enCer, resumen: inflaSel.enResumen }));
+  check(inflaSel.sincronizados, 'los selectores de inflación están sincronizados');
+  if (inflaSel.iguales || inflaSel.antes == null) {
+    omitir('cambiar la inflación desde la solapa CER mueve la TIR c/proy',
+           inflaSel.iguales ? 'el sendero manual es igual al REM' : 'no hay un CER con precio');
+  } else {
+    check(Math.abs(inflaSel.despues - inflaSel.antes) > 1e-6 && Math.abs(inflaSel.vuelta - inflaSel.antes) < 1e-9,
+          'cambiar la inflación desde la solapa CER mueve la TIR c/proy, y volver la deja igual',
+          `${inflaSel.ticker}: ${inflaSel.antes} → ${inflaSel.despues} → ${inflaSel.vuelta}`);
+  }
   check(resumenProy.dlkPesosMayor, 'la tasa en pesos de un DLK supera a la de dólares');
   check(resumenProy.modos >= 1, 'la solapa DLK tiene el selector dólares/pesos');
 

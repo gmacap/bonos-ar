@@ -643,6 +643,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <span class="api-status" id="cer-data-status" style="font-size:10px;"></span>
         <input type="text" class="search-box" id="cer-search" placeholder="Buscar…" oninput="cerRenderTable()">
         <label class="chk"><input type="checkbox" id="cer-show-vencidas" onchange="cerRenderTable()"> Vencidas</label>
+        <span data-proy-sel="infla" title="Sendero de inflación con el que se proyecta el CER de la columna TIR c/proy"></span>
         <button class="btn" id="cer-fetch-btn" onclick="fetchAllPrices()">↻ Precios</button>
         <span class="api-status" id="cer-api-status"></span>
         <button class="btn" onclick="exportTableCSV('cer')" title="Exportar tabla a CSV" style="font-size:11px;padding:3px 7px">⬇ CSV</button>
@@ -1379,6 +1380,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
         <div style="font-family:var(--serif);font-size:16px;font-weight:300;font-style:italic;color:var(--accent)">Resumen</div>
         <div style="display:flex;gap:6px;align-items:center;">
+          <span data-proy-sel="infla"></span>
           <span data-proy-sel="tamar"></span>
           <span data-proy-sel="tcn"></span>
           <button class="btn primary" style="margin:0;padding:3px 7px;font-size:10px" onclick="beCPRecalc()">↻</button>
@@ -7266,6 +7268,7 @@ function proyRepropagar(){
   try{
     if(typeof currentTab!=='undefined'){
       if(currentTab==='tamar'){tamarRenderTable();if(typeof tamarRenderTabChart==='function')tamarRenderTabChart();}
+      else if(currentTab==='cer'){cerRenderTable();if(cerSelectedTicker)cerRecalcPanel();}
       else if(currentTab==='dlk'){dlkRenderTable();if(dlkSelectedTicker)dlkRecalcPanel();}
       else if(currentTab==='proyecciones'&&typeof projRecalc==='function')projRecalc();
       else if(currentTab==='forwards'&&typeof fwdRecalc==='function')fwdRecalc();
