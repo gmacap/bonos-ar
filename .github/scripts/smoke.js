@@ -1703,6 +1703,44 @@ const omitir = (label, motivo) =>
   check(resumenProy.sincronizados, 'los selectores de TAMAR están sincronizados');
   check(resumenProy.dlkLlena, 'en el Resumen los DLK ya no tienen la columna proyectada vacía');
 
+  // La TNA de TAMAR capitaliza mensual (12 × TEM), como la de CER: la simple
+  // en un bono de años da casi el doble de la TIR. El panel dice lo mismo.
+  const tnaTamar = await page.evaluate(() => {
+    const out = { n: 0, errores: [], largo: null, panel: null };
+    for (const b of TAMAR_BONDS.filter(x => x.precio != null && x.vcto)) {
+      const e = tamarEnrich(b);
+      if (isNaN(e.tir) || !(e.dias > 0)) continue;
+      out.n++;
+      const esperada = 12 * (Math.pow(1 + e.tir / 100, 1 / 12) - 1) * 100;
+      if (Math.abs(e.tna - esperada) > 1e-9 || Math.abs(e.tna - 12 * e.tem) > 1e-9)
+        out.errores.push(`${b.ticker}: ${e.tna} vs ${esperada}`);
+      if (e.dias > 365 && (!out.largo || e.dias > out.largo.dias))
+        out.largo = { ticker: b.ticker, dias: e.dias, tna: e.tna, tir: e.tir };
+    }
+    if (out.largo) {
+      tamarOpenPanel(out.largo.ticker);
+      const txt = (document.getElementById('tp-r-tna') || {}).textContent || '';
+      const esperado = fmtPct(out.largo.tna);
+      out.panel = { txt, esperado };
+      tamarClosePanel();
+    }
+    return out;
+  });
+  if (!tnaTamar.n) {
+    omitir('la TNA de TAMAR es 12 × TEM', 'no hay bonos TAMAR con precio');
+  } else {
+    check(tnaTamar.errores.length === 0, 'la TNA de TAMAR es 12 × TEM, igual que en CER',
+          tnaTamar.errores.slice(0, 3).join(' · '));
+    if (tnaTamar.largo) {
+      check(tnaTamar.largo.tna < tnaTamar.largo.tir,
+            'arriba de un año la TNA de TAMAR queda debajo de la TIR',
+            JSON.stringify(tnaTamar.largo));
+      check(tnaTamar.panel && tnaTamar.panel.txt === tnaTamar.panel.esperado,
+            'el panel de la calculadora TAMAR muestra la misma TNA que la tabla',
+            JSON.stringify(tnaTamar.panel));
+    }
+  }
+
   // La fuente de inflación se elige también desde la solapa CER y el Resumen, y
   // cambiarla ahí mueve la TIR c/proy de la tabla.
   const inflaSel = await page.evaluate(async () => {

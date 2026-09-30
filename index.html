@@ -965,7 +965,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="tamarSortBy('monto')"  id="tamar-th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th onclick="tamarSortBy('margenTNA')" id="tamar-th-margenTNA">Margen TNA</th>
             <th onclick="tamarSortBy('tir')"    id="tamar-th-tir">TIR</th>
-            <th onclick="tamarSortBy('tna')"    id="tamar-th-tna">TNA</th>
+            <th onclick="tamarSortBy('tna')"    id="tamar-th-tna" title="Capitalizable mensual: 12 × TEM, igual que en CER">TNA</th>
             <th onclick="tamarSortBy('tem')"    id="tamar-th-tem">TEM</th>
             <th style="cursor:default;width:40px;"></th>
           </tr></thead>
@@ -9421,8 +9421,11 @@ function tamarEnrich(r){
     const vpv=100*Math.pow(1+nmc,(DIAS_360/360)*12);
     const directa=vpv/(r.precio/tcInicial)-1;
     const tem=(Math.pow(1+directa,(365/12)/DIAS)-1)*100;
+    // TNA con capitalización mensual, 12 × TEM, igual que en CER. La simple
+    // (directa × 365/días) capitaliza una sola vez en toda la vida del bono y
+    // en un dual de cuatro años da casi el doble de la TIR.
     return{nmc,vpv,directa,
-      tna:directa*365/DIAS*100,
+      tna:tem*12,
       tir:(Math.pow(1+directa,365/DIAS)-1)*100,
       tem,margenTNA:(tem-prom5TEMpct)*12};
   };
@@ -9602,9 +9605,9 @@ function tamarPanelRecalc(){
 
   // calcular todas las tasas desde precio ajustado
   const TASA_DIRECTA=VPV/(precio/tcInicial)-1;
-  const TNA=TASA_DIRECTA*365/DIAS*100;
   const TIR_calc=(Math.pow(1+TASA_DIRECTA,365/DIAS)-1)*100;
   const TEM_MERCADO=(Math.pow(1+TASA_DIRECTA,(365/12)/DIAS)-1)*100;
+  const TNA=TEM_MERCADO*12;
   const MARGEN_TNA=(TEM_MERCADO-d.prom5TEM)*12;
 
   const s=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
@@ -9697,7 +9700,7 @@ function tamarOpenPanel(ticker){
       <table class="res-table">
         <tr><td>Tasa directa</td><td id="tp-r-td">—</td></tr>
         <tr class="bl"><td>TIR</td><td id="tp-r-tir">—</td></tr>
-        <tr class="wa"><td>TNA</td><td id="tp-r-tna">—</td></tr>
+        <tr class="wa"><td title="Capitalizable mensual: 12 × TEM">TNA</td><td id="tp-r-tna">—</td></tr>
         <tr class="wa"><td>TEM mercado</td><td id="tp-r-tem">—</td></tr>
         <tr class="wa"><td>Margen TNA (spread)</td><td id="tp-r-margen-tna">—</td></tr>
       </table>
