@@ -69,7 +69,7 @@ tipo: reporte | paper | informe-oficial | prensa | hilo | otro
 citable: sí | no
 temas: [...]
 vigencia: estructural | hasta AAAA-MM-DD
-estilo: no | modelo | evitar
+estilo: no | candidato | modelo | evitar
 ---
 
 ## Qué dice
@@ -104,7 +104,9 @@ estilo: no | modelo | evitar
   ¿cada dato va con su lectura? ¿arranca por lo que más importa? ¿frases cortas,
   sin relleno y sin explicar lo obvio? ¿separa lo medido de lo interpretado? ¿los
   titulares informan sin números? Si un texto se destaca, lo proponés como
-  candidato, con el recurso puntual que tomarías de él.
+  candidato, con el recurso puntual que tomarías de él. En la nota queda
+  `estilo: candidato` hasta que el usuario decida: con su OK pasa a `modelo`;
+  si lo descarta, a `no`.
 - Si un texto suena bien pero rompe una regla del comentario —explica el
   movimiento con una noticia, afirma en vez de sugerir—, se anota como `evitar`.
 
