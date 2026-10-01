@@ -1495,6 +1495,23 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div>
 </div>
 
+<div class="modal-backdrop" id="betf-modal" onclick="if(event.target===this)betfCerrar()">
+  <div class="modal" style="max-width:640px;width:92vw">
+    <div class="modal-title" id="betf-m-titulo">TAMAR contra tasa fija</div>
+    <div id="betf-m-sub" style="font-size:11px;color:var(--text3);margin:-6px 0 10px"></div>
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">LECAP y BONCAP contra las que se compara</div>
+    <div id="betf-m-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <button class="btn" style="margin:0;padding:3px 9px;font-size:10px" onclick="betfAutomatico()" title="Las dos LECAP que rodean el vencimiento, interpoladas en días">automático</button>
+      <span id="betf-m-modo" style="font-size:10px;color:var(--text3)"></span>
+    </div>
+    <div style="max-height:52vh;overflow-y:auto" id="betf-m-detalle"></div>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="betfCerrar()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- CP MODAL -->
 <div class="modal-backdrop" id="be-cp-modal">
   <div class="modal">
@@ -2725,7 +2742,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -9901,9 +9918,10 @@ function beRefreshIfVisible(){
 
 function beInit(){
   beLoadLs();
-  // La elección de CER de cada bono TAMAR viaja por usuario: al iniciar sesión
-  // llega después de que el módulo se cargó, así que se relee acá.
+  // La elección de CER y de tasa fija de cada bono TAMAR viaja por usuario: al
+  // iniciar sesión llega después de que el módulo se cargó, así que se relee acá.
   betrLoadLs();
+  betfLoadLs();
   beCPLoadLs();
   beColWidthsLoad();
   beChartSelLoadLs();
@@ -10235,25 +10253,71 @@ function beRenderDetalle(resultados){
 // un 0,1% de precio mueve el breakeven más que esto, en puntos de TNA, la celda
 // lo avisa.
 const BE_TAMAR_SENS_MAX=0.5;
+// Sin una LECAP que venza después del bono, la elección automática estira plana
+// la tasa de la última, pero sólo si el bono vence dentro de este margen, en
+// días: un trimestre de curva plana es un supuesto razonable, tres años no. Más
+// allá, la tasa fija se elige a mano.
+const BE_TAMAR_EXTRAP_MAX=90;
 
-// La tasa fija del plazo de un bono TAMAR: la TIR de las dos LECAP/BONCAP que
-// rodean su vencimiento, interpolada lineal en días. Tomar sólo la que vence
-// después le aplicaba a todo el plazo la tasa de una letra que puede vencer
-// meses más tarde, y la curva tiene pendiente: el TMF27 contra la T30A7 sola
-// daba más de un punto de breakeven de más. Si el bono vence antes que la
-// primera LECAP se usa esa sola. Sin una LECAP que venza después no hay par:
-// no se extrapola la curva.
-function beTamarParTF(dias){
+// Las LECAP/BONCAP elegidas a mano para cada bono TAMAR. Viaja por usuario, como
+// la elección de CER.
+const BETF_LS='bonosAR_be_tamar_tf_v1';
+let BETF_TF={};
+function betfLoadLs(){
+  try{const r=localStorage.getItem(BETF_LS);if(r){const p=JSON.parse(r);if(p&&typeof p==='object')BETF_TF=p;}}catch(e){}
+}
+function betfSaveLs(){
+  try{localStorage.setItem(BETF_LS,JSON.stringify(BETF_TF));}catch(e){}
+}
+betfLoadLs();
+
+// Las letras de tasa fija con precio, con su TIR, de la más corta a la más larga.
+function beTamarLetras(){
   const enriched=DATA.length?DATA:LECAPS.map(enrich);
-  const letras=enriched.filter(r=>r.precio>0&&r.vf>0&&r.dias>0)
+  return enriched.filter(r=>r.precio>0&&r.vf>0&&r.dias>0)
     .map(r=>({ticker:r.ticker,vcto:r.vcto,dias:r.dias,tir:(Math.pow(r.vf/r.precio,365/r.dias)-1)*100}))
     .sort((a,b)=>a.dias-b.dias||a.vcto.localeCompare(b.vcto));
+}
+
+// La tasa fija del plazo de un bono TAMAR.
+//
+// Elegida a mano: la TIR de las letras elegidas, ponderadas por la inversa de la
+// distancia en días al vencimiento del bono —con dos que lo rodean es la
+// interpolación lineal— y si una vence el mismo día, esa sola. Si no lo rodean,
+// la tasa se extrapola y se avisa.
+//
+// Automática: las dos que rodean el vencimiento, interpoladas en días. Tomar sólo
+// la que vence después le aplicaba a todo el plazo la tasa de una letra que
+// puede vencer meses más tarde, y la curva tiene pendiente: el TMF27 contra la
+// T30A7 sola daba más de un punto de breakeven de más. Antes de la primera LECAP
+// se usa esa sola, y después de la última, la última plana hasta
+// BE_TAMAR_EXTRAP_MAX días; las dos se avisan como extrapolación.
+function beTamarParTF(dias,elegidos){
+  const letras=beTamarLetras();
+  if(elegidos&&elegidos.length){
+    const sel=letras.filter(r=>elegidos.includes(r.ticker)).map(r=>({...r}));
+    if(!sel.length)return{error:'Las LECAP elegidas no tienen precio'};
+    const exacta=sel.find(r=>r.dias===dias);
+    sel.forEach(r=>{r.peso=exacta?(r===exacta?1:0):1/Math.abs(r.dias-dias);});
+    const tot=sel.reduce((s,r)=>s+r.peso,0);
+    sel.forEach(r=>{r.peso/=tot;});
+    return{tickers:sel.map(r=>r.ticker),tir:sel.reduce((s,r)=>s+r.peso*r.tir,0),letras:sel,manual:true,
+      extrapola:!exacta&&!(sel.some(r=>r.dias<dias)&&sel.some(r=>r.dias>dias))};
+  }
+  if(!letras.length)return{error:'No hay LECAP con precio'};
   const sig=letras.find(r=>r.dias>=dias);
-  if(!sig)return null;
+  if(!sig){
+    const ult=letras[letras.length-1];
+    if(dias-ult.dias>BE_TAMAR_EXTRAP_MAX)
+      return{error:`Vence ${dias-ult.dias} días después de la última LECAP: elegí a mano contra qué tasa fija comparar`};
+    return{tickers:[ult.ticker],tir:ult.tir,letras:[{...ult,peso:1}],manual:false,extrapola:true};
+  }
   const ant=letras.filter(r=>r.dias<dias).pop();
-  if(!ant||sig.dias===dias)return{tickers:[sig.ticker],tir:sig.tir,letras:[sig],peso:null};
+  if(sig.dias===dias||!ant)
+    return{tickers:[sig.ticker],tir:sig.tir,letras:[{...sig,peso:1}],manual:false,extrapola:sig.dias!==dias};
   const w=(dias-ant.dias)/(sig.dias-ant.dias);
-  return{tickers:[ant.ticker,sig.ticker],tir:ant.tir+w*(sig.tir-ant.tir),letras:[ant,sig],peso:w};
+  return{tickers:[ant.ticker,sig.ticker],tir:ant.tir+w*(sig.tir-ant.tir),
+    letras:[{...ant,peso:1-w},{...sig,peso:w}],manual:false,extrapola:false};
 }
 
 // El núcleo, sin estado: la TAMAR promedio que iguala al bono con una tasa fija.
@@ -10294,8 +10358,8 @@ function beTamarCalcular(tamarTicker){
   if(dias_liq_vto_tamar<=0)return{error:'Bono vencido'};
 
   // 1. La tasa fija del plazo
-  const par=beTamarParTF(dias_liq_vto_tamar);
-  if(!par)return{error:'Ninguna LECAP vence después que este bono: no se extrapola la curva'};
+  const par=beTamarParTF(dias_liq_vto_tamar,BETF_TF[tamarTicker]);
+  if(par.error)return{error:par.error};
 
   // El dual TAMAR/dólar cotiza por lámina en dólares: se normaliza con su TC
   // inicial, igual que la solapa TAMAR.
@@ -10310,29 +10374,141 @@ function beTamarCalcular(tamarTicker){
 
   return{
     ticker:tamarTicker,tfTicker:par.tickers.join('·'),tfTickers:par.tickers,
-    tirTF:par.tir,pesoTF:par.peso,
+    tirTF:par.tir,letrasTF:par.letras,tfManual:par.manual,extrapola:par.extrapola,
     fixVto:d.fixVto,valor_final:n.valor_final,tem_capitalizar:n.tem_capitalizar*100,
     tem_proy_be:n.tem_proy_be*100,tna_proy_be:n.tna_proy_be*100,
     tamar_be_tna:n.tamar_be_tna,tamar_be_tem:tamar_be_tem*100,
     dias_liq_vto_tf:par.letras[par.letras.length-1].dias,dias_liq_vto_tamar,
+    precio,tcInicial:bond.tcInicial||1,dias360:d.DIAS_360,margen:base.margen,
+    promTNA:d.TAMAR_DIAS_TRANSCURRIDOS,temTransc:d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS,prom5:d.prom5TNA,
     transc:base.transc,proy:base.proy,sens,sensible:Math.abs(sens)>BE_TAMAR_SENS_MAX,
   };
 }
 
-// La celda contra tasa fija: el número, abajo contra qué LECAP, y el aviso si es
-// muy sensible al precio.
-function beTamarCeldaTF(res){
-  const contra=res.tfTickers.length>1
+// Los avisos de una comparación, con su explicación.
+function beTamarAvisoExtrapola(res){
+  return res.tfManual
+    ?'Las LECAP elegidas no rodean el vencimiento del bono: la tasa fija se extrapola'
+    :`Ninguna LECAP rodea el vencimiento del bono: se usa la TIR de la ${res.tfTickers[0]} plana hasta el vencimiento`;
+}
+function beTamarAvisoSens(res){
+  return`Un 0,1% de precio mueve el breakeven ${betrN(Math.abs(res.sens),2)} puntos: quedan ${res.proy} ruedas por proyectar contra ${res.transc} devengadas`;
+}
+
+// La celda contra tasa fija: el número, que abre el detalle, abajo contra qué
+// LECAP —en otro color si las elegiste vos— y los avisos. Sin comparación
+// posible, el botón para elegirla.
+function beTamarCeldaTF(ticker,res){
+  const td=html=>`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;white-space:nowrap">${html}</td>`;
+  const boton=t=>`<button onclick="betfAbrir('${ticker}')" style="background:none;border:none;padding:0;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:9px;text-decoration:underline">${t}</button>`;
+  if(!res||res.error)
+    return td(`<span title="${betrEsc((res&&res.error)||'')}" style="color:var(--text3)">—</span><br>${boton('elegir TF')}`);
+  const contra=res.tfTickers.length===2&&!res.tfManual
     ?`${res.tfTickers[0]} y ${res.tfTickers[1]}, interpolando en días`
-    :res.tfTickers[0];
+    :res.tfTickers.join(', ');
   const titulo=`TAMAR promedio que iguala al bono con la tasa fija hasta el fixing del ${betrF(res.fixVto)}`
-    +` · contra ${contra}: TIR ${fmtP2(res.tirTF)}`;
-  const aviso=res.sensible
-    ?` <span title="${betrEsc(`Un 0,1% de precio mueve el breakeven ${betrN(Math.abs(res.sens),2)} puntos: quedan ${res.proy} ruedas por proyectar contra ${res.transc} devengadas`)}" style="color:var(--warn)">⚠</span>`
-    :'';
-  return`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;white-space:nowrap" title="${betrEsc(titulo)}">`
-    +`<span style="color:var(--warn);font-weight:600">${fmtP2(res.tamar_be_tna)}</span>${aviso}`
-    +`<br><span title="LECAP contra las que se compara" style="color:var(--text3);font-size:8px">${res.tfTicker}</span></td>`;
+    +` · contra ${contra}: TIR ${fmtP2(res.tirTF)} · ver el detalle paso a paso`;
+  const avisos=[];
+  if(res.sensible)avisos.push(`<span title="${betrEsc(beTamarAvisoSens(res))}" style="color:var(--warn)">⚠</span>`);
+  if(res.extrapola)avisos.push(`<span title="${betrEsc(beTamarAvisoExtrapola(res))}" style="color:var(--warn)">↗</span>`);
+  return td(
+    `<button onclick="betfAbrir('${ticker}')" title="${betrEsc(titulo)}" style="background:none;border:none;padding:0;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--warn);font-weight:600">${fmtP2(res.tamar_be_tna)}</button>${avisos.length?' '+avisos.join(''):''}`
+    +`<br><span title="${res.tfManual?'LECAP elegidas por vos':'LECAP elegidas automáticamente'}" style="color:${res.tfManual?'var(--accent2)':'var(--text3)'};font-size:8px">${res.tfTicker}</span>`);
+}
+
+// ── El selector de tasa fija ─────────────────────────────────────────────────
+function betfAbrir(ticker){
+  const el=document.getElementById('betf-modal');
+  if(!el)return;
+  el.dataset.ticker=ticker;
+  el.classList.add('open');
+  betfRenderModal();
+}
+function betfCerrar(){
+  const el=document.getElementById('betf-modal');
+  if(el)el.classList.remove('open');
+}
+function betfTicker(){
+  const el=document.getElementById('betf-modal');
+  return el&&el.dataset.ticker;
+}
+function betfToggle(tk){
+  const ticker=betfTicker();
+  if(!ticker)return;
+  const act=new Set(BETF_TF[ticker]||[]);
+  if(act.has(tk))act.delete(tk);else act.add(tk);
+  BETF_TF[ticker]=[...act];
+  if(!BETF_TF[ticker].length)delete BETF_TF[ticker];
+  betfSaveLs();betfRenderModal();beTamarRecalc();
+}
+function betfAutomatico(){
+  const ticker=betfTicker();
+  if(!ticker)return;
+  delete BETF_TF[ticker];
+  betfSaveLs();betfRenderModal();beTamarRecalc();
+}
+
+function betfRenderModal(){
+  const el=document.getElementById('betf-modal');
+  if(!el||!el.classList.contains('open'))return;
+  const ticker=el.dataset.ticker;
+  const tt=TAMAR_BONDS.find(b=>b.ticker===ticker);
+  const res=tt?beTamarCalcular(ticker):null;
+  const tit=document.getElementById('betf-m-titulo');
+  if(tit)tit.textContent=`TAMAR contra tasa fija · ${ticker||''}`;
+  const sub=document.getElementById('betf-m-sub');
+  if(sub&&tt)sub.innerHTML=`vence ${betrF(tt.vcto)} · margen ${betrN(tt.margen||0,2)}%`
+    +(betrEsDual(ticker)?' · <span style="color:var(--info)">dual: el precio incluye el valor de la otra pata, así que la TAMAR que sale es un techo</span>':'');
+  const manual=!!(BETF_TF[ticker]&&BETF_TF[ticker].length);
+  const usadas=res&&!res.error?res.tfTickers:[];
+  const chips=document.getElementById('betf-m-chips');
+  if(chips){
+    const letras=beTamarLetras();
+    chips.innerHTML=letras.length?letras.map(b=>{
+      const on=manual?BETF_TF[ticker].includes(b.ticker):false;
+      const auto=!manual&&usadas.includes(b.ticker);
+      return`<button onclick="betfToggle('${b.ticker}')" title="vence ${betrF(b.vcto)} · TIR ${fmtP2(b.tir)}${auto?' · elegida automáticamente':''}"
+        style="padding:3px 8px;font-size:10px;font-family:var(--mono);border-radius:3px;cursor:pointer;
+        border:1px ${auto?'dashed':'solid'} ${on||auto?'var(--accent2)':'var(--border2)'};
+        background:${on?'var(--accent-dim)':'var(--surface2)'};
+        color:${on||auto?'var(--accent)':'var(--text3)'};transition:all .12s">${b.ticker}</button>`;
+    }).join(''):'<span style="font-size:10px;color:var(--text3)">No hay LECAP con precio.</span>';
+  }
+  const modo=document.getElementById('betf-m-modo');
+  if(modo)modo.textContent=manual
+    ?'Elegidas por vos. Con dos o más se ponderan por cercanía de vencimiento.'
+    :'Automático: las dos LECAP que rodean el vencimiento, interpoladas en días; son las de borde punteado.';
+  const det=document.getElementById('betf-m-detalle');
+  if(det)det.innerHTML=res?betfDetalleHTML(res):'';
+}
+
+function betfDetalleHTML(res){
+  if(res.error)return`<div style="font-size:11px;color:var(--danger);padding:.5rem 0">${betrEsc(res.error)}</div>`;
+  const fila=(n,label,val)=>`<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--border)">
+    <span style="font-size:10px;color:var(--text3);min-width:22px;text-align:right">${n}</span>
+    <span style="font-size:11px;color:var(--text3);flex:1">${label}</span>
+    <span style="font-size:12px;color:var(--accent);font-family:var(--mono);white-space:nowrap">${val}</span></div>`;
+  const letras=res.letrasTF.map(l=>fila('','<span style="color:var(--text2)">'+l.ticker+'</span> · vence '+betrF(l.vcto)
+    +' · '+l.dias+'d · peso '+betrN(l.peso*100,1)+'%',betrN(l.tir,4)+'%')).join('');
+  const ult=betrUltimaTamar();
+  const precioTxt=res.tcInicial!==1
+    ?'precio '+betrN(res.precio*res.tcInicial,2)+' / TC inicial '+betrN(res.tcInicial,2)+' = '+betrN(res.precio,4)
+    :'precio '+betrN(res.precio,4);
+  return `
+    <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:.2rem 0 .2rem">1 · tasa fija del plazo</div>
+    ${letras}
+    ${fila('1','TIR de la tasa fija a '+res.dias_liq_vto_tamar+' días, el plazo del bono',betrN(res.tirTF,4)+'%')}
+    ${fila('2','valor final: '+precioTxt+' × (1 + TIR)^('+res.dias_liq_vto_tamar+'/365)',betrN(res.valor_final,6))}
+    ${fila('3','TEM a capitalizar sobre la vida del bono · DIAS360 '+res.dias360,betrN(res.tem_capitalizar,6)+'%')}
+    ${fila('4.a','TAMAR + margen devengada (TEM) · '+res.transc+' ruedas, TNA promedio '+betrN(res.promTNA,4)+'%',betrN(res.temTransc,6)+'%')}
+    ${fila('4','TAMAR + margen a proyectar (TEM) · '+res.proy+' ruedas hasta el fixing del '+betrF(res.fixVto),betrN(res.tem_proy_be,6)+'%')}
+    ${fila('5','a TNA, con la convención de plazo fijo a 32 días',betrN(res.tna_proy_be,4)+'%')}
+    ${fila('6','menos el margen ('+betrN(res.margen,2)+'%): TAMAR breakeven',
+      '<span style="font-weight:600">'+betrN(res.tamar_be_tna,4)+'%</span>')}
+    ${fila('','TEM equivalente',betrN(res.tamar_be_tem,4)+'%')}
+    ${ult?fila('','para comparar: TAMAR publicada al '+betrF(ult.fecha)+' · promedio de 5 días',betrN(ult.valor,4)+'% · '+betrN(res.prom5,4)+'%'):''}
+    ${res.sensible?'<div style="font-size:10px;color:var(--warn);margin-top:.5rem">⚠ '+betrEsc(beTamarAvisoSens(res))+'.</div>':''}
+    ${res.extrapola?'<div style="font-size:10px;color:var(--warn);margin-top:.5rem">↗ '+betrEsc(beTamarAvisoExtrapola(res))+'.</div>':''}`;
 }
 
 // ══════════════════════════════════════════════ TAMAR REAL CONTRA CER (betr)
@@ -10658,17 +10834,13 @@ function beTamarRecalc(){
   // adelante— no mostraban nada, ni siquiera lo que sí se puede calcular.
   tbody.innerHTML=bondsOrdenados.map(bond=>{
     const res=beTamarCalcular(bond.ticker);
-    const ok=res&&!res.error;
     // El fixing es del bono, no de la comparación: sale igual aunque no haya
     // LECAP de su plazo.
     const fix=betrF(fmtDate(restarHabiles(parseDate(bond.vcto),10))).replace(/\/(\d\d)(\d\d)$/,'/$2');
-    const gris='padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--text3)';
     return`<tr class="bb">
       <td style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600;white-space:nowrap">${bond.ticker}${betrEsDual(bond.ticker)?'<span title="Dual: el precio incluye el valor de la otra pata" style="color:var(--info)"> d</span>':''}</td>
       <td style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--text2);text-align:right;white-space:nowrap">${fix}</td>
-      ${ok
-        ?beTamarCeldaTF(res)
-        :`<td style="${gris}" title="${betrEsc((res&&res.error)||'')}">—</td>`}
+      ${beTamarCeldaTF(bond.ticker,res)}
       ${betrCelda(bond.ticker)}
     </tr>`;
   }).join('');
