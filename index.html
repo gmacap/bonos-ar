@@ -10326,9 +10326,9 @@ function beTamarCeldaTF(res){
     ?`${res.tfTickers[0]} y ${res.tfTickers[1]}, interpolando en días`
     :res.tfTickers[0];
   const titulo=`TAMAR promedio que iguala al bono con la tasa fija hasta el fixing del ${betrF(res.fixVto)}`
-    +` · contra ${contra}: TIR ${fmtP2(res.tirTF)}%`;
+    +` · contra ${contra}: TIR ${fmtP2(res.tirTF)}`;
   const aviso=res.sensible
-    ?` <span title="${betrEsc(`Un 0,1% de precio mueve el breakeven ${fmtP2(Math.abs(res.sens))} puntos: quedan ${res.proy} ruedas por proyectar contra ${res.transc} devengadas`)}" style="color:var(--warn)">⚠</span>`
+    ?` <span title="${betrEsc(`Un 0,1% de precio mueve el breakeven ${betrN(Math.abs(res.sens),2)} puntos: quedan ${res.proy} ruedas por proyectar contra ${res.transc} devengadas`)}" style="color:var(--warn)">⚠</span>`
     :'';
   return`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;white-space:nowrap" title="${betrEsc(titulo)}">`
     +`<span style="color:var(--warn);font-weight:600">${fmtP2(res.tamar_be_tna)}</span>${aviso}`

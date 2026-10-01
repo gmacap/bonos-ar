@@ -3002,6 +3002,8 @@ const omitir = (label, motivo) =>
     const tb = document.getElementById('be-tamar-tbody');
     out.avisos = tb ? (tb.innerHTML.match(/⚠/g) || []).length : -1;
     out.avisosBetr = tb ? (tb.innerHTML.match(/despeje amplifica/g) || []).length : 0;
+    // fmtP2 ya trae el %: sumarle otro en el texto lo duplicaba.
+    out.textoLimpio = tb ? !/%%|% puntos/.test(tb.innerHTML) : true;
     return out;
   });
   // cerca() se declara más abajo; acá todavía no existe.
@@ -3021,6 +3023,7 @@ const omitir = (label, motivo) =>
           `${betf.avisos - betf.avisosBetr} avisos, ${betf.sensibles} sensibles`);
   }
   check(betf.sinParBien, 'sin una LECAP que venza después no hay número: no se extrapola la curva');
+  check(betf.textoLimpio, 'los carteles de la tabla no repiten el %');
   if (!betf.tc) omitir('el TAMAR en dólares se normaliza con el TC inicial', 'no hay TAMAR con par de tasa fija');
   else check(cercaTF(betf.tc.base, betf.tc.dolares, 1e-9),
              'el TAMAR cotizado en dólares se normaliza con el TC inicial', JSON.stringify(betf.tc));
