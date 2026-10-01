@@ -137,20 +137,37 @@ const omitir = (label, motivo) =>
       // Un spread negativo o cruzado no es un spread.
       cruzado: libroSpread(101, 100),
       sinPuntas: libroSpread(0, 100),
+      hora: new Date().toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false }),
     };
   });
+  // Antes de la apertura data912 ya publica las puntas, pero el monto operado
+  // está en cero, y en la primera media hora operan pocos bonos. Hasta las 11:30
+  // un volumen flaco no prueba nada; después sí es una falla, así que el
+  // margen no esconde un campo de volumen que dejó de llegar.
+  const [hh, mm] = String(libro.hora || '').split(':').map(Number);
+  const antesDeOperar = hh * 60 + mm < 11 * 60 + 30 && libro.conMonto <= 10;
   if (!libro.conLibro) {
     omitir('libro de puntas y volumen', 'data912 no devolvió precios ahora');
   } else {
     check(libro.conLibro > 10, 'las puntas llegan a los bonos en pesos',
           libro.conLibro + '/' + libro.pesos + ' con libro');
-    check(libro.conMonto > 10, 'el volumen también', libro.conMonto + ' con monto');
-    check(libro.usdConLibro > 0 && libro.usdConMonto > 0,
-          'y a los bonos en dólares, las tres familias',
-          libro.usdConLibro + ' con libro, ' + libro.usdConMonto + ' con monto');
+    if (antesDeOperar) {
+      omitir('el volumen', `la rueda todavía no operó: ${libro.conMonto} bonos con monto a las ${libro.hora}`);
+      check(libro.usdConLibro > 0, 'y las puntas a los bonos en dólares', libro.usdConLibro + ' con libro');
+    } else {
+      check(libro.conMonto > 10, 'el volumen también', libro.conMonto + ' con monto');
+      check(libro.usdConLibro > 0 && libro.usdConMonto > 0,
+            'y a los bonos en dólares, las tres familias',
+            libro.usdConLibro + ' con libro, ' + libro.usdConMonto + ' con monto');
+    }
     check(libro.spreadOk, 'el spread es punta a punta sobre el medio');
-    check(libro.montoOk === true, 'el monto es nominales por precio, no el campo crudo');
-    check(libro.montoDistintoDeVol === true, 'el monto no es el volumen en láminas');
+    // La cuenta del monto se puede chequear con un solo bono que haya operado.
+    if (libro.montoOk == null && antesDeOperar) {
+      omitir('el monto es nominales por precio', 'ningún bono operó todavía');
+    } else {
+      check(libro.montoOk === true, 'el monto es nominales por precio, no el campo crudo');
+      check(libro.montoDistintoDeVol === true, 'el monto no es el volumen en láminas');
+    }
     check(JSON.stringify(libro.sem) === JSON.stringify(['verde', 'amarillo', 'rojo', null]),
           'el semáforo corta en mil y en diez millones', JSON.stringify(libro.sem));
     check(libro.cruzado === null && libro.sinPuntas === null,
