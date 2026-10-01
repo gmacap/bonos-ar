@@ -10230,6 +10230,56 @@ function beRenderDetalle(resultados){
 // La TAMAR nominal que iguala un bono TAMAR con la tasa fija de su plazo. La
 // TAMAR real contra los bonos CER es otra cuenta y vive más abajo, en betr*.
 
+// Con muchas ruedas devengadas y pocas por proyectar, el paso 4 multiplica
+// cualquier error de precio por (devengadas + por proyectar) / por proyectar. Si
+// un 0,1% de precio mueve el breakeven más que esto, en puntos de TNA, la celda
+// lo avisa.
+const BE_TAMAR_SENS_MAX=0.5;
+
+// La tasa fija del plazo de un bono TAMAR: la TIR de las dos LECAP/BONCAP que
+// rodean su vencimiento, interpolada lineal en días. Tomar sólo la que vence
+// después le aplicaba a todo el plazo la tasa de una letra que puede vencer
+// meses más tarde, y la curva tiene pendiente: el TMF27 contra la T30A7 sola
+// daba más de un punto de breakeven de más. Si el bono vence antes que la
+// primera LECAP se usa esa sola. Sin una LECAP que venza después no hay par:
+// no se extrapola la curva.
+function beTamarParTF(dias){
+  const enriched=DATA.length?DATA:LECAPS.map(enrich);
+  const letras=enriched.filter(r=>r.precio>0&&r.vf>0&&r.dias>0)
+    .map(r=>({ticker:r.ticker,vcto:r.vcto,dias:r.dias,tir:(Math.pow(r.vf/r.precio,365/r.dias)-1)*100}))
+    .sort((a,b)=>a.dias-b.dias||a.vcto.localeCompare(b.vcto));
+  const sig=letras.find(r=>r.dias>=dias);
+  if(!sig)return null;
+  const ant=letras.filter(r=>r.dias<dias).pop();
+  if(!ant||sig.dias===dias)return{tickers:[sig.ticker],tir:sig.tir,letras:[sig],peso:null};
+  const w=(dias-ant.dias)/(sig.dias-ant.dias);
+  return{tickers:[ant.ticker,sig.ticker],tir:ant.tir+w*(sig.tir-ant.tir),letras:[ant,sig],peso:w};
+}
+
+// El núcleo, sin estado: la TAMAR promedio que iguala al bono con una tasa fija.
+//   precio     del TAMAR, en pesos por cada 100 de nominal
+//   tirTF      TIR de la tasa fija del plazo, en %
+//   dias       días al pago del TAMAR
+//   dias360    vida del bono en 30/360, de la emisión al vencimiento
+//   transc     ruedas de TAMAR ya publicadas dentro de la ventana del bono
+//   proy       ruedas que faltan hasta el fixing de vencimiento
+//   temTransc  TEM con margen de lo ya devengado, decimal
+//   margen     en %
+// Los pasos: 2) el precio llevado al vencimiento con la tasa fija; 3) la TEM que
+// capitalizada sobre la vida del bono lleva 100 a ese valor; 4) se le descuenta lo
+// devengado, con promedio aritmético como el VPV de la solapa TAMAR; 5) a TNA con
+// la convención de plazo fijo a 32 días; 6) se resta el margen.
+function beTamarNucleo(x){
+  const valor_final=x.precio*Math.pow(1+x.tirTF/100,x.dias/365);
+  const tem_capitalizar=Math.pow(valor_final/100,30/x.dias360)-1;
+  const tem_proy_be=x.proy>0
+    ?(tem_capitalizar*(x.transc+x.proy)-x.transc*x.temTransc)/x.proy
+    :tem_capitalizar;
+  const tna_proy_be=(Math.pow(Math.pow(1+tem_proy_be,12),32/365)-1)*365/32;
+  const tamar_be_tna=(tna_proy_be-(x.margen||0)/100)*100;
+  return{valor_final,tem_capitalizar,tem_proy_be,tna_proy_be,tamar_be_tna};
+}
+
 function beTamarCalcular(tamarTicker){
   const r=TAMAR_DATA.length?TAMAR_DATA.find(x=>x.ticker===tamarTicker):null;
   const bond=TAMAR_BONDS.find(x=>x.ticker===tamarTicker);
@@ -10240,55 +10290,49 @@ function beTamarCalcular(tamarTicker){
   if(!rb._debug)return{error:'Sin datos de cálculo'};
   const d=rb._debug;
 
-  const liq=G_LIQ||addHabiles(TODAY,1);
-
-  // 1. Buscar bono TF par
-  const tfBond=beFindTF(bond.vcto);
-  if(!tfBond)return{error:`Sin bono TF para vto ${bond.vcto}`};
-  if(!tfBond.precio||!tfBond.vf||tfBond.dias<=0)return{error:`Sin precio/VF para ${tfBond.ticker}`};
-
-  const dias_liq_vto_tf=tfBond.dias;
   const dias_liq_vto_tamar=d.DIAS;
   if(dias_liq_vto_tamar<=0)return{error:'Bono vencido'};
 
-  // 2. Valor_final
-  const valor_final=(tfBond.vf/tfBond.precio)**(dias_liq_vto_tamar/dias_liq_vto_tf)*bond.precio;
+  // 1. La tasa fija del plazo
+  const par=beTamarParTF(dias_liq_vto_tamar);
+  if(!par)return{error:'Ninguna LECAP vence después que este bono: no se extrapola la curva'};
 
-  // 3. TEM_capitalizar
-  const tem_capitalizar=Math.pow(valor_final/100,30/d.DIAS_360)-1;
+  // El dual TAMAR/dólar cotiza por lámina en dólares: se normaliza con su TC
+  // inicial, igual que la solapa TAMAR.
+  const precio=bond.precio/(bond.tcInicial||1);
+  const base={precio,tirTF:par.tir,dias:dias_liq_vto_tamar,dias360:d.DIAS_360,
+    transc:d.DIAS_TAMAR_TRANSCURRIDOS,proy:d.DIAS_TAMAR_PROYECTAR,
+    temTransc:d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS/100,margen:bond.margen||0};
+  const n=beTamarNucleo(base);
+  const sens=beTamarNucleo({...base,precio:precio*1.001}).tamar_be_tna-n.tamar_be_tna;
 
-  // 4. TEM_TAMAR_MARGEN_PROY_BE
-  // Usa promedio aritmético, consistente con VPV = 100*(1+TASA_NMC)^(DIAS_360/30)
-  const dias_trans=d.DIAS_TAMAR_TRANSCURRIDOS;
-  const dias_proy=d.DIAS_TAMAR_PROYECTAR;
-  const tm_trans=d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS/100; // decimal
-
-  let tem_proy_be;
-  if(dias_proy>0){
-    tem_proy_be=(tem_capitalizar*(dias_trans+dias_proy)-dias_trans*tm_trans)/dias_proy;
-  } else {
-    tem_proy_be=tem_capitalizar;
-  }
-
-  // 5. TNA_TAMAR_MARGEN_PROY_BE
-  const tna_proy_be=(Math.pow(Math.pow(1+tem_proy_be,12),32/365)-1)*365/32;
-
-  // 6. TAMAR_BE_TNA
-  const tamar_be_tna=(tna_proy_be-(bond.margen||0)/100)*100;
-
-  // Fecha último TAMAR = fixVto del bono
-  const fixVto=d.fixVto;
-
-  const tamar_be_tna_dec=tamar_be_tna/100;
-  const tamar_be_tem=Math.pow(Math.pow(1+tamar_be_tna_dec*32/365,365/32),1/12)-1;
+  const tamar_be_tem=Math.pow(Math.pow(1+n.tamar_be_tna/100*32/365,365/32),1/12)-1;
 
   return{
-    ticker:tamarTicker,tfTicker:tfBond.ticker,
-    fixVto,valor_final,tem_capitalizar:tem_capitalizar*100,
-    tem_proy_be:tem_proy_be*100,tna_proy_be:tna_proy_be*100,
-    tamar_be_tna,tamar_be_tem:tamar_be_tem*100,
-    dias_liq_vto_tf,dias_liq_vto_tamar,
+    ticker:tamarTicker,tfTicker:par.tickers.join('·'),tfTickers:par.tickers,
+    tirTF:par.tir,pesoTF:par.peso,
+    fixVto:d.fixVto,valor_final:n.valor_final,tem_capitalizar:n.tem_capitalizar*100,
+    tem_proy_be:n.tem_proy_be*100,tna_proy_be:n.tna_proy_be*100,
+    tamar_be_tna:n.tamar_be_tna,tamar_be_tem:tamar_be_tem*100,
+    dias_liq_vto_tf:par.letras[par.letras.length-1].dias,dias_liq_vto_tamar,
+    transc:base.transc,proy:base.proy,sens,sensible:Math.abs(sens)>BE_TAMAR_SENS_MAX,
   };
+}
+
+// La celda contra tasa fija: el número, abajo contra qué LECAP, y el aviso si es
+// muy sensible al precio.
+function beTamarCeldaTF(res){
+  const contra=res.tfTickers.length>1
+    ?`${res.tfTickers[0]} y ${res.tfTickers[1]}, interpolando en días`
+    :res.tfTickers[0];
+  const titulo=`TAMAR promedio que iguala al bono con la tasa fija hasta el fixing del ${betrF(res.fixVto)}`
+    +` · contra ${contra}: TIR ${fmtP2(res.tirTF)}%`;
+  const aviso=res.sensible
+    ?` <span title="${betrEsc(`Un 0,1% de precio mueve el breakeven ${fmtP2(Math.abs(res.sens))} puntos: quedan ${res.proy} ruedas por proyectar contra ${res.transc} devengadas`)}" style="color:var(--warn)">⚠</span>`
+    :'';
+  return`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;white-space:nowrap" title="${betrEsc(titulo)}">`
+    +`<span style="color:var(--warn);font-weight:600">${fmtP2(res.tamar_be_tna)}</span>${aviso}`
+    +`<br><span title="LECAP contra las que se compara" style="color:var(--text3);font-size:8px">${res.tfTicker}</span></td>`;
 }
 
 // ══════════════════════════════════════════════ TAMAR REAL CONTRA CER (betr)
@@ -10623,7 +10667,7 @@ function beTamarRecalc(){
       <td style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600;white-space:nowrap">${bond.ticker}${betrEsDual(bond.ticker)?'<span title="Dual: el precio incluye el valor de la otra pata" style="color:var(--info)"> d</span>':''}</td>
       <td style="padding:1px 4px;font-family:var(--mono);font-size:10px;color:var(--text2);text-align:right;white-space:nowrap">${fix}</td>
       ${ok
-        ?`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--warn);font-weight:600;white-space:nowrap">${fmtP2(res.tamar_be_tna)}</td>`
+        ?beTamarCeldaTF(res)
         :`<td style="${gris}" title="${betrEsc((res&&res.error)||'')}">—</td>`}
       ${betrCelda(bond.ticker)}
     </tr>`;

@@ -2934,6 +2934,80 @@ const omitir = (label, motivo) =>
     check(ref.limpio, 'la ficha con referencias no tiene undefined, NaN ni null');
   }
 
+  // TAMAR contra tasa fija. El núcleo, fijado con el TMF27 contra la T30A7 del
+  // 01/10/2026; la LECAP par, interpolada entre las dos que rodean el vencimiento;
+  // el precio en dólares normalizado con el TC inicial, y el aviso de sensibilidad.
+  console.log('\nTAMAR contra tasa fija');
+  const betf = await page.evaluate(() => {
+    const out = {};
+    const tirTF = (Math.pow(157.341 / 135.1, 365 / 210) - 1) * 100;
+    const base = { precio: 123.9, tirTF, dias: 147, dias360: 373, transc: 161, proy: 88, temTransc: 0.026279, margen: 6.5 };
+    const n = beTamarNucleo(base);
+    out.fijo = { be: n.tamar_be_tna, vf: n.valor_final, vfViejo: 123.9 * Math.pow(157.341 / 135.1, 147 / 210) };
+    // Más precio del TAMAR, más valor final: el breakeven sube.
+    out.subeConPrecio = beTamarNucleo({ ...base, precio: 124 }).tamar_be_tna > n.tamar_be_tna;
+    TAMAR_DATA = TAMAR_BONDS.map(tamarEnrich);
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const vivos = TAMAR_BONDS.filter(b => b.precio > 0 && b.vcto && diasACT(liq, parseDate(b.vcto)) > 0);
+    out.conPar = 0; out.interpolados = 0; out.errores = []; out.sinParBien = true; out.avisos = 0; out.sensibles = 0;
+    const letras = (DATA.length ? DATA : LECAPS.map(enrich)).filter(r => r.precio > 0 && r.vf > 0 && r.dias > 0);
+    const maxDias = Math.max(...letras.map(r => r.dias));
+    for (const b of vivos) {
+      const res = beTamarCalcular(b.ticker);
+      const dT = tamarEnrich(b).dias;
+      if (res.error) { if (dT <= maxDias) out.sinParBien = false; continue; }
+      out.conPar++;
+      if (res.sensible) out.sensibles++;
+      if (res.tfTickers.length === 2) {
+        out.interpolados++;
+        const [a, c] = res.tfTickers.map(t => letras.find(r => r.ticker === t));
+        const tir = r => (Math.pow(r.vf / r.precio, 365 / r.dias) - 1) * 100;
+        const lo = Math.min(tir(a), tir(c)), hi = Math.max(tir(a), tir(c));
+        if (!(a.dias < dT && dT <= c.dias)) out.errores.push(`${b.ticker}: ${a.ticker}/${c.ticker} no rodean ${dT} días`);
+        if (!(res.tirTF >= lo - 1e-9 && res.tirTF <= hi + 1e-9)) out.errores.push(`${b.ticker}: TIR ${res.tirTF} fuera de [${lo}, ${hi}]`);
+      }
+      // La sensibilidad es la del núcleo con un 0,1% más de precio.
+      if (!(res.sens > 0) || res.sensible !== (Math.abs(res.sens) > BE_TAMAR_SENS_MAX))
+        out.errores.push(`${b.ticker}: sensibilidad ${res.sens}`);
+    }
+    // El TC inicial: el mismo bono cotizado por lámina en dólares da lo mismo.
+    const ref = vivos.find(b => !b.tcInicial || b.tcInicial === 1);
+    const r0 = ref && beTamarCalcular(ref.ticker);
+    if (r0 && !r0.error) {
+      const clon = { ...ref, ticker: 'ZZTC1', precio: ref.precio * 1500, tcInicial: 1500 };
+      TAMAR_BONDS.push(clon);
+      const r1 = beTamarCalcular('ZZTC1');
+      TAMAR_BONDS = TAMAR_BONDS.filter(b => b.ticker !== 'ZZTC1');
+      out.tc = { base: r0.tamar_be_tna, dolares: r1.tamar_be_tna };
+    }
+    // La tabla: un aviso por cada bono sensible.
+    beTamarRecalc();
+    const tb = document.getElementById('be-tamar-tbody');
+    out.avisos = tb ? (tb.innerHTML.match(/⚠/g) || []).length : -1;
+    out.avisosBetr = tb ? (tb.innerHTML.match(/despeje amplifica/g) || []).length : 0;
+    return out;
+  });
+  // cerca() se declara más abajo; acá todavía no existe.
+  const cercaTF = (a, b, tol) => Math.abs(a - b) < (tol || 1e-6);
+  check(cercaTF(betf.fijo.be, 24.62642179) && cercaTF(betf.fijo.vf, betf.fijo.vfViejo, 1e-9),
+        'el núcleo contra tasa fija reproduce el TMF27 contra la T30A7, y una sola LECAP da lo mismo que antes',
+        `${betf.fijo.be.toFixed(8)}%`);
+  check(betf.subeConPrecio, 'con más precio del TAMAR el breakeven contra tasa fija sube');
+  if (!betf.conPar) {
+    omitir('la LECAP par se interpola entre las dos vecinas', 'ningún TAMAR tiene LECAP de su plazo');
+  } else {
+    check(betf.errores.length === 0,
+          'la LECAP par se interpola entre las dos que rodean el vencimiento, y la sensibilidad es la del núcleo',
+          `${betf.conPar} con par, ${betf.interpolados} interpolados · ` + betf.errores.slice(0, 3).join(' · '));
+    check(betf.avisos - betf.avisosBetr === betf.sensibles,
+          'la tabla avisa en cada bono muy sensible al precio',
+          `${betf.avisos - betf.avisosBetr} avisos, ${betf.sensibles} sensibles`);
+  }
+  check(betf.sinParBien, 'sin una LECAP que venza después no hay número: no se extrapola la curva');
+  if (!betf.tc) omitir('el TAMAR en dólares se normaliza con el TC inicial', 'no hay TAMAR con par de tasa fija');
+  else check(cercaTF(betf.tc.base, betf.tc.dolares, 1e-9),
+             'el TAMAR cotizado en dólares se normaliza con el TC inicial', JSON.stringify(betf.tc));
+
   // TAMAR real contra CER. Los dos casos están fijados con los números que se
   // verificaron a mano contra planilla, con los precios de esa rueda: si alguien
   // toca la fórmula, esto se cae.
