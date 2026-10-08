@@ -2,8 +2,14 @@
 """Extrae el ultimo relevamiento del REM del BCRA a rem.json.
 
 El BCRA publica el historico completo del Relevamiento de Expectativas de
-Mercado en una URL fija, sin fecha en el nombre, asi que no hay que adivinar
-el archivo del mes. De ahi salen las tres series que usa la app:
+Mercado en una planilla sin fecha en el nombre. Pero el nombre cambio: hasta
+agosto de 2026 era historico-relevamiento-expectativas-mercado.xlsx y desde el
+relevamiento de septiembre la pagina del REM enlaza
+relevamiento-expectativas-mercado-historico.xlsx. El viejo quedo publicado y
+congelado en el 31/08, y como el script lo seguia leyendo, el REM de la app se
+quedo un mes atras sin que nada fallara. Por eso ahora se busca el link en la
+pagina, se prueban los dos nombres conocidos y gana el relevamiento mas nuevo.
+De ahi salen las tres series que usa la app:
 
   - inflacion mensual (var. % mensual)
   - TAMAR de bancos privados (TNA; %)
@@ -21,12 +27,18 @@ import argparse
 import io
 import json
 import os
+import re
 import sys
 import urllib.request
 from datetime import datetime, timezone
 
-URL = ("https://www.bcra.gob.ar/archivos/Pdfs/PublicacionesEstadisticas/"
-       "informes/historico-relevamiento-expectativas-mercado.xlsx")
+BASE = "https://www.bcra.gob.ar"
+PAGINA = BASE + "/PublicacionesEstadisticas/Relevamiento_Expectativas_de_Mercado.asp"
+CARPETA = BASE + "/archivos/Pdfs/PublicacionesEstadisticas/informes/"
+CONOCIDAS = [
+    CARPETA + "relevamiento-expectativas-mercado-historico.xlsx",
+    CARPETA + "historico-relevamiento-expectativas-mercado.xlsx",
+]
 
 HOJA = "Base de Datos Completa"
 
@@ -43,10 +55,27 @@ MESES_ES = {"ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
             "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12}
 
 
-def descargar():
-    req = urllib.request.Request(URL, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=180) as r:
+def descargar(url, timeout=180):
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
+
+
+def candidatas():
+    """El link de la planilla historica que enlaza hoy la pagina del REM, mas
+    los nombres conocidos, sin repetir."""
+    urls = []
+    try:
+        html = descargar(PAGINA, timeout=60).decode("utf-8", "replace")
+        for href in re.findall(r'href="([^"]+\.xlsx)"', html):
+            if "historico" in href.lower() and "expectativas" in href.lower():
+                urls.append(href if href.startswith("http") else BASE + href)
+    except Exception as e:
+        print(f"   (no se pudo leer la pagina del REM: {e})")
+    for u in CONOCIDAS:
+        if u not in urls:
+            urls.append(u)
+    return urls
 
 
 def norm(s):
@@ -148,10 +177,23 @@ def main():
     raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     destino = args.salida or os.path.join(raiz, "rem.json")
 
-    print(f"-> Bajando {URL}")
-    datos = extraer(descargar())
+    # Cada planilla candidata se baja y se parsea; gana el relevamiento mas
+    # nuevo. Una que no baja o no tiene el formato esperado se saltea.
+    datos = None
+    for url in candidatas():
+        print(f"-> Bajando {url}")
+        try:
+            d = extraer(descargar(url))
+        except (Exception, SystemExit) as e:
+            print(f"   salteada: {e}")
+            continue
+        print(f"   relevamiento {d['relevamiento']}")
+        if datos is None or d["relevamiento"] > datos["relevamiento"]:
+            datos = d
+    if datos is None:
+        raise SystemExit("Ninguna planilla del REM se pudo leer.")
 
-    print(f"   relevamiento {datos['relevamiento']}")
+    print(f"\n   Usado: relevamiento {datos['relevamiento']}")
     for clave, _, _ in SERIES:
         ms = datos[clave]
         anclas = datos["anclas"][clave]
