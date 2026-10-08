@@ -548,6 +548,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <div class="field" id="pf-precio">
           <label>Precio $</label>
           <input type="number" id="p-precio-in" step="0.0001" oninput="recalcPanel()">
+          <div id="p-cierre-nota" style="font-size:10px;color:var(--info);margin-top:3px;line-height:1.35"></div>
         </div>
         <div class="field" id="pf-tna" style="display:none">
           <label>TNA %</label>
@@ -754,6 +755,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <div class="field" id="cer-pf-precio">
             <label>Precio limpio $</label>
             <input type="number" id="cer-p-precio-in" step="0.01" oninput="cerRecalcPanel()">
+            <div id="cer-p-cierre-nota" style="font-size:10px;color:var(--info);margin-top:3px;line-height:1.35"></div>
           </div>
           <div class="field" id="cer-pf-tir" style="display:none">
             <label>TIR real %</label>
@@ -3971,6 +3973,85 @@ function apiBestPrice(api){
   return null;
 }
 
+// ── PESOS SIN PRECIO DE HOY ──────────────────────────────────────────────────
+// Un bono en pesos sin precio en vivo no se queda con el de la última vez sin
+// avisar: queda marcado para buscarle el último cierre (data912 con fecha, o el
+// cierre anterior de BYMA), igual que en dólares. Los vencidos y los precios
+// escritos a mano no se tocan.
+function pesosSinPrecioHoy(r,liq){
+  if(r.manualOverride||!r.vcto||diasACT(liq,parseDate(r.vcto))<=0)return r;
+  return{...r,precio:null,pct_change:null,bid:null,ask:null,vol:null,ops:null,monto:null,
+    precioCierre:{buscando:true}};
+}
+
+// Completa los que quedaron buscando, en las cuatro curvas. Devuelve qué tickers
+// quedaron al cierre anterior y cuáles sin precio.
+async function pesosCompletarCierres(){
+  const listas=[
+    {get:()=>LECAPS,set:v=>{LECAPS=v;},
+     repintar:()=>{DATA=LECAPS.map(enrich);savePortfolio();renderTable();if(selectedTicker)recalcPanel();}},
+    {get:()=>CER_BONDS,set:v=>{CER_BONDS=v;},
+     repintar:()=>{CER_DATA=CER_BONDS.map(cerEnrich);savePortfolio();cerRenderTable();if(cerSelectedTicker)cerRecalcPanel();}},
+    {get:()=>TAMAR_BONDS,set:v=>{TAMAR_BONDS=v;},
+     repintar:()=>{tamarSaveBonds();tamarRenderTable();if(tamarSelectedTicker)tamarOpenPanel(tamarSelectedTicker);}},
+    {get:()=>DLK_BONDS,set:v=>{DLK_BONDS=v;},
+     repintar:()=>{dlkSaveBonds();DLK_DATA=DLK_BONDS.map(dlkEnrich);dlkRenderTable();if(dlkSelectedTicker)dlkRecalcPanel();}},
+  ];
+  const out={alCierre:[],sinPrecio:[]};
+  const buscando=b=>b&&b.precioCierre&&b.precioCierre.buscando;
+  const tickers=[...new Set(listas.flatMap(l=>l.get().filter(buscando).map(b=>b.ticker)))];
+  if(!tickers.length)return out;
+  // Un dual está en dos listas: se busca una vez.
+  const cierres=new Map(await Promise.all(tickers.map(async t=>[t,await cierreAnterior(t).catch(()=>null)])));
+  for(const l of listas){
+    let cambio=false;
+    l.set(l.get().map(b=>{
+      if(!buscando(b))return b;
+      cambio=true;
+      const ci=cierres.get(b.ticker);
+      if(ci)return{...b,precio:ci.c,precioCierre:{fecha:ci.fecha,fuente:ci.fuente,sym:b.ticker}};
+      return{...b,precioCierre:{sinPrecio:true,sym:b.ticker}};
+    }));
+    if(cambio)try{l.repintar();}catch(e){console.warn('[cierre] repintar:',e.message);}
+  }
+  for(const t of tickers)(cierres.get(t)?out.alCierre:out.sinPrecio).push(t);
+  try{beRefreshIfVisible();}catch(e){}
+  return out;
+}
+
+function pesosEstado(n,ci,palabra){
+  const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  return`${n} ${palabra||'actualizados'}`
+    +(ci.alCierre.length?` · al cierre anterior: ${ci.alCierre.join(', ')}`:'')
+    +(ci.sinPrecio.length?` · sin precio: ${ci.sinPrecio.join(', ')}`:'')
+    +` · ${now}`;
+}
+
+// La marca, la misma que en dólares.
+function pesosEsCierre(r){
+  const ci=r&&!r.manualOverride&&r.precioCierre;
+  return!!(ci&&!ci.buscando&&!ci.sinPrecio);
+}
+function pesosCierreTexto(r){
+  const ci=r&&!r.manualOverride&&r.precioCierre;
+  if(!ci)return'';
+  const t=ci.sym||r.ticker;
+  if(ci.buscando)return'Sin precio de hoy: buscando el último cierre';
+  if(ci.sinPrecio)return`Sin precio: ni data912 ni BYMA traen ${t}`;
+  if(ci.fecha)return`Sin precio de hoy (${t}): es el último operado, del ${bopFmtDateDisp(ci.fecha)}. Sin variación, puntas ni monto del día`;
+  return`Sin precio de hoy (${t}): es el cierre anterior que informa BYMA. Sin variación, puntas ni monto del día`;
+}
+function pesosCierreMarca(r){
+  if(!pesosEsCierre(r))return'';
+  const f=r.precioCierre.fecha;
+  return` <span title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="display:inline-block;margin-left:5px;padding:0 4px;border:1px solid var(--info);border-radius:3px;color:var(--info);font-size:9px;line-height:13px;font-weight:400;white-space:nowrap">${f?`cierre ${f.slice(8,10)}/${f.slice(5,7)}`:'cierre ant.'}</span>`;
+}
+// Debajo del precio de cada calculadora en pesos.
+function pesosNotaPanel(id,r){
+  const el=document.getElementById(id);
+  if(el)el.textContent=r&&r.precioCierre&&!r.manualOverride&&!r.precioCierre.buscando?pesosCierreTexto(r)+'.':'';
+}
+
 async function fetchPrices(){
   if(!LECAPS.length){
     document.getElementById('api-status').textContent='agregá letras primero';
@@ -3992,23 +4073,20 @@ async function fetchPrices(){
       const px=apiBestPrice(api);
       if(px){
         updated++;
-        return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};
+        return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false,precioCierre:null};
       }
       // solo reportar sin precio si el bono no está vencido
       const liq=G_LIQ||addHabiles(TODAY,1);
       if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
-      return r;
+      return pesosSinPrecioHoy(r,liq);
     });
     DATA=LECAPS.map(enrich);
     savePortfolio();
     renderTable();
     if(selectedTicker)recalcPanel();
-    const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    const msg=notFound.length
-      ? `${updated} actualizadas · ${notFound.join(', ')} sin precio · ${now}`
-      : `${updated} actualizadas · ${now}`;
-    statusEl.textContent=msg;
-    statusEl.className=notFound.length?'api-status err':'api-status ok';
+    const ci=await pesosCompletarCierres();
+    statusEl.textContent=pesosEstado(updated,ci,'actualizadas');
+    statusEl.className=ci.sinPrecio.length?'api-status err':'api-status ok';
     beRefreshIfVisible();
     curvasSnapshotToday();
   }catch(e){
@@ -4038,9 +4116,9 @@ async function fetchAllPrices(auto){
     if(LECAPS.length){
       LECAPS=LECAPS.map(r=>{
         const api=map.get(r.ticker);const px=apiBestPrice(api);
-        if(px){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
+        if(px){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false,precioCierre:null};}
         if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
-        return r;
+        return pesosSinPrecioHoy(r,liq);
       });
       DATA=LECAPS.map(enrich);savePortfolio();renderTable();
       if(selectedTicker)recalcPanel();
@@ -4050,9 +4128,9 @@ async function fetchAllPrices(auto){
     if(CER_BONDS.length){
       CER_BONDS=CER_BONDS.map(r=>{
         const api=map.get(r.ticker);
-        if(api){const px=apiBestPrice(api);if(px>0){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}}
+        if(api){const px=apiBestPrice(api);if(px>0){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false,precioCierre:null};}}
         if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
-        return r;
+        return pesosSinPrecioHoy(r,liq);
       });
       CER_DATA=CER_BONDS.map(cerEnrich);savePortfolio();cerRenderTable();
       if(cerSelectedTicker)cerRecalcPanel();
@@ -4062,9 +4140,9 @@ async function fetchAllPrices(auto){
     if(TAMAR_BONDS.length){
       TAMAR_BONDS=TAMAR_BONDS.map(r=>{
         const api=map.get(r.ticker);const px=apiBestPrice(api);
-        if(px){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
+        if(px){total++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false,precioCierre:null};}
         if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
-        return r;
+        return pesosSinPrecioHoy(r,liq);
       });
       tamarSaveBonds();tamarRenderTable();
     }
@@ -4074,8 +4152,8 @@ async function fetchAllPrices(auto){
       const updatedDlk=new Set();
       DLK_BONDS=DLK_BONDS.map(b=>{
         const api=map.get(b.ticker);const px=apiBestPrice(api);
-        if(px){total++;updatedDlk.add(b.ticker);return{...b,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
-        return b;
+        if(px){total++;updatedDlk.add(b.ticker);return{...b,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false,precioCierre:null};}
+        return pesosSinPrecioHoy(b,liq);
       });
       // Acá se restauraba el último cierre en cada refresco: borraba el tipo de
       // cambio escrito a mano y dejaba la fecha de ayer en la etiqueta, al lado
@@ -4095,11 +4173,10 @@ async function fetchAllPrices(auto){
     }
 
     beRefreshIfVisible();
-    const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    st.textContent=notFound.length
-      ?`${total} actualizados · sin precio: ${notFound.join(', ')} · ${now}`
-      :`${total} actualizados · ${now}`;
-    st.className=notFound.length?'api-status err':'api-status ok';
+    // Lo que no vino en vivo: el último cierre, marcado.
+    const ci=await pesosCompletarCierres();
+    st.textContent=pesosEstado(total,ci);
+    st.className=ci.sinPrecio.length?'api-status err':'api-status ok';
   }catch(e){
     document.getElementById('api-status').textContent=msgErrorPrecios(e);
     document.getElementById('api-status').className='api-status err';
@@ -4207,6 +4284,11 @@ function buildRow(r){
         onblur="commitCell()" onkeydown="cellKey(event)" autofocus>`;
     }
     const hs=isRate&&!v?heatStyle(val,HR[col],col):'';
+    // Un precio del cierre anterior va en otro color, con la marca.
+    if(col==='precio'&&!v&&r.precioCierre&&!isOverride){
+      const ci=pesosEsCierre(r);
+      return `<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${ci?'color:var(--info)':''}" onclick="startCell(event,'${r.ticker}','${col}')">${disp}${pesosCierreMarca(r)}</div>`;
+    }
     return `<div class="cv editable ${colorClass} ${overrideCls}" style="${hs}" onclick="startCell(event,'${r.ticker}','${col}')">${noPrice&&col!=='precio'?'—':disp}</div>`;
   }
 
@@ -4269,7 +4351,7 @@ function commitCell(){
   else if(col==='tir')     precio=tirToPrice(val,vf,dias);
   else { const tir=temToTIR(val); precio=tirToPrice(tir,vf,dias); }
 
-  LECAPS[idx]={...LECAPS[idx],precio,manualOverride:true};savePortfolio();
+  LECAPS[idx]={...LECAPS[idx],precio,manualOverride:true,precioCierre:null};savePortfolio();
   DATA=LECAPS.map(enrich);
   renderTable();
   renderChart();
@@ -4349,6 +4431,7 @@ function setMode(m,doRecalc=true){
 }
 
 function recalcPanel(){
+  pesosNotaPanel('p-cierre-nota',LECAPS.find(x=>x.ticker===selectedTicker));
   if(!selectedTicker)return;
   const r=DATA.find(d=>d.ticker===selectedTicker);if(!r)return;
   const liq=G_LIQ||addHabiles(TODAY,1);
@@ -5332,18 +5415,18 @@ async function cerFetchPrices(){
     let updated=0,notFound=[];
     CER_BONDS=CER_BONDS.map(r=>{
       const api=map.get(r.ticker);
-      if(api){const px=apiBestPrice(api);if(px>0){updated++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}}
+      if(api){const px=apiBestPrice(api);if(px>0){updated++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false,precioCierre:null};}}
       const liq=G_LIQ||addHabiles(TODAY,1);
       if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
-      return r;
+      return pesosSinPrecioHoy(r,liq);
     });
     CER_DATA=CER_BONDS.map(cerEnrich);
     savePortfolio();
     cerRenderTable();
     if(cerSelectedTicker)cerRecalcPanel();
-    const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    st.textContent=notFound.length?`${updated} actualizados · sin precio: ${notFound.join(', ')} · ${now}`:`${updated} actualizados · ${now}`;
-    st.className=notFound.length?'api-status err':'api-status ok';
+    const ci=await pesosCompletarCierres();
+    st.textContent=pesosEstado(updated,ci);
+    st.className=ci.sinPrecio.length?'api-status err':'api-status ok';
     beRefreshIfVisible();
     curvasSnapshotToday();
   }catch(e){
@@ -5417,6 +5500,10 @@ function cerRenderTable(){
         return`<input class="cell-input" id="cer-ci-input" type="number" step="0.01" value="${sv}" onblur="cerCommitCell()" onkeydown="cerCellKey(event)" autofocus>`;
       }
       const hs=isRate&&!v?cerHeatStyle(val,col):'';
+      if(col==='precio'&&!v&&r.precioCierre&&!r.manualOverride){
+        const ci=pesosEsCierre(r);
+        return`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${ci?'color:var(--info)':''}" onclick="cerStartCell(event,'${r.ticker}','${col}')">${disp}${pesosCierreMarca(r)}</div>`;
+      }
       return`<div class="cv editable ${cc} ${oc}" style="${hs}" onclick="cerStartCell(event,'${r.ticker}','${col}')">${r.precio==null&&col!=='precio'?'—':disp}</div>`;
     }
 
@@ -5470,7 +5557,7 @@ function cerCommitCell(){
     const tir=col==='tir'?val:col==='tem'?cerTemToTir(val):cerTnaToTir(val);
     precio=cerPrecioFromTir(tir,r,factor);
   } else { cerRenderTable(); return; }
-  CER_BONDS[idx]={...CER_BONDS[idx],precio,manualOverride:true};savePortfolio();
+  CER_BONDS[idx]={...CER_BONDS[idx],precio,manualOverride:true,precioCierre:null};savePortfolio();
   CER_DATA=CER_BONDS.map(cerEnrich);
   cerRenderTable();
   if(cerSelectedTicker===ticker)cerRecalcPanel();
@@ -5538,6 +5625,7 @@ function cerSetMode(m,doRecalc=true){
   if(doRecalc)cerRecalcPanel();
 }
 function cerRecalcPanel(){
+  pesosNotaPanel('cer-p-cierre-nota',CER_BONDS.find(x=>x.ticker===cerSelectedTicker));
   if(!cerSelectedTicker)return;
   const r=CER_DATA.find(d=>d.ticker===cerSelectedTicker);if(!r)return;
   const liq=G_LIQ||addHabiles(TODAY,1);
@@ -9542,7 +9630,9 @@ function tamarRenderTable(){
     const pxOverride=!!r.manualOverride&&!v;
     const pxCell=pxEditing
       ?`<input class="cell-input" id="tamar-ci-input" type="number" step="0.01" value="${r.precio!=null?r.precio.toFixed(4):''}" onblur="tamarCommitCell()" onkeydown="tamarCellKey(event)" autofocus>`
-      :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
+      :(r.precioCierre&&!pxOverride)
+        ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}${pesosCierreMarca(r)}</div>`
+        :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
     return`<tr onclick="tamarRowClick(event,'${r.ticker}')" style="cursor:pointer">
       <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span></div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
@@ -9593,7 +9683,7 @@ function tamarCommitCell(){
   if(isNaN(val)||val<=0){tamarRenderTable();return;}
   const idx=TAMAR_BONDS.findIndex(r=>r.ticker===ticker);
   if(idx<0){tamarRenderTable();return;}
-  TAMAR_BONDS[idx]={...TAMAR_BONDS[idx],precio:val,manualOverride:true};
+  TAMAR_BONDS[idx]={...TAMAR_BONDS[idx],precio:val,manualOverride:true,precioCierre:null};
   tamarSaveBonds();
   TAMAR_DATA=TAMAR_BONDS.map(tamarEnrich);
   tamarRenderTable();
@@ -9717,6 +9807,7 @@ function tamarOpenPanel(ticker){
           <input type="number" id="tp-precio" step="0.01" value="${precioActual}"
             style="font-family:var(--mono);font-size:13px;"
             oninput="tamarSetMode('precio');tamarPanelRecalc()">
+          <div id="tp-cierre-nota" style="font-size:10px;color:var(--info);margin-top:3px;line-height:1.35">${(()=>{const b=TAMAR_BONDS.find(x=>x.ticker===ticker);return b&&b.precioCierre&&!b.manualOverride&&!b.precioCierre.buscando?pesosCierreTexto(b)+'.':'';})()}</div>
         </div>
         <div class="field">
           <label>TIR %</label>
@@ -9816,15 +9907,15 @@ async function tamarFetchPrices(){
     TAMAR_BONDS=TAMAR_BONDS.map(r=>{
       const api=map.get(r.ticker);
       const px=apiBestPrice(api);
-      if(px){updated++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
+      if(px){updated++;return{...r,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false,precioCierre:null};}
       const liq=G_LIQ||addHabiles(TODAY,1);
       if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
-      return r;
+      return pesosSinPrecioHoy(r,liq);
     });
     tamarSaveBonds();tamarRenderTable();
-    const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    st.textContent=notFound.length?`${updated} actualizados · ${notFound.join(', ')} sin precio · ${now}`:`${updated} actualizados · ${now}`;
-    st.className=notFound.length?'api-status err':'api-status ok';
+    const ci=await pesosCompletarCierres();
+    st.textContent=pesosEstado(updated,ci);
+    st.className=ci.sinPrecio.length?'api-status err':'api-status ok';
     beRefreshIfVisible();
   }catch(e){
     document.getElementById('tamar-api-status').textContent=msgErrorPrecios(e);
@@ -11820,18 +11911,18 @@ function beCPCommitPx(input, ticker, tipo){
     CP_PX_OVERRIDE[ticker]=val;
     if(tipo==='tf'){
       const idx=LECAPS.findIndex(r=>r.ticker===ticker);
-      if(idx>=0) LECAPS[idx]={...LECAPS[idx],precio:val,manualOverride:true};
+      if(idx>=0) LECAPS[idx]={...LECAPS[idx],precio:val,manualOverride:true,precioCierre:null};
       DATA=LECAPS.map(enrich); // mantener DATA en sync para beFindTF
     } else if(tipo==='cer'){
       const idx=CER_BONDS.findIndex(r=>r.ticker===ticker);
-      if(idx>=0) CER_BONDS[idx]={...CER_BONDS[idx],precio:val,manualOverride:true};
+      if(idx>=0) CER_BONDS[idx]={...CER_BONDS[idx],precio:val,manualOverride:true,precioCierre:null};
     } else if(tipo==='tamar'){
       const idx=TAMAR_BONDS.findIndex(r=>r.ticker===ticker);
-      if(idx>=0) TAMAR_BONDS[idx]={...TAMAR_BONDS[idx],precio:val,manualOverride:true};
+      if(idx>=0) TAMAR_BONDS[idx]={...TAMAR_BONDS[idx],precio:val,manualOverride:true,precioCierre:null};
       TAMAR_DATA=TAMAR_BONDS.map(tamarEnrich);
     } else if(tipo==='dlk'){
       const idx=DLK_BONDS.findIndex(r=>r.ticker===ticker);
-      if(idx>=0) DLK_BONDS[idx]={...DLK_BONDS[idx],precio:val,manualOverride:true};
+      if(idx>=0) DLK_BONDS[idx]={...DLK_BONDS[idx],precio:val,manualOverride:true,precioCierre:null};
       DLK_DATA=DLK_BONDS.map(dlkEnrich);
     }
   }
@@ -12492,7 +12583,7 @@ function dlkCommitCell(){
   if(isNaN(val)||val<=0){dlkRenderTable();return;}
   const idx=DLK_BONDS.findIndex(b=>b.ticker===ticker);
   if(idx<0){dlkRenderTable();return;}
-  DLK_BONDS[idx]={...DLK_BONDS[idx],precio:val,manualOverride:true};
+  DLK_BONDS[idx]={...DLK_BONDS[idx],precio:val,manualOverride:true,precioCierre:null};
   dlkSaveBonds();
   DLK_DATA=DLK_BONDS.map(dlkEnrich);
   dlkRenderTable();
@@ -12823,7 +12914,9 @@ function dlkRenderTable(){
     const pxOverride=!!r.manualOverride;
     const pxCell=pxEditing
       ?`<input class="cell-input" id="dlk-ci-input" type="number" step="0.01" value="${r.precio!=null?r.precio.toFixed(4):''}" onblur="dlkCommitCell()" onkeydown="dlkCellKey(event)" autofocus>`
-      :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
+      :(r.precioCierre&&!pxOverride)
+        ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}${pesosCierreMarca(r)}</div>`
+        :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
     return`<tr onclick="dlkRowClick(event,'${r.ticker}')" style="cursor:pointer">
       <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span></div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
@@ -12886,6 +12979,7 @@ function dlkRenderPanel(r){
           step="0.01" placeholder="Precio sucio $"
           style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:4px 8px;font-family:var(--mono);font-size:13px;color:var(--text);outline:none;"
           onchange="dlkOnPxChange(this.value)">
+        <div id="dlk-cierre-nota" style="font-size:10px;color:var(--info);margin-top:3px;line-height:1.35">${r.precioCierre&&!r.manualOverride&&!r.precioCierre.buscando?pesosCierreTexto(r)+'.':''}</div>
       </div>
       <div style="flex:1;min-width:75px;">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:3px">Paridad USD</div>
@@ -12960,7 +13054,7 @@ function dlkOnPxChange(val){
   const v=parseFloat(val);
   if(isNaN(v)||v<=0) return;
   const idx=DLK_BONDS.findIndex(b=>b.ticker===dlkSelectedTicker);
-  if(idx>=0){DLK_BONDS[idx]={...DLK_BONDS[idx],precio:v,manualOverride:true};dlkSaveBonds();}
+  if(idx>=0){DLK_BONDS[idx]={...DLK_BONDS[idx],precio:v,manualOverride:true,precioCierre:null};dlkSaveBonds();}
   DLK_DATA=DLK_BONDS.map(dlkEnrich);
   dlkRecalcPanel();
   dlkRenderTable();
@@ -12972,7 +13066,7 @@ function dlkOnParChange(val){
   if(!tc||tc<=0) return;
   const precio=par*tc;
   const idx=DLK_BONDS.findIndex(b=>b.ticker===dlkSelectedTicker);
-  if(idx>=0){DLK_BONDS[idx]={...DLK_BONDS[idx],precio,manualOverride:true};dlkSaveBonds();}
+  if(idx>=0){DLK_BONDS[idx]={...DLK_BONDS[idx],precio,manualOverride:true,precioCierre:null};dlkSaveBonds();}
   DLK_DATA=DLK_BONDS.map(dlkEnrich);
   dlkRecalcPanel();
   dlkRenderTable();
@@ -12991,12 +13085,13 @@ function dlkOnTNAChange(val){
   const precio=dlkTIRtoPrice(tir,bond,liq,tc);
   if(!precio||precio<=0) return;
   const idx=DLK_BONDS.findIndex(b=>b.ticker===dlkSelectedTicker);
-  if(idx>=0){DLK_BONDS[idx]={...DLK_BONDS[idx],precio,manualOverride:true};dlkSaveBonds();}
+  if(idx>=0){DLK_BONDS[idx]={...DLK_BONDS[idx],precio,manualOverride:true,precioCierre:null};dlkSaveBonds();}
   DLK_DATA=DLK_BONDS.map(dlkEnrich);
   dlkRecalcPanel();
   dlkRenderTable();
 }
 function dlkRecalcPanel(){
+  pesosNotaPanel('dlk-cierre-nota',DLK_BONDS.find(x=>x.ticker===dlkSelectedTicker));
   if(!dlkSelectedTicker)return;
   const bond=DLK_BONDS.find(b=>b.ticker===dlkSelectedTicker);
   if(!bond) return;
@@ -13040,8 +13135,8 @@ async function dlkFetchPrices(){
     DLK_BONDS=DLK_BONDS.map(b=>{
       const api=map.get(b.ticker);
       const px=apiBestPrice(api);
-      if(px){updatedDlk.add(b.ticker);return{...b,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false};}
-      return b;
+      if(px){updatedDlk.add(b.ticker);return{...b,precio:px,pct_change:api.pct_change??null,...libroDe(api),manualOverride:false,precioCierre:null};}
+      return pesosSinPrecioHoy(b,G_LIQ||addHabiles(TODAY,1));
     });
     dlkSaveBonds();
     // Acá se restauraba el último cierre, que además de repintar borraba el tipo
@@ -13059,6 +13154,7 @@ async function dlkFetchPrices(){
       });
       if(sintChanged){sintSaveBonds();SINT_DATA=SINT_BONDS.map(sintEnrich);sintRenderTable();}
     }
+    await pesosCompletarCierres();
   }catch(e){console.warn('dlkFetchPrices error:',e);}
 }
 
@@ -13282,7 +13378,7 @@ function fwdCommitPx(input, ticker, tipo){
   if(!isNaN(val)&&val>0){
     const arr=tipo==='tf'?LECAPS:tipo==='cer'?CER_BONDS:TAMAR_BONDS;
     const idx=arr.findIndex(r=>r.ticker===ticker);
-    if(idx>=0) arr[idx]={...arr[idx],precio:val,manualOverride:true};
+    if(idx>=0) arr[idx]={...arr[idx],precio:val,manualOverride:true,precioCierre:null};
   }
   fwdRecalc();
 }
@@ -14378,7 +14474,7 @@ function usdPrecioVivo(row,map,mepRate){
 // tickers líquidos —tiene GD30C pero no GD29C ni BPA7C, que son justo los que
 // suelen faltar—, así que si no está, el cierre anterior que informa BYMA, que
 // no dice de qué día es.
-async function usdCierreAnterior(sym){
+async function cierreAnterior(sym){
   if(!sym)return null;
   const m=await seriesHist912(sym);
   const hoy=hoyAR();
@@ -14392,26 +14488,31 @@ async function usdCierreAnterior(sym){
   return c>0?{fecha:null,c,fuente:'byma'}:null;
 }
 
-// El cierre anterior de todas las especies de bonos públicos, en una llamada.
-const BYMA_BONOS_URL='https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/public-bonds';
+// El cierre anterior de todas las especies, en dos llamadas: los bonos públicos
+// y las letras —LECAP, LECER, LELINK—, que BYMA publica en otro panel.
+const BYMA_FREE='https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free';
 let _bymaCierres=null;
 async function bymaCierresAnteriores(){
   if(_bymaCierres&&Date.now()-_bymaCierres.ts<CAUCION_TTL)return _bymaCierres.m;
   const m=new Map();
-  try{
-    const res=await fetch(BYMA_BONOS_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+  const panel=async ep=>{
+    const res=await fetch(`${BYMA_FREE}/${ep}`,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({page_size:3000}),signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
-    if(!res.ok)throw new Error('BYMA HTTP '+res.status);
+    if(!res.ok)throw new Error('BYMA '+ep+' HTTP '+res.status);
     const crudo=await res.json();
-    const arr=Array.isArray(crudo)?crudo:((crudo&&crudo.data)||[]);
-    for(const x of arr){
-      if(!x||!x.symbol||!(x.previousClosingPrice>0))continue;
-      const e=m.get(x.symbol)||{};
-      e[String(x.settlementType)==='1'?'ci':'h24']=+x.previousClosingPrice;
-      m.set(x.symbol,e);
+    return Array.isArray(crudo)?crudo:((crudo&&crudo.data)||[]);
+  };
+  const r=await Promise.allSettled([panel('public-bonds'),panel('lebacs')]);
+  for(const x of r){
+    if(x.status!=='fulfilled'){console.warn('[byma] cierres anteriores:',x.reason&&x.reason.message);continue;}
+    for(const it of x.value){
+      if(!it||!it.symbol||!(it.previousClosingPrice>0))continue;
+      const e=m.get(it.symbol)||{};
+      e[String(it.settlementType)==='1'?'ci':'h24']=+it.previousClosingPrice;
+      m.set(it.symbol,e);
     }
-    _bymaCierres={ts:Date.now(),m};
-  }catch(e){console.warn('[byma] cierres anteriores:',e.message);}
+  }
+  if(r.some(x=>x.status==='fulfilled'))_bymaCierres={ts:Date.now(),m};
   return m;
 }
 
@@ -14540,7 +14641,7 @@ async function usdRefreshPrices(){
     let alCierre=0,sinPrecio=0;
     if(faltan.length){
       if(statusEl)statusEl.textContent=`Buscando el cierre anterior de ${faltan.length} bono${faltan.length>1?'s':''}…`;
-      const cierres=await Promise.all(faltan.map(x=>usdCierreAnterior(x.sym).catch(()=>null)));
+      const cierres=await Promise.all(faltan.map(x=>cierreAnterior(x.sym).catch(()=>null)));
       // En pesos, el cierre se pasa a dólares con el MEP de esa misma rueda; el
       // de BYMA, que no tiene fecha, con el de la última rueda cerrada.
       let mepDe=()=>null;
@@ -16160,7 +16261,7 @@ async function _curvasSnapshotTodayImpl(){
   // ARS TF (LECAPS) — usa enrich() que ya computa tna/tir/dias
   if(!fresh('TF')&&LECAPS&&LECAPS.length){
     LECAPS.forEach(b=>{
-      if(b.precio==null)return;
+      if(b.precio==null||b.precioCierre)return;
       if(curvasMuyCerca(b.vcto,liq))return;
       try{
         const e=enrich(b);
@@ -16176,7 +16277,7 @@ async function _curvasSnapshotTodayImpl(){
   if(!fresh('CER')&&CER_BONDS&&CER_BONDS.length){
     if(!CER_INDEX.length) await cerFetchIndex();
     CER_BONDS.forEach(b=>{
-      if(b.precio==null)return;
+      if(b.precio==null||b.precioCierre)return;
       if(curvasMuyCerca(b.vcto,liq))return;
       try{
         const e=cerEnrich(b);
@@ -16191,7 +16292,7 @@ async function _curvasSnapshotTodayImpl(){
   // ARS TAMAR
   if(!fresh('TAMAR')&&typeof TAMAR_BONDS!=='undefined'&&TAMAR_BONDS&&TAMAR_BONDS.length){
     TAMAR_BONDS.forEach(b=>{
-      if(b.precio==null)return;
+      if(b.precio==null||b.precioCierre)return;
       if(curvasMuyCerca(b.vcto,liq))return;
       try{
         const e=tamarEnrich(b);
@@ -16206,7 +16307,7 @@ async function _curvasSnapshotTodayImpl(){
   // ARS DLK
   if(!fresh('DLK')&&typeof DLK_BONDS!=='undefined'&&DLK_BONDS&&DLK_BONDS.length){
     DLK_BONDS.forEach(b=>{
-      if(b.precio==null)return;
+      if(b.precio==null||b.precioCierre)return;
       if(curvasMuyCerca(b.vcto,liq))return;
       try{
         const e=dlkEnrich(b);
@@ -16353,16 +16454,16 @@ function curvasSnapshotFromMemory(sector){
   if(BON_BONDS&&BON_BONDS.length) addUsd(BON_BONDS,'BON');
   if(GLO_BONDS&&GLO_BONDS.length) addUsd(GLO_BONDS,'GLO');
   if((!sector||sector==='TF'||sector==='ALL')&&LECAPS&&LECAPS.length){
-    LECAPS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=enrich(b);if(!e||isNaN(e.tna))return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'TF',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
+    LECAPS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=enrich(b);if(!e||isNaN(e.tna))return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'TF',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='CER'||sector==='ALL')&&CER_BONDS&&CER_BONDS.length){
-    CER_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=cerEnrich(b);if(!e||isNaN(e.tir))return;rows.push({ticker:b.ticker,tir:e.tir,md:null,dias:e.dias,sector:'CER',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
+    CER_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=cerEnrich(b);if(!e||isNaN(e.tir))return;rows.push({ticker:b.ticker,tir:e.tir,md:null,dias:e.dias,sector:'CER',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='TAMAR'||sector==='ALL')&&typeof TAMAR_BONDS!=='undefined'&&TAMAR_BONDS&&TAMAR_BONDS.length){
-    TAMAR_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=tamarEnrich(b);if(!e||isNaN(e.margenTNA)||!e.dias)return;rows.push({ticker:b.ticker,tir:e.margenTNA,md:null,dias:e.dias,sector:'TAMAR',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
+    TAMAR_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=tamarEnrich(b);if(!e||isNaN(e.margenTNA)||!e.dias)return;rows.push({ticker:b.ticker,tir:e.margenTNA,md:null,dias:e.dias,sector:'TAMAR',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='DLK'||sector==='ALL')&&typeof DLK_BONDS!=='undefined'&&DLK_BONDS&&DLK_BONDS.length){
-    DLK_BONDS.forEach(b=>{if(b.precio==null)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=dlkEnrich(b);if(!e||e.tna==null)return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'DLK',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
+    DLK_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=dlkEnrich(b);if(!e||e.tna==null)return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'DLK',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   return rows;
 }

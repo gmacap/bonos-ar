@@ -412,6 +412,72 @@ const omitir = (label, motivo) =>
           'con precio en vivo otra vez, la marca se va', JSON.stringify(sinHoy.vuelta));
   }
 
+  // Lo mismo en pesos: una LECAP, un CER, un TAMAR y un DLK sin precio en vivo
+  // toman el cierre anterior, marcado, en vez de quedarse con el de la última vez.
+  console.log('\nPesos sin precio de hoy');
+  const pesosHoy = await page.evaluate(async () => {
+    const realFetch = fetchData912, realHist = seriesHist912, realByma = bymaCierresAnteriores;
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const vivo = b => b && b.precio > 0 && b.vcto && diasACT(liq, parseDate(b.vcto)) > 5 && !b.manualOverride;
+    const tk = (lista, fuera) => (lista.find(b => vivo(b) && !fuera.some(l => l.some(x => x.ticker === b.ticker))) || {}).ticker;
+    const elegidos = {
+      TF: tk(LECAPS, []), CER: tk(CER_BONDS, [TAMAR_BONDS]),
+      TAMAR: tk(TAMAR_BONDS, [CER_BONDS, DLK_BONDS]), DLK: tk(DLK_BONDS, [TAMAR_BONDS]),
+    };
+    const quitar = new Set(Object.values(elegidos).filter(Boolean));
+    if (quitar.size < 4) return { sinDatos: true, elegidos };
+    const cierres = new Map([...quitar].map((t, i) => [t, { h24: 100 + i, ci: 90 + i }]));
+    const de = t => [LECAPS, CER_BONDS, TAMAR_BONDS, DLK_BONDS].flat().find(b => b.ticker === t);
+    const out = { elegidos };
+    try {
+      fetchData912 = async ep => (await realFetch(ep)).filter(x => !quitar.has(x.symbol));
+      seriesHist912 = async () => new Map();
+      bymaCierresAnteriores = async () => cierres;
+      await fetchAllPrices(true);
+      out.al = Object.fromEntries(Object.entries(elegidos).map(([sec, t]) => {
+        const b = de(t);
+        return [sec, { t, precio: b.precio, esperado: cierres.get(t).h24, fuente: b.precioCierre && b.precioCierre.fuente, vol: b.vol, monto: b.monto }];
+      }));
+      const html = id => (document.getElementById(id) || {}).innerHTML || '';
+      out.marcas = {
+        TF: html('table-body').includes('cierre ant.'), CER: html('cer-table-body').includes('cierre ant.'),
+        TAMAR: html('tamar-table-body').includes('cierre ant.'), DLK: html('dlk-table-body').includes('cierre ant.'),
+      };
+      out.estado = (document.getElementById('api-status') || {}).textContent || '';
+      out.enMemoria = curvasSnapshotFromMemory('TF').some(r => r.ticker === elegidos.TF);
+      // Sin cierre en ninguna fuente: sin precio, no el de antes.
+      bymaCierresAnteriores = async () => new Map();
+      await fetchAllPrices(true);
+      out.sin = Object.values(elegidos).map(t => { const b = de(t); return { t, precio: b.precio, sinPrecio: !!(b.precioCierre && b.precioCierre.sinPrecio) }; });
+      out.estadoSin = (document.getElementById('api-status') || {}).textContent || '';
+      // Un precio escrito a mano no se toca. Escribirlo borra la marca, así que
+      // llega sin ella.
+      const manual = pesosSinPrecioHoy({ ...de(elegidos.TF), manualOverride: true, precio: 99, precioCierre: null }, liq);
+      out.manualIntacto = manual.precio === 99 && !manual.precioCierre;
+    } finally {
+      fetchData912 = realFetch; seriesHist912 = realHist; bymaCierresAnteriores = realByma;
+      await fetchAllPrices(true);
+    }
+    out.vuelta = Object.values(elegidos).map(t => { const b = de(t); return { t, precio: b.precio, ci: b.precioCierre || null }; });
+    return out;
+  });
+  if (pesosHoy.sinDatos) {
+    omitir('pesos sin precio de hoy', 'faltan bonos con precio en alguna curva: ' + JSON.stringify(pesosHoy.elegidos));
+  } else {
+    const al = Object.values(pesosHoy.al);
+    check(al.every(x => x.precio === x.esperado && x.fuente === 'byma'),
+          'en las cuatro curvas, sin precio en vivo, el bono toma el cierre anterior de BYMA', JSON.stringify(pesosHoy.al));
+    check(al.every(x => x.vol == null && x.monto == null), 'un precio del cierre anterior no trae volumen ni monto del día');
+    check(Object.values(pesosHoy.marcas).every(Boolean), 'las cuatro tablas lo marcan', JSON.stringify(pesosHoy.marcas));
+    check(/al cierre anterior:/.test(pesosHoy.estado), 'el estado de ↻ Precios dice cuáles quedaron al cierre', pesosHoy.estado);
+    check(!pesosHoy.enMemoria, 'el cierre anterior no entra a la curva de hoy');
+    check(pesosHoy.sin.every(x => x.precio == null && x.sinPrecio) && /sin precio:/.test(pesosHoy.estadoSin),
+          'sin cierre en ninguna fuente queda sin precio, no con el de antes', JSON.stringify(pesosHoy.sin));
+    check(pesosHoy.manualIntacto, 'un precio escrito a mano no se reemplaza');
+    check(pesosHoy.vuelta.every(x => x.precio > 0 && !x.ci), 'con precio en vivo otra vez, la marca se va',
+          JSON.stringify(pesosHoy.vuelta));
+  }
+
   console.log('\nFamilias USD: descriptor y envoltorios');
   const fam = await page.evaluate(() => {
     const r = {};
