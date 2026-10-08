@@ -392,6 +392,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <nav class="nav" id="nav-usd" style="display:none">
   <button class="nav-tab active" id="nav-usd-resumen"     onclick="switchUsdTab('usd-resumen')">Resumen</button>
   <button class="nav-tab"        id="nav-usd-forwards"    onclick="switchUsdTab('usd-forwards')">Forwards</button>
+  <button class="nav-tab"        id="nav-usd-retornos"    onclick="switchUsdTab('usd-retornos')">Retornos</button>
   <button class="nav-tab"        id="nav-usd-spreadleg"   onclick="switchUsdTab('usd-spreadleg')">Spread Leg.</button>
   <button class="nav-tab"        id="nav-usd-bonares"     onclick="switchUsdTab('usd-bonares')">Bonares</button>
   <button class="nav-tab"        id="nav-usd-globales"    onclick="switchUsdTab('usd-globales')">Globales</button>
@@ -2069,6 +2070,60 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div>
 
 </div>
+<div id="page-usd-retornos" class="pg" style="overflow-y:auto">
+  <div style="display:flex;flex-direction:column;gap:18px;padding:12px 18px 28px">
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Fecha de corte</span>
+        <span style="display:flex;gap:4px;align-items:center"><input type="date" id="ret-corte" onchange="retSetPref('corte',this.value||null)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;font-size:11px;font-family:var(--mono);color:var(--text);outline:none">
+        <button class="btn" style="padding:2px 6px;font-size:10px" onclick="retSetPref('corte',null)" title="Volver a un año desde la liquidación">↺</button></span></label>
+      <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Reinvertir cobros</span>
+        <div class="mode-row"><button class="mode-btn" id="ret-reinv-si" onclick="retSetPref('reinvertir',true)">Sí</button><button class="mode-btn" id="ret-reinv-no" onclick="retSetPref('reinvertir',false)">No</button></div></div>
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Tasa de reinversión (% TEA)</span>
+        <span style="display:flex;gap:4px;align-items:center"><input type="number" id="ret-tasa" step="0.05" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;font-size:11px;font-family:var(--mono);color:var(--text);outline:none;width:70px" onchange="retSetPref('tasa',this.value===''?null:+this.value)">
+        <button class="btn" style="padding:2px 6px;font-size:10px" onclick="retSetPref('tasa',null)" title="Volver al Treasury del plazo">↺</button>
+        <span id="ret-tasa-nota" style="font-size:10px;color:var(--text3);font-family:var(--mono)"></span></span></label>
+      <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Familias</span><div id="ret-familias" style="display:flex;gap:4px"></div></div>
+      <span id="ret-st" style="margin-left:auto;font-size:10px;color:var(--text3);font-family:var(--mono)"></span>
+    </div>
+
+    <section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)">Retornos con TIR de salida</span>
+        <span id="ret-sub" style="font-size:10px;color:var(--text3);font-family:var(--mono)"></span>
+      </div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:1100px">
+        <thead id="ret-thead"></thead><tbody id="ret-tbody"></tbody></table></div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5;max-width:1100px">Cada columna de 5% a 25% es la TIR a la que suponés que el bono cotiza en la fecha de corte, cuando lo vendés. La celda es el retorno total en dólares hasta esa fecha —precio de venta más lo cobrado, reinvertido si elegiste reinvertir—, comprando hoy al precio de la tabla. <b>TIR constante</b>: la salida a la TIR de hoy. <b>BE retorno 0</b>: la TIR de salida con la que no ganás nada. <b>BE vs reinv.</b>: la que empata con dejar el capital a la tasa de reinversión. <b>Colchón</b>: cuántos pb puede subir la TIR desde hoy hasta el BE retorno 0.</div>
+      <ul id="ret-insights" style="margin:8px 0 0 16px;padding:0;font-size:11px;color:var(--text2);line-height:1.7"></ul>
+    </section>
+
+    <section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)">Escenarios de TIR</span>
+        <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">variación de precio hoy ante un shock de la curva · steepener: la punta corta baja 75 pb y la larga sube 75, lineal en duration; flattener, al revés</span>
+      </div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:900px">
+        <thead id="ret-esc-thead"></thead><tbody id="ret-esc-tbody"></tbody></table></div>
+    </section>
+
+    <section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)">Camino de precio para sostener una TIR</span>
+        <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">cotización histórica y el precio que tiene que tener el bono en cada fecha, hasta el corte</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;margin-bottom:8px">
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Bono</span><select id="ret-bono" onchange="RET_PREF.tirSim=null;retSetPref('bono',this.value)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;font-size:11px;font-family:var(--mono);color:var(--text);outline:none"></select></label>
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">TIR simulada (%)</span><input type="number" id="ret-tirsim" step="0.05" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;font-size:11px;font-family:var(--mono);color:var(--text);outline:none;width:70px" onchange="retSetPref('tirSim',this.value===''?null:+this.value)"></label>
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Precio limpio simulado (USD)</span><input type="number" id="ret-pxsim" step="0.05" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;font-size:11px;font-family:var(--mono);color:var(--text);outline:none;width:80px" onchange="retPrecioSim(this.value)"></label>
+        <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Ventana</span>
+          <div class="mode-row"><button class="mode-btn" id="ret-v-3M" onclick="retSetPref('ventana','3M')">3M</button><button class="mode-btn" id="ret-v-6M" onclick="retSetPref('ventana','6M')">6M</button><button class="mode-btn" id="ret-v-1A" onclick="retSetPref('ventana','1A')">1A</button><button class="mode-btn" id="ret-v-MAX" onclick="retSetPref('ventana','MAX')">MAX</button></div></div>
+      </div>
+      <div style="height:380px;position:relative"><canvas id="ret-chart"></canvas></div>
+      <div id="ret-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px"></div>
+      <div id="ret-chart-nota" style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5"></div>
+    </section>
+  </div>
+</div>
 <div id="page-usd-spreadleg" class="pg">
   <div style="display:flex;flex-direction:column;height:100%">
     <div style="display:flex;align-items:center;gap:8px;padding:0 1rem;height:40px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
@@ -2814,7 +2869,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -4972,7 +5027,7 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-spreadleg','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series','usd-comentario'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-spreadleg','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
@@ -5012,6 +5067,7 @@ function switchUsdTab(tab){
   if(tab==='usd-globales') gloInit();
   if(tab==='usd-bonares') bonInit();
   if(tab==='usd-forwards') usdFwdRecalc();
+  if(tab==='usd-retornos') retInit();
   if(tab==='usd-spreadleg') spreadLegRender();
   if(tab==='usd-equiv') equivRender();
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();}
@@ -15515,6 +15571,7 @@ async function usdRefreshPrices(){
       }
       const sl=document.getElementById('page-usd-spreadleg');
       if(sl&&sl.style.display!=='none')spreadLegRender();
+      if(currentSection==='usd'&&currentUsdTab==='usd-retornos')try{retRender();}catch(e){console.warn('[retornos]',e.message);}
       if(document.getElementById('ures-sleg-list'))usdResRefresh();
     };
 
@@ -19050,6 +19107,422 @@ function curvasUsdSetSector(sec){
     el.style.color=active?col:'var(--text3)';
   });
   curvasUsdRender();
+}
+
+// ══════════════════════════════════════════════════════════════ RETORNOS USD
+// Lo que rinde cada bono en dólares hasta una fecha de corte según la TIR a la
+// que se lo venda ese día, cuánto aguanta una suba de tasa antes de perder y
+// cómo se mueve el precio hoy ante un shock de la curva. Al pie, el camino que
+// tiene que recorrer el precio para sostener una TIR, sobre su historia.
+//
+// Convención de la app: el precio de pantalla es sucio, el valor presente de los
+// flujos que faltan (bopTIR, bopPrecio). La salida también: en la fecha de corte
+// el bono vale los flujos que quedan, descontados a la TIR de salida.
+//
+//   retorno(y)    (cobros hasta el corte + precio de salida a la TIR y) / precio − 1
+//   cobros        renta y amortización entre la liquidación y el corte, cada una
+//                 reinvertida hasta el corte a la tasa de reinversión si se pide
+//   BE retorno 0  la TIR de salida con la que el retorno es cero
+//   BE vs reinv.  la que empata con dejar el capital a la tasa de reinversión
+//   colchón       BE retorno 0 − TIR de hoy, en pb
+//
+// Con la tasa de reinversión igual a la TIR de hoy y la salida a esa misma TIR,
+// el retorno es exactamente (1 + TIR)^(días/365) − 1: es el valor futuro de los
+// mismos flujos. El smoke lo usa de control.
+//
+// El estado del módulo va con var a propósito: usdRefreshPrices puede repintar
+// esta solapa, y una const leída antes de que el script llegue a su línea corta
+// la carga entera de la app (pasó el 08/10/2026 con la tabla del Resumen).
+var RET_LS='bonosAR_retornos_v1';
+var RET_SALIDAS=[5,7.5,10,12.5,15,17.5,20,22.5,25];
+var RET_FAMS=[['bon','Bonares','BON'],['glo','Globales','GLO'],['bop','Bopreales','BOP']];
+var RET_SHOCKS=[-200,-100,-50,50,100,200];
+var RET_PENDIENTE=75;
+// Si el bono vence a menos de esto después del corte, la TIR de salida casi no
+// mueve el precio y los breakevens salen absurdos (un AO27 a 20 días pedía 94%
+// para perder): se muestran como n/a, igual que en el resto del mercado.
+var RET_RESTO_MIN=90;
+var RET_VENTANAS={'3M':91,'6M':182,'1A':365,'MAX':null};
+var RET_PREF={corte:null,reinvertir:true,tasa:null,familias:['bon','glo','bop'],bono:null,tirSim:null,ventana:'1A'};
+var RET_DATA=[];
+var retUst=null;        // {fecha, pts} de la última curva del Tesoro publicada
+var retChart=null;
+var retHist=new Map();  // ticker -> {ts, filas:[{fecha, precio}]}
+
+function retLoadLs(){
+  try{const r=localStorage.getItem(RET_LS);if(r)RET_PREF={...RET_PREF,...JSON.parse(r)};}catch(e){}
+}
+function retSaveLs(){
+  try{localStorage.setItem(RET_LS,JSON.stringify(RET_PREF));}catch(e){}
+}
+function retSetPref(k,v){
+  RET_PREF[k]=v;
+  retSaveLs();
+  retRender();
+}
+function retToggleFam(id){
+  const s=new Set(RET_PREF.familias||[]);
+  if(s.has(id))s.delete(id);else s.add(id);
+  retSetPref('familias',RET_FAMS.map(f=>f[0]).filter(f=>s.has(f)));
+}
+
+function retLiq(){return bopFmtDate(G_LIQ||addHabiles(TODAY,1));}
+function retCorte(){
+  const liq=retLiq();
+  const c=RET_PREF.corte;
+  if(c&&c>liq)return c;
+  const d=parseDate(liq);d.setFullYear(d.getFullYear()+1);
+  return fmtDate(d);
+}
+// La tasa a la que se reinvierte lo cobrado: la elegida, o el Treasury efectivo
+// del plazo hasta el corte. Sin curva del Tesoro todavía, 4%.
+function retTasa(){
+  if(RET_PREF.tasa!=null&&isFinite(RET_PREF.tasa))return{v:+RET_PREF.tasa,fuente:'manual'};
+  const plazo=diasACT(parseDate(retLiq()),parseDate(retCorte()))/365;
+  if(retUst&&retUst.pts){
+    const y=ustEfectiva(ustEnPlazo(retUst.pts,plazo));
+    if(y!=null)return{v:y,fuente:'treasury',plazo,fecha:retUst.fecha};
+  }
+  return{v:4,fuente:'defecto',plazo};
+}
+
+function retBonos(){
+  const liq=parseDate(retLiq());
+  const fams=new Set(RET_PREF.familias||[]);
+  const out=[];
+  for(const[id,,sector]of RET_FAMS){
+    if(!fams.has(id))continue;
+    for(const b of USD_FAM[id].bonds){
+      if(!b.vencimiento||!(b.lastPrecio>0))continue;
+      if(parseDate(b.vencimiento)<=liq)continue;
+      out.push({b,fam:id,sector});
+    }
+  }
+  return out.sort((a,z)=>a.b.vencimiento.localeCompare(z.b.vencimiento)||a.b.ticker.localeCompare(z.b.ticker));
+}
+
+// El núcleo, sin DOM: precio sucio de hoy, flujos, fechas y la tasa de
+// reinversión en % TEA.
+function retNucleo(x){
+  const liqD=parseDate(x.liq),cD=parseDate(x.corte);
+  const r=x.tasa/100;
+  let cobros=0,renta=0,amort=0;
+  const despues=[];
+  for(const f of x.flujos){
+    const fd=parseDate(f.fecha);
+    if(fd<=liqD)continue;
+    if(fd<=cD){
+      renta+=f.cupon;amort+=f.amortAmt;
+      cobros+=f.flujo*(x.reinvertir?Math.pow(1+r,diasACT(fd,cD)/365):1);
+    }else despues.push({t:diasACT(cD,fd)/365,cf:f.flujo});
+  }
+  const salida=y=>despues.reduce((s,q)=>s+q.cf/Math.pow(1+y/100,q.t),0);
+  const retorno=y=>(cobros+salida(y))/x.precio-1;
+  const dias=diasACT(liqD,cD);
+  const objetivo=Math.pow(1+r,dias/365)-1;
+  // El retorno baja con la TIR de salida: se busca por bisección entre −50% y
+  // 500%. Fuera de ese rango el empate no existe en la práctica.
+  const resolver=meta=>{
+    if(!despues.length)return null;
+    let lo=-50,hi=500;
+    if(retorno(lo)<meta||retorno(hi)>meta)return null;
+    for(let i=0;i<100;i++){const m=(lo+hi)/2;if(retorno(m)>meta)lo=m;else hi=m;}
+    return(lo+hi)/2;
+  };
+  return{retorno,salida,cobros,renta,amort,vence:!despues.length,dias,objetivo,
+    be0:resolver(0),beReinv:resolver(objetivo)};
+}
+
+function retCalcular(item,liq,corte,tasa,reinvertir){
+  const b=item.b;
+  const flujos=bopGenFlows(b);
+  const precio=b.lastPrecio;
+  const tir=bopTIR(b,liq,precio,flujos);
+  if(tir==null)return{...item,ticker:b.ticker,precio,error:'Sin TIR'};
+  const md=bopDuracion(b,liq,tir,flujos).mod;
+  const n=retNucleo({precio,flujos,liq,corte,tasa,reinvertir});
+  const ult=flujos.length?flujos[flujos.length-1].fecha:null;
+  const resto=ult?diasACT(parseDate(corte),parseDate(ult)):0;
+  const corto=!n.vence&&resto<RET_RESTO_MIN;
+  const be0=corto?null:n.be0,beReinv=corto?null:n.beReinv;
+  return{...item,ticker:b.ticker,precio,tir,md,flujos,n,resto,corto,be0,beReinv,
+    constante:n.retorno(tir),
+    grilla:RET_SALIDAS.map(y=>n.retorno(y)),
+    colchon:be0!=null?(be0-tir)*100:null};
+}
+
+// ── Escenarios: el precio de hoy ante un shock ──────────────────────────────
+function retShocks(filas,liq){
+  const ok=filas.filter(r=>!r.error&&r.md>0);
+  const mds=ok.map(r=>r.md);
+  const mn=Math.min(...mds),mx=Math.max(...mds);
+  const pend=md=>mx>mn?-RET_PENDIENTE+2*RET_PENDIENTE*(md-mn)/(mx-mn):0;
+  return ok.map(r=>{
+    const base=bopPrecio(r.b,liq,r.tir,r.flujos);
+    const px=dy=>(bopPrecio(r.b,liq,r.tir+dy/100,r.flujos)/base-1)*100;
+    const st=pend(r.md);
+    return{r,paralelos:RET_SHOCKS.map(px),steep:px(st),flat:px(-st),dSteep:st};
+  });
+}
+
+// ── El camino de precio ──────────────────────────────────────────────────────
+// Precio limpio: el sucio menos lo corrido. La renta no lo baja, sólo las
+// amortizaciones.
+function retCorrido(b,fecha,flujos){
+  // Lo devengado del próximo cupón impago. Se mira la fecha efectiva de pago y
+  // no la nominal: cuando el cupón cae en un día no hábil, entre una y otra el
+  // cupón sigue adentro del precio, y bopAccrued ya lo daba por cobrado (en el
+  // gráfico eran picos en cada pago).
+  const d=parseDate(fecha);
+  let prev=parseDate(b.emision);
+  for(const f of flujos){
+    const nom=parseDate(f.fechaNominal||f.fecha);
+    if(parseDate(f.fecha)<=d){prev=nom;continue;}
+    const tot=bopYearFrac(prev,nom,b.convencion);
+    if(!(tot>0))return 0;
+    const hecho=d>=nom?tot:Math.max(0,bopYearFrac(prev,d,b.convencion));
+    return f.cupon*Math.min(1,hecho/tot);
+  }
+  return 0;
+}
+function retLimpio(b,fecha,tir,flujos){
+  return bopPrecio(b,fecha,tir,flujos)-retCorrido(b,fecha,flujos);
+}
+async function retTraerHistoria(item){
+  const c=retHist.get(item.b.ticker);
+  if(c&&Date.now()-c.ts<30*60*1000)return c.filas;
+  let filas=[];
+  try{
+    const data=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
+      .select('snapshot_date,price').eq('sector',item.sector).eq('ticker',item.b.ticker)
+      .order('snapshot_date',{ascending:true}));
+    filas=(data||[]).filter(r=>r.price>0).map(r=>({fecha:r.snapshot_date,precio:+r.price}));
+  }catch(e){console.warn('[retornos] historia:',e.message);}
+  retHist.set(item.b.ticker,{ts:Date.now(),filas});
+  return filas;
+}
+
+// ── Pantalla ─────────────────────────────────────────────────────────────────
+function retInit(){
+  retLoadLs();
+  retRender();
+  if(!retUst){
+    ustCurvaEn(hoyAR()).then(c=>{if(c){retUst=c;retRender();}}).catch(()=>{});
+  }
+}
+
+var retN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
+var retPct=v=>v==null||!isFinite(v)?'—':(v*100).toFixed(2)+'%';
+function retColor(v,cap){
+  if(v==null||!isFinite(v))return'';
+  const a=Math.min(1,Math.sqrt(Math.abs(v)/cap));
+  if(a<0.04)return'';
+  const alfa=(0.06+0.44*a).toFixed(2);
+  return v>0?`background:rgba(74,222,128,${alfa})`:`background:rgba(248,113,113,${alfa})`;
+}
+
+function retRender(){
+  const tbody=document.getElementById('ret-tbody');
+  if(!tbody||!RET_SALIDAS)return;
+  const liq=retLiq(),corte=retCorte(),tasa=retTasa();
+  const reinvertir=RET_PREF.reinvertir!==false;
+  // Controles
+  const ci=document.getElementById('ret-corte');if(ci&&document.activeElement!==ci)ci.value=corte;
+  const ti=document.getElementById('ret-tasa');if(ti&&document.activeElement!==ti)ti.value=(+tasa.v).toFixed(2);
+  const tn=document.getElementById('ret-tasa-nota');
+  if(tn)tn.textContent=tasa.fuente==='treasury'?`Treasury ${retN(tasa.plazo,1)} años, efectiva (${betrF(tasa.fecha)})`
+    :tasa.fuente==='manual'?'elegida a mano':'sin curva del Tesoro: 4% por defecto';
+  ['si','no'].forEach(k=>{const el=document.getElementById('ret-reinv-'+k);if(el)el.classList.toggle('active',(k==='si')===reinvertir);});
+  Object.keys(RET_VENTANAS).forEach(v=>{const el=document.getElementById('ret-v-'+v);if(el)el.classList.toggle('active',RET_PREF.ventana===v);});
+  const fams=new Set(RET_PREF.familias||[]);
+  const fe=document.getElementById('ret-familias');
+  if(fe)fe.innerHTML=RET_FAMS.map(([id,l])=>{const on=fams.has(id),c=USD_FAM[id].colorPunto;
+    return`<button onclick="retToggleFam('${id}')" style="padding:2px 8px;font-size:10px;font-family:var(--mono);border-radius:3px;cursor:pointer;border:1px solid ${on?c:'var(--border2)'};background:${on?c+'22':'var(--surface2)'};color:${on?c:'var(--text3)'}">${l}</button>`;}).join('');
+
+  const items=retBonos();
+  RET_DATA=items.map(it=>{try{return retCalcular(it,liq,corte,tasa.v,reinvertir);}catch(e){return{...it,ticker:it.b.ticker,error:e.message};}});
+  const dias=diasACT(parseDate(liq),parseDate(corte));
+  const sub=document.getElementById('ret-sub');
+  if(sub)sub.textContent=`liquidación ${betrF(liq)} → corte ${betrF(corte)} (${dias} días) · reinversión ${reinvertir?retN(tasa.v)+'%':'no'} · precios en USD (${USD_MONEDA_TXT[usdCurrency]||usdCurrency})`;
+  const st=document.getElementById('ret-st');
+  if(st)st.textContent=`${RET_DATA.filter(r=>!r.error).length} bonos`;
+
+  const th='padding:6px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+  document.getElementById('ret-thead').innerHTML=`<tr>
+    <th style="${th};text-align:left">Bono</th><th style="${th}">Precio</th><th style="${th}">TIR hoy</th>
+    <th style="${th}" title="Salida a la TIR de hoy">TIR const.</th>
+    ${RET_SALIDAS.map(y=>`<th style="${th}">${retN(y,1)}%</th>`).join('')}
+    <th style="${th};border-left:1px solid var(--border2)" title="TIR de salida con retorno cero">BE ret. 0</th>
+    <th style="${th}" title="TIR de salida que empata con la tasa de reinversión">BE vs reinv.</th>
+    <th style="${th}" title="pb que puede subir la TIR hasta el BE de retorno cero">Colchón (pb)</th></tr>`;
+  if(!RET_DATA.length){
+    tbody.innerHTML=`<tr><td colspan="${7+RET_SALIDAS.length}" style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Sin bonos con precio en las familias elegidas.</td></tr>`;
+  }else{
+    const vals=RET_DATA.filter(r=>!r.error).flatMap(r=>[r.constante,...r.grilla]).filter(v=>isFinite(v));
+    const cap=Math.max(0.02,...vals.map(Math.abs));
+    const td='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+    tbody.innerHTML=RET_DATA.map(r=>{
+      const fam=USD_FAM[r.fam];
+      const tk=`<td style="${td};text-align:left;color:${fam.colorPunto};font-weight:600" title="${fam.label} · vence ${betrF(r.b.vencimiento)}">${r.ticker}</td>`;
+      if(r.error)return`<tr>${tk}<td colspan="${6+RET_SALIDAS.length}" style="${td};color:var(--text3);text-align:left">${betrEsc(r.error)}</td></tr>`;
+      const nota=r.n.vence?' title="Vence antes del corte: lo cobrado no depende de la TIR de salida"':'';
+      return`<tr>${tk}
+        <td style="${td}">${retN(r.precio)}${usdCierreMarca(r.b)}</td>
+        <td style="${td};color:var(--warn)">${retN(r.tir)}%</td>
+        <td style="${td};${retColor(r.constante,cap)};font-weight:600"${nota}>${retPct(r.constante)}</td>
+        ${r.grilla.map(v=>`<td style="${td};${retColor(v,cap)}"${nota}>${retPct(v)}</td>`).join('')}
+        ${(()=>{const na=r.corto?` title="Vence ${r.resto} días después del corte: la TIR de salida casi no mueve el precio"`:r.n.vence?' title="Vence antes del corte"':'';
+          return`<td style="${td};border-left:1px solid var(--border2);font-weight:600"${na}>${r.be0!=null?retN(r.be0)+'%':'n/a'}</td>
+        <td style="${td}"${na}>${r.beReinv!=null?retN(r.beReinv)+'%':'n/a'}</td>
+        <td style="${td}"${na}>${r.colchon!=null?Math.round(r.colchon).toLocaleString('es-AR'):'n/a'}</td>`;})()}</tr>`;
+    }).join('');
+  }
+  retRenderInsights(tasa);
+  retRenderEscenarios(liq);
+  retRenderCamino(liq,corte).catch(e=>console.warn('[retornos] camino:',e.message));
+}
+
+function retRenderInsights(tasa){
+  const ul=document.getElementById('ret-insights');
+  if(!ul)return;
+  const ok=RET_DATA.filter(r=>!r.error);
+  const con=ok.filter(r=>r.colchon!=null);
+  const li=[];
+  const tk=r=>`<b style="color:${USD_FAM[r.fam].colorPunto}">${r.ticker}</b>`;
+  if(con.length){
+    const mx=con.reduce((a,z)=>z.colchon>a.colchon?z:a),mn=con.reduce((a,z)=>z.colchon<a.colchon?z:a);
+    li.push(`${tk(mx)} tiene el mayor colchón: ${Math.round(mx.colchon).toLocaleString('es-AR')} pb hasta el retorno cero.`);
+    if(mn!==mx)li.push(`${tk(mn)} tiene el menor, ${Math.round(mn.colchon).toLocaleString('es-AR')} pb: es el más expuesto a una suba de tasa.`);
+  }
+  const be=ok.filter(r=>r.beReinv!=null);
+  if(be.length){
+    const m=be.reduce((a,z)=>z.beReinv-z.tir>a.beReinv-a.tir?z:a);
+    li.push(`${tk(m)} es el que más puede subir su TIR y seguir ganándole a reinvertir al ${retN(tasa.v)}%: hasta ${retN(m.beReinv)}%.`);
+  }
+  if(ok.length)li.push(`Con la TIR de hoy sin cambios, el retorno promedio a la fecha de corte es ${retPct(ok.reduce((s,r)=>s+r.constante,0)/ok.length)}.`);
+  ul.innerHTML=li.map(x=>`<li>${x}</li>`).join('');
+}
+
+function retRenderEscenarios(liq){
+  const tb=document.getElementById('ret-esc-tbody');
+  if(!tb)return;
+  const th='padding:6px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+  document.getElementById('ret-esc-thead').innerHTML=`<tr><th style="${th};text-align:left">Bono</th><th style="${th}">MD</th><th style="${th}">TIR hoy</th>
+    ${RET_SHOCKS.map(d=>`<th style="${th}">${d>0?'+':''}${d} pb</th>`).join('')}
+    <th style="${th};border-left:1px solid var(--border2)">Steepener</th><th style="${th}">Flattener</th></tr>`;
+  const filas=retShocks(RET_DATA,liq);
+  if(!filas.length){tb.innerHTML='';return;}
+  const cap=Math.max(1,...filas.flatMap(f=>[...f.paralelos,f.steep,f.flat]).map(Math.abs))/100;
+  const td='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+  const c=v=>`<td style="${td};${retColor(v/100,cap)}">${v>0?'+':''}${retN(v)}%</td>`;
+  tb.innerHTML=filas.map(f=>{
+    const r=f.r,fam=USD_FAM[r.fam];
+    return`<tr><td style="${td};text-align:left;color:${fam.colorPunto};font-weight:600">${r.ticker}</td>
+      <td style="${td}">${retN(r.md)}</td><td style="${td};color:var(--warn)">${retN(r.tir)}%</td>
+      ${f.paralelos.map(c).join('')}
+      ${c(f.steep).replace('<td style="','<td title="'+(f.dSteep>0?'+':'')+Math.round(f.dSteep)+' pb" style="border-left:1px solid var(--border2);')}
+      ${c(f.flat).replace('<td style="','<td title="'+(f.dSteep<0?'+':'')+Math.round(-f.dSteep)+' pb" style="')}</tr>`;
+  }).join('');
+}
+
+function retPrecioSim(v){
+  const r=RET_DATA.find(x=>!x.error&&x.ticker===RET_PREF.bono)||RET_DATA.find(x=>!x.error);
+  const px=parseFloat(v);
+  if(!r||!(px>0))return;
+  const liq=retLiq();
+  const tir=bopTIR(r.b,liq,px+retCorrido(r.b,liq,r.flujos),r.flujos);
+  if(tir!=null)retSetPref('tirSim',+tir.toFixed(4));
+}
+
+async function retRenderCamino(liq,corte){
+  const sel=document.getElementById('ret-bono');
+  const canvas=document.getElementById('ret-chart');
+  if(!sel||!canvas)return;
+  const ok=RET_DATA.filter(r=>!r.error);
+  sel.innerHTML=ok.map(r=>`<option value="${r.ticker}">${r.ticker}</option>`).join('');
+  const r=ok.find(x=>x.ticker===RET_PREF.bono)||ok[0];
+  if(!r){if(retChart){retChart.destroy();retChart=null;}return;}
+  sel.value=r.ticker;
+  const tirSim=RET_PREF.tirSim!=null&&isFinite(RET_PREF.tirSim)?+RET_PREF.tirSim:r.tir;
+  const ts=document.getElementById('ret-tirsim');if(ts&&document.activeElement!==ts)ts.value=(+tirSim).toFixed(2);
+  const corridoHoy=retCorrido(r.b,liq,r.flujos);
+  const limpioHoy=r.precio-corridoHoy;
+  const limpioSim=retLimpio(r.b,liq,tirSim,r.flujos);
+  const px=document.getElementById('ret-pxsim');if(px&&document.activeElement!==px)px.value=limpioSim.toFixed(2);
+
+  const hist=await retTraerHistoria(r);
+  // Pudo cambiar el bono mientras llegaba la historia.
+  if(r.ticker!==(document.getElementById('ret-bono')||{}).value)return;
+  const dias=RET_VENTANAS[RET_PREF.ventana];
+  const hoy=hoyAR();
+  let desde=dias?fmtDate(new Date(parseDate(hoy).getTime()-dias*86400000)):(hist[0]?hist[0].fecha:hoy);
+  if(r.b.emision&&desde<r.b.emision)desde=r.b.emision;
+  const dia=f=>Math.round(parseDate(f).getTime()/86400000);
+  const deDia=n=>fmtDate(new Date(n*86400000+12*3600000));
+  // Puntos del camino: un muestreo parejo más los días de cada pago y el
+  // anterior, para que los escalones de amortización caigan donde caen.
+  const d0=dia(desde),d1=dia(corte);
+  const paso=Math.max(1,Math.round((d1-d0)/400));
+  const xs=new Set();
+  for(let n=d0;n<=d1;n+=paso)xs.add(n);
+  xs.add(d1);
+  for(const f of r.flujos){const n=dia(f.fecha);if(n>d0&&n<=d1){xs.add(n);xs.add(n-1);}}
+  const xsOrd=[...xs].sort((a,z)=>a-z);
+  const camino=tir=>xsOrd.map(n=>{const f=deDia(n);const v=retLimpio(r.b,f,tir,r.flujos);return isFinite(v)&&v>0?{x:n,y:+v.toFixed(3)}:null;}).filter(Boolean);
+  const histPts=hist.filter(h=>h.fecha>=desde&&h.fecha<=hoy).map(h=>{
+    const v=h.precio-retCorrido(r.b,h.fecha,r.flujos);
+    return{x:dia(h.fecha),y:+v.toFixed(3)};
+  });
+  const dsHist={label:'Cotización (limpio)',data:histPts,borderColor:'#e8e8e8',borderWidth:1.3,pointRadius:0,tension:0,showLine:true,order:1};
+  const abanico=RET_SALIDAS.map((y,i)=>{
+    const k=i/(RET_SALIDAS.length-1);
+    const col=`rgba(${Math.round(74+(248-74)*k)},${Math.round(222+(113-222)*k)},${Math.round(128+(113-128)*k)},0.55)`;
+    return{label:`TIR ${retN(y,1)}%`,data:camino(y),borderColor:col,borderWidth:0.8,pointRadius:0,tension:0,showLine:true,order:3,abanico:true};
+  });
+  const dsSim={label:`TIR simulada ${retN(tirSim)}%`,data:camino(tirSim),borderColor:'#f59e0b',borderWidth:2.4,pointRadius:0,tension:0,showLine:true,order:0};
+  const dsMer={label:`TIR de mercado ${retN(r.tir)}%`,data:camino(r.tir),borderColor:'rgba(232,232,232,0.6)',borderWidth:1,borderDash:[4,4],pointRadius:0,tension:0,showLine:true,order:2};
+  const amorts=r.flujos.filter(f=>f.amortAmt>0&&dia(f.fecha)>d0&&dia(f.fecha)<=d1).map(f=>({x:dia(f.fecha),t:`Amort. ${retN(f.amortAmt)}`}));
+  const marcas={id:'retMarcas',afterDraw(ch){
+    const{ctx,chartArea:a,scales:{x}}=ch;
+    ctx.save();ctx.font='9px DM Mono, monospace';
+    const linea=(n,t,col)=>{const px=x.getPixelForValue(n);if(px<a.left||px>a.right)return;
+      ctx.strokeStyle=col;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(px,a.top);ctx.lineTo(px,a.bottom);ctx.stroke();
+      ctx.setLineDash([]);ctx.fillStyle=col;ctx.fillText(t,px+3,a.top+10);};
+    amorts.forEach(m=>linea(m.x,m.t,'rgba(160,160,160,0.6)'));
+    linea(dia(hoy),'hoy','rgba(245,158,11,0.8)');
+    ctx.restore();}};
+  if(retChart){retChart.destroy();retChart=null;}
+  const fmtX=n=>{const f=deDia(n);return`${MESES_ES[+f.slice(5,7)-1].toLowerCase()} ${f.slice(2,4)}`;};
+  retChart=new Chart(canvas,{type:'scatter',
+    data:{datasets:[dsSim,dsHist,dsMer,...abanico]},
+    plugins:[marcas],
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{datalabels:{display:false},
+        legend:{display:true,position:'top',labels:{filter:(it,data)=>!data.datasets[it.datasetIndex].abanico,color:'#8a9a8a',boxWidth:10,font:{size:10}}},
+        tooltip:{filter:it=>!it.dataset.abanico||it.datasetIndex===0,callbacks:{
+          title:ctx=>ctx[0]?betrF(deDia(ctx[0].raw.x)):'',
+          label:ctx=>`${ctx.dataset.label}: ${ctx.raw.y.toFixed(2)}`}}},
+      scales:{
+        x:{type:'linear',min:d0,max:d1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},maxTicksLimit:10,callback:fmtX}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Precio limpio USD / 100 VN',color:'#6b7c6b',font:{size:9}}}}}});
+
+  // Las tarjetas
+  const n=retNucleo({precio:limpioSim+corridoHoy,flujos:r.flujos,liq,corte,tasa:0,reinvertir:false});
+  const limpioCorte=n.vence?0:retLimpio(r.b,corte,tirSim,r.flujos);
+  const card=(t,v,sub)=>`<div style="border:1px solid var(--border);border-radius:4px;padding:8px 10px;background:var(--surface)">
+    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">${t}</div>
+    <div style="font-family:var(--mono);font-size:17px;color:var(--accent);margin:2px 0">${v}</div>
+    <div style="font-size:10px;color:var(--text3);line-height:1.4">${sub}</div></div>`;
+  document.getElementById('ret-cards').innerHTML=
+    card('Precio de mercado',`USD ${retN(limpioHoy)}`,`limpio · TIR ${retN(r.tir)}% · sucio USD ${retN(r.precio)}`)
+    +card('Precio simulado',`USD ${retN(limpioSim)}`,`TIR ${retN(tirSim)}% · ${limpioHoy>0?((limpioSim/limpioHoy-1)*100>=0?'+':'')+retN((limpioSim/limpioHoy-1)*100)+'% vs mercado':''}`)
+    +card(`Precio limpio al ${betrF(corte)}`,n.vence?'vencido':`USD ${retN(limpioCorte)}`,
+      n.vence?'vence antes del corte':`si la TIR queda en ${retN(tirSim)}% · ${limpioSim>0?((limpioCorte/limpioSim-1)*100>=0?'+':'')+retN((limpioCorte/limpioSim-1)*100)+'% vs hoy':''}${n.amort>0?` (con amortizaciones por USD ${retN(n.amort)})`:''}`)
+    +card('Cobrado hasta el corte',`USD ${retN(n.renta+n.amort)}`,
+      `renta USD ${retN(n.renta)} · amortización USD ${retN(n.amort)} · retorno total sin reinvertir ${retPct(n.retorno(tirSim))}`);
+  const nota=document.getElementById('ret-chart-nota');
+  if(nota)nota.textContent=`Precio limpio: el sucio menos lo corrido, así que la renta no lo baja y las amortizaciones sí (líneas punteadas). Cada línea de color es el precio que tiene que tener el bono en cada fecha para rendir esa TIR, de 5% (verde) a 25% (rojo). `
+    +(hist.length?`Historia: ${betrF(hist[0].fecha)} a ${betrF(hist[hist.length-1].fecha)}, en MEP${usdCurrency!=='MEP'?' (el precio de hoy está en '+(USD_MONEDA_TXT[usdCurrency]||usdCurrency)+')':''}.`:'Sin historia guardada para este bono.');
 }
 
 // ── SPREAD DE LEGISLACIÓN · dos fechas ────────────────────────────────────
