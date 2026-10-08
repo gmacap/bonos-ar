@@ -3672,6 +3672,39 @@ const omitir = (label, motivo) =>
     check(dua.repinta === true, 'cambiar el sendero de TAMAR repinta la solapa DUAL sola');
   }
 
+  // El color de la tabla del Resumen: sólo la TIR, por percentil y centrado en
+  // la mediana. La lista de la tabla es por usuario, así que se arma una.
+  console.log('\nColores de la tabla del Resumen');
+  const cpc = await page.evaluate(async () => {
+    const out = {};
+    const p = beCPPercentiles([5, 1, 3, 2, 4]);
+    const e = beCPPercentiles([1, 1, 3]);
+    out.percentiles = p.get(1) === 0 && p.get(3) === 0.5 && p.get(5) === 1 && e.get(1) === 0.25 && e.get(3) === 1;
+    out.escala = beCPHeat(0.5) === '' && beCPHeat(0.55) === '' && /74,222,128/.test(beCPHeat(1)) && /248,113,113/.test(beCPHeat(0));
+    const prev = CP_BONDS;
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    CP_BONDS = LECAPS.filter(b => b.precio > 0 && b.vcto && diasACT(liq, parseDate(b.vcto)) > 0).slice(0, 8).map(b => ({ ticker: b.ticker, tipo: 'tf' }));
+    switchSection('pesos'); switchTab('breakeven');
+    await new Promise(r => setTimeout(r, 800));
+    beCPRecalc();
+    const filas = [...document.querySelectorAll('#be-cp-tbody tr')].filter(tr => tr.children.length >= 7);
+    out.filas = filas.length;
+    const tir = tr => parseFloat(tr.children[5].textContent);
+    const bg = td => td.style.background || td.style.backgroundColor || '';
+    out.sinColorTnaTem = filas.every(tr => !bg(tr.children[4]) && !bg(tr.children[6]));
+    if (filas.length >= 2) {
+      const ord = [...filas].sort((a, b) => tir(a) - tir(b));
+      out.extremos = /74, 222, 128|74,222,128/.test(bg(ord[ord.length - 1].children[5])) && /248, 113, 113|248,113,113/.test(bg(ord[0].children[5]));
+    }
+    CP_BONDS = prev;
+    beCPRecalc();
+    return out;
+  });
+  check(cpc.percentiles && cpc.escala, 'el percentil reparte los empates y el medio de la escala va sin color', JSON.stringify(cpc));
+  if (cpc.filas < 2) omitir('colores de la tabla del Resumen en vivo', 'menos de dos LECAP con precio');
+  else check(cpc.sinColorTnaTem && cpc.extremos, 'en la tabla del Resumen sólo la TIR lleva color: la más alta verde, la más baja roja',
+             JSON.stringify(cpc));
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');

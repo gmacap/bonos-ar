@@ -12735,11 +12735,31 @@ function beCPEnrich(item){
   return null;
 }
 
-function beCPHeat(val, min, max){
-  if(val==null||isNaN(val)||min===max)return'';
-  const t=(val-min)/(max-min);
-  const r=Math.round(180*(1-t)), g=Math.round(160*t);
-  return `background:rgba(${r},${g},0,0.35);`;
+// El color de la TIR: su percentil entre las filas visibles, centrado en la
+// mediana. Verde arriba, rojo abajo, y el medio sin color.
+//
+// Antes se pintaban TNA, TIR y TEM de mínimo a máximo, en un degradé rojo →
+// verde que pasaba por un marrón: un solo valor raro aplastaba al resto en el
+// medio, que se veía todo igual, y las tres columnas repetían el mismo orden.
+const CP_HEAT_NEUTRO=0.15; // |q − 0,5|·2 por debajo de esto, sin color
+function beCPPercentiles(vals){
+  // q de 0 a 1 por valor; los empates comparten el rango promedio.
+  const v=vals.filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);
+  const out=new Map();
+  if(v.length<2)return out;
+  for(let i=0;i<v.length;){
+    let j=i;while(j+1<v.length&&v[j+1]===v[i])j++;
+    out.set(v[i],((i+j)/2)/(v.length-1));
+    i=j+1;
+  }
+  return out;
+}
+function beCPHeat(q){
+  if(q==null||!isFinite(q))return'';
+  const a=Math.abs(q-0.5)*2;
+  if(a<CP_HEAT_NEUTRO)return'';
+  const alfa=(0.08+0.42*a).toFixed(2);
+  return q>0.5?`background:rgba(74,222,128,${alfa});`:`background:rgba(248,113,113,${alfa});`;
 }
 
 function beCPRecalc(){
@@ -12763,13 +12783,9 @@ function beCPRecalc(){
     .filter(x=>x.r&&!x.r.expired);
   const valid=enriched.filter(x=>!x.r.error);
 
-  // rangos para heatmap de TNA, TIR, TEM
-  const tnaVals=valid.map(x=>x.r.tna).filter(v=>v!=null&&!isNaN(v));
-  const tirVals=valid.map(x=>x.r.tir).filter(v=>v!=null&&!isNaN(v));
-  const temVals=valid.map(x=>x.r.tem).filter(v=>v!=null&&!isNaN(v));
-  const mnTNA=Math.min(...tnaVals),mxTNA=Math.max(...tnaVals);
-  const mnTIR=Math.min(...tirVals),mxTIR=Math.max(...tirVals);
-  const mnTEM=Math.min(...temVals),mxTEM=Math.max(...temVals);
+  // Percentil de la TIR entre las filas visibles.
+  const pctTIR=beCPPercentiles(valid.map(x=>x.r.tir));
+  const nTIR=pctTIR.size?valid.filter(x=>x.r.tir!=null&&isFinite(x.r.tir)).length:0;
 
   const td='padding:5px 8px;font-size:12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-family:var(--mono);';
   const f=(v,d=2)=>v!=null&&!isNaN(v)?v.toFixed(d)+'%':'—';
@@ -12777,9 +12793,9 @@ function beCPRecalc(){
   tbody.innerHTML=enriched.map(({item,r})=>{
     if(!r)return`<tr><td colspan="8" style="padding:5px 8px;color:var(--danger);font-size:12px;border-bottom:1px solid var(--border)">${item.ticker}: sin datos</td></tr>`;
     if(r.error)return`<tr><td colspan="8" style="padding:5px 8px;color:var(--warn);font-size:12px;border-bottom:1px solid var(--border)">${item.ticker}: ${r.error}</td></tr>`;
-    const htna=beCPHeat(r.tna,mnTNA,mxTNA);
-    const htir=beCPHeat(r.tir,mnTIR,mxTIR);
-    const htem=beCPHeat(r.tem,mnTEM,mxTEM);
+    const qTIR=r.tir!=null&&isFinite(r.tir)?pctTIR.get(r.tir):null;
+    const htir=beCPHeat(qTIR);
+    const tTIR=qTIR!=null?`Percentil ${Math.round(qTIR*100)} de la TIR entre las ${nTIR} filas de la tabla. Verde arriba de la mediana, rojo abajo; el medio va sin color`:'';
     const pxDisplay=r.px!=null?fmtARS(r.px):'—';
     return`<tr style="background:${r.bg}">
       <td style="${td}text-align:left;color:${r.ac};font-weight:600">${r.ticker}</td>
@@ -12787,9 +12803,9 @@ function beCPRecalc(){
       <td style="${td}cursor:pointer;color:var(--text)" title="Click para editar precio"
           onclick="beCPEditPx(this,'${item.ticker}','${item.tipo}')">${pxDisplay}</td>
       <td style="${td}color:${r.tipo==='cer'?'var(--accent2)':r.tipo==='tamar'?'var(--warn)':'var(--text3)'}">${f(r.tirReal,4)}</td>
-      <td style="${td}${htna}">${f(r.tna)}</td>
-      <td style="${td}${htir}">${f(r.tir)}</td>
-      <td style="${td}${htem}">${f(r.tem)}</td>
+      <td style="${td}">${f(r.tna)}</td>
+      <td style="${td}${htir}"${tTIR?` title="${tTIR}"`:''}>${f(r.tir)}</td>
+      <td style="${td}">${f(r.tem)}</td>
       <td style="padding:5px 4px;border-bottom:1px solid var(--border)">
         <button onclick="beCPRemove('${item.ticker}','${item.tipo}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">✕</button>
       </td>
