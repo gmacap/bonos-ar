@@ -2093,6 +2093,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         </thead>
         <tbody id="sleg-tbody"></tbody>
       </table>
+      <div id="sleg-hist" style="padding:14px 16px 24px;display:flex;flex-direction:column;gap:18px"></div>
     </div>
     <div class="chart-area" id="sleg-chart-area" style="height:200px;">
       <div class="chart-resize-handle" id="sleg-chart-handle"></div>
@@ -2819,7 +2820,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -5018,7 +5019,7 @@ function switchUsdTab(tab){
   if(tab==='usd-bonares') bonInit();
   if(tab==='usd-forwards') usdFwdRecalc();
   if(tab==='usd-retornos') retInit('usd');
-  if(tab==='usd-spreadleg') spreadLegRender();
+  if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
@@ -16229,6 +16230,7 @@ function spreadLegRender(){
     const col=v>=0?'var(--accent2)':'var(--danger)';
     return`<span style="color:${col}">${v>=0?'+':''}${v.toFixed(2)}%</span>`;
   };
+  slegHistRender().catch(e=>console.warn('[sleg]',e.message));
   tbody.innerHTML=rows.map(r=>`<tr class="bb">
     <td style="padding:9px 14px;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums">${r.label}</td>
     <td style="padding:9px 12px;text-align:right;font-variant-numeric:tabular-nums">${fmt(r.bid)}</td>
@@ -16334,6 +16336,259 @@ function slegChartRender(rows){
     if(slegChart)slegChart.resize();
   });
 }());
+
+// ── SPREAD DE LEGISLACIÓN CON HISTORIA ─────────────────────────────────────
+// El mismo par de la tabla de arriba, pero medido en TIR: la del Bonar menos la
+// del Global de igual vencimiento, en pb. Arriba de cero, la ley local rinde más.
+// Se compara contra su propia historia en el rango elegido:
+//
+//   z           (spread de hoy − media) / desvío
+//   percentil   qué parte de los días del rango tuvo un spread menor o igual
+//   captura     lo que ganaría el Bonar en precio si el spread vuelve a la media:
+//               (spread − media) × duration modificada del Bonar
+//   carry       renta corriente del Bonar menos la del Global: cupón anual sobre
+//               precio, en pb
+//   idea        z ≥ +1: el local está barato contra su historia (comprar local,
+//               vender NY); z ≤ −1, al revés
+//
+// La historia sale de bond_price_snapshots, que guarda la TIR de cada bono en
+// MEP. El spread de hoy sale de los precios en vivo, así que la rueda de hoy no
+// entra en la media.
+//
+// Estado con var, por lo mismo que en Retornos: spreadLegRender corre desde
+// usdRefreshPrices.
+var SLEG_LS='bonosAR_sleg_hist_v1';
+var SLEG_RANGOS={'1M':30,'3M':91,'6M':182,'YTD':'ytd','1A':365,'MAX':'max'};
+var SLEG_Z_IDEA=1;
+var slegPref=null;
+var slegHistCache=null;   // {desde, hasta, ts, porPar: Map(label -> Map(fecha -> pb))}
+var slegHistChart=null;
+
+function slegPrefs(){
+  if(!slegPref){
+    slegPref={par:null,rango:'6M',desde:null,hasta:null};
+    try{const r=localStorage.getItem(SLEG_LS);if(r)slegPref={...slegPref,...JSON.parse(r)};}catch(e){}
+  }
+  return slegPref;
+}
+function slegSetPref(k,v){
+  const P=slegPrefs();
+  P[k]=v;
+  if(k==='rango'){P.desde=null;P.hasta=null;}
+  if(k==='desde'||k==='hasta')P.rango=null;
+  try{localStorage.setItem(SLEG_LS,JSON.stringify(P));}catch(e){}
+  slegHistRender();
+}
+function slegRango(){
+  const P=slegPrefs(),hoy=hoyAR();
+  if(!P.rango&&P.desde)return{desde:P.desde,hasta:P.hasta||hoy};
+  const r=SLEG_RANGOS[P.rango||'6M'];
+  let desde;
+  if(r==='ytd')desde=hoy.slice(0,4)+'-01-01';
+  else if(r==='max')desde='2020-01-01';
+  else desde=fmtDate(new Date(parseDate(hoy).getTime()-r*86400000));
+  return{desde,hasta:hoy};
+}
+
+// Los pares con su spread de hoy, en vivo.
+function slegParesVivos(){
+  const liq=bopFmtDate(G_LIQ||addHabiles(TODAY,1));
+  const liqD=parseDate(liq);
+  const met=b=>{
+    if(!b||!(b.lastPrecio>0))return null;
+    const flujos=bopGenFlows(b);
+    const tir=bopTIR(b,liq,b.lastPrecio,flujos);
+    if(tir==null)return null;
+    const md=bopDuracion(b,liq,tir,flujos).mod;
+    // Renta corriente: el cupón anual que paga hoy sobre lo que queda, sobre el precio.
+    const cy=bopGetRate(b,liqD)*bopGetOutstanding(flujos,liqD)/100/b.lastPrecio*100;
+    return{tir,md,cy,precio:b.lastPrecio};
+  };
+  return curvasSpreadPares().map(par=>{
+    const bon=BON_BONDS.find(b=>b.ticker===par.bon),glo=GLO_BONDS.find(b=>b.ticker===par.glo);
+    const l=met(bon),n=met(glo);
+    return{...par,local:l,ny:n,spread:l&&n?(l.tir-n.tir)*100:null};
+  });
+}
+
+async function slegTraerHistoria(desde,hasta){
+  const c=slegHistCache;
+  if(c&&c.desde===desde&&c.hasta===hasta&&Date.now()-c.ts<10*60*1000)return c.porPar;
+  const data=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
+    .select('snapshot_date,ticker,sector,tir')
+    .in('sector',['BON','GLO']).gte('snapshot_date',desde).lte('snapshot_date',hasta)
+    .order('snapshot_date',{ascending:true}));
+  const tir=new Map();   // fecha -> Map(ticker -> tir)
+  for(const r of data||[]){
+    if(r.tir==null||!isFinite(r.tir))continue;
+    if(!tir.has(r.snapshot_date))tir.set(r.snapshot_date,new Map());
+    tir.get(r.snapshot_date).set(r.ticker,+r.tir);
+  }
+  const porPar=new Map();
+  for(const par of curvasSpreadPares()){
+    const m=new Map();
+    for(const[f,t]of tir){
+      const a=t.get(par.bon),b=t.get(par.glo);
+      if(a!=null&&b!=null)m.set(f,(a-b)*100);
+    }
+    porPar.set(par.label,m);
+  }
+  slegHistCache={desde,hasta,ts:Date.now(),porPar};
+  return porPar;
+}
+
+// Media, desvío, z y percentil de un spread contra su historia.
+function slegStats(hist,actual){
+  const v=hist.filter(x=>isFinite(x));
+  if(v.length<5||actual==null||!isFinite(actual))return null;
+  const media=v.reduce((s,x)=>s+x,0)/v.length;
+  const sd=Math.sqrt(v.reduce((s,x)=>s+(x-media)**2,0)/(v.length-1));
+  return{n:v.length,media,sd,z:sd>0?(actual-media)/sd:0,
+    pct:100*v.filter(x=>x<=actual).length/v.length};
+}
+
+function slegHistInit(){
+  const el=document.getElementById('sleg-hist');
+  if(!el)return;
+  slegPref=null;
+  if(!el.innerHTML.trim()){
+    const sel='background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;font-size:11px;font-family:var(--mono);color:var(--text);outline:none';
+    const lbl='font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em';
+    const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+    const sub='font-size:10px;color:var(--text3);font-family:var(--mono)';
+    el.innerHTML=`<section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="${tit}">Spread de TIR · ley local − ley NY</span>
+        <span id="sleg-h-sub" style="${sub}"></span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:10px">
+        <div style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Rango de la historia</span>
+          <div class="mode-row">${Object.keys(SLEG_RANGOS).map(k=>`<button class="mode-btn" id="sleg-r-${k}" onclick="slegSetPref('rango','${k}')">${k}</button>`).join('')}</div></div>
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Desde</span><input type="date" id="sleg-desde" style="${sel}" onchange="slegSetPref('desde',this.value)"></label>
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Hasta</span><input type="date" id="sleg-hasta" style="${sel}" onchange="slegSetPref('hasta',this.value)"></label>
+      </div>
+      <div id="sleg-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px"></div>
+    </section>
+    <section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="${tit}">Historia del spread</span>
+        <label style="display:flex;align-items:center;gap:6px"><span style="${lbl}">Par</span><select id="sleg-par" style="${sel}" onchange="slegSetPref('par',this.value)"></select></label>
+        <span id="sleg-h-nota" style="${sub}"></span></div>
+      <div style="height:300px;position:relative"><canvas id="sleg-h-chart"></canvas></div>
+      <div id="sleg-h-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-top:8px"></div>
+    </section>
+    <section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="${tit}">Canje ley local ↔ ley NY</span>
+        <span style="${sub}">captura: lo que gana el Bonar en precio si el spread vuelve a su media, (spread − media) × duration · carry: renta corriente del Bonar menos la del Global</span></div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:900px">
+        <thead id="sleg-c-thead"></thead><tbody id="sleg-c-tbody"></tbody></table></div>
+    </section>`;
+  }
+  slegHistRender();
+}
+
+var slegN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
+var slegPb=v=>v==null||!isFinite(v)?'—':`${Math.round(v).toLocaleString('es-AR')} pb`;
+
+async function slegHistRender(){
+  const el=document.getElementById('sleg-hist');
+  if(!el||!el.innerHTML.trim()||!SLEG_RANGOS)return;
+  const P=slegPrefs();
+  const{desde,hasta}=slegRango();
+  Object.keys(SLEG_RANGOS).forEach(k=>{const b=document.getElementById('sleg-r-'+k);if(b)b.classList.toggle('active',P.rango===k);});
+  const di=document.getElementById('sleg-desde');if(di&&document.activeElement!==di)di.value=desde;
+  const hi=document.getElementById('sleg-hasta');if(hi&&document.activeElement!==hi)hi.value=hasta;
+  const pares=slegParesVivos();
+  let porPar;
+  try{porPar=await slegTraerHistoria(desde,hasta);}
+  catch(e){const n=document.getElementById('sleg-h-nota');if(n)n.textContent='No se pudo leer la historia: '+e.message;return;}
+  const hoy=hoyAR();
+  const filas=pares.map(par=>{
+    const m=porPar.get(par.label)||new Map();
+    // La rueda de hoy no entra en la media: el spread de hoy es el en vivo.
+    const fechas=[...m.keys()].filter(f=>par.spread==null||f<hoy).sort();
+    const hist=fechas.map(f=>m.get(f));
+    const actual=par.spread!=null?par.spread:(hist.length?hist[hist.length-1]:null);
+    return{...par,fechas,hist,actual,enVivo:par.spread!=null,st:slegStats(hist,actual)};
+  });
+  const sub=document.getElementById('sleg-h-sub');
+  if(sub)sub.textContent=`TIR del Bonar menos la del Global, en pb · historia del ${betrF(desde)} al ${betrF(hasta)} · el spread de hoy, con precios en vivo`;
+  // Tarjetas
+  const colZ=z=>z==null?'var(--text)':z>=SLEG_Z_IDEA?'var(--accent)':z<=-SLEG_Z_IDEA?'var(--danger)':'var(--text)';
+  document.getElementById('sleg-cards').innerHTML=filas.map(f=>`<div style="border:1px solid var(--border);border-radius:4px;padding:8px 10px;background:var(--surface);cursor:pointer" onclick="slegSetPref('par','${f.label}')">
+    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">${f.bon} vs ${f.glo}</div>
+    <div style="font-family:var(--mono);font-size:18px;color:${colZ(f.st&&f.st.z)};margin:2px 0">${slegPb(f.actual)}</div>
+    <div style="font-size:10px;color:var(--text3)">${f.st?`z ${f.st.z>=0?'+':''}${slegN(f.st.z,1)} · media ${slegPb(f.st.media)} · p${Math.round(f.st.pct)}`:'sin historia suficiente'}</div></div>`).join('');
+  // Tabla de canje
+  const th='padding:6px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+  document.getElementById('sleg-c-thead').innerHTML=`<tr><th style="${th};text-align:left">Par</th><th style="${th}">Precio local</th><th style="${th}">Precio NY</th>
+    <th style="${th}">Ratio</th><th style="${th}">Spread (pb)</th><th style="${th}">Media (pb)</th><th style="${th}">Z</th><th style="${th}">Percentil</th>
+    <th style="${th}">Captura a la media</th><th style="${th}">Carry local − NY</th><th style="${th};text-align:center">Idea</th></tr>`;
+  const td='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+  document.getElementById('sleg-c-tbody').innerHTML=filas.map(f=>{
+    const st=f.st,l=f.local,n=f.ny;
+    const captura=st&&l?(f.actual-st.media)/100*l.md:null;
+    const carry=l&&n?(l.cy-n.cy)*100:null;
+    const idea=!st?'—':st.z>=SLEG_Z_IDEA?'<span style="color:var(--accent);border:1px solid var(--accent);border-radius:10px;padding:0 7px;font-size:10px">comprar local / vender NY</span>'
+      :st.z<=-SLEG_Z_IDEA?'<span style="color:var(--danger);border:1px solid var(--danger);border-radius:10px;padding:0 7px;font-size:10px">comprar NY / vender local</span>'
+      :'<span style="color:var(--text3);font-size:10px">neutral</span>';
+    const zbg=st?retColor(st.z/10,0.3):'';
+    return`<tr><td style="${td};text-align:left;color:var(--accent2);font-weight:600">${f.bon} / ${f.glo}</td>
+      <td style="${td}">${l?slegN(l.precio):'—'}</td><td style="${td}">${n?slegN(n.precio):'—'}</td>
+      <td style="${td}">${l&&n?slegN(l.precio/n.precio,3):'—'}</td>
+      <td style="${td};color:var(--warn)">${f.actual!=null?Math.round(f.actual):'—'}</td>
+      <td style="${td}">${st?Math.round(st.media):'—'}</td>
+      <td style="${td};${zbg}">${st?(st.z>=0?'+':'')+slegN(st.z,1):'—'}</td>
+      <td style="${td}">${st?Math.round(st.pct)+'°':'—'}</td>
+      <td style="${td}">${captura!=null?(captura>=0?'+':'')+slegN(captura)+'%':'—'}</td>
+      <td style="${td}">${carry!=null?(carry>=0?'+':'')+Math.round(carry)+' pb':'—'}</td>
+      <td style="${td};text-align:center">${idea}</td></tr>`;
+  }).join('');
+  // El par elegido
+  const sel=document.getElementById('sleg-par');
+  if(sel){sel.innerHTML=filas.map(f=>`<option value="${f.label}">${f.bon} vs ${f.glo}</option>`).join('');}
+  const f=filas.find(x=>x.label===P.par)||filas[0];
+  if(!f)return;
+  if(sel)sel.value=f.label;
+  slegHistDibujar(f);
+}
+
+function slegHistDibujar(f){
+  const canvas=document.getElementById('sleg-h-chart');
+  if(!canvas)return;
+  if(slegHistChart){slegHistChart.destroy();slegHistChart=null;}
+  const st=f.st;
+  const dia=x=>Math.round(parseDate(x).getTime()/86400000);
+  const deDia=n=>fmtDate(new Date(n*86400000+12*3600000));
+  const pts=f.fechas.map((x,i)=>({x:dia(x),y:+f.hist[i].toFixed(1)}));
+  const nota=document.getElementById('sleg-h-nota');
+  if(nota)nota.textContent=st?`${st.n} ruedas · desvío ${slegPb(st.sd)}`:'sin historia suficiente en el rango';
+  const tiles=document.getElementById('sleg-h-tiles');
+  if(tiles){
+    // Sin mayúsculas: la σ en mayúscula es Σ.
+    const t=(n,v,c)=>`<div style="border:1px solid var(--border);border-radius:4px;padding:6px 8px;background:var(--surface)"><div style="font-size:10px;color:var(--text3);letter-spacing:.04em">${n}</div><div style="font-family:var(--mono);font-size:14px;color:${c||'var(--text)'}">${v}</div></div>`;
+    tiles.innerHTML=st?t('Actual'+(f.enVivo?' (en vivo)':''),slegPb(f.actual),'var(--accent)')+t('Z',`${st.z>=0?'+':''}${slegN(st.z,2)}σ`)+t('Percentil',Math.round(st.pct)+'°')
+      +t('Media',slegPb(st.media),'#f59e0b')+t('+1σ',slegPb(st.media+st.sd))+t('−1σ',slegPb(st.media-st.sd))
+      +t('+2σ',slegPb(st.media+2*st.sd),'var(--danger)')+t('−2σ',slegPb(st.media-2*st.sd),'var(--danger)'):'';
+  }
+  if(!pts.length)return;
+  const x0=pts[0].x,x1=Math.max(pts[pts.length-1].x,dia(hoyAR()));
+  const hz=(y,label,col,dash,w)=>({label,data:[{x:x0,y},{x:x1,y}],borderColor:col,borderDash:dash||[],borderWidth:w||1,pointRadius:0,showLine:true,fill:false});
+  const ds=[{label:'Spread',data:pts,borderColor:'#e8c34b',borderWidth:1.4,pointRadius:0,showLine:true,tension:0,fill:false}];
+  if(st){
+    ds.push(hz(st.media,'Media','#f59e0b',[],1.5));
+    ds.push(hz(st.media+st.sd,'+1σ','rgba(180,180,180,0.6)',[3,3]),hz(st.media-st.sd,'−1σ','rgba(180,180,180,0.6)',[3,3]));
+    ds.push(hz(st.media+2*st.sd,'+2σ','rgba(248,113,113,0.7)',[3,3]),hz(st.media-2*st.sd,'−2σ','rgba(248,113,113,0.7)',[3,3]));
+  }
+  if(f.actual!=null)ds.push(hz(f.actual,f.enVivo?'Hoy (en vivo)':'Último','#4ade80',[6,4],1.3));
+  slegHistChart=new Chart(canvas,{type:'scatter',data:{datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{datalabels:{display:false},legend:{display:true,position:'top',labels:{color:'#8a9a8a',boxWidth:10,font:{size:10}}},
+        tooltip:{filter:it=>it.datasetIndex===0,callbacks:{title:c=>c[0]?betrF(deDia(c[0].raw.x)):'',label:c=>`${Math.round(c.raw.y)} pb`}}},
+      scales:{x:{type:'linear',min:x0,max:x1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},maxTicksLimit:10,
+          callback:n=>{const d=deDia(n);return`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(2,4)}`;}}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Spread (pb)',color:'#6b7c6b',font:{size:9}}}}}});
+}
 
 // ══════════════════════════════════════════════════════ USD RESUMEN ══════════
 const USD_RES_LS='bonosAR_usd_res_v1';

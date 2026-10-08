@@ -3798,6 +3798,44 @@ const omitir = (label, motivo) =>
     check(o.chart === 3 + o.salidas, `camino de precio en ${nombre}: TIR simulada, cotización, TIR de mercado y abanico`, String(o.chart));
   }
 
+  // El spread de legislación en TIR, contra su historia.
+  console.log('\nSpread de legislación con historia');
+  const sl = await page.evaluate(async () => {
+    const out = {};
+    const st = slegStats([1, 2, 3, 4, 5], 5);
+    out.stats = Math.abs(st.media - 3) < 1e-12 && Math.abs(st.sd - Math.sqrt(2.5)) < 1e-12 && Math.abs(st.z - 2 / Math.sqrt(2.5)) < 1e-12 && st.pct === 100;
+    switchSection('usd'); switchUsdTab('usd-spreadleg');
+    for (let i = 0; i < 30 && !document.querySelector('#sleg-c-tbody tr'); i++) await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 500));
+    const pares = slegParesVivos();
+    out.pares = pares.length;
+    out.vivos = pares.filter(p => p.spread != null).length;
+    out.cards = document.querySelectorAll('#sleg-cards > div').length;
+    out.filas = document.querySelectorAll('#sleg-c-tbody tr').length;
+    out.errores = [];
+    const liq = bopFmtDate(G_LIQ || addHabiles(TODAY, 1));
+    for (const p of pares.filter(x => x.spread != null)) {
+      const b = BON_BONDS.find(x => x.ticker === p.bon), g = GLO_BONDS.find(x => x.ticker === p.glo);
+      const sp = (bopTIR(b, liq, b.lastPrecio) - bopTIR(g, liq, g.lastPrecio)) * 100;
+      if (Math.abs(sp - p.spread) > 1e-6) out.errores.push(`${p.label}: ${p.spread} vs ${sp}`);
+    }
+    // La historia del rango por defecto tiene ruedas para cada par.
+    const { desde, hasta } = slegRango();
+    try {
+      const h = await slegTraerHistoria(desde, hasta);
+      out.historia = [...h.values()].map(m => m.size);
+    } catch (e) { out.historia = 'error: ' + e.message; }
+    return out;
+  });
+  check(sl.stats, 'media, desvío, z y percentil del spread son los de la muestra');
+  if (!sl.vivos) omitir('spread de legislación en vivo', 'sin precios de Bonares y Globales');
+  else {
+    check(sl.errores.length === 0 && sl.cards === sl.pares && sl.filas === sl.pares,
+          'el spread de hoy es TIR del Bonar menos TIR del Global, con una tarjeta y una fila de canje por par',
+          `${sl.vivos}/${sl.pares} pares · ` + sl.errores.slice(0, 2).join(' · '));
+    check(Array.isArray(sl.historia) && sl.historia.every(n => n >= 20), 'cada par tiene historia en el rango por defecto', JSON.stringify(sl.historia));
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');
