@@ -1275,7 +1275,12 @@ const omitir = (label, motivo) =>
       }).map(o => o.v);
       out.sinPrecio = SERIES_CFG[s].sectores.filter(o => o.precio === false).map(o => o.v);
       if (!st.cache.porBono.size) { out.sinDatos = true; return out; }
-      const tk = [...st.cache.porBono.keys()][0];
+      // El bono con más ruedas que siga cotizando en la última. El primero de la
+      // lista puede ser una letra ya vencida, sin precio al final: el 08/10/2026
+      // tocó la S17A6 y los tres checks de abajo fallaron sin que hubiera error.
+      const fUlt = st.cache.fechas[st.cache.fechas.length - 1];
+      const tk = [...st.cache.porBono.entries()].filter(([, m]) => m.has(fUlt))
+        .sort((x, y) => y[1].size - x[1].size).map(([k]) => k)[0] || [...st.cache.porBono.keys()][0];
       const propia = new Map(st.cache.porBono.get(tk));
       const idx = st.cache.fechas.length - 1;
       out.tip = st.chart.options.plugins.tooltip.callbacks.label(
