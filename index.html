@@ -2820,7 +2820,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -3657,6 +3657,7 @@ function curvaRepintar(){
    ()=>{if(document.getElementById('ures-chart'))usdResChartRenderIndep();},
    ()=>{if(document.getElementById('curvas-ars-chart'))_curvasArsDraw();},
    ()=>{if(document.getElementById('curvas-usd-chart'))_curvasUsdDraw();},
+   ()=>{desvSiActivo('ars');desvSiActivo('usd');},
   ].forEach(g=>{try{g();}catch(e){console.warn('[curva] repintar:',e.message);}});
 }
 setTimeout(curvaPintarSelectores,0);
@@ -5021,7 +5022,7 @@ function switchUsdTab(tab){
   if(tab==='usd-retornos') retInit('usd');
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
-  if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();}
+  if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();desvMontar('usd');}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
   if(tab==='usd-comentario') comInit('usd');
 }
@@ -5102,6 +5103,7 @@ function switchTab(tab){
   } else if(tab==='curvas-ars'){
     document.getElementById('page-curvas-ars').style.display='flex';
     curvasArsInit();
+    desvMontar('ars');
   } else if(tab==='series-ars'){
     document.getElementById('page-series-ars').style.display='flex';
     seriesInit('ars');
@@ -16590,6 +16592,249 @@ function slegHistDibujar(f){
         y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Spread (pb)',color:'#6b7c6b',font:{size:9}}}}}});
 }
 
+// ── DESVÍO HISTÓRICO CONTRA LA CURVA ────────────────────────────────────────
+// Segundo modo de las solapas Curvas. Para cada bono, su distancia a la curva de
+// su sector en cada rueda —TIR menos la curva ajustada ese día, en pb; positivo
+// es más barato— y dónde está hoy contra su propia historia:
+//
+//   media, desvío   de los desvíos diarios en el rango elegido
+//   z               (desvío de hoy − media) / desvío estándar
+//   percentil       qué parte de las ruedas tuvo un desvío menor o igual
+//
+// La curva de cada día es la del selector de modelo de la solapa; "mejor ajuste"
+// se reemplaza por la logarítmica, porque un modelo distinto cada día mete
+// saltos que no son del bono. El eje es el de las curvas: días en pesos,
+// duration modificada en dólares. Cada familia en dólares contra la suya: el
+// Bonar contra la curva de Bonares, no contra la de Globales.
+//
+// La unidad es la de cada sector: TNA en tasa fija y dollar linked, TIR real en
+// CER, margen en TAMAR, TIR en dólares. El desvío de hoy sale de los precios en
+// vivo (curvasSnapshotFromMemory); sin rueda, de la última guardada.
+//
+// Estado con var: se repinta desde curvaRepintar y los selectores de sector.
+var DESV_LS='bonosAR_desvio_v1';
+var DESV_RANGOS={'3M':91,'6M':182,'1A':365,'MAX':'max'};
+var DESV_MIN_PUNTOS=4;   // bonos por rueda para ajustar una curva
+var DESV_MIN_RUEDAS=10;  // ruedas para hablar de historia
+var DESV_ESTADO={ars:{modo:'curvas',rango:'6M',bono:null},usd:{modo:'curvas',rango:'6M',bono:null}};
+var desvCache=new Map();   // sector|desde|hasta -> {ts, porFecha: Map(fecha -> filas)}
+var desvCharts={ars:null,usd:null};
+var desvLeido=false;
+
+function desvCfg(sec){
+  return sec==='ars'
+    ?{pagina:'page-curvas-ars',p:'curvas-ars',sector:()=>curvasArsSector,eje:'dias',ejeTxt:'días',sectores:['TF','CER','TAMAR','DLK']}
+    :{pagina:'page-usd-curvas',p:'curvas-usd',sector:()=>curvasUsdSector,eje:'md',ejeTxt:'MD',sectores:['GLO','BON','BOP']};
+}
+function desvLeer(){
+  if(desvLeido)return;
+  desvLeido=true;
+  try{const r=localStorage.getItem(DESV_LS);if(r){const o=JSON.parse(r);['ars','usd'].forEach(k=>{if(o[k])DESV_ESTADO[k]={...DESV_ESTADO[k],...o[k]};});}}catch(e){}
+}
+function desvGuardar(){
+  try{localStorage.setItem(DESV_LS,JSON.stringify({ars:DESV_ESTADO.ars,usd:DESV_ESTADO.usd}));}catch(e){}
+}
+function desvSet(sec,k,v){
+  DESV_ESTADO[sec][k]=v;
+  desvGuardar();
+  if(k==='modo')desvAplicarModo(sec);
+  else desvRender(sec);
+}
+
+// El botón de modo en el encabezado de la solapa, y el contenedor del desvío.
+function desvMontar(sec){
+  desvLeer();
+  const c=desvCfg(sec);
+  const pg=document.getElementById(c.pagina);
+  if(!pg||document.getElementById(c.p+'-modo'))return desvAplicarModo(sec);
+  const titulo=pg.querySelector('span[style*="font-family:var(--serif)"]');
+  if(!titulo)return;
+  titulo.insertAdjacentHTML('afterend',`<div class="mode-row" id="${c.p}-modo" style="flex:0 0 auto;width:auto;margin-bottom:0">
+    <button class="mode-btn" id="${c.p}-modo-curvas" onclick="desvSet('${sec}','modo','curvas')">Dos fechas</button>
+    <button class="mode-btn" id="${c.p}-modo-desvio" onclick="desvSet('${sec}','modo','desvio')">Desvío histórico</button></div>`);
+  const canvas=document.getElementById(c.p+'-chart');
+  const cont=canvas&&canvas.parentElement;
+  if(cont)cont.insertAdjacentHTML('afterend',`<div id="${c.p}-desvio" style="display:none;flex:1;min-height:0;overflow:auto;padding:10px 14px"></div>`);
+  desvAplicarModo(sec);
+}
+function desvAplicarModo(sec){
+  const c=desvCfg(sec),E=DESV_ESTADO[sec];
+  const des=E.modo==='desvio';
+  const b1=document.getElementById(c.p+'-modo-curvas'),b2=document.getElementById(c.p+'-modo-desvio');
+  if(b1)b1.classList.toggle('active',!des);
+  if(b2)b2.classList.toggle('active',des);
+  const canvas=document.getElementById(c.p+'-chart');
+  const d1=document.getElementById(c.p+'-d1');
+  const ocultar=[canvas&&canvas.parentElement,document.getElementById(c.p+'-bonds'),d1&&d1.parentElement];
+  ocultar.forEach(el=>{if(el)el.style.display=des?'none':'';});
+  const dv=document.getElementById(c.p+'-desvio');
+  if(dv)dv.style.display=des?'block':'none';
+  if(des)desvRender(sec);
+}
+function desvSiActivo(sec){
+  if(DESV_ESTADO&&DESV_ESTADO[sec]&&DESV_ESTADO[sec].modo==='desvio'&&document.getElementById(desvCfg(sec).p+'-desvio'))desvRender(sec);
+}
+
+function desvModelo(){
+  const m=(typeof CURVA_PREF!=='undefined'&&CURVA_PREF.modelo)||'log';
+  return m==='auto'?'log':m;
+}
+// Desvío de cada bono contra la curva ajustada a esas filas, en pb.
+function desvDeRueda(filas,eje,modelo){
+  const pts=filas.filter(r=>r.tir!=null&&isFinite(r.tir)&&r[eje]>0&&(eje!=='dias'||r.dias>=CURVAS_DIAS_MIN))
+    .map(r=>({x:+r[eje],y:+r.tir,ticker:r.ticker}));
+  if(pts.length<DESV_MIN_PUNTOS)return null;
+  const aj=curvaAjustar(pts.map(q=>({x:q.x,y:q.y})),modelo);
+  if(!aj)return null;
+  const m=new Map();
+  for(const q of pts){const f=aj.f(q.x);if(isFinite(f))m.set(q.ticker,{d:(q.y-f)*100,x:q.x});}
+  return m;
+}
+
+async function desvTraer(sector,desde,hasta){
+  const k=`${sector}|${desde}|${hasta}`;
+  const c=desvCache.get(k);
+  if(c&&Date.now()-c.ts<10*60*1000)return c.porFecha;
+  const data=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
+    .select('snapshot_date,ticker,tir,md,dias')
+    .eq('sector',sector).gte('snapshot_date',desde).lte('snapshot_date',hasta)
+    .order('snapshot_date',{ascending:true}));
+  const porFecha=new Map();
+  for(const r of data||[]){
+    if(!porFecha.has(r.snapshot_date))porFecha.set(r.snapshot_date,[]);
+    porFecha.get(r.snapshot_date).push(r);
+  }
+  desvCache.set(k,{ts:Date.now(),porFecha});
+  return porFecha;
+}
+
+// El cálculo completo de un sector, sin DOM.
+async function desvCalcular(sec,sector,rango){
+  const c=desvCfg(sec),modelo=desvModelo();
+  const hoy=hoyAR();
+  const r=DESV_RANGOS[rango]||182;
+  const desde=r==='max'?'2020-01-01':fmtDate(new Date(parseDate(hoy).getTime()-r*86400000));
+  const porFecha=await desvTraer(sector,desde,hoy);
+  const vivo=desvDeRueda(curvasSnapshotFromMemory(sector)||[],c.eje,modelo);
+  const fechas=[...porFecha.keys()].sort().filter(f=>!vivo||f<hoy);
+  const serie=new Map();   // ticker -> [{fecha, d}]
+  let ultimo=null;
+  for(const f of fechas){
+    const m=desvDeRueda(porFecha.get(f),c.eje,modelo);
+    if(!m)continue;
+    ultimo={fecha:f,m};
+    for(const[t,v]of m){if(!serie.has(t))serie.set(t,[]);serie.get(t).push({fecha:f,d:v.d});}
+  }
+  // Hoy: en vivo, o la última rueda guardada (que entonces no entra en la media).
+  let actual=vivo,fechaActual=hoy;
+  if(!actual&&ultimo){
+    actual=ultimo.m;fechaActual=ultimo.fecha;
+    for(const[t,arr]of serie){if(arr.length&&arr[arr.length-1].fecha===ultimo.fecha)arr.pop();}
+  }
+  const filas=[];
+  if(actual)for(const[t,v]of actual){
+    const hist=(serie.get(t)||[]).map(q=>q.d);
+    filas.push({ticker:t,x:v.x,actual:v.d,hist:serie.get(t)||[],
+      st:hist.length>=DESV_MIN_RUEDAS?slegStats(hist,v.d):null});
+  }
+  filas.sort((a,z)=>a.x-z.x);
+  return{filas,desde,hasta:hoy,fechaActual,enVivo:!!vivo,modelo,ruedas:fechas.length};
+}
+
+var desvN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?1:d);
+async function desvRender(sec){
+  const c=desvCfg(sec),E=DESV_ESTADO[sec];
+  const el=document.getElementById(c.p+'-desvio');
+  if(!el)return;
+  const sector=c.sector();
+  const lbl='font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em';
+  const sub='font-size:10px;color:var(--text3);font-family:var(--mono)';
+  if(!c.sectores.includes(sector)){
+    el.innerHTML=`<div style="padding:2rem;color:var(--text3);font-size:12px">El desvío contra la curva es por familia de bonos: elegí ${c.sectores.join(', ')}.</div>`;
+    return;
+  }
+  if(!el.querySelector('#'+c.p+'-dv-tabla')){
+    el.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:8px">
+        <div style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Rango de la historia</span>
+          <div class="mode-row">${Object.keys(DESV_RANGOS).map(k=>`<button class="mode-btn" id="${c.p}-dv-r-${k}" onclick="desvSet('${sec}','rango','${k}')">${k}</button>`).join('')}</div></div>
+        <span id="${c.p}-dv-sub" style="${sub}"></span></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+        <div style="flex:1 1 460px;min-width:0;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px">
+          <thead id="${c.p}-dv-thead"></thead><tbody id="${c.p}-dv-tabla"></tbody></table></div>
+        <div style="flex:1 1 520px;min-width:0">
+          <div id="${c.p}-dv-tit" style="font-family:var(--serif);font-size:15px;font-style:italic;color:var(--accent);margin-bottom:4px"></div>
+          <div style="height:330px;position:relative"><canvas id="${c.p}-dv-chart"></canvas></div>
+          <div id="${c.p}-dv-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;margin-top:8px"></div>
+        </div></div>
+      <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.5">Desvío: TIR del bono menos la curva de su familia ajustada ese día, en pb; positivo es más barato. z y percentil comparan el desvío de hoy con el de cada rueda del rango. z ≥ +1 en verde: más barato que de costumbre contra su curva; z ≤ −1 en rojo: más caro.</div>`;
+  }
+  Object.keys(DESV_RANGOS).forEach(k=>{const b=document.getElementById(`${c.p}-dv-r-${k}`);if(b)b.classList.toggle('active',E.rango===k);});
+  const tb=document.getElementById(c.p+'-dv-tabla');
+  let res;
+  try{res=await desvCalcular(sec,sector,E.rango);}
+  catch(e){tb.innerHTML=`<tr><td style="padding:1rem;color:var(--text3)">No se pudo leer la historia: ${betrEsc(e.message)}</td></tr>`;return;}
+  // Pudo cambiar el sector mientras llegaba la historia.
+  if(c.sector()!==sector)return;
+  const nombreModelo=(CURVA_MODELOS.find(m=>m[0]===res.modelo)||[0,res.modelo])[1];
+  document.getElementById(c.p+'-dv-sub').textContent=`${sector} · curva ${nombreModelo.toLowerCase()} de cada rueda · ${res.ruedas} ruedas del ${betrF(res.desde)} al ${betrF(res.hasta)} · hoy ${res.enVivo?'en vivo':'= rueda del '+betrF(res.fechaActual)}`;
+  const th='padding:6px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+  document.getElementById(c.p+'-dv-thead').innerHTML=`<tr><th style="${th};text-align:left">Bono</th><th style="${th}">${c.ejeTxt}</th><th style="${th}">Hoy (pb)</th><th style="${th}">Media (pb)</th><th style="${th}">σ (pb)</th><th style="${th}">Z</th><th style="${th}">Percentil</th><th style="${th}">Ruedas</th></tr>`;
+  if(!res.filas.length){tb.innerHTML=`<tr><td colspan="8" style="padding:1rem;color:var(--text3);font-size:11px">Sin curva para hoy: hacen falta ${DESV_MIN_PUNTOS} bonos con tasa.</td></tr>`;}
+  const td='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+  const sel=res.filas.find(f=>f.ticker===E.bono)||res.filas[0];
+  tb.innerHTML=res.filas.map(f=>{
+    const st=f.st,z=st?st.z:null;
+    const zc=z==null?'':z>=1?'background:rgba(74,222,128,0.25)':z<=-1?'background:rgba(248,113,113,0.25)':'';
+    const act=sel&&f.ticker===sel.ticker;
+    return`<tr onclick="desvSet('${sec}','bono','${f.ticker}')" style="cursor:pointer;${act?'background:var(--surface2)':''}">
+      <td style="${td};text-align:left;color:var(--accent2);font-weight:600">${f.ticker}</td>
+      <td style="${td};color:var(--text3)">${c.eje==='dias'?Math.round(f.x):desvN(f.x,2)}</td>
+      <td style="${td};color:${f.actual>=0?'var(--accent)':'var(--danger)'}">${f.actual>=0?'+':''}${Math.round(f.actual)}</td>
+      <td style="${td}">${st?Math.round(st.media):'—'}</td><td style="${td}">${st?Math.round(st.sd):'—'}</td>
+      <td style="${td};${zc};font-weight:600">${st?(z>=0?'+':'')+desvN(z):'—'}</td>
+      <td style="${td}">${st?Math.round(st.pct)+'°':'—'}</td><td style="${td};color:var(--text3)">${f.hist.length}</td></tr>`;
+  }).join('');
+  desvDibujar(sec,sel);
+}
+
+function desvDibujar(sec,f){
+  const c=desvCfg(sec);
+  const canvas=document.getElementById(c.p+'-dv-chart');
+  if(!canvas)return;
+  if(desvCharts[sec]){desvCharts[sec].destroy();desvCharts[sec]=null;}
+  const tit=document.getElementById(c.p+'-dv-tit');
+  const tiles=document.getElementById(c.p+'-dv-tiles');
+  if(!f){if(tit)tit.textContent='';if(tiles)tiles.innerHTML='';return;}
+  const st=f.st;
+  if(tit)tit.textContent=`${f.ticker} · desvío contra la curva`;
+  const t=(n,v,col)=>`<div style="border:1px solid var(--border);border-radius:4px;padding:6px 8px;background:var(--surface)"><div style="font-size:10px;color:var(--text3)">${n}</div><div style="font-family:var(--mono);font-size:14px;color:${col||'var(--text)'}">${v}</div></div>`;
+  if(tiles)tiles.innerHTML=t('Hoy',`${f.actual>=0?'+':''}${Math.round(f.actual)} pb`,'var(--accent)')
+    +(st?t('Media',`${Math.round(st.media)} pb`,'#f59e0b')+t('z',`${st.z>=0?'+':''}${desvN(st.z,2)}σ`)+t('Percentil',Math.round(st.pct)+'°')
+      +t('±1σ',`${Math.round(st.media-st.sd)} a ${Math.round(st.media+st.sd)}`):t('Historia',`${f.hist.length} ruedas: pocas`));
+  const dia=x=>Math.round(parseDate(x).getTime()/86400000);
+  const deDia=n=>fmtDate(new Date(n*86400000+12*3600000));
+  const pts=f.hist.map(q=>({x:dia(q.fecha),y:+q.d.toFixed(1)}));
+  const x1=dia(hoyAR());
+  if(pts.length)pts.push({x:x1,y:+f.actual.toFixed(1)});
+  if(!pts.length)return;
+  const x0=pts[0].x;
+  const hz=(y,label,col,dash,w)=>({label,data:[{x:x0,y},{x:x1,y}],borderColor:col,borderDash:dash||[],borderWidth:w||1,pointRadius:0,showLine:true,fill:false});
+  const ds=[{label:'Desvío',data:pts,borderColor:'#e8c34b',borderWidth:1.4,pointRadius:0,showLine:true,tension:0,fill:false}];
+  if(st){
+    ds.push(hz(st.media,'Media','#f59e0b',[],1.5));
+    ds.push(hz(st.media+st.sd,'+1σ','rgba(180,180,180,0.6)',[3,3]),hz(st.media-st.sd,'−1σ','rgba(180,180,180,0.6)',[3,3]));
+    ds.push(hz(st.media+2*st.sd,'+2σ','rgba(248,113,113,0.7)',[3,3]),hz(st.media-2*st.sd,'−2σ','rgba(248,113,113,0.7)',[3,3]));
+  }
+  ds.push(hz(0,'Curva','rgba(232,232,232,0.35)',[],1));
+  desvCharts[sec]=new Chart(canvas,{type:'scatter',data:{datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{datalabels:{display:false},legend:{display:true,position:'top',labels:{color:'#8a9a8a',boxWidth:10,font:{size:10}}},
+        tooltip:{filter:it=>it.datasetIndex===0,callbacks:{title:q=>q[0]?betrF(deDia(q[0].raw.x)):'',label:q=>`${q.raw.y>=0?'+':''}${Math.round(q.raw.y)} pb`}}},
+      scales:{x:{type:'linear',min:x0,max:x1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},maxTicksLimit:8,
+          callback:n=>{const d=deDia(n);return`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(2,4)}`;}}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Desvío (pb)',color:'#6b7c6b',font:{size:9}}}}}});
+}
+
 // ══════════════════════════════════════════════════════ USD RESUMEN ══════════
 const USD_RES_LS='bonosAR_usd_res_v1';
 let usdResState={sumBonds:[],fwdRows:[],chartBonds:[],colWidths:{c1:155,c2:420},c1Split:0.5};
@@ -17732,6 +17977,7 @@ function curvasArsInit(){
 
 function curvasArsSetSector(sec){
   curvasArsSector=sec;
+  desvSiActivo('ars');
   ['TF','CER','TAMAR','DLK'].forEach(s=>{
     const el=document.getElementById('curvas-ars-chip-'+s);
     if(!el)return;
@@ -19305,6 +19551,7 @@ function curvasUsdInit(){
 
 function curvasUsdSetSector(sec){
   curvasUsdSector=sec;
+  desvSiActivo('usd');
   const secColors={GLO:'#6baed6',BON:'#d4a843',BOP:'#74c4a0',SLEG:'#c9807a'};
   ['GLO','BON','BOP','SLEG'].forEach(s=>{
     const el=document.getElementById('curvas-usd-chip-'+s);

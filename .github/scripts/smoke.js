@@ -3836,6 +3836,45 @@ const omitir = (label, motivo) =>
     check(Array.isArray(sl.historia) && sl.historia.every(n => n >= 20), 'cada par tiene historia en el rango por defecto', JSON.stringify(sl.historia));
   }
 
+  // Desvío histórico contra la curva, en pesos y en dólares.
+  console.log('\nDesvío histórico contra la curva');
+  const dv = await page.evaluate(async () => {
+    const out = {};
+    // Sintético: puntos sobre y = 3 + 2·ln(x) salvo uno, 50 pb arriba.
+    const filas = [5, 20, 60, 120, 250, 400].map((x, i) => ({ ticker: 'B' + i, dias: x, tir: 3 + 2 * Math.log(x) + (i === 3 ? 0.5 : 0) }));
+    const m = desvDeRueda(filas, 'dias', 'log');
+    out.sintetico = m && m.size === 6 && m.get('B3').d > 30 && [...m.values()].reduce((s, v) => s + v.d, 0) < 1e-6;
+    const probar = async (sec, abrir, sector) => {
+      abrir();
+      await new Promise(r => setTimeout(r, 1200));
+      desvSet(sec, 'modo', 'desvio');
+      (sec === 'ars' ? curvasArsSetSector : curvasUsdSetSector)(sector);
+      const res = await desvCalcular(sec, sector, '6M');
+      await new Promise(r => setTimeout(r, 1500));
+      const o = { filas: res.filas.length, ruedas: res.ruedas,
+        dom: document.querySelectorAll(`#${desvCfg(sec).p}-dv-tabla tr`).length,
+        chart: !!desvCharts[sec], errores: [] };
+      for (const f of res.filas) if (f.st && Math.abs(f.st.z - (f.actual - f.st.media) / f.st.sd) > 1e-9) o.errores.push(f.ticker);
+      // La curva de cada rueda deja los desvíos centrados: suman casi cero.
+      const s = res.filas.reduce((a, f) => a + f.actual, 0);
+      o.centrado = Math.abs(s) < 1e-6 * Math.max(1, res.filas.length);
+      desvSet(sec, 'modo', 'curvas');
+      return o;
+    };
+    out.ars = await probar('ars', () => { switchSection('pesos'); switchTab('curvas-ars'); }, 'CER');
+    out.usd = await probar('usd', () => { switchSection('usd'); switchUsdTab('usd-curvas'); }, 'GLO');
+    out.sync = SUPA_USER_KEYS.includes(DESV_LS);
+    return out;
+  });
+  check(dv.sintetico, 'el desvío es la distancia a la curva de la rueda: centrado en cero y positivo para el que rinde de más');
+  check(dv.sync, 'el modo y el rango del desvío viajan por usuario');
+  for (const [k, nombre] of [['ars', 'pesos (CER)'], ['usd', 'dólares (Globales)']]) {
+    const o = dv[k];
+    if (!o.filas) { omitir(`desvío histórico en ${nombre}`, 'sin curva para hoy'); continue; }
+    check(o.dom === o.filas && o.chart && o.ruedas > 20 && o.errores.length === 0,
+          `desvío histórico en ${nombre}: una fila por bono, historia de la curva y z bien calculado`, JSON.stringify(o));
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');
