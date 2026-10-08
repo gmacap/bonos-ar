@@ -379,6 +379,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab" id="nav-cer" onclick="switchTab('cer')">CER</button>
   <button class="nav-tab" id="nav-tamar" onclick="switchTab('tamar')">TAMAR</button>
   <button class="nav-tab" id="nav-dlk" onclick="switchTab('dlk')">DLK</button>
+  <button class="nav-tab" id="nav-dual" onclick="switchTab('dual')">DUAL</button>
   <button class="nav-tab" id="nav-sintetico" onclick="switchTab('sintetico')">Sintético ARS</button>
   <button class="nav-tab" id="nav-calendario" onclick="switchTab('calendario')">Calendario</button>
   <button class="nav-tab" id="nav-proyecciones" onclick="switchTab('proyecciones')">Proyecciones</button>
@@ -1014,9 +1015,55 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <div class="field"><label>Precio inicial $ (opcional)</label><input type="number" id="tamar-m-precio" step="0.01" placeholder="Precio limpio"></div>
       <div class="field"><label>TC inicial (DLK base, default 1)</label><input type="number" id="tamar-m-tc" step="0.0001" min="0" placeholder="1"></div>
     </div>
+    <div class="field-row cols2" style="margin-top:4px">
+      <div class="field"><label>TEM fija % (sólo dual tasa fija)</label><input type="number" id="tamar-m-temfija" step="0.0001" min="0" placeholder="Ej: 2.14"></div>
+      <div class="field" style="font-size:10px;color:var(--text3);align-self:end;padding-bottom:6px">Paga la mayor entre esta tasa capitalizada y la TAMAR. Los duales CER y dólar se arman cargando el mismo ticker en esa solapa.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="tamarCloseModal()">Cancelar</button>
       <button class="btn primary" onclick="tamarSaveModal()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ DUAL PAGE -->
+<div id="page-dual" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
+  <div class="pane-toolbar" style="flex-wrap:wrap;row-gap:4px">
+    <span class="pane-title">Duales</span>
+    <span id="dual-st" style="font-size:10px;color:var(--text3)"></span>
+    <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em" title="Las dos patas se valúan al vencimiento con estos senderos. Se cambian acá o en Proyecciones, y valen para toda la app">Escenario</span>
+      <span data-proy-sel="infla"></span>
+      <span data-proy-sel="tamar"></span>
+      <span data-proy-sel="tcn"></span>
+      <button class="btn" onclick="fetchAllPrices()">↻ Precios</button>
+    </div>
+  </div>
+  <div class="table-scroll" style="min-height:0">
+    <table>
+      <thead><tr id="dual-thead"></tr></thead>
+      <tbody id="dual-tbody"></tbody>
+    </table>
+  </div>
+  <div id="dual-chart-area" style="height:calc((100vh - var(--alto-barras)) * 0.45);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:14px;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap">
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Duales · <span id="dual-chart-titulo">Margen s/TAMAR</span></span>
+      <label style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">Métrica
+        <select id="dual-metrica" onchange="dualSetPref('metrica',this.value)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:1px 4px;font-size:10px;font-family:var(--mono);color:var(--text);outline:none;text-transform:none;letter-spacing:0;cursor:pointer">
+          <option value="margen">Margen s/TAMAR</option>
+          <option value="tea">TEA en el escenario</option>
+        </select></label>
+      <label style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">Plazo máximo
+        <select id="dual-plazo" onchange="dualSetPref('plazoMax',+this.value)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:1px 4px;font-size:10px;font-family:var(--mono);color:var(--text);outline:none;text-transform:none;letter-spacing:0;cursor:pointer">
+          <option value="0">Todos</option>
+          <option value="365">1 año</option>
+          <option value="730">2 años</option>
+          <option value="1095">3 años</option>
+        </select></label>
+      <span data-curva-sel="dual"></span>
+    </div>
+    <div style="flex:1;min-height:0;padding:.2rem .5rem;">
+      <canvas id="dual-chart" style="width:100%;height:100%"></canvas>
     </div>
   </div>
 </div>
@@ -2767,7 +2814,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -3599,6 +3646,7 @@ function curvaSetBanda(b){
 function curvaRepintar(){
   [()=>renderChart(),()=>cerRenderTabChart(),()=>tamarRenderTabChart(),()=>dlkRenderTabChart(),
    ()=>{if(typeof currentTab!=='undefined'&&currentTab==='breakeven'){beRenderChartTF();beRenderChartCER();}},
+   ()=>{if(typeof currentTab!=='undefined'&&currentTab==='dual')dualRenderChart(DUAL_DATA);},
    ()=>['bop','bon','glo'].forEach(k=>usdFamChartRender(USD_FAM[k])),
    ()=>{if(document.getElementById('ures-chart'))usdResChartRenderIndep();},
    ()=>{if(document.getElementById('curvas-ars-chart'))_curvasArsDraw();},
@@ -4930,7 +4978,7 @@ function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-escenarios','page-comentario'];
+    'page-escenarios','page-comentario','page-dual'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -5030,6 +5078,10 @@ function switchTab(tab){
     // mostrar botón + Nueva solo al admin
     const newBtn=document.getElementById('dlk-new-btn');
     if(newBtn) newBtn.style.display=isAdmin()?'':'none';
+  } else if(tab==='dual'){
+    document.getElementById('page-dual').style.display='flex';
+    updateIndexBanners();
+    dualInit();
   } else if(tab==='sintetico'){
     document.getElementById('page-sintetico').style.display='flex';
     updateIndexBanners();
@@ -10012,7 +10064,7 @@ function tamarLoadBonds(){
 }
 
 function tamarOpenModal(){
-  ['tamar-m-ticker','tamar-m-emision','tamar-m-vcto','tamar-m-precio','tamar-m-margen','tamar-m-tc'].forEach(id=>{
+  ['tamar-m-ticker','tamar-m-emision','tamar-m-vcto','tamar-m-precio','tamar-m-margen','tamar-m-tc','tamar-m-temfija'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value='';
   });
   document.getElementById('tamar-modal').classList.add('open');
@@ -10028,10 +10080,11 @@ function tamarSaveModal(){
   const margen=parseFloat(document.getElementById('tamar-m-margen').value)||0;
   const tcRaw=document.getElementById('tamar-m-tc').value;
   const tcInicial=tcRaw?parseFloat(tcRaw):1;
+  const temFija=parseFloat(document.getElementById('tamar-m-temfija').value)||null;
   if(!ticker){alert('Ingresá un ticker.');return;}
   if(!vcto){alert('Ingresá fecha de vencimiento.');return;}
   if(TAMAR_BONDS.find(r=>r.ticker===ticker)){alert('Ya existe ese ticker.');return;}
-  TAMAR_BONDS.push({ticker,emision:emision||'',vcto,precio,margen,tcInicial,pct_change:null,manualOverride:false});
+  TAMAR_BONDS.push({ticker,emision:emision||'',vcto,precio,margen,tcInicial,...(temFija>0?{temFija}:{}),pct_change:null,manualOverride:false});
   tamarSaveBonds();
   tamarCloseModal();
   tamarRenderTable();
@@ -10160,6 +10213,7 @@ function beTamarExclSaveLs(){
 
 function beRefreshIfVisible(){
   if(currentTab==='escenarios'){try{escRecalc();}catch(e){}return;}
+  if(currentTab==='dual'){try{dualRender();}catch(e){console.warn('[dual]',e.message);}return;}
   if(currentTab!=='breakeven')return;
   beRecalc();
   beTamarRecalc();
@@ -11312,6 +11366,415 @@ function betrIndiferencia(tamarTicker){
   if(!betrEsDual(tamarTicker))return null;
   const r=betrDe(tamarTicker,[tamarTicker],{mismoPrecio:true});
   return r&&!r.error?r:null;
+}
+
+// ══════════════════════════════════════════════════════════════ DUALES
+// Los bonos que pagan al vencimiento la mejor de dos patas: la TAMAR más su
+// margen (rama B) y otra que puede ser tasa fija, CER o dólar (rama A). Un bono
+// TAMAR es dual si también está cargado como CER o como DLK, o si tiene tasa
+// fija.
+//
+// Las dos patas se valúan al vencimiento con los senderos elegidos de
+// inflación, TAMAR y dólar: ése es el escenario. Por bono:
+//   rama A, rama B   lo que paga cada pata por 100 de nominal, en pesos
+//   gana             la que paga más en el escenario
+//   TEA              la tasa efectiva anual del precio contra lo que gana
+//   indiferencia     el ritmo de la variable de la rama A —inflación o
+//                    devaluación mensual, del último dato publicado al
+//                    fixing— con el que las dos pagan lo mismo, dada la TAMAR
+//                    del escenario. En la tasa fija es al revés: la TAMAR que
+//                    empata a la fija.
+// El ritmo del escenario y el del REM se miden sobre la misma ventana y en la
+// misma unidad que la indiferencia, así se comparan directo: si el escenario
+// queda arriba de la indiferencia gana la rama A (la TAMAR, en la tasa fija).
+
+// Los cuatro del canje de enero de 2025 (Resolución Conjunta del BO del
+// 27/01/2025): TEM capitalizable mensual, 30/360, desde la emisión del
+// 29/01/2025. Un dual de tasa fija nuevo la trae en su definición (temFija).
+const DUAL_TF_CANJE={TTM26:2.25,TTJ26:2.19,TTS26:2.17,TTD26:2.14};
+const DUAL_LS='bonosAR_dual_v1';
+const DUAL_TIPOS={
+  tf: {nombre:'Tasa fija',corto:'Fija', color:'#fbbf24',borde:'#d97706',variable:'TAMAR'},
+  cer:{nombre:'CER',      corto:'CER',  color:'#4ade80',borde:'#22c55e',variable:'inflación'},
+  dlk:{nombre:'Dólar',    corto:'Dólar',color:'#a855f7',borde:'#7c3aed',variable:'devaluación'},
+};
+const DUAL_TAMAR_COLOR='#38bdf8';
+let DUAL_PREF={metrica:'margen',plazoMax:0,orden:'vcto',asc:true};
+let DUAL_DATA=[];
+let dualChart=null;
+
+function dualLoadLs(){
+  try{const r=localStorage.getItem(DUAL_LS);if(r)DUAL_PREF={...DUAL_PREF,...JSON.parse(r)};}catch(e){}
+}
+function dualSaveLs(){
+  try{localStorage.setItem(DUAL_LS,JSON.stringify(DUAL_PREF));}catch(e){}
+}
+function dualSetPref(k,v){
+  DUAL_PREF[k]=v;
+  dualSaveLs();
+  dualRender();
+}
+function dualOrdenar(k){
+  if(DUAL_PREF.orden===k)DUAL_PREF.asc=!DUAL_PREF.asc;
+  else{DUAL_PREF.orden=k;DUAL_PREF.asc=true;}
+  dualSaveLs();
+  dualRender();
+}
+
+function dualTemFija(t){
+  if(!t)return null;
+  const v=t.temFija!=null&&t.temFija!==''?+t.temFija:DUAL_TF_CANJE[t.ticker];
+  return v>0?v:null;
+}
+// La rama A de un bono TAMAR, o null si no es dual.
+function dualTipo(t){
+  if(!t)return null;
+  if(CER_BONDS.some(b=>b.ticker===t.ticker))return'cer';
+  if(DLK_BONDS.some(b=>b.ticker===t.ticker))return'dlk';
+  if(dualTemFija(t))return'tf';
+  return null;
+}
+function dualBonos(){
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  return TAMAR_BONDS
+    .filter(t=>t.vcto&&t.emision&&diasACT(liq,parseDate(t.vcto))>0&&dualTipo(t))
+    .sort((a,b)=>a.vcto.localeCompare(b.vcto));
+}
+function dualFuente(serie){
+  const o=(PROY_OPCIONES[serie]||[]).find(x=>x[0]===PROJ_FUENTE[serie]);
+  return o?o[1]:String(PROJ_FUENTE[serie]||'');
+}
+
+// La TNA de TAMAR que da una tasa mensual de la rama B. Es la inversa de la
+// cuenta de tamarEnrich: m = ((1 + (TNA + margen)·32/365)^(365/32))^(1/12) − 1.
+function dualTnaDeMensual(m,margen){
+  return(Math.pow(1+m,12*32/365)-1)*365/32*100-(margen||0);
+}
+
+function dualCalcular(t){
+  const tipo=dualTipo(t);
+  if(!tipo)return{ticker:t&&t.ticker,error:'No es dual'};
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  const vto=parseDate(t.vcto);
+  const dias=diasAlPago(liq,vto);
+  const tc0=t.tcInicial||1;
+  const P=t.precio>0?t.precio:null;
+  const out={ticker:t.ticker,tipo,vcto:t.vcto,emision:t.emision,dias,precio:P,margen:t.margen||0,tcInicial:tc0,bono:t};
+
+  // Rama B. tamarEnrich no la calcula sin precio, pero no depende de él: sin
+  // precio se le pasa uno cualquiera y sólo se usa lo que no lo mira.
+  const e=tamarEnrich({...t,precio:P||100*tc0});
+  const d=e&&e._debug;
+  if(!d||!(e.vpvProy>0))return{...out,error:'Sin índice TAMAR para la rama B'};
+  out.ramaB=e.vpvProy*tc0;
+  out.fuenteTamar=e.fuenteTamar;
+  out.tamar={transc:d.DIAS_TAMAR_TRANSCURRIDOS,proy:d.DIAS_TAMAR_PROYECTAR,fixVto:d.fixVto,
+    promTransc:d.TAMAR_DIAS_TRANSCURRIDOS,d360:d.DIAS_360,
+    temTransc:d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS/100,temProy:d.TAMAR_MARGEN_PROY_F/100};
+  out.tamar.tnaEsc=dualTnaDeMensual(out.tamar.temProy,out.margen);
+  if(P)out.margenTNA=tamarVista(e).margenTNA;
+
+  // Rama A.
+  if(tipo==='tf'){
+    const tem=dualTemFija(t);
+    out.fija={tem,d360:dias360(parseDate(t.emision),vto),canje:!(t.temFija>0)};
+    out.ramaA=calcVF(tem,parseDate(t.emision),vto)*tc0;
+  }else if(tipo==='cer'){
+    const cerEm=cerGetValorCer(parseDate(t.emision));
+    const cerVto=cerGetValorCerProyectado(vto);
+    const ult=projGetLastCerReal();
+    const fixVto=fmtDate(cerGetFechaCer(vto));
+    out.cer={em:cerEm,vto:cerVto,fixEm:fmtDate(cerGetFechaCer(parseDate(t.emision))),fixVto,
+      proyectado:!ult||fixVto>ult.fecha};
+    if(cerEm>0&&cerVto>0)out.ramaA=100*cerVto/cerEm;
+    else out.errorA=cerEm>0?'Sin CER proyectado al fixing: falta el sendero de inflación':'Sin CER de emisión';
+  }else{
+    const db=DLK_BONDS.find(b=>b.ticker===t.ticker);
+    const ff=db?dlkBuildFF(db,liq).ff:[];
+    if(ff.length===1){
+      const ev=ff[0];
+      const tc=dlkTCProy(ev.fecha);
+      out.dlk={fecha:ev.fecha,cf:ev.cf,tc,spot:dlkTCHoy()};
+      if(tc>0)out.ramaA=ev.cf*tc;
+      else out.errorA='Sin sendero del dólar';
+    }else out.errorA=ff.length?'Paga antes del vencimiento: la rama dólar no es un solo pago':'Sin flujos de la rama dólar';
+  }
+
+  if(out.ramaA>0){
+    out.gana=out.ramaA>out.ramaB?'A':'B';
+    out.ventaja=(Math.max(out.ramaA,out.ramaB)/Math.min(out.ramaA,out.ramaB)-1)*100;
+    if(P&&dias>0)out.tea=(Math.pow(Math.max(out.ramaA,out.ramaB)/P,365/dias)-1)*100;
+  }
+
+  // La tasa de la rama A sola, contra el precio: lo que rinde si la TAMAR no
+  // gana nunca.
+  if(P){
+    if(tipo==='cer'){
+      const ce=cerEnrich({...CER_BONDS.find(b=>b.ticker===t.ticker),precio:P});
+      if(isFinite(ce.tna))out.tnaA={v:ce.tna,unidad:'real'};
+    }else if(tipo==='dlk'){
+      const de=dlkEnrich({...DLK_BONDS.find(b=>b.ticker===t.ticker),precio:P});
+      if(de.tna!=null&&isFinite(de.tna))out.tnaA={v:de.tna,unidad:'USD'};
+    }else if(out.ramaA>0&&dias>0){
+      // Como la TNA de TAMAR: 12 × TEM.
+      out.tnaA={v:(Math.pow(out.ramaA/P,(365/12)/dias)-1)*12*100,unidad:'$',bajoPrecio:out.ramaA<P};
+    }
+  }
+
+  out.indif=dualIndiferencia(out);
+  return out;
+}
+
+function dualIndiferencia(r){
+  if(!(r.ramaB>0))return null;
+  if(r.tipo==='cer'){
+    const ult=projGetLastCerReal();
+    if(!r.cer||!(r.cer.em>0)||!ult)return null;
+    const dias=Math.round((parseDate(r.cer.fixVto)-parseDate(ult.fecha))/86400000);
+    if(dias<=0)return{fijado:true,texto:'el CER del vencimiento ya se publicó'};
+    const mens=cer=>(Math.pow(cer/ult.valor,30.4/dias)-1)*100;
+    const meses=beMesesVentana(ult.fecha,r.cer.fixVto);
+    const rem=beRemVentana(meses,dias);
+    return{valor:mens(r.ramaB/100*r.cer.em),esc:r.cer.vto>0?mens(r.cer.vto):null,
+      rem:rem?rem.mensual:null,unidad:'%/mes',ventana:{desde:ult.fecha,hasta:r.cer.fixVto,dias,meses}};
+  }
+  if(r.tipo==='dlk'){
+    if(!r.dlk||!(r.dlk.spot>0))return null;
+    const dias=diasACT(TODAY,parseDate(r.dlk.fecha));
+    if(dias<=0)return null;
+    const mens=tc=>(Math.pow(tc/r.dlk.spot,30.4/dias)-1)*100;
+    const tcRem=remTCAl(r.dlk.fecha),tcRemHoy=remTCAl(fmtDate(TODAY));
+    return{valor:mens(r.ramaB/r.dlk.cf),tc:r.ramaB/r.dlk.cf,esc:r.dlk.tc>0?mens(r.dlk.tc):null,
+      rem:tcRem>0&&tcRemHoy>0?(Math.pow(tcRem/tcRemHoy,30.4/dias)-1)*100:null,unidad:'%/mes',dias};
+  }
+  // Tasa fija: la TAMAR plana, en las ruedas que faltan publicar, con la que la
+  // rama B paga lo mismo que la fija. Las ya publicadas quedan como están.
+  const T=r.tamar.transc,P=r.tamar.proy,n=r.tamar.d360/360*12;
+  if(!(P>0))return{fijado:true,texto:'la TAMAR de toda la vida del bono ya se publicó'};
+  if(!(r.ramaA>0)||!(n>0))return null;
+  const nmc=Math.pow(r.ramaA/r.tcInicial/100,1/n)-1;
+  const m=((T+P)*nmc-T*r.tamar.temTransc)/P;
+  const valor=dualTnaDeMensual(m,r.margen);
+  // Una TAMAR negativa no existe: lo ya publicado paga más que la fija aunque
+  // lo que falta sea cero, y la fija no puede ganar.
+  if(valor<0)return{ganada:true,ruedas:P,
+    texto:`aun con TAMAR 0% en las ${P} ruedas que faltan publicar, lo ya publicado paga más que la fija`};
+  return{valor,esc:r.tamar.tnaEsc,rem:beRemTamarVentana(r.tamar.fixVto),unidad:'% TNA',ruedas:P};
+}
+
+// ── Tabla ────────────────────────────────────────────────────────────────────
+const DUAL_COLS=[
+  ['ticker','Ticker',''],
+  ['tipo','Tipo','Rama A / rama B'],
+  ['vcto','Vto',''],
+  ['dias','Días','Días al pago'],
+  ['precio','Precio $','Por 100 de nominal. El dual dólar cotiza en pesos por 100 USD'],
+  ['ramaA','Rama A (esc.)','Lo que paga al vencimiento la pata fija, CER o dólar, por 100 de nominal y en pesos, con el sendero elegido'],
+  ['ramaB','Rama B: TAMAR + margen (esc.)','Lo que paga al vencimiento la pata TAMAR más su margen, por 100 de nominal y en pesos: la TAMAR ya publicada más el sendero elegido para lo que falta'],
+  ['gana','Gana','La pata que paga más en el escenario, y por cuánto'],
+  ['margenTNA','Margen s/TAMAR','El de la solapa TAMAR: lo que rinde el precio por encima de la TAMAR si gana la rama B, en TNA'],
+  ['tnaA','TNA rama A','Lo que rinde el precio si gana siempre la rama A: TNA real en CER, en dólares en el dual dólar y en pesos en la tasa fija'],
+  ['tea','TEA (esc.)','Tasa efectiva anual del precio contra la pata que gana en el escenario'],
+  ['indif','Indiferencia','Inflación o devaluación mensual con la que las dos patas pagan lo mismo, dada la TAMAR del escenario (en la tasa fija, la TAMAR que empata a la fija). Abajo, el escenario y el REM en la misma ventana y unidad'],
+];
+function dualValorOrden(r,k){
+  if(k==='ticker'||k==='vcto')return r[k]||'';
+  if(k==='tipo')return(DUAL_TIPOS[r.tipo]||{}).nombre||'';
+  if(k==='gana')return r.ramaA>0&&r.ramaB>0?r.ramaA/r.ramaB:null;
+  if(k==='tnaA')return r.tnaA?r.tnaA.v:null;
+  if(k==='indif')return r.indif&&isFinite(r.indif.valor)?r.indif.valor:null;
+  const v=r[k];
+  return v!=null&&isFinite(v)?v:null;
+}
+const dualN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
+
+function dualCeldaRamaA(r){
+  const tip=DUAL_TIPOS[r.tipo];
+  if(!(r.ramaA>0))return{html:'—',title:r.errorA||''};
+  let t='';
+  if(r.tipo==='tf')
+    t=`100 × (1 + ${dualN(r.fija.tem)}%)^(${r.fija.d360}/30): TEM ${dualN(r.fija.tem)}% capitalizable mensual, 30/360, desde la emisión del ${betrF(r.emision)}`
+      +(r.fija.canje?' · de la resolución del canje de enero de 2025':' · de la definición del bono');
+  else if(r.tipo==='cer')
+    t=`100 × CER del fixing del vencimiento (${betrF(r.cer.fixVto)}) ${dualN(r.cer.vto,4)} / CER de emisión (${betrF(r.cer.fixEm)}) ${dualN(r.cer.em,4)}`
+      +(r.cer.proyectado?` · CER proyectado con inflación ${dualFuente('infla')}`:' · CER ya publicado');
+  else
+    t=`${dualN(r.dlk.cf,0)} USD × A3500 ${dualN(r.dlk.tc)} proyectado al ${betrF(r.dlk.fecha)} con dólar ${dualFuente('tcn')} · hoy ${dualN(r.dlk.spot)}`;
+  const gana=r.gana==='A';
+  return{html:`<span style="color:${gana?tip.color:'var(--text2)'};${gana?'font-weight:600':''}">${fmtPrecio(r.ramaA)}</span>`,title:t};
+}
+function dualCeldaRamaB(r){
+  const ta=r.tamar;
+  const t=`${r.tcInicial!==1?`100 × TC inicial ${dualN(r.tcInicial,4)}`:'100'} capitalizado a TAMAR + ${dualN(r.margen)}%, 30/360`
+    +` · ${ta.transc} ruedas de TAMAR publicadas, promedio ${dualN(ta.promTransc)}% TNA`
+    +(ta.proy>0?` · ${ta.proy} a proyectar con TAMAR ${dualFuente('tamar')}, equivalente a ${dualN(ta.tnaEsc)}% TNA plana`:' · no falta proyectar nada')
+    +` · fixing ${betrF(ta.fixVto)}`;
+  const gana=r.gana==='B';
+  return{html:`<span style="color:${gana?DUAL_TAMAR_COLOR:'var(--text2)'};${gana?'font-weight:600':''}">${fmtPrecio(r.ramaB)}</span>`,title:t};
+}
+function dualDosLineas(a,b,col){
+  return`<div style="display:flex;flex-direction:column;align-items:flex-end;line-height:1.2">`
+    +`<span style="color:${col||'var(--text)'}">${a}</span>`
+    +`<span style="font-size:9px;color:var(--text3);white-space:nowrap">${b}</span></div>`;
+}
+function dualCeldaIndif(r){
+  const i=r.indif,tip=DUAL_TIPOS[r.tipo];
+  if(!i)return{html:'—',title:r.errorA||'Sin datos para la indiferencia'};
+  if(i.fijado)return{html:'<span style="color:var(--text3)">fijada</span>',title:`No hay indiferencia: ${i.texto}`};
+  if(i.ganada)return{html:dualDosLineas(`<span style="color:${DUAL_TAMAR_COLOR};font-weight:600">TAMAR ganada</span>`,'la fija no alcanza'),
+    title:`No hay indiferencia: ${i.texto}. La rama fija paga ${fmtPrecio(r.ramaA)}`};
+  const sub=`esc. ${dualN(i.esc)} · REM ${dualN(i.rem)}`;
+  let t;
+  if(r.tipo==='cer')
+    t=`Con la TAMAR del escenario la rama B paga ${fmtPrecio(r.ramaB)}. La CER paga lo mismo con ${dualN(i.valor)}% de inflación mensual,`
+      +` ${beVentanaTexto({ventana:i.ventana})}. Arriba gana CER, abajo gana TAMAR.`
+      +` · El sendero elegido (${dualFuente('infla')}) da ${dualN(i.esc)}% en esa ventana`
+      +(i.rem!=null?`; el REM, ${dualN(i.rem)}%`:'; el REM no llega a esa fecha');
+  else if(r.tipo==='dlk')
+    t=`Con la TAMAR del escenario la rama B paga ${fmtPrecio(r.ramaB)}: un A3500 de ${dualN(i.tc)} el ${betrF(r.dlk.fecha)}.`
+      +` Desde ${dualN(r.dlk.spot)} de hoy son ${dualN(i.valor)}% de devaluación mensual en ${i.dias} días. Arriba gana dólar, abajo gana TAMAR.`
+      +` · El sendero elegido (${dualFuente('tcn')}) da ${dualN(i.esc)}%`
+      +(i.rem!=null?`; el REM, con su propio ritmo, ${dualN(i.rem)}%`:'; el REM no llega a esa fecha');
+  else
+    t=`La rama fija paga ${fmtPrecio(r.ramaA)}. La TAMAR la empata con ${dualN(i.valor)}% TNA promedio en las ${i.ruedas} ruedas que faltan publicar,`
+      +` con las ya publicadas como están. Arriba gana TAMAR, abajo gana la fija.`
+      +` · El escenario (${dualFuente('tamar')}) supone ${dualN(i.esc)}%`
+      +(i.rem!=null?`; el REM, ${dualN(i.rem)}%`:'; el REM no llega a esa fecha');
+  return{html:dualDosLineas(`<span style="font-size:9px;color:var(--text3)">${tip.variable}</span> <span style="font-weight:600">${dualN(i.valor)}${i.unidad}</span>`,sub),title:t};
+}
+
+function dualInit(){
+  dualLoadLs();
+  proyPintarSelectores();
+  curvaPintarSelectores();
+  const m=document.getElementById('dual-metrica');if(m)m.value=DUAL_PREF.metrica==='tea'?'tea':'margen';
+  const p=document.getElementById('dual-plazo');if(p)p.value=String(DUAL_PREF.plazoMax||0);
+  if(!TAMAR_INDEX.length)tamarFetchIndex();
+  if(!CER_PROJ.size&&PROJ_INFLACION.length){try{projCalcularCER();}catch(e){}}
+  dualRender();
+}
+
+function dualRender(){
+  const tbody=document.getElementById('dual-tbody'),thead=document.getElementById('dual-thead');
+  if(!tbody||!thead)return;
+  DUAL_DATA=dualBonos().map(t=>{
+    try{return dualCalcular(t);}
+    catch(e){return{ticker:t.ticker,tipo:dualTipo(t),vcto:t.vcto,error:e.message};}
+  });
+  const k=DUAL_PREF.orden||'vcto',asc=DUAL_PREF.asc!==false;
+  const filas=[...DUAL_DATA].sort((a,b)=>{
+    const x=dualValorOrden(a,k),y=dualValorOrden(b,k);
+    if(x==null&&y==null)return 0;
+    if(x==null)return 1;
+    if(y==null)return-1;
+    const c=typeof x==='string'?x.localeCompare(y):x-y;
+    return asc?c:-c;
+  });
+  thead.innerHTML=DUAL_COLS.map(([c,t,tip],i)=>
+    `<th onclick="dualOrdenar('${c}')"${c===k?' class="sorted"':''}${i<2?' style="text-align:left"':''}${tip?` title="${betrEsc(tip)}"`:''}>${t}${c===k?(asc?' ↑':' ↓'):''}</th>`).join('');
+  const st=document.getElementById('dual-st');
+  if(st)st.textContent=`${DUAL_DATA.length} duales · rama A y rama B al vencimiento, por 100 de nominal, con los senderos elegidos`;
+  if(!filas.length){
+    tbody.innerHTML=`<tr><td colspan="${DUAL_COLS.length}" class="no-rows">No hay duales sin vencer. Un bono TAMAR es dual si también está cargado en CER o en DLK, o si tiene TEM fija.</td></tr>`;
+    dualRenderChart([]);
+    return;
+  }
+  const td=(html,o)=>{o=o||{};return`<td${o.title?` title="${betrEsc(o.title)}"`:''}><div class="cv no-edit${o.izq?' left':''}">${html}</div></td>`;};
+  tbody.innerHTML=filas.map(r=>{
+    const tip=DUAL_TIPOS[r.tipo]||{nombre:'?',color:'var(--text3)'};
+    const t=r.bono||{};
+    const celdasIni=td(`<span class="c-ticker">${r.ticker}</span>`,{izq:true})
+      +td(`<span style="font-size:11px;white-space:nowrap"><span style="color:${tip.color}">${tip.nombre}</span><span style="color:var(--text3)"> / </span><span style="color:${DUAL_TAMAR_COLOR}">TAMAR</span></span>`,{izq:true})
+      +td(`<span class="c-date">${betrF(r.vcto)}</span>`)
+      +td(`<span class="c-muted">${r.dias!=null?r.dias:'—'}</span>`);
+    if(r.error)return`<tr>${celdasIni}<td colspan="${DUAL_COLS.length-4}"><div class="cv no-edit" style="color:var(--text3);font-size:11px">${betrEsc(r.error)}</div></td></tr>`;
+    const precio=r.precio
+      ?`<span style="${pesosEsCierre(t)?'color:var(--info)':''}">${fmtPrecio(r.precio)}</span>${pesosCierreMarca(t)}`
+      :'<span class="c-muted">sin precio</span>';
+    const a=dualCeldaRamaA(r),b=dualCeldaRamaB(r),ind=dualCeldaIndif(r);
+    let gana='—',ganaT='';
+    if(r.gana){
+      const esA=r.gana==='A';
+      gana=dualDosLineas(`<span style="font-weight:600">${esA?tip.corto:'TAMAR'}</span>`,`por ${dualN(r.ventaja)}%`,esA?tip.color:DUAL_TAMAR_COLOR);
+      ganaT=`${esA?'La rama '+tip.nombre:'La TAMAR'} paga ${dualN(r.ventaja)}% más que la otra al vencimiento, en el escenario`;
+    }
+    let tnaA='—',tnaAT='';
+    if(r.tnaA){
+      if(r.tnaA.bajoPrecio){
+        tnaA='<span style="color:var(--warn);font-size:11px">fija &lt; precio</span>';
+        tnaAT=`La rama fija paga ${fmtPrecio(r.ramaA)} y el bono vale ${fmtPrecio(r.precio)}: sola rinde ${dualN(r.tnaA.v)}% TNA. El precio paga la TAMAR`;
+      }else{
+        tnaA=dualDosLineas(fmtP2(r.tnaA.v),r.tnaA.unidad);
+        tnaAT=r.tipo==='cer'?'TNA real de la solapa CER, con el precio del dual'
+          :r.tipo==='dlk'?'TNA en dólares de la solapa DLK, con el precio del dual'
+          :'TNA de la rama fija sola contra el precio, 12 × TEM';
+      }
+    }
+    return`<tr>${celdasIni}`
+      +td(precio)
+      +td(a.html,{title:a.title})
+      +td(b.html,{title:b.title})
+      +td(gana,{title:ganaT})
+      +td(`<span class="c-blue">${r.margenTNA!=null&&isFinite(r.margenTNA)?fmtP2(r.margenTNA):'—'}</span>`)
+      +td(tnaA,{title:tnaAT})
+      +td(`<span class="c-green" style="font-weight:600">${r.tea!=null&&isFinite(r.tea)?fmtP2(r.tea):'—'}</span>`)
+      +td(ind.html,{title:ind.title})
+      +'</tr>';
+  }).join('');
+  dualRenderChart(DUAL_DATA);
+}
+
+// ── Gráfico ──────────────────────────────────────────────────────────────────
+// Todos los duales en una curva: el margen sobre TAMAR o la TEA del escenario
+// contra los días, un color por rama A y una sola curva ajustada.
+function dualRenderChart(filas){
+  const canvas=document.getElementById('dual-chart');
+  if(!canvas||typeof Chart==='undefined')return;
+  if(dualChart){dualChart.destroy();dualChart=null;}
+  const tea=DUAL_PREF.metrica==='tea';
+  const titulo=document.getElementById('dual-chart-titulo');
+  if(titulo)titulo.textContent=tea?'TEA en el escenario':'Margen s/TAMAR';
+  const tope=+DUAL_PREF.plazoMax||0;
+  const pts=(filas||[]).filter(r=>!r.error&&r.dias>0&&(!tope||r.dias<=tope))
+    .map(r=>({x:r.dias,y:tea?r.tea:r.margenTNA,ticker:r.ticker,tipo:r.tipo,precio:r.precio}))
+    .filter(p=>p.y!=null&&isFinite(p.y));
+  if(!pts.length)return;
+  const yLabel=tea?'TEA en el escenario (%)':'Margen s/TAMAR (TNA %)';
+  const curva=curvaDatasets(curvaAjustar(pts.map(p=>({x:p.x,y:p.y}))),pts.map(p=>p.x),
+    {color:'rgba(56,189,248,0.45)',relleno:'rgba(56,189,248,0.08)',label:'Tendencia',orden:1,clave:'dual'});
+  const grupos=Object.keys(DUAL_TIPOS).map(k=>({k,pts:pts.filter(p=>p.tipo===k)})).filter(g=>g.pts.length);
+  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
+  dualChart=new Chart(canvas,{
+    type:'scatter',
+    data:{datasets:[
+      curva.linea,
+      ...grupos.map(g=>({label:`${DUAL_TIPOS[g.k].nombre} / TAMAR`,data:g.pts,esPunto:true,
+        backgroundColor:DUAL_TIPOS[g.k].color,borderColor:DUAL_TIPOS[g.k].borde,pointRadius:5,pointHoverRadius:7,order:2})),
+      ...curva.banda,
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{
+        legend:{display:true,position:'top',align:'end',
+          labels:{filter:(it,data)=>!!data.datasets[it.datasetIndex].esPunto,color:'#8a9a8a',boxWidth:8,boxHeight:8,font:{size:10}}},
+        tooltip:{filter:it=>!!it.dataset.esPunto,callbacks:{
+          title:ctx=>ctx[0]?ctx[0].raw.ticker:'',
+          label:ctx=>{
+            const l=[`${ctx.raw.y.toFixed(2)}%  ·  ${Math.round(ctx.raw.x)} días`,`${DUAL_TIPOS[ctx.raw.tipo].nombre} / TAMAR`];
+            if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
+            return l;
+          }}},
+        datalabels:{display:ctx=>!!ctx.dataset.esPunto,
+          formatter:(v)=>v.ticker||'',
+          color:ctx=>ctx.dataset.backgroundColor,font:{size:11,family:'DM Mono,monospace',weight:'500'},
+          anchor:'end',align:'top',offset:3,clamp:true,clip:false,overlap:false}
+      },
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Días',color:'#6b7c6b',font:{size:9}}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:yLabel,color:'#6b7c6b',font:{size:9}}}
+      }
+    }
+  });
 }
 
 function beTamarToggleSelector(){

@@ -3567,6 +3567,111 @@ const omitir = (label, motivo) =>
   else check(cur.recta && /Lineal/.test(cur.info), 'el selector repinta la curva de tasa fija con el modelo elegido', cur.info);
   check(cur.sync, 'la preferencia de curva viaja por usuario');
 
+  // La solapa DUAL: cada pata al vencimiento con los senderos elegidos, quién
+  // gana, y la indiferencia, que tiene que devolver exactamente la otra pata.
+  console.log('\nDuales');
+  const dua = await page.evaluate(async () => {
+    const out = {};
+    // La rama fija del TTD26 sale de la resolución del canje: 2,14% TEM, 30/360.
+    out.tipoTTD26 = dualTipo({ ticker: 'TTD26' });
+    out.fijaTTD26 = calcVF(dualTemFija({ ticker: 'TTD26' }), parseDate('2025-01-29'), parseDate('2026-12-15'));
+    out.tipos = { conTem: dualTipo({ ticker: 'XXX99', temFija: 2 }), sinNada: dualTipo({ ticker: 'XXX99' }) };
+    // La TNA de TAMAR que devuelve una tasa mensual es la inversa de la de tamarEnrich.
+    const mensualDe = (tna, mg) => Math.pow(Math.pow(1 + (tna + mg) / 100 * 32 / 365, 365 / 32), 1 / 12) - 1;
+    out.inversa = dualTnaDeMensual(mensualDe(30, 3), 3);
+
+    switchSection('pesos'); switchTab('dual');
+    await new Promise(r => setTimeout(r, 1500));
+    out.filas = DUAL_DATA.length;
+    out.dom = document.querySelectorAll('#dual-tbody tr').length;
+    out.cols = document.querySelectorAll('#dual-thead th').length;
+    out.boton = !!document.getElementById('nav-dual');
+    out.selectores = ['infla', 'tamar', 'tcn'].every(k => document.querySelector(`#page-dual [data-proy-sel="${k}"] select`));
+    out.curvaSel = !!document.querySelector('#page-dual [data-curva-sel="dual"] select');
+    // Todos los TAMAR cargados también en CER o DLK, sin vencer, están.
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const esperados = TAMAR_BONDS.filter(t => t.vcto && t.emision && diasACT(liq, parseDate(t.vcto)) > 0
+      && (CER_BONDS.some(b => b.ticker === t.ticker) || DLK_BONDS.some(b => b.ticker === t.ticker) || dualTemFija(t)));
+    out.completos = esperados.length === DUAL_DATA.length;
+
+    out.errores = []; out.vivos = 0; out.indifs = 0;
+    const rel = (a, b) => Math.abs(a - b) / Math.max(1, Math.abs(b));
+    for (const r of DUAL_DATA) {
+      if (r.error) continue;
+      const t = r.bono;
+      const vpv = tamarEnrich({ ...t, precio: t.precio > 0 ? t.precio : 100 * (t.tcInicial || 1) }).vpvProy * (t.tcInicial || 1);
+      if (rel(r.ramaB, vpv) > 1e-12) out.errores.push(`${r.ticker}: rama B ${r.ramaB} vs tamarEnrich ${vpv}`);
+      if (!(r.ramaA > 0)) continue;
+      out.vivos++;
+      if (r.precio > 0 && r.dias > 0) {
+        const tea = (Math.pow(Math.max(r.ramaA, r.ramaB) / r.precio, 365 / r.dias) - 1) * 100;
+        if (Math.abs(r.tea - tea) > 1e-9) out.errores.push(`${r.ticker}: TEA ${r.tea} vs ${tea}`);
+      }
+      const i = r.indif;
+      if (!i || i.fijado || i.ganada || !isFinite(i.valor)) continue;
+      out.indifs++;
+      // Con la indiferencia, la rama A paga exactamente lo de la B.
+      let conIndif;
+      if (r.tipo === 'cer') {
+        const ult = projGetLastCerReal();
+        conIndif = 100 * ult.valor * Math.pow(1 + i.valor / 100, i.ventana.dias / 30.4) / r.cer.em;
+      } else if (r.tipo === 'dlk') {
+        conIndif = r.dlk.cf * r.dlk.spot * Math.pow(1 + i.valor / 100, i.dias / 30.4);
+      } else {
+        const ta = r.tamar;
+        const nmc = (ta.transc * ta.temTransc + ta.proy * mensualDe(i.valor, r.margen)) / (ta.transc + ta.proy);
+        conIndif = 100 * Math.pow(1 + nmc, ta.d360 / 360 * 12) * r.tcInicial;
+      }
+      const otra = r.tipo === 'tf' ? r.ramaA : r.ramaB;
+      if (rel(conIndif, otra) > 1e-9) out.errores.push(`${r.ticker}: con la indiferencia ${conIndif} vs ${otra}`);
+      // El escenario arriba de la indiferencia es el que hace ganar a la rama A
+      // (a la TAMAR, en la tasa fija).
+      if (i.esc != null && Math.abs(i.esc - i.valor) > 1e-6) {
+        const ganaA = r.tipo === 'tf' ? i.esc < i.valor : i.esc > i.valor;
+        if (ganaA !== (r.gana === 'A')) out.errores.push(`${r.ticker}: escenario ${i.esc} vs indiferencia ${i.valor} y gana ${r.gana}`);
+      }
+    }
+    // El gráfico: un punto por dual con margen, y la métrica y el plazo lo cambian.
+    const puntos = () => dualChart ? dualChart.data.datasets.filter(d => d.esPunto).reduce((a, d) => a + d.data.length, 0) : 0;
+    const prev = { ...DUAL_PREF };
+    out.puntos = puntos();
+    out.conMargen = DUAL_DATA.filter(r => !r.error && r.dias > 0 && r.margenTNA != null && isFinite(r.margenTNA)).length;
+    dualSetPref('metrica', 'tea');
+    out.tituloTea = document.getElementById('dual-chart-titulo').textContent;
+    dualSetPref('metrica', 'margen');
+    dualSetPref('plazoMax', 365);
+    out.puntosAnio = puntos();
+    out.conMargenAnio = DUAL_DATA.filter(r => !r.error && r.dias > 0 && r.dias <= 365 && r.margenTNA != null && isFinite(r.margenTNA)).length;
+    DUAL_PREF = prev; dualSaveLs(); dualRender();
+    // Cambiar el sendero de TAMAR repinta la solapa sola.
+    const fuente = PROJ_FUENTE.tamar;
+    const otra = fuente === '5dias' ? 'rem' : '5dias';
+    proySetFuente('tamar', otra);
+    out.repinta = DUAL_DATA.length ? DUAL_DATA.every(r => r.error || r.fuenteTamar === otra) : null;
+    proySetFuente('tamar', fuente);
+    out.sync = SUPA_USER_KEYS.includes(DUAL_LS);
+    out.modal = !!document.getElementById('tamar-m-temfija');
+    return out;
+  });
+  check(dua.tipoTTD26 === 'tf' && Math.abs(dua.fijaTTD26 - 100 * Math.pow(1.0214, 676 / 30)) < 1e-9 && Math.abs(dua.fijaTTD26 - 161.14) < 0.01,
+        'la rama fija del TTD26 es 2,14% TEM capitalizable 30/360 desde la emisión', String(dua.fijaTTD26));
+  check(dua.tipos.conTem === 'tf' && dua.tipos.sinNada === null, 'un bono TAMAR es dual tasa fija sólo si tiene TEM fija', JSON.stringify(dua.tipos));
+  check(Math.abs(dua.inversa - 30) < 1e-9, 'la TNA de TAMAR que devuelve una tasa mensual es la inversa de la de tamarEnrich', String(dua.inversa));
+  check(dua.boton && dua.selectores && dua.curvaSel && dua.cols === 12 && dua.sync && dua.modal,
+        'la solapa DUAL tiene su botón, los tres senderos, el selector de curva y doce columnas',
+        JSON.stringify({ boton: dua.boton, selectores: dua.selectores, curva: dua.curvaSel, cols: dua.cols, sync: dua.sync, modal: dua.modal }));
+  if (!dua.filas) omitir('duales en vivo', 'sin duales sin vencer');
+  else {
+    check(dua.completos && dua.dom === dua.filas, 'la tabla tiene una fila por cada dual sin vencer', `${dua.dom} filas, ${dua.filas} duales`);
+    check(dua.errores.length === 0 && dua.vivos > 0,
+          'las dos ramas, la TEA y la indiferencia cierran: con la indiferencia, las dos patas pagan lo mismo',
+          `${dua.vivos} con las dos ramas, ${dua.indifs} con indiferencia · ` + dua.errores.slice(0, 3).join(' · '));
+    check(dua.puntos === dua.conMargen && dua.tituloTea === 'TEA en el escenario' && dua.puntosAnio === dua.conMargenAnio,
+          'el gráfico tiene un punto por dual, y la métrica y el plazo máximo lo cambian',
+          JSON.stringify({ puntos: dua.puntos, conMargen: dua.conMargen, anio: dua.puntosAnio, esperadosAnio: dua.conMargenAnio, titulo: dua.tituloTea }));
+    check(dua.repinta === true, 'cambiar el sendero de TAMAR repinta la solapa DUAL sola');
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');
