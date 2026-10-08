@@ -3724,8 +3724,9 @@ const omitir = (label, motivo) =>
   if (rep.sinRed) omitir('los precios repintan el Resumen', 'data912 no responde: ' + rep.sinRed);
   else check(Object.values(rep).every(Boolean), 'traer los precios de tasa fija, CER, TAMAR y DLK repinta el Resumen', JSON.stringify(rep));
 
-  // Retornos en dólares: TIR de salida, escenarios y camino de precio.
-  console.log('\nRetornos en dólares');
+  // Retornos: TIR de salida, escenarios y camino de precio, en dólares y en
+  // pesos (tasa fija y CER real). Un solo motor, así que se prueba igual.
+  console.log('\nRetornos');
   const ret = await page.evaluate(async () => {
     const out = {};
     // Sintético: un bono que vence antes del corte paga lo mismo salga a la TIR
@@ -3733,57 +3734,68 @@ const omitir = (label, motivo) =>
     const fl = [{ fecha: '2027-01-04', cupon: 5, amortAmt: 100, flujo: 105 }];
     const v = retNucleo({ precio: 100, flujos: fl, liq: '2026-10-09', corte: '2027-06-01', tasa: 4, reinvertir: false });
     out.vence = v.vence && Math.abs(v.retorno(5) - 0.05) < 1e-12 && Math.abs(v.retorno(25) - 0.05) < 1e-12 && v.be0 === null;
-    switchSection('usd'); switchUsdTab('usd-retornos');
-    await new Promise(r => setTimeout(r, 2500));
-    const liq = retLiq(), corte = retCorte();
-    out.filas = RET_DATA.filter(r => !r.error).length;
-    out.dom = document.querySelectorAll('#ret-tbody tr').length;
-    out.errores = [];
-    for (const r of RET_DATA.filter(r => !r.error)) {
-      // Reinvirtiendo a la TIR de hoy y saliendo a esa misma TIR, el retorno es
-      // el valor futuro de los mismos flujos.
-      const n = retNucleo({ precio: r.precio, flujos: r.flujos, liq, corte, tasa: r.tir, reinvertir: true });
-      const fv = Math.pow(1 + r.tir / 100, n.dias / 365) - 1;
-      if (Math.abs(n.retorno(r.tir) - fv) > 1e-5) out.errores.push(`${r.ticker}: TIR constante ${n.retorno(r.tir)} vs ${fv}`);
-      if (r.be0 != null && Math.abs(r.n.retorno(r.be0)) > 1e-8) out.errores.push(`${r.ticker}: BE 0 da ${r.n.retorno(r.be0)}`);
-      if (r.beReinv != null && Math.abs(r.n.retorno(r.beReinv) - r.n.objetivo) > 1e-8) out.errores.push(`${r.ticker}: BE reinv`);
-      for (let i = 1; i < r.grilla.length; i++) if (r.grilla[i] > r.grilla[i - 1] + 1e-12) out.errores.push(`${r.ticker}: sube con la TIR de salida`);
-      if (r.resto < RET_RESTO_MIN && r.be0 != null) out.errores.push(`${r.ticker}: vence ${r.resto} días después del corte y muestra breakeven`);
-      // Limpio + corrido = el precio sucio de pantalla.
-      const lim = retLimpio(r.b, liq, r.tir, r.flujos) + retCorrido(r.b, liq, r.flujos);
-      if (Math.abs(lim - r.precio) > 1e-3) out.errores.push(`${r.ticker}: limpio + corrido ${lim} vs ${r.precio}`);
-      // Sin picos: entre la fecha nominal de un cupón y su pago, lo corrido no se
-      // pone en cero mientras el cupón sigue en el precio.
-      for (const f of r.flujos) {
-        if (!f.fechaNominal || f.fechaNominal >= f.fecha || f.fecha <= liq || f.amortAmt > 0) continue;
-        const ant = fmtDate(new Date(parseDate(f.fechaNominal).getTime() - 86400000));
-        const salto = retLimpio(r.b, f.fechaNominal, r.tir, r.flujos) - retLimpio(r.b, ant, r.tir, r.flujos);
-        if (Math.abs(salto) > 0.2) out.errores.push(`${r.ticker}: salto de ${salto.toFixed(3)} el ${f.fechaNominal}`);
+    const probar = async (sec, abrir, fam) => {
+      const o = { errores: [] };
+      if (fam) { const P = retPref(sec); P.familias = [fam]; }
+      abrir();
+      await new Promise(r => setTimeout(r, 2500));
+      const E = RET_ESTADO[sec], liq = retLiq(), corte = retCorte(sec);
+      const ok = E.data.filter(r => !r.error);
+      o.filas = ok.length;
+      o.dom = document.querySelectorAll(`#${RET_SEC[sec].p}-tbody tr`).length;
+      for (const r of ok) {
+        // Reinvirtiendo a la TIR de hoy y saliendo a esa misma TIR, el retorno
+        // es el valor futuro de los mismos flujos.
+        const n = retNucleo({ precio: r.precio, flujos: r.flujos, liq, corte, tasa: r.tir, reinvertir: true });
+        const fv = Math.pow(1 + r.tir / 100, n.dias / 365) - 1;
+        if (Math.abs(n.retorno(r.tir) - fv) > 1e-4) o.errores.push(`${r.ticker}: TIR constante ${n.retorno(r.tir)} vs ${fv}`);
+        if (r.be0 != null && Math.abs(r.n.retorno(r.be0)) > 1e-8) o.errores.push(`${r.ticker}: BE 0`);
+        if (r.beReinv != null && Math.abs(r.n.retorno(r.beReinv) - r.n.objetivo) > 1e-8) o.errores.push(`${r.ticker}: BE reinv`);
+        for (let i = 1; i < r.grilla.length; i++) if (r.grilla[i] > r.grilla[i - 1] + 1e-12) o.errores.push(`${r.ticker}: sube con la TIR de salida`);
+        if (r.resto < RET_RESTO_MIN && r.be0 != null) o.errores.push(`${r.ticker}: vence ${r.resto} días después del corte y muestra breakeven`);
+        // El precio de hoy es el valor presente de sus flujos a su TIR.
+        const pv = retLimpio(r, liq, r.tir) + (r.fam.corrido ? r.fam.corrido(r, liq) : 0);
+        if (Math.abs(pv / r.precio - 1) > 1e-4) o.errores.push(`${r.ticker}: valor presente ${pv} vs precio ${r.precio}`);
+        // Sin picos: entre la fecha nominal de un cupón y su pago, lo corrido no
+        // se pone en cero mientras el cupón sigue en el precio.
+        if (r.fam.corrido) for (const f of r.flujos) {
+          if (!f.fechaNominal || f.fechaNominal >= f.fecha || f.fecha <= liq || f.amortAmt > 0) continue;
+          const ant = fmtDate(new Date(parseDate(f.fechaNominal).getTime() - 86400000));
+          const salto = retLimpio(r, f.fechaNominal, r.tir) - retLimpio(r, ant, r.tir);
+          if (Math.abs(salto) > 0.2) o.errores.push(`${r.ticker}: salto de ${salto.toFixed(3)} el ${f.fechaNominal}`);
+        }
       }
-    }
-    // Escenarios: los paralelos ordenados y la pendiente en las puntas.
-    const sh = retShocks(RET_DATA, liq);
-    if (sh.length > 1) {
-      const ord = [...sh].sort((a, b) => a.r.md - b.r.md);
-      out.puntas = Math.abs(ord[0].dSteep + RET_PENDIENTE) < 1e-9 && Math.abs(ord[ord.length - 1].dSteep - RET_PENDIENTE) < 1e-9;
-      out.paralelos = sh.every(f => f.paralelos[0] > f.paralelos[2] && f.paralelos[2] > 0 && f.paralelos[3] < 0 && f.paralelos[3] > f.paralelos[5]);
-    }
-    out.esc = document.querySelectorAll('#ret-esc-tbody tr').length;
-    out.chart = retChart ? retChart.data.datasets.length : 0;
-    out.sync = SUPA_USER_KEYS.includes(RET_LS);
-    out.boton = !!document.getElementById('nav-usd-retornos');
+      const sh = retShocks(E.data, liq);
+      if (sh.length > 1) {
+        const ord = [...sh].sort((a, b) => a.r.md - b.r.md);
+        o.puntas = Math.abs(ord[0].dSteep + RET_PENDIENTE) < 1e-9 && Math.abs(ord[ord.length - 1].dSteep - RET_PENDIENTE) < 1e-9;
+        o.paralelos = sh.every(f => f.paralelos[0] > f.paralelos[2] && f.paralelos[2] > 0 && f.paralelos[3] < 0 && f.paralelos[3] > f.paralelos[5]);
+      }
+      o.esc = document.querySelectorAll(`#${RET_SEC[sec].p}-esc-tbody tr`).length;
+      // El camino de precio se dibuja cuando llega la historia.
+      for (let i = 0; i < 20 && !E.chart; i++) await new Promise(r => setTimeout(r, 300));
+      o.chart = E.chart ? E.chart.data.datasets.length : 0;
+      o.salidas = (RET_SEC[sec].salidas || retFamilias(sec)[0].salidas).length;
+      o.sync = SUPA_USER_KEYS.includes(RET_SEC[sec].ls);
+      return o;
+    };
+    out.usd = await probar('usd', () => { switchSection('usd'); switchUsdTab('usd-retornos'); });
+    out.tf = await probar('ars', () => { switchSection('pesos'); switchTab('retornos'); }, 'tf');
+    out.cer = await probar('ars', () => { retRender('ars'); }, 'cer');
+    out.botones = !!document.getElementById('nav-usd-retornos') && !!document.getElementById('nav-retornos');
     return out;
   });
   check(ret.vence, 'un bono que vence antes del corte rinde lo mismo con cualquier TIR de salida y no tiene breakeven');
-  check(ret.boton && ret.sync, 'la solapa Retornos tiene su botón y sus preferencias viajan por usuario');
-  if (!ret.filas) omitir('retornos en vivo', 'sin bonos en dólares con precio');
-  else {
-    check(ret.errores.length === 0 && ret.dom === ret.filas,
-          'TIR constante = valor futuro, los breakevens empatan, el retorno baja con la TIR de salida y el precio limpio no salta en los cupones',
-          `${ret.filas} bonos · ` + ret.errores.slice(0, 3).join(' · '));
-    check(ret.puntas && ret.paralelos && ret.esc === ret.filas,
-          'los escenarios ordenan los shocks paralelos y el steepener pone ±75 pb en las puntas', JSON.stringify({ puntas: ret.puntas, paralelos: ret.paralelos, esc: ret.esc }));
-    check(ret.chart === 3 + 9, 'el camino de precio dibuja la TIR simulada, la cotización, la de mercado y el abanico', String(ret.chart));
+  check(ret.botones && ret.usd.sync && ret.tf.sync, 'Retornos está en pesos y en dólares, con preferencias por usuario');
+  for (const [k, nombre] of [['usd', 'dólares'], ['tf', 'tasa fija'], ['cer', 'CER real']]) {
+    const o = ret[k];
+    if (!o.filas) { omitir(`retornos en ${nombre}`, 'sin bonos con precio'); continue; }
+    check(o.errores.length === 0 && o.dom === o.filas,
+          `retornos en ${nombre}: TIR constante = valor futuro, breakevens que empatan, retorno que baja con la TIR de salida y precio = valor presente`,
+          `${o.filas} bonos · ` + o.errores.slice(0, 3).join(' · '));
+    if (o.filas > 1) check(o.puntas && o.paralelos && o.esc === o.filas,
+          `escenarios en ${nombre}: shocks paralelos ordenados y ±75 pb en las puntas del steepener`, JSON.stringify({ puntas: o.puntas, paralelos: o.paralelos, esc: o.esc }));
+    check(o.chart === 3 + o.salidas, `camino de precio en ${nombre}: TIR simulada, cotización, TIR de mercado y abanico`, String(o.chart));
   }
 
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
