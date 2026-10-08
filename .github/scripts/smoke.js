@@ -4228,6 +4228,21 @@ const omitir = (label, motivo) =>
   check(puesto.tamar === 77.7 && puesto.infla === 8.88,
         'el ajuste manual entra en su almacén', JSON.stringify(puesto));
 
+  // La recarga se hace como la de un usuario: con precios en caché y una lista
+  // guardada en la tabla del Resumen, que beInit pinta durante la carga. Con la
+  // tabla vacía, una const del módulo leída antes de su declaración pasaba sin
+  // verse y en producción cortaba el script entero (08/10/2026).
+  const cpGuardada = await page.evaluate(() => {
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const vivo = b => b.precio > 0 && b.vcto && diasACT(liq, parseDate(b.vcto)) > 0;
+    const cp = [...LECAPS.filter(vivo).slice(0, 3).map(b => ({ ticker: b.ticker, tipo: 'tf' })),
+                ...CER_BONDS.filter(vivo).slice(0, 2).map(b => ({ ticker: b.ticker, tipo: 'cer' })),
+                ...TAMAR_BONDS.filter(vivo).slice(0, 2).map(b => ({ ticker: b.ticker, tipo: 'tamar' })),
+                ...DLK_BONDS.filter(vivo).slice(0, 2).map(b => ({ ticker: b.ticker, tipo: 'dlk' }))];
+    localStorage.setItem(LS_CP, JSON.stringify(cp));
+    return cp.length;
+  });
+
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof proySetValor === 'function', null, { timeout: 60000 });
   await page.waitForTimeout(16000);
@@ -4245,6 +4260,16 @@ const omitir = (label, motivo) =>
         'y queda aplicado en el sendero, no sólo guardado', JSON.stringify(tras));
   check(tras.fuentes.infla === 'manual' && tras.fuentes.tamar === 'manual',
         'la fuente elegida también sobrevive', JSON.stringify(tras.fuentes));
+  // El script cargó entero: lo declarado al final existe y la tabla tiene filas.
+  const entero = await page.evaluate(() => {
+    const def = n => { try { return eval(`typeof ${n}`) !== 'undefined' && eval(n) != null; } catch (e) { return false; } };
+    return { finales: ['DLK_BONDS', 'ALTO_COMPLETO', 'DUAL_TIPOS', 'CURVA_MODELOS'].filter(n => !def(n)),
+             filas: document.querySelectorAll('#be-cp-tbody tr').length };
+  });
+  check(cpGuardada > 0 && entero.finales.length === 0 && entero.filas > 0,
+        'con una lista guardada en el Resumen la app carga entera',
+        `${cpGuardada} guardados, ${entero.filas} filas · sin definir: ${entero.finales.join(', ')}`);
+  await page.evaluate(() => { CP_BONDS = []; beCPSaveLs(); });
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
