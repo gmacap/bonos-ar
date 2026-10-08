@@ -3875,6 +3875,56 @@ const omitir = (label, motivo) =>
           `desvío histórico en ${nombre}: una fila por bono, historia de la curva y z bien calculado`, JSON.stringify(o));
   }
 
+  // A/B en Series: retorno total con lo cobrado, y el relativo.
+  console.log('\nComparación A/B');
+  const ab = await page.evaluate(async () => {
+    const out = {};
+    // Sintético: cobra 5 el segundo día y vence el tercero (precio cero).
+    const precio = new Map([['2026-01-01', 100], ['2026-01-02', 98]]);
+    const r = abRetornos(precio, [{ fecha: '2026-01-02', monto: 5 }, { fecha: '2026-01-03', monto: 100 }], ['2026-01-01', '2026-01-02', '2026-01-04']);
+    out.sintetico = Math.abs(r[0]) < 1e-12 && Math.abs(r[1] - 0.03) < 1e-12 && Math.abs(r[2] - 0.05) < 1e-12;
+    // Un CER cero cupón paga una vez: 100 por el coeficiente de su vencimiento.
+    const lecer = CER_BONDS.find(b => b.tipo === 'lecer' && b.emision && b.vcto && b.vcto < hoyAR());
+    if (lecer) {
+      const f = abCerFlujos(lecer);
+      const fac = cerGetValorCer(parseDate(lecer.vcto)) / cerGetValorCer(parseDate(lecer.emision));
+      out.lecer = f.length === 1 && Math.abs(f[0].monto - 100 * fac) < 1e-9;
+    }
+    const probar = async (sec, abrir, a, b) => {
+      abrir();
+      await new Promise(r => setTimeout(r, 2000));
+      const P = abPrefs()[sec]; P.a = a; P.b = b; P.vista = 'retorno';
+      seriesSetModo(sec, 'ab');
+      for (let i = 0; i < 30 && !(seriesEstado[sec].chart && seriesEstado[sec].chart.data.datasets.length === 3); i++) await new Promise(r => setTimeout(r, 300));
+      const ch = seriesEstado[sec].chart;
+      const o = { datasets: ch ? ch.data.datasets.length : 0, resumen: document.getElementById(`series-${sec}-ab-res`).textContent };
+      if (ch && o.datasets === 3) {
+        const ult = d => d.data[d.data.length - 1];
+        const ra = ult(ch.data.datasets[0]), rb = ult(ch.data.datasets[1]), rel = ult(ch.data.datasets[2]);
+        o.relativo = ra && rb && rel && ra.x === rel.x && rb.x === rel.x ? Math.abs(rel.y - 100 * (1 + ra.y / 100) / (1 + rb.y / 100)) < 1e-3 : null;
+      }
+      o.sectoresOcultos = document.getElementById(`series-${sec}-sectores`).style.display === 'none';
+      seriesSetModo(sec, 'tasas');
+      o.vuelve = document.getElementById(`series-${sec}-sectores`).style.display !== 'none' && document.getElementById(`series-${sec}-abbar`).style.display === 'none';
+      return o;
+    };
+    const tf = LECAPS.find(x => x.precio > 0), cer = CER_BONDS.find(x => x.precio > 0 && !TAMAR_BONDS.some(t => t.ticker === x.ticker));
+    out.ars = tf && cer ? await probar('ars', () => { switchSection('pesos'); switchTab('series-ars'); }, 'TF|' + tf.ticker, 'CER|' + cer.ticker) : null;
+    const al = BON_BONDS.find(x => x.ticker === 'AL30'), gd = GLO_BONDS.find(x => x.ticker === 'GD30');
+    out.usd = al && gd ? await probar('usd', () => { switchSection('usd'); switchUsdTab('usd-series'); }, 'BON|AL30', 'GLO|GD30') : null;
+    out.sync = SUPA_USER_KEYS.includes(AB_LS);
+    return out;
+  });
+  check(ab.sintetico, 'el retorno total suma lo cobrado y, después del último pago, queda en lo cobrado');
+  if (ab.lecer != null) check(ab.lecer, 'un CER cero cupón paga 100 por el coeficiente de su vencimiento');
+  check(ab.sync, 'la elección A/B viaja por usuario');
+  for (const [k, nombre] of [['ars', 'pesos'], ['usd', 'dólares']]) {
+    const o = ab[k];
+    if (!o) { omitir(`A/B en ${nombre}`, 'sin instrumentos'); continue; }
+    check(o.datasets === 3 && o.relativo === true && /rindió más/.test(o.resumen) && o.sectoresOcultos && o.vuelve,
+          `A/B en ${nombre}: dos retornos totales y el relativo, y al salir vuelven los sectores`, JSON.stringify(o));
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');

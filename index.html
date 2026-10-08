@@ -2820,7 +2820,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -16835,6 +16835,230 @@ function desvDibujar(sec,f){
         y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Desvío (pb)',color:'#6b7c6b',font:{size:9}}}}}});
 }
 
+// ── A/B: dos instrumentos frente a frente ───────────────────────────────────
+// Cuarto modo de Series. Dos bonos de la misma sección desde la fecha elegida:
+//
+//   retorno total   (precio + lo cobrado desde el inicio) / precio inicial − 1,
+//                   sin reinvertir. Lo cobrado son los flujos de cada bono:
+//                   cupones y amortizaciones en dólares; en CER, el flujo real
+//                   por el coeficiente de su fecha; en dollar linked, al A3500
+//                   del día de pago; en tasa fija, el valor final. Un bono que
+//                   venció queda en lo que pagó.
+//   relativo A/B    (1 + retorno A) / (1 + retorno B), base 100: arriba de 100
+//                   rindió más A
+//   precio, tasa    las dos series tal como se guardaron, cada una en su escala
+//                   si las unidades no se pueden poner sobre el mismo eje
+//
+// TAMAR no tiene flujos intermedios y su pago final depende de la TAMAR de toda
+// la vida: si vence en el rango, la serie termina en su último precio.
+//
+// Estado con var: se llama desde seriesCargar.
+var AB_LS='bonosAR_series_ab_v1';
+var AB_SECTORES={ars:[['TF','Tasa fija'],['CER','CER'],['TAMAR','TAMAR'],['DLK','Dollar linked']],usd:[['BON','Bonares'],['GLO','Globales'],['BOP','Bopreales']]};
+var AB_PREF=null;
+var AB_COLOR={a:'#3b9cff',b:'#ff8a1f'};
+
+function abPrefs(){
+  if(!AB_PREF){
+    AB_PREF={ars:{a:null,b:null,vista:'retorno'},usd:{a:null,b:null,vista:'retorno'}};
+    try{const r=localStorage.getItem(AB_LS);if(r){const o=JSON.parse(r);['ars','usd'].forEach(k=>{if(o[k])AB_PREF[k]={...AB_PREF[k],...o[k]};});}}catch(e){}
+  }
+  return AB_PREF;
+}
+function abSet(sec,k,v){
+  abPrefs()[sec][k]=v;
+  try{localStorage.setItem(AB_LS,JSON.stringify(AB_PREF));}catch(e){}
+  seriesCargar(sec);
+}
+function abDefinicion(sector,ticker){
+  const lista={TF:LECAPS,CER:CER_BONDS,TAMAR:TAMAR_BONDS,DLK:DLK_BONDS,BON:BON_BONDS,GLO:GLO_BONDS,BOP:BOP_BONDS}[sector]||[];
+  return lista.find(b=>b.ticker===ticker)||null;
+}
+function abOpciones(sec){
+  const out=[];
+  for(const[sector,label]of AB_SECTORES[sec]){
+    const lista={TF:LECAPS,CER:CER_BONDS,TAMAR:TAMAR_BONDS,DLK:DLK_BONDS,BON:BON_BONDS,GLO:GLO_BONDS,BOP:BOP_BONDS}[sector]||[];
+    [...lista].sort((x,y)=>String(x.vcto||x.vencimiento||'').localeCompare(String(y.vcto||y.vencimiento||'')))
+      .forEach(b=>out.push({v:`${sector}|${b.ticker}`,l:`${b.ticker} · ${label}`,sector,ticker:b.ticker}));
+  }
+  return out;
+}
+
+// Los flujos de un CER desde la emisión, en pesos: el flujo real de cada fecha
+// por el coeficiente CER de esa fecha. Es la misma cuenta que cerBuildFlujos,
+// pero sin cortar en la liquidación de hoy.
+function abCerFlujos(r){
+  const cerEm=cerGetValorCer(parseDate(r.emision));
+  if(!(cerEm>0))return[];
+  const fac=d=>{const c=cerGetValorCer(d);return c>0?c/cerEm:null;};
+  if(r.tipo==='lecer'){
+    const f=fac(parseDate(r.vcto));
+    return f?[{fecha:fmtDate(siguienteHabil(parseDate(r.vcto))),monto:100*f}]:[];
+  }
+  const freq=r.freq||6;
+  const dates=cerCouponDates(r.emision,r.vcto,freq,r.primerCupon||null);
+  const amortTable=cerBuildAmortTable(r,dates,freq);
+  const amortMap=new Map(amortTable.map(a=>[a.fecha,a.pct]));
+  let vn=r.cuponSchedule&&r.cuponSchedule.length?100:(r.vnInicial||100);
+  const out=[];
+  for(const d of dates){
+    const k=fmtDate(d);
+    const tramo=r.cuponSchedule&&r.cuponSchedule.find(t=>d>parseDate(t.desde)&&d<=parseDate(t.hasta));
+    const tasaCash=tramo?tramo.tasaCash/100:(r.cupon||0)/100;
+    const tasaPIK=tramo?tramo.tasaPIK/100:0;
+    const amort=amortMap.get(k)||0;
+    const real=vn*tasaCash*(freq/12)+amort;
+    const f=fac(d);
+    if(f&&real>0)out.push({fecha:fmtDate(siguienteHabil(d)),monto:real*f});
+    vn=Math.max(0,vn*(1+tasaPIK*(freq/12))-amort);
+  }
+  amortTable.forEach(a=>{
+    if(dates.some(d=>fmtDate(d)===a.fecha)||!(a.pct>0))return;
+    const d=parseDate(a.fecha),f=fac(d);
+    if(f)out.push({fecha:fmtDate(siguienteHabil(d)),monto:a.pct*f});
+  });
+  return out.sort((x,y)=>x.fecha.localeCompare(y.fecha));
+}
+// Lo que paga cada instrumento, en la moneda de su precio guardado y por 100 de
+// nominal.
+function abFlujos(sector,b){
+  if(!b)return[];
+  try{
+    if(sector==='TF')return[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),monto:calcVF(b.tem_emision,parseDate(b.emision),parseDate(b.vcto))}];
+    if(sector==='CER')return abCerFlujos(b);
+    if(sector==='DLK'){
+      const{ff}=dlkBuildFF(b,new Date(parseDate(b.emision).getTime()-86400000));
+      return ff.map(ev=>{const tc=dlkIndexGet(ev.fecha);return tc>0?{fecha:ev.fecha,monto:ev.cf*tc}:null;}).filter(Boolean);
+    }
+    if(sector==='BON'||sector==='GLO'||sector==='BOP')return bopGenFlows(b).map(f=>({fecha:f.fecha,monto:f.flujo}));
+  }catch(e){console.warn('[a/b] flujos '+b.ticker+':',e.message);}
+  return[];
+}
+
+async function abTraer(sector,ticker,desde,hasta){
+  const data=await seriesFetchPag(()=>supa.from('bond_price_snapshots')
+    .select('snapshot_date,price,tir').eq('sector',sector).eq('ticker',ticker)
+    .gte('snapshot_date',desde).lte('snapshot_date',hasta).order('snapshot_date',{ascending:true}));
+  const precio=new Map(),tasa=new Map();
+  for(const r of data||[]){
+    if(r.price>0)precio.set(r.snapshot_date,+r.price);
+    if(r.tir!=null&&isFinite(r.tir))tasa.set(r.snapshot_date,+r.tir);
+  }
+  return{precio,tasa};
+}
+
+// El retorno total en cada fecha, desde la primera. Después del último pago el
+// precio es cero: lo que queda es lo cobrado.
+function abRetornos(precio,flujos,fechas){
+  if(!fechas.length)return[];
+  const p0=precio.get(fechas[0]);
+  if(!(p0>0))return fechas.map(()=>null);
+  const ultimo=flujos.length?flujos[flujos.length-1].fecha:null;
+  return fechas.map(f=>{
+    let px=precio.get(f);
+    if(px==null){if(ultimo&&f>=ultimo)px=0;else return null;}
+    const cobrado=flujos.reduce((s,q)=>q.fecha>fechas[0]&&q.fecha<=f?s+q.monto:s,0);
+    return(px+cobrado)/p0-1;
+  });
+}
+
+async function abCargar(sec,desde,hasta){
+  const st=seriesEstado[sec],P=abPrefs()[sec];
+  const msg=document.getElementById(`series-${sec}-msg`);
+  const opts=abOpciones(sec);
+  if(!opts.length){if(msg)msg.textContent='Sin instrumentos cargados';return;}
+  if(!opts.some(o=>o.v===P.a))P.a=opts[0].v;
+  if(!opts.some(o=>o.v===P.b))P.b=(opts.find(o=>o.v!==P.a&&o.sector!==opts[0].sector)||opts[1]||opts[0]).v;
+  ['a','b'].forEach(k=>{
+    const el=document.getElementById(`series-${sec}-ab-${k}`);
+    if(el){el.innerHTML=opts.map(o=>`<option value="${o.v}">${o.l}</option>`).join('');el.value=P[k];}
+  });
+  ['retorno','precio','tasa'].forEach(v=>{const el=document.getElementById(`series-${sec}-ab-v-${v}`);if(el)el.classList.toggle('active',P.vista===v);});
+  ['wrap2'].forEach(id=>{const el=document.getElementById(`series-${sec}-${id}`);if(el)el.style.display='none';});
+  if(msg)msg.textContent='Cargando...';
+  const oa=opts.find(o=>o.v===P.a),ob=opts.find(o=>o.v===P.b);
+  let A,B;
+  try{[A,B]=await Promise.all([abTraer(oa.sector,oa.ticker,desde,hasta),abTraer(ob.sector,ob.ticker,desde,hasta)]);}
+  catch(e){if(msg)msg.textContent='Error: '+e.message;return;}
+  // Pudo cambiar la elección mientras llegaban los datos.
+  if(P.a!==oa.v||P.b!==ob.v)return;
+  const res=abCalcular(oa,ob,A,B,P.vista);
+  if(msg)msg.textContent=res.aviso||'';
+  const r=document.getElementById(`series-${sec}-ab-res`);
+  if(r)r.innerHTML=res.resumen||'';
+  abDibujar(sec,res);
+}
+
+// Sin DOM: lo que se dibuja.
+function abCalcular(oa,ob,A,B,vista){
+  const out={oa,ob,vista,series:[],ejes:1};
+  if(vista==='retorno'){
+    const fa=abFlujos(oa.sector,abDefinicion(oa.sector,oa.ticker)),fb=abFlujos(ob.sector,abDefinicion(ob.sector,ob.ticker));
+    // Desde la primera fecha en que hay precio de los dos.
+    const todas=[...new Set([...A.precio.keys(),...B.precio.keys()])].sort();
+    const ini=todas.find(f=>A.precio.has(f)&&B.precio.has(f));
+    if(!ini){out.aviso='Sin una rueda con precio de los dos en el rango';return out;}
+    const fechas=todas.filter(f=>f>=ini);
+    const ra=abRetornos(A.precio,fa,fechas),rb=abRetornos(B.precio,fb,fechas);
+    const rel=fechas.map((f,i)=>ra[i]!=null&&rb[i]!=null?100*(1+ra[i])/(1+rb[i]):null);
+    out.fechas=fechas;
+    out.series=[{k:'a',label:`${oa.ticker} · retorno total`,y:ra.map(v=>v==null?null:v*100),eje:'y'},
+                {k:'b',label:`${ob.ticker} · retorno total`,y:rb.map(v=>v==null?null:v*100),eje:'y'},
+                {k:'rel',label:'Relativo A/B (base 100)',y:rel,eje:'y2'}];
+    out.ejes=2;out.ejeY='Retorno total desde el inicio (%)';out.ejeY2='A/B, base 100';
+    const ult=k=>{const v=k==='a'?ra:k==='b'?rb:rel;for(let i=v.length-1;i>=0;i--)if(v[i]!=null)return v[i];return null;};
+    const ua=ult('a'),ub=ult('b'),ur=ult('rel');
+    out.final={a:ua,b:ub,rel:ur,ini};
+    if(ua!=null&&ub!=null)out.resumen=`desde ${betrF(ini)}: <span style="color:${AB_COLOR.a}">${oa.ticker} ${(ua*100>=0?'+':'')+(ua*100).toFixed(2)}%</span> · <span style="color:${AB_COLOR.b}">${ob.ticker} ${(ub*100>=0?'+':'')+(ub*100).toFixed(2)}%</span> · A/B ${ur.toFixed(2)} <span style="color:var(--text3)">(${ur>=100?oa.ticker:ob.ticker} rindió más)</span>`;
+    const sinFlujos=[oa,ob].filter(o=>o.sector==='TAMAR').map(o=>o.ticker);
+    if(sinFlujos.length)out.aviso=`${sinFlujos.join(' y ')}: TAMAR paga al vencimiento, sin flujos en el medio`;
+    return out;
+  }
+  const mA=vista==='precio'?A.precio:A.tasa,mB=vista==='precio'?B.precio:B.tasa;
+  const fechas=[...new Set([...mA.keys(),...mB.keys()])].sort();
+  out.fechas=fechas;
+  const ya=fechas.map(f=>mA.has(f)?mA.get(f):null),yb=fechas.map(f=>mB.has(f)?mB.get(f):null);
+  // Dos escalas si no son la misma unidad o si una es varias veces la otra.
+  const va=ya.filter(v=>v!=null),vb=yb.filter(v=>v!=null);
+  const prom=v=>v.length?v.reduce((s,x)=>s+x,0)/v.length:null;
+  const pa=prom(va),pb=prom(vb);
+  const otraUnidad=vista==='tasa'&&oa.sector!==ob.sector;
+  const otraEscala=vista==='precio'&&pa>0&&pb>0&&Math.abs(Math.log(pa/pb))>Math.log(1.5);
+  out.ejes=otraUnidad||otraEscala?2:1;
+  const unidad={TF:'TNA %',CER:'TIR real %',TAMAR:'margen TNA %',DLK:'TNA USD %',BON:'TIR %',GLO:'TIR %',BOP:'TIR %'};
+  out.ejeY=vista==='precio'?`Precio ${oa.ticker}`:`${oa.ticker} · ${unidad[oa.sector]}`;
+  out.ejeY2=vista==='precio'?`Precio ${ob.ticker}`:`${ob.ticker} · ${unidad[ob.sector]}`;
+  if(out.ejes===1)out.ejeY=vista==='precio'?'Precio':unidad[oa.sector];
+  out.series=[{k:'a',label:`${oa.ticker} · ${vista==='precio'?'precio':unidad[oa.sector]}`,y:ya,eje:'y'},
+              {k:'b',label:`${ob.ticker} · ${vista==='precio'?'precio':unidad[ob.sector]}`,y:yb,eje:out.ejes===2?'y2':'y'}];
+  if(otraUnidad)out.aviso='Cada uno en su unidad: no son tasas comparables';
+  return out;
+}
+
+function abDibujar(sec,res){
+  const st=seriesEstado[sec];
+  const canvas=document.getElementById(`series-${sec}-chart`);
+  if(!canvas)return;
+  if(st.chart){st.chart.destroy();st.chart=null;}
+  if(!res.fechas||!res.fechas.length)return;
+  const dia=x=>Math.round(parseDate(x).getTime()/86400000);
+  const deDia=n=>fmtDate(new Date(n*86400000+12*3600000));
+  const xs=res.fechas.map(dia);
+  const ds=res.series.map(s=>({label:s.label,data:s.y.map((v,i)=>v==null?null:{x:xs[i],y:+(+v).toFixed(4)}).filter(Boolean),
+    borderColor:s.k==='rel'?'rgba(232,232,232,0.75)':AB_COLOR[s.k],borderDash:s.k==='rel'?[5,4]:[],
+    borderWidth:s.k==='rel'?1.3:1.8,pointRadius:0,showLine:true,tension:0,fill:false,yAxisID:s.eje}));
+  const escala=(titulo,pos,grid)=>({position:pos,grid:{color:grid?'rgba(255,255,255,0.05)':'transparent'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:titulo,color:'#6b7c6b',font:{size:9}}});
+  const scales={x:{type:'linear',min:xs[0],max:xs[xs.length-1],grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},maxTicksLimit:10,
+      callback:n=>{const d=deDia(n);return`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(2,4)}`;}}},
+    y:escala(res.ejeY,'left',true)};
+  if(res.ejes===2)scales.y2=escala(res.ejeY2,'right',false);
+  st.chart=new Chart(canvas,{type:'scatter',data:{datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{datalabels:{display:false},legend:{display:true,position:'top',labels:{color:'#8a9a8a',boxWidth:10,font:{size:10}}},
+        tooltip:{mode:'nearest',intersect:false,callbacks:{title:q=>q[0]?betrF(deDia(q[0].raw.x)):'',label:q=>`${q.dataset.label}: ${q.raw.y.toFixed(2)}`}}},
+      scales}});
+}
+
 // ══════════════════════════════════════════════════════ USD RESUMEN ══════════
 const USD_RES_LS='bonosAR_usd_res_v1';
 let usdResState={sumBonds:[],fwdRows:[],chartBonds:[],colWidths:{c1:155,c2:420},c1Split:0.5};
@@ -18227,14 +18451,19 @@ function seriesSetModo(sec,modo){
   st.modo=modo;
   seriesFwdModo[sec]=modo;
   seriesFwdSave();
-  ['tasas','precios','fwd'].forEach(m=>{
+  ['tasas','precios','fwd','ab'].forEach(m=>{
     const el=document.getElementById(`series-${sec}-modo-${m}`);
     if(el)el.classList.toggle('active',m===modo);
   });
   const bar=document.getElementById(`series-${sec}-fwdbar`);
   if(bar)bar.style.display=modo==='fwd'?'flex':'none';
   const tod=document.getElementById(`series-${sec}-todos`);
-  if(tod)tod.style.display=modo==='fwd'?'none':'flex';
+  if(tod)tod.style.display=modo==='fwd'||modo==='ab'?'none':'flex';
+  // A/B no usa los sectores ni los chips de bonos: elige dos instrumentos.
+  [['abbar','flex',true],['sectores','flex',false],['chips','flex',false]].forEach(([id,disp,enAb])=>{
+    const el=document.getElementById(`series-${sec}-${id}`);
+    if(el)el.style.display=(modo==='ab')===enAb?disp:'none';
+  });
   const mon=document.getElementById(`series-${sec}-moneda`);
   if(mon)mon.style.display=modo==='precios'?'flex':'none';
   seriesFwdAjustarSector(sec);
@@ -18416,11 +18645,12 @@ async function seriesInit(sec){
   pg.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
   <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;background:var(--surface)">
     <span style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)">${cfg.titulo}</span>
-    <div style="display:flex;gap:4px">${chips}</div>
+    <div id="series-${sec}-sectores" style="display:${modo==='ab'?'none':'flex'};gap:4px">${chips}</div>
     <div style="display:flex;gap:2px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:1px">
       <button class="chart-mode-btn${modo==='tasas'?' active':''}" id="series-${sec}-modo-tasas" onclick="seriesSetModo('${sec}','tasas')">Tasas</button>
       <button class="chart-mode-btn${modo==='precios'?' active':''}" id="series-${sec}-modo-precios" onclick="seriesSetModo('${sec}','precios')">Precios</button>
       <button class="chart-mode-btn${modo==='fwd'?' active':''}" id="series-${sec}-modo-fwd" onclick="seriesSetModo('${sec}','fwd')">Forwards</button>
+      <button class="chart-mode-btn${modo==='ab'?' active':''}" id="series-${sec}-modo-ab" onclick="seriesSetModo('${sec}','ab')" title="Comparar dos instrumentos">A/B</button>
     </div>
     <div id="series-${sec}-moneda" style="display:${modo==='precios'?'flex':'none'};gap:2px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:1px">
       <button class="chart-mode-btn${moneda==='ARS'?' active':''}" id="series-${sec}-mon-ARS" onclick="seriesSetMoneda('${sec}','ARS')" title="Precio en pesos">$</button>
@@ -18433,7 +18663,7 @@ async function seriesInit(sec){
       <input type="date" id="series-${sec}-d2" value="${hasta}" onchange="seriesCargar('${sec}')" style="${inp}">
       <button class="btn primary" style="padding:3px 10px;font-size:10px" onclick="seriesCargar('${sec}')">Ver</button>
     </div>
-    <div id="series-${sec}-todos" style="display:${modo==='fwd'?'none':'flex'};gap:4px;margin-left:4px">
+    <div id="series-${sec}-todos" style="display:${modo==='fwd'||modo==='ab'?'none':'flex'};gap:4px;margin-left:4px">
       <button class="btn" style="padding:3px 8px;font-size:10px" onclick="seriesTodos('${sec}',true)">Todos</button>
       <button class="btn" style="padding:3px 8px;font-size:10px" onclick="seriesTodos('${sec}',false)">Ninguno</button>
       <button class="btn" id="series-${sec}-vol" style="padding:3px 8px;font-size:10px" onclick="seriesToggleVolumen()"
@@ -18450,7 +18680,19 @@ async function seriesInit(sec){
     <button class="btn primary" style="padding:3px 10px;font-size:10px" onclick="seriesFwdAgregar('${sec}')">+ Agregar</button>
     <button class="btn" style="padding:3px 8px;font-size:10px" onclick="seriesFwdLimpiar('${sec}')">Limpiar</button>
   </div>
-  <div id="series-${sec}-chips" style="padding:5px 14px;border-bottom:1px solid var(--border);flex-shrink:0;min-height:28px;background:var(--surface2);display:flex;flex-wrap:wrap;align-items:center;gap:3px"></div>
+  <div id="series-${sec}-abbar" style="display:${modo==='ab'?'flex':'none'};align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);flex-wrap:wrap">
+    <span style="font-size:10px;color:#3b9cff;font-family:var(--mono);font-weight:600">A</span>
+    <select id="series-${sec}-ab-a" style="${inp}" onchange="abSet('${sec}','a',this.value)"></select>
+    <span style="font-size:10px;color:#ff8a1f;font-family:var(--mono);font-weight:600">B</span>
+    <select id="series-${sec}-ab-b" style="${inp}" onchange="abSet('${sec}','b',this.value)"></select>
+    <div style="display:flex;gap:2px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:1px;margin-left:6px">
+      <button class="chart-mode-btn" id="series-${sec}-ab-v-retorno" onclick="abSet('${sec}','vista','retorno')">Retorno total</button>
+      <button class="chart-mode-btn" id="series-${sec}-ab-v-precio" onclick="abSet('${sec}','vista','precio')">Precio</button>
+      <button class="chart-mode-btn" id="series-${sec}-ab-v-tasa" onclick="abSet('${sec}','vista','tasa')">Rendimiento</button>
+    </div>
+    <span id="series-${sec}-ab-res" style="font-family:var(--mono);font-size:11px;color:var(--text2);margin-left:8px"></span>
+  </div>
+  <div id="series-${sec}-chips" style="padding:5px 14px;border-bottom:1px solid var(--border);flex-shrink:0;min-height:28px;background:var(--surface2);display:${modo==='ab'?'none':'flex'};flex-wrap:wrap;align-items:center;gap:3px"></div>
   <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:8px">
     <div id="series-${sec}-wrap1" style="flex:1;min-height:0;position:relative">
       <canvas id="series-${sec}-chart"></canvas>
@@ -18498,6 +18740,7 @@ async function seriesCargar(sec){
   if(!d1||!d2)return;
   const desde=d1.value, hasta=d2.value;
   if(desde>hasta){if(msg)msg.textContent='La fecha inicial es posterior a la final';return;}
+  if(st.modo==='ab')return abCargar(sec,desde,hasta);
   if(msg)msg.textContent='Cargando...';
   try{
     if(st.modo==='fwd'){
