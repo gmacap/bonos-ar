@@ -3397,6 +3397,54 @@ const omitir = (label, motivo) =>
     check(/→ .* días/.test(beVen.texto), 'el detalle muestra la ventana con los días de cada mes', beVen.texto);
   }
 
+  // El forward entre bonos: el cociente de los dos CER de breakeven entre sus
+  // fixings, sin contar meses, con el REM del mismo tramo.
+  console.log('\nBreakeven de inflación: forward entre fixings');
+  const beFw = await page.evaluate(() => {
+    const out = {};
+    // Sintético: el anterior fija el 16/04 con CER de breakeven 1000 y éste el
+    // 14/05 con 1015; son 28 días.
+    const mk = (t, hasta, cer, rem, dR) => ({ ticker: t, res: { ventana: { hasta }, cerFinalBE: cer, rem: { mensual: rem }, diasRestantes: dR } });
+    const a = mk('A', '2027-04-16', 1000, 1.6, 183), b = mk('B', '2027-05-14', 1015, 1.6, 211);
+    const f = beForward(b, [a]);
+    out.sint = f && { valor: f.valor, esperado: (Math.pow(1.015, 30.4 / 28) - 1) * 100, dias: f.dias,
+      meses: f.meses.map(m => m.mes + ':' + m.dias).join(' '), rem: f.rem, corto: f.corto };
+    // Mismo fixing: no hay forward; el primero tampoco.
+    out.mismo = beForward(mk('C', '2027-04-16', 1001, 1.6, 183), [a]);
+    out.primero = beForward(a, []);
+    // En vivo, con todos los CER que tienen breakeven: la tabla trae la columna
+    // y cada bono con un anterior de fixing distinto tiene forward.
+    const guardado = BE_BONOS;
+    BE_BONOS = beCandidatos().map(c => c.ticker);
+    beRecalc();
+    const res = BE_BONOS.map(t => ({ ticker: t, res: beCalcular(t) }))
+      .sort((x, y) => String((CER_BONDS.find(b => b.ticker === x.ticker) || {}).vcto).localeCompare(String((CER_BONDS.find(b => b.ticker === y.ticker) || {}).vcto)));
+    out.vivos = 0; out.faltan = [];
+    res.forEach((it, i) => {
+      if (!it.res || it.res.error) return;
+      const hayPrev = res.slice(0, i).some(x => x.res && !x.res.error && x.res.ventana.hasta < it.res.ventana.hasta);
+      if (!hayPrev) return;
+      out.vivos++;
+      if (!beForward(it, res.slice(0, i))) out.faltan.push(it.ticker);
+    });
+    const th = document.querySelector('#be-col1 table thead');
+    out.columna = th ? /Fwd/.test(th.textContent) : false;
+    out.celdas = [...document.querySelectorAll('#be-tbody tr')].filter(tr => tr.children.length === 5).length;
+    BE_BONOS = guardado; beRecalc();
+    return out;
+  });
+  check(beFw.sint && Math.abs(beFw.sint.valor - beFw.sint.esperado) < 1e-9 && beFw.sint.dias === 28
+        && beFw.sint.meses === '2027-03:28',
+        'el forward es el cociente de los dos CER de breakeven, mensualizado por los días entre fixings', JSON.stringify(beFw.sint));
+  check(Math.abs(beFw.sint.rem - 1.6) < 1e-9 && !beFw.sint.corto,
+        'con un REM parejo, el REM del tramo es ese mismo valor');
+  check(beFw.mismo === null && beFw.primero === null, 'sin un fixing anterior distinto no hay forward');
+  if (!beFw.vivos) omitir('forward en vivo', 'menos de dos CER con breakeven');
+  else {
+    check(beFw.faltan.length === 0, 'en vivo, cada bono con un fixing anterior tiene forward', beFw.faltan.join(', '));
+    check(beFw.columna && beFw.celdas > 0, 'la tabla de breakeven muestra la columna del forward', `${beFw.celdas} filas`);
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');

@@ -1320,7 +1320,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 
     <!-- COL 1: Breakevens (resizable) -->
-    <div id="be-col1" style="width:285px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
+    <div id="be-col1" style="width:315px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
 
       <!-- BE Inflación -->
       <div>
@@ -1337,9 +1337,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <table class="be-table">
           <thead>
             <tr class="bb2">
-              <th title="Bono CER · abajo, hasta qué mes llega su breakeven y el promedio del sendero de Proyecciones" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:left">CER</th>
+              <th title="Bono CER · abajo, la fecha de su fixing y tu sendero de inflación sobre la misma ventana" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:left">CER</th>
               <th title="Inflación mensual que descuenta el precio contra su LECAP" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">BE</th>
-              <th title="Breakeven menos la inflación mensual que espera el REM para los mismos meses, en puntos porcentuales. Abajo de cada diferencia, el REM con el que se comparó." style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">vs REM<span style="text-transform:none"> pp</span></th>
+              <th title="Breakeven menos la inflación mensual que espera el REM para la misma ventana, en puntos porcentuales. Abajo de cada diferencia, el REM con el que se comparó." style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">vs REM<span style="text-transform:none"> pp</span></th>
+              <th title="Forward: la inflación mensual que el precio descuenta entre el fixing del bono anterior de la lista y el de este. Abajo, el REM del mismo tramo." style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">Fwd</th>
               <th></th>
             </tr>
           </thead>
@@ -10200,26 +10201,6 @@ function beVentanaTexto(res){
   return`${ddmm(v.desde)} → ${ddmm(v.hasta)}/${v.hasta.slice(2,4)} · ${meses.join(', ')}`;
 }
 
-function beHastaMes(vctoStr){
-  const vcto=parseDate(vctoStr);
-  const fixing=cerGetFechaCer(vcto);
-  const dia=fixing.getDate();
-  let y=fixing.getFullYear(),m=fixing.getMonth(); // 0-based
-  if(dia>=15){m-=1;if(m<0){m+=12;y--;}}  // N-1
-  else{m-=2;if(m<0){m+=12;y--;}}          // N-2
-  return{año:y,mes:m,fixingDia:dia,fixingFecha:fmtDate(fixing)};
-}
-
-function bePromedioInfla(hastaAño,hastaMes0){
-  const hastaMesStr=`${hastaAño}-${String(hastaMes0+1).padStart(2,'0')}`;
-  // desde el primer mes proyectado (no publicado) hasta "hasta mes"
-  const items=PROJ_INFLACION.filter(r=>r.tipo!=='publicado'&&r.mes<=hastaMesStr);
-  if(!items.length)return null;
-  let ultimaInfla=2;
-  PROJ_INFLACION.forEach(r=>{if(r.infla!=null)ultimaInfla=r.infla;});
-  const vals=items.map(r=>r.infla!=null?r.infla:ultimaInfla);
-  return vals.reduce((s,v)=>s+v,0)/vals.length;
-}
 
 // El núcleo del breakeven, sin DOM ni estado: se usa para la rueda de hoy y para
 // reconstruir cualquier rueda pasada, así la serie histórica y la tabla no pueden
@@ -10262,9 +10243,6 @@ function beCalcular(cerTicker){
     cerConocido:lastReal.valor,diasRestantes});
   if(!nuc)return{error:'Sin datos para el breakeven'};
   const{pfBE,cerFinalBE,varDiaria,inflaBE}=nuc;
-  // El "mes hasta" sólo lo usa el forward entre bonos.
-  const hm=beHastaMes(cerBond.vcto);
-
   // Las referencias se miden sobre la misma ventana que el breakeven, en la
   // misma unidad: el REM, y el sendero de inflación que tengas elegido (sale
   // directo del CER proyectado). Si el REM no llega ni con su ancla, no se
@@ -10275,23 +10253,70 @@ function beCalcular(cerTicker){
   const cerProy=CER_PROJ.get(fixStr);
   const promInfla=cerProy>0?(Math.pow(cerProy/lastReal.valor,30.4/diasRestantes)-1)*100:null;
 
-  // meses restantes = diferencia entre "hasta mes" y último mes publicado
-  const lastPub=[...PROJ_INFLACION].filter(r=>r.tipo==='publicado').slice(-1)[0];
-  let mesesRestantes=null;
-  if(lastPub){
-    const [py,pm]=lastPub.mes.split('-').map(Number);
-    mesesRestantes=(hm.año-py)*12+(hm.mes+1-pm); // hm.mes es 0-based
-  }
-
   return{cerTicker,tfTicker:par.tickers.join('·'),tfTickers:par.tickers,letrasTF:par.letras,
     tirTF:par.tir,diasCER,psCER,pfBE,
     fixingEmision:fmtDate(cerGetFechaCer(parseDate(cerBond.emision))).split('-').reverse().join('/'),
     cerIni,cerFinalBE,
     lastReal:lastReal.valor,lastRealFecha:lastReal.fecha.split('-').reverse().join('/'),
     fixingVto:fmtDate(fixingVto).split('-').reverse().join('/'),
-    diasRestantes,varDiaria,inflaBE,hastaMes:hm,promInfla,mesesRestantes,ventana,
+    diasRestantes,varDiaria,inflaBE,promInfla,ventana,
     rem:rem?{...rem}:null,
     difRem:(rem&&isFinite(inflaBE))?inflaBE-rem.mensual:null};
+}
+
+// ── El forward entre bonos ──────────────────────────────────────────────────
+// Lo que el precio descuenta entre el fixing del bono anterior y el de este.
+// Sale del cociente de sus dos CER de breakeven —el crecimiento del CER que el
+// mercado paga entre una fecha y la otra—, mensualizado por los días que las
+// separan, como el breakeven. Al lado, el REM del mismo tramo, calculado igual.
+//
+// Antes se elevaba cada breakeven a una cantidad entera de meses hasta su "mes
+// hasta" y se dividía. Esos meses no eran los que el precio descuenta: al
+// X29E7 se le contaban 4 con 92 días de ventana, y al tramo X29E7 → TZXM7
+// (diciembre y 26 días de enero) se le atribuía un mes solo; daba 2,67% donde
+// el precio descuenta 2,26%. Y dos bonos con el mismo "mes hasta" no tenían
+// forward: el TZXA7 → TZXY7, que es casi exactamente la inflación de marzo.
+//
+// Un tramo corto amplifica el ruido de precio de los dos bonos: en 14 días, un
+// 0,1% de precio mueve el forward unos 0,2 puntos. Debajo de BE_FWD_DIAS_MIN
+// se marca.
+const BE_FWD_DIAS_MIN=20;
+function beForward(item,anteriores){
+  const r=item&&item.res;
+  if(!r||r.error||!r.ventana||!(r.cerFinalBE>0))return null;
+  // El anterior: el último con un fixing estrictamente antes.
+  const prev=[...anteriores].reverse().find(x=>x.res&&!x.res.error&&x.res.ventana&&x.res.ventana.hasta<r.ventana.hasta);
+  if(!prev)return null;
+  const pr=prev.res;
+  const dias=Math.round((parseDate(r.ventana.hasta)-parseDate(pr.ventana.hasta))/86400000);
+  if(!(dias>0))return null;
+  const mens=crec=>(Math.pow(crec,30.4/dias)-1)*100;
+  // El REM: el crecimiento del CER que da su sendero hasta cada fixing.
+  const fRem=x=>x.rem?Math.pow(1+x.rem.mensual/100,x.diasRestantes/30.4):null;
+  const fi=fRem(r),fj=fRem(pr);
+  return{valor:mens(r.cerFinalBE/pr.cerFinalBE),desde:prev.ticker,dias,
+    desdeFecha:pr.ventana.hasta,hastaFecha:r.ventana.hasta,
+    meses:beMesesVentana(pr.ventana.hasta,r.ventana.hasta),
+    rem:fi&&fj?mens(fi/fj):null,corto:dias<BE_FWD_DIAS_MIN};
+}
+
+// "16/04 → 14/05/27 (28 días) · mar 28 días"
+function beForwardTexto(f){
+  if(!f)return'';
+  return beVentanaTexto({ventana:{desde:f.desdeFecha,hasta:f.hastaFecha,meses:f.meses}})
+    .replace(' · ',` (${f.dias} días) · `);
+}
+
+function beCeldaFwd(f,ticker){
+  const base='padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle';
+  if(!f)return`<td style="${base};color:var(--text3);font-size:10px" title="${betrEsc(`${ticker} es el primero de la lista: su breakeven ya es el tramo desde el último CER publicado`)}">—</td>`;
+  const t=`Forward ${f.desde} → ${ticker}: lo que el precio descuenta entre los dos fixings, ${beForwardTexto(f)}`
+    +(f.rem!=null?` · REM del mismo tramo ${fmtP2(f.rem)}`:'')
+    +(f.corto?` · tramo corto: un 0,1% de precio en cualquiera de los dos bonos lo mueve mucho`:'');
+  return`<td style="${base}" title="${betrEsc(t)}">
+    <div style="font-size:11px;color:var(--accent);font-weight:600">${fmtP2(f.valor)}${f.corto?' <span style="color:var(--warn)">⚠</span>':''}</div>
+    <div style="font-size:9px;color:var(--text3)">${f.rem!=null?fmtP2(f.rem):`${f.dias} días`}</div>
+  </td>`;
 }
 
 function beRecalc(){
@@ -10309,36 +10334,7 @@ function beRecalc(){
     return va.localeCompare(vb);
   });
 
-  // calcular tasa forward para cada bono
-  // para cada bono i, buscar el bono j con "hasta mes" inmediatamente anterior (distinto y menor)
-  resultados.forEach((item,i)=>{
-    if(!item.res||item.res.error){item.fwd=null;return;}
-    const hmI=item.res.hastaMes;
-    const hmIStr=`${hmI.año}-${String(hmI.mes).padStart(2,'0')}`;
-    const nI=item.res.mesesRestantes;
-    if(!nI||nI<=0){item.fwd=null;return;}
-
-    // buscar bono anterior: último bono con hastaMes estrictamente menor
-    let bonoPrev=null;
-    for(let j=i-1;j>=0;j--){
-      const prev=resultados[j];
-      if(!prev.res||prev.res.error)continue;
-      const hmJ=prev.res.hastaMes;
-      const hmJStr=`${hmJ.año}-${String(hmJ.mes).padStart(2,'0')}`;
-      if(hmJStr<hmIStr){bonoPrev=prev;break;}
-    }
-
-    if(!bonoPrev){item.fwd=null;return;}
-
-    const nJ=bonoPrev.res.mesesRestantes;
-    if(!nJ||nJ<=0||nJ>=nI){item.fwd=null;return;}
-
-    const beI=item.res.inflaBE/100;   // mensual decimal
-    const beJ=bonoPrev.res.inflaBE/100;
-    const exp=1/(nI-nJ);
-    const fwd=(Math.pow(Math.pow(1+beI,nI)/Math.pow(1+beJ,nJ),exp)-1)*100;
-    item.fwd=fwd;
-  });
+  resultados.forEach((item,i)=>{item.fwd=beForward(item,resultados.slice(0,i));});
 
   beRenderTabla(resultados);
   beRenderDetalle(resultados);
@@ -10351,29 +10347,31 @@ function beRenderTabla(resultados){
   if(!tbody)return;
 
   if(!resultados.length){
-    tbody.innerHTML=`<tr><td colspan="4" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:11px">Elegí bonos CER con +/−</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="5" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:11px">Elegí bonos CER con +/−</td></tr>`;
     return;
   }
 
-  tbody.innerHTML=resultados.map(({ticker,res})=>{
-    if(!res)return`<tr><td colspan="4" style="padding:2px 4px;color:var(--danger);font-size:10px">${ticker}: sin datos</td></tr>`;
+  tbody.innerHTML=resultados.map(({ticker,res,fwd})=>{
+    if(!res)return`<tr><td colspan="5" style="padding:2px 4px;color:var(--danger);font-size:10px">${ticker}: sin datos</td></tr>`;
     if(res.error)return`<tr>
       <td style="padding:2px 4px;font-family:var(--mono);font-size:10px;color:var(--accent2)">${ticker}</td>
-      <td colspan="2" style="padding:2px 4px;color:var(--danger);font-size:9px">${res.error}</td>
+      <td colspan="3" style="padding:2px 4px;color:var(--danger);font-size:9px">${res.error}</td>
       <td style="padding:1px 2px;text-align:center"><button onclick="beRemove('${ticker}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px">✕</button></td>
     </tr>`;
     const promStr=res.promInfla!=null?fmtP2(res.promInfla):'—';
-    const fixCorto=res.fixingVto.replace(/\/(\d\d)(\d\d)$/,'/$2');
+    // dd/mm del fixing: el año y la ventana completa van en el cartel.
+    const fixCorto=res.fixingVto.slice(0,5);
     return`<tr class="bb">
       <td style="padding:1px 4px;font-family:var(--mono);white-space:nowrap;vertical-align:middle" title="${betrEsc('Ventana del breakeven: '+beVentanaTexto(res)+' · tu sendero de inflación sobre esa ventana: '+promStr)}">
         <div style="font-size:10px;color:var(--accent2);font-weight:600">${ticker}</div>
-        <div style="font-size:9px;color:var(--text3)">fix ${fixCorto} · ${promStr}</div>
+        <div style="font-size:9px;color:var(--text3)">${fixCorto} · ${promStr}</div>
       </td>
       <td style="padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle">
         <div style="font-size:11px;color:var(--accent);font-weight:700">${fmtP2(res.inflaBE)}</div>
         <div style="font-size:9px;color:var(--text3)">${res.tfTicker||''}</div>
       </td>
       ${beCeldaRem(res)}
+      ${beCeldaFwd(fwd,ticker)}
       <td style="padding:1px 2px;text-align:center;vertical-align:middle"><button onclick="beRemove('${ticker}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;line-height:1">✕</button></td>
     </tr>`;
   }).join('');
@@ -12093,9 +12091,10 @@ function beCPSaveModal(){
 // ── COLUMN RESIZER ────────────────────────────────────────────────────────────
 const BE_COL_LS='bonosAR_be_colwidths';
 // El ancho guardado se respeta, salvo que sea de antes de que la primera columna
-// tuviera la TAMAR real: con 200px la columna nueva quedaba cortada, y el ancho
-// viejo estaba en el localStorage de todos los que ya habían entrado.
-const BE_COL1_MIN_UTIL=285;
+// tuviera la TAMAR real (285) o el forward del breakeven (315): con menos, la
+// columna nueva quedaba cortada, y el ancho viejo estaba en el localStorage de
+// todos los que ya habían entrado.
+const BE_COL1_MIN_UTIL=315;
 function beColWidthsLoad(){
   try{const r=localStorage.getItem(BE_COL_LS);if(r){const m=JSON.parse(r);['be-col1','be-col2'].forEach(id=>{
     const col=document.getElementById(id);
