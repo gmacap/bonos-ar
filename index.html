@@ -12741,7 +12741,10 @@ function beCPEnrich(item){
 // Antes se pintaban TNA, TIR y TEM de mínimo a máximo, en un degradé rojo →
 // verde que pasaba por un marrón: un solo valor raro aplastaba al resto en el
 // medio, que se veía todo igual, y las tres columnas repetían el mismo orden.
-const CP_HEAT_NEUTRO=0.15; // |q − 0,5|·2 por debajo de esto, sin color
+//
+// Sin constantes de módulo acá: beInit pinta esta tabla durante la carga, antes
+// de que el script llegue a esta línea, y una const todavía no inicializada
+// corta el script entero (sin sesión, sin DLK, sin gráficos).
 function beCPPercentiles(vals){
   // q de 0 a 1 por valor; los empates comparten el rango promedio.
   const v=vals.filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);
@@ -12757,7 +12760,7 @@ function beCPPercentiles(vals){
 function beCPHeat(q){
   if(q==null||!isFinite(q))return'';
   const a=Math.abs(q-0.5)*2;
-  if(a<CP_HEAT_NEUTRO)return'';
+  if(a<0.15)return''; // el medio, sin color
   const alfa=(0.08+0.42*a).toFixed(2);
   return q>0.5?`background:rgba(74,222,128,${alfa});`:`background:rgba(248,113,113,${alfa});`;
 }
