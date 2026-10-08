@@ -10105,6 +10105,27 @@ function beFindTF(vctoStr){
   return futuros[0];
 }
 
+// La tasa fija al plazo de un bono CER: la TIR de las dos LECAP que rodean su
+// vencimiento, interpolada lineal en días, y llevada a los días del CER con
+// interés compuesto. Antes se tomaba la primera LECAP que vence después y su
+// rendimiento se estiraba en forma lineal a los días del CER: con la curva con
+// pendiente eso exageraba el breakeven —0,15 puntos por mes en el TZXD6 contra
+// la T15E7 sola, el 08/10/2026— y una sola letra fina definía el par de todos
+// los CER que caían antes. Con una LECAP del mismo vencimiento da lo mismo que
+// antes. Si el CER vence antes que la primera LECAP se usa esa sola, y sin una
+// que venza después no hay par: la curva no se extrapola.
+//   letras: [{ticker, dias, tir}], con la TIR efectiva anual en %.
+function beTirTFAlPlazo(letras,dias){
+  const ls=letras.filter(l=>l&&l.dias>0&&isFinite(l.tir)).sort((a,b)=>a.dias-b.dias);
+  const sig=ls.find(l=>l.dias>=dias);
+  if(!sig)return null;
+  const ant=ls.filter(l=>l.dias<dias).pop();
+  if(sig.dias===dias||!ant)return{tir:sig.tir,tickers:[sig.ticker],letras:[{...sig,peso:1}]};
+  const w=(dias-ant.dias)/(sig.dias-ant.dias);
+  return{tir:ant.tir+w*(sig.tir-ant.tir),tickers:[ant.ticker,sig.ticker],
+    letras:[{...ant,peso:1-w},{...sig,peso:w}]};
+}
+
 function beHastaMes(vctoStr){
   const vcto=parseDate(vctoStr);
   const fixing=cerGetFechaCer(vcto);
@@ -10130,15 +10151,16 @@ function bePromedioInfla(hastaAño,hastaMes0){
 // reconstruir cualquier rueda pasada, así la serie histórica y la tabla no pueden
 // dar números distintos.
 //
-//   tasaDirecta   VF/precio − 1 de la LECAP par
-//   pfBE          el pago final que necesita el CER para empatar a la LECAP
+//   tirTF         TIR efectiva anual de la tasa fija al plazo del CER, decimal
+//                 (beTirTFAlPlazo)
+//   pfBE          el pago final que necesita el CER para empatar a la tasa fija
 //   cerFinalBE    ese pago llevado a coeficiente CER con el de la emisión
 //   inflaBE       la variación diaria que va del último CER conocido a ese
 //                 coeficiente, elevada a 30,4 días
 function beNucleo(x){
-  if(!(x.psCER>0)||!(x.diasCER>0)||!(x.diasTF>0)||!(x.cerIni>0))return null;
+  if(!(x.psCER>0)||!(x.diasCER>0)||!(x.tirTF>-1)||!(x.cerIni>0))return null;
   if(!(x.cerConocido>0)||!(x.diasRestantes>0))return null;
-  const pfBE=x.psCER*(1+x.tasaDirecta*x.diasCER/x.diasTF);
+  const pfBE=x.psCER*Math.pow(1+x.tirTF,x.diasCER/365);
   const cerFinalBE=(pfBE/100)*x.cerIni;
   const varDiaria=Math.pow(cerFinalBE/x.cerConocido,1/x.diasRestantes);
   return{pfBE,cerFinalBE,varDiaria,inflaBE:(Math.pow(varDiaria,30.4)-1)*100};
@@ -10153,12 +10175,8 @@ function beCalcular(cerTicker){
   if(diasCER<=0)return null;
   const psCER=bePrecioSucioCER(cerBond);
   if(!psCER)return null;
-  const tfBond=beFindTF(cerBond.vcto);
-  if(!tfBond)return{error:`Sin bono TF para vto ${cerBond.vcto}`};
-  const diasTF=tfBond.dias;
-  const psTF=tfBond.precio; // precio sucio = precio limpio para zero coupon TF
-  if(!psTF||diasTF<=0||!tfBond.vf)return{error:`Sin precio/VF para ${tfBond.ticker}`};
-  const tasaDirecta=tfBond.vf/psTF-1;
+  const par=beTirTFAlPlazo(beTamarLetras(),diasCER);
+  if(!par)return{error:`Ninguna LECAP con precio vence después del ${cerBond.vcto.split('-').reverse().join('/')}`};
   const cerIni=cerGetValorCer(parseDate(cerBond.emision));
   if(!cerIni)return{error:'Sin CER de emisión'};
   const lastReal=projGetLastCerReal();
@@ -10166,7 +10184,7 @@ function beCalcular(cerTicker){
   const fixingVto=cerGetFechaCer(vctoDate);
   const diasRestantes=Math.round((fixingVto-parseDate(lastReal.fecha))/86400000);
   if(diasRestantes<=0)return{error:'Fixing ya pasó'};
-  const nuc=beNucleo({psCER,tasaDirecta,diasCER,diasTF,cerIni,
+  const nuc=beNucleo({psCER,tirTF:par.tir/100,diasCER,cerIni,
     cerConocido:lastReal.valor,diasRestantes});
   if(!nuc)return{error:'Sin datos para el breakeven'};
   const{pfBE,cerFinalBE,varDiaria,inflaBE}=nuc;
@@ -10189,9 +10207,8 @@ function beCalcular(cerTicker){
     mesesRestantes=(hm.año-py)*12+(hm.mes+1-pm); // hm.mes es 0-based
   }
 
-  return{cerTicker,tfTicker:tfBond.ticker,diasCER,diasTF,psCER,psTF,
-    vfTF:tfBond.vf,
-    tasaDirecta,pfBE,
+  return{cerTicker,tfTicker:par.tickers.join('·'),tfTickers:par.tickers,letrasTF:par.letras,
+    tirTF:par.tir,diasCER,psCER,pfBE,
     fixingEmision:fmtDate(cerGetFechaCer(parseDate(cerBond.emision))).split('-').reverse().join('/'),
     cerIni,cerFinalBE,
     lastReal:lastReal.valor,lastRealFecha:lastReal.fecha.split('-').reverse().join('/'),
@@ -10334,16 +10351,18 @@ function beRenderDetalle(resultados){
     return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span style="font-size:13px;color:var(--accent);font-family:var(--mono);font-weight:500">${ticker}
-          <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:8px">par TF: ${res.tfTicker} · hasta: ${hmLabel} · BE: <span style="color:var(--accent)">${fmtP2(res.inflaBE)}%</span></span>
+          <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:8px">par TF: ${res.tfTicker} · hasta: ${hmLabel} · BE: <span style="color:var(--accent)">${fmtP2(res.inflaBE)}</span></span>
         </span>
       </div>
       <div style="display:grid;gap:0;">
-        ${step(1,`VF TF (${res.tfTicker}) = ${fmtN(res.vfTF,4)} / Px TF = ${fmtP2(res.psTF)} → Tasa directa`,fmtPct(res.tasaDirecta*100))}
-        ${step(2,`Px sucio CER (${fmtP2(res.psCER)}) × (1 + ${fmtPct(res.tasaDirecta*100)} × ${res.diasCER}d / ${res.diasTF}d)`,fmtP2(res.pfBE))}
+        ${step(1,`TIR de la tasa fija a ${res.diasCER}d: `+(res.letrasTF.length>1
+          ?res.letrasTF.map(l=>`${l.ticker} ${fmtP2(l.tir)} a ${l.dias}d`).join(' y ')+`, interpolada (peso ${fmtN(res.letrasTF[1].peso*100,1)}% la ${res.letrasTF[1].ticker})`
+          :`${res.letrasTF[0].ticker} a ${res.letrasTF[0].dias}d`),fmtPct(res.tirTF))}
+        ${step(2,`Px sucio CER (${fmtN(res.psCER,2)}) × (1 + ${fmtPct(res.tirTF)})^(${res.diasCER}/365)`,fmtN(res.pfBE,4))}
         ${step(3,`(Pago Final BE / 100) × CER emisión (${res.fixingEmision} = ${fmtN(res.cerIni,4)})`,fmtN(res.cerFinalBE,4))}
         ${step(4,`Días entre último CER real (${res.lastRealFecha}) y fixing vto (${res.fixingVto})`,res.diasRestantes+' días')}
         ${step(5,`(CER final BE / último CER real) ^ (1/${res.diasRestantes})`,fmtN(res.varDiaria,8))}
-        ${step(6,`Var. diaria ^ 30.4 − 1`,fmtP2(res.inflaBE)+'%')}
+        ${step(6,`Var. diaria ^ 30.4 − 1`,fmtP2(res.inflaBE))}
       </div>
     </div>`;
   }).join('');
@@ -17338,22 +17357,23 @@ async function seriesTraerBEInfla(desde,hasta){
     const{tf,cer}=porFecha.get(f);
     if(!tf.length)continue;
     const liqD=addHabiles(parseDate(f),1);
-    // Vencimiento implícito de cada LECAP: la rueda más los días que le quedaban.
-    const tfConVto=tf.map(r=>({...r,vcto:new Date(liqD.getTime()+r.dias*86400000)}))
-      .sort((a,b)=>a.vcto-b.vcto);
+    // Las LECAP de esa rueda con su TIR efectiva. El histórico guarda la TNA
+    // simple de la tasa fija.
+    const letras=tf.map(r=>({ticker:r.ticker,dias:r.dias,
+      tir:(Math.pow(1+r.tir/100*r.dias/365,365/r.dias)-1)*100}));
     const conocido=beCerConocidoAl(f,ordenado);
     if(!conocido)continue;
     for(const[tk,fj]of fijos){
       const row=cer.get(tk);
       if(!row)continue;
-      // La LECAP par: la primera que vence el mismo día que el CER o después.
-      const par=tfConVto.find(x=>x.vcto>=fj.vcto);
+      // La tasa fija al plazo del CER, interpolada igual que en la tabla.
+      const par=beTirTFAlPlazo(letras,row.dias);
       if(!par)continue;
       const cc=fj.bono.tipo==='cupon'?cerCuponCorrido(fj.bono,liqD):0;
       const nuc=beNucleo({
         psCER:row.price+cc,
-        tasaDirecta:par.tir/100*par.dias/365,
-        diasCER:row.dias,diasTF:par.dias,cerIni:fj.cerIni,
+        tirTF:par.tir/100,
+        diasCER:row.dias,cerIni:fj.cerIni,
         cerConocido:conocido.valor,
         diasRestantes:Math.round((fj.fixingVto-parseDate(conocido.fecha))/86400000),
       });

@@ -3297,6 +3297,52 @@ const omitir = (label, motivo) =>
   check(betr.feriados2027, 'el calendario tiene los feriados de 2027');
   check(/CER/.test(betr.sinCer || ''), 'sin bonos CER no se inventa un número', betr.sinCer);
 
+  // Breakeven de inflación: la tasa fija al plazo del CER sale de interpolar las
+  // dos LECAP que rodean su vencimiento, no de la primera que vence después.
+  console.log('\nBreakeven de inflación: tasa fija interpolada');
+  const beTF = await page.evaluate(() => {
+    const out = {};
+    const L = [{ ticker: 'A', dias: 50, tir: 25 }, { ticker: 'B', dias: 100, tir: 28 }, { ticker: 'C', dias: 200, tir: 30 }];
+    const r = d => beTirTFAlPlazo(L, d);
+    out.medio = r(75);        // a mitad entre A y B
+    out.exacta = r(100);      // la misma B
+    out.antes = r(20);        // antes de la primera: esa sola
+    out.despues = r(250);     // después de la última: no hay par
+    // Con una LECAP del mismo vencimiento, el núcleo da lo mismo que el método
+    // anterior —estirar el rendimiento directo en forma lineal—, porque los días
+    // coinciden. Números del TZXD6 contra la T15E7 del 08/10/2026.
+    const dir = 161.1037734246615 / 151.04 - 1, dias = 98;
+    const nuevo = beNucleo({ psCER: 310.35, tirTF: Math.pow(1 + dir, 365 / dias) - 1, diasCER: dias,
+      cerIni: 271.04755550913, cerConocido: 854.45861540882, diasRestantes: 74 });
+    const viejo = 310.35 * (1 + dir * dias / dias);
+    out.mismoPar = nuevo ? Math.abs(nuevo.pfBE - viejo) : null;
+    // En vivo: cada breakeven interpolado queda entre las dos LECAP vecinas.
+    const letras = beTamarLetras();
+    out.vivos = 0; out.interpolados = 0; out.errores = [];
+    for (const c of beCandidatos()) {
+      const res = beCalcular(c.ticker);
+      if (!res || res.error) continue;
+      out.vivos++;
+      if (res.tfTickers.length === 2) {
+        out.interpolados++;
+        const [a, b] = res.tfTickers.map(t => letras.find(l => l.ticker === t));
+        const lo = Math.min(a.tir, b.tir), hi = Math.max(a.tir, b.tir);
+        if (!(a.dias < res.diasCER && res.diasCER <= b.dias)) out.errores.push(`${c.ticker}: ${a.ticker}/${b.ticker} no rodean ${res.diasCER}d`);
+        if (!(res.tirTF >= lo - 1e-9 && res.tirTF <= hi + 1e-9)) out.errores.push(`${c.ticker}: TIR ${res.tirTF} fuera de [${lo}, ${hi}]`);
+      }
+    }
+    return out;
+  });
+  check(Math.abs(beTF.medio.tir - 26.5) < 1e-9 && beTF.medio.tickers.join() === 'A,B',
+        'la tasa fija al plazo del CER se interpola en días entre las dos LECAP vecinas', JSON.stringify(beTF.medio));
+  check(beTF.exacta.tir === 28 && beTF.exacta.tickers.join() === 'B' && beTF.antes.tickers.join() === 'A' && beTF.despues === null,
+        'con una LECAP del mismo plazo va esa; antes de la primera, la primera; después de la última, nada');
+  check(beTF.mismoPar != null && beTF.mismoPar < 1e-9,
+        'con una LECAP del mismo vencimiento el breakeven no cambia', String(beTF.mismoPar));
+  if (!beTF.vivos) omitir('breakeven interpolado en vivo', 'ningún CER con LECAP de su plazo');
+  else check(beTF.errores.length === 0, 'en vivo, cada breakeven interpolado queda entre sus dos LECAP',
+             `${beTF.vivos} con par, ${beTF.interpolados} interpolados · ` + beTF.errores.slice(0, 3).join(' · '));
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');
