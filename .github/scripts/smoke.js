@@ -331,6 +331,87 @@ const omitir = (label, motivo) =>
           'curvasSnapshotFromMemory devuelve el precio MEP aun en cable');
   }
 
+  // Un bono sin precio en vivo en la moneda elegida no se queda con el de otra:
+  // en cable mostraba el MEP de la última vez. Va el último cierre de ESE ticker,
+  // marcado, y si tampoco hay, sin precio. El cierre viejo no se archiva.
+  console.log('\nDólares sin precio de hoy');
+  const sinHoy = await page.evaluate(async () => {
+    const realMapa = usdFetchPriceMap, realHist = seriesHist912, realByma = bymaCierresAnteriores, monedaPrev = usdCurrency;
+    let base;
+    try { base = await realMapa(); } catch (e) { return { sinDatos: true }; }
+    const bond = [...GLO_BONDS, ...BON_BONDS].find(b => {
+      const r = EQUIV_DATA.find(e => e.ticker === b.ticker);
+      return r && r.cable && r.mep && r.ars && base.map[r.cable] > 0 && base.map[r.mep] > 0;
+    });
+    if (!bond) return { sinDatos: true };
+    const row = EQUIV_DATA.find(e => e.ticker === bond.ticker);
+    const ayer = fmtDate(restarHabiles(TODAY, 1));
+    const sin = (...syms) => { const m = { ...base, map: { ...base.map } }; syms.forEach(x => delete m.map[x]); return m; };
+    const histCon = (sym, mapa) => async x => x === sym ? mapa : realHist(x);
+    const sec = GLO_BONDS.includes(bond) ? 'GLO' : 'BON';
+    const enMemoria = () => curvasSnapshotFromMemory(sec).some(r => r.ticker === bond.ticker);
+    const out = { ticker: bond.ticker, ayer };
+    try {
+      usdFetchPriceMap = async () => base;
+      usdCurrency = 'MEP'; await usdRefreshPrices();
+      out.mep = bond.lastPrecio;
+      // En cable sin el ticker cable: su cierre anterior —no el de hoy, que
+      // data912 no publica, pero si viniera tampoco vale—, no el MEP.
+      usdFetchPriceMap = async () => sin(row.cable);
+      seriesHist912 = histCon(row.cable, new Map([[ayer, 12.34], [hoyAR(), 99.99]]));
+      usdCurrency = 'Cable'; await usdRefreshPrices();
+      out.cable = { precio: bond.lastPrecio, fecha: bond.lastPrecioCierre && bond.lastPrecioCierre.fecha,
+        var: bond.lastPctChange, monto: bond.lastMonto, spread: bond.lastBid };
+      const html = usdSumRowHtml({ b: bond }, false, 'x', 'glo');
+      out.marca = /cierre \d\d\/\d\d/.test(html) && /último operado/.test(html);
+      // Si data912 no tiene historia de ese ticker —le pasa con los ilíquidos—,
+      // el cierre anterior de BYMA, sin fecha.
+      seriesHist912 = histCon(row.cable, new Map());
+      bymaCierresAnteriores = async () => new Map([[row.cable, { h24: 45.67, ci: 45.11 }]]);
+      await usdRefreshPrices();
+      out.byma = { precio: bond.lastPrecio, ci: bond.lastPrecioCierre,
+        marca: /cierre ant\./.test(usdSumRowHtml({ b: bond }, false, 'x', 'glo')) };
+      // Sin cierre en ninguno de los dos: sin precio, nunca el MEP.
+      bymaCierresAnteriores = async () => new Map();
+      await usdRefreshPrices();
+      out.nada = { precio: bond.lastPrecio, ci: bond.lastPrecioCierre,
+        sinMarca: !/cierre (\d\d\/\d\d|ant\.)/.test(usdSumRowHtml({ b: bond }, false, 'x', 'glo')) };
+      // En MEP sin MEP ni pesos: el cierre se muestra, pero no se archiva.
+      usdFetchPriceMap = async () => sin(row.mep, row.ars);
+      seriesHist912 = histCon(row.mep, new Map([[ayer, 23.45]]));
+      usdCurrency = 'MEP'; await usdRefreshPrices();
+      out.archivo = { precio: bond.lastPrecio,
+        enMemoria: enMemoria() };
+      // Con precio en vivo otra vez, la marca se va.
+      usdFetchPriceMap = async () => base;
+      seriesHist912 = realHist; bymaCierresAnteriores = realByma;
+      usdCurrency = 'Cable'; await usdRefreshPrices();
+      out.vuelta = { precio: bond.lastPrecio, ci: bond.lastPrecioCierre, cable: base.map[row.cable], enMemoria: enMemoria() };
+    } finally {
+      usdFetchPriceMap = realMapa; seriesHist912 = realHist; bymaCierresAnteriores = realByma; usdCurrency = monedaPrev;
+      await usdRefreshPrices();
+    }
+    return out;
+  });
+  if (sinHoy.sinDatos) {
+    omitir('dólares sin precio de hoy', 'data912 no devolvió precios ahora');
+  } else {
+    check(sinHoy.cable.precio === 12.34 && sinHoy.cable.fecha === sinHoy.ayer && sinHoy.cable.precio !== sinHoy.mep,
+          'en cable, sin precio en vivo, el bono toma el último cierre del ticker cable y no el MEP',
+          `${sinHoy.ticker}: ${JSON.stringify(sinHoy.cable)} · MEP ${sinHoy.mep}`);
+    check(sinHoy.cable.var == null && sinHoy.cable.monto == null && sinHoy.cable.spread == null,
+          'un precio del cierre anterior no trae variación, puntas ni monto del día');
+    check(sinHoy.marca, 'la tabla lo marca con la fecha del cierre');
+    check(sinHoy.byma.precio === 45.67 && sinHoy.byma.ci && sinHoy.byma.ci.fuente === 'byma' && sinHoy.byma.marca,
+          'si data912 no tiene historia del ticker, usa el cierre anterior de BYMA, del mismo plazo', JSON.stringify(sinHoy.byma));
+    check(sinHoy.nada.precio == null && sinHoy.nada.ci && sinHoy.nada.ci.sinPrecio && sinHoy.nada.sinMarca,
+          'sin cierre en ninguno queda sin precio, nunca con el de otra moneda', JSON.stringify(sinHoy.nada));
+    check(sinHoy.archivo.precio === 23.45 && !sinHoy.archivo.enMemoria && sinHoy.vuelta.enMemoria,
+          'el cierre anterior se muestra pero no se archiva como precio de hoy', JSON.stringify(sinHoy.archivo));
+    check(sinHoy.vuelta.precio === +sinHoy.vuelta.cable.toFixed(4) && !sinHoy.vuelta.ci,
+          'con precio en vivo otra vez, la marca se va', JSON.stringify(sinHoy.vuelta));
+  }
+
   console.log('\nFamilias USD: descriptor y envoltorios');
   const fam = await page.evaluate(() => {
     const r = {};

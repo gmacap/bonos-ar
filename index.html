@@ -2839,7 +2839,7 @@ async function supaSaveSharedKey(key){
       value=value.map(b=>({...b,precio:null,pct_change:null,bid:null,ask:null,vol:null,ops:null,monto:null}));
     }
     if(key==='bonosAR_bop_v1'||key==='bonosAR_glo_v1'||key==='bonosAR_bon_v1'){
-      value=value.map(b=>({...b,lastPrecio:null,lastPrecioMEP:null,lastPctChange:null,lastBid:null,lastAsk:null,lastVol:null,lastOps:null,lastMonto:null,lastLiq:null}));
+      value=value.map(b=>({...b,lastPrecio:null,lastPrecioMEP:null,lastPctChange:null,lastBid:null,lastAsk:null,lastVol:null,lastOps:null,lastMonto:null,lastLiq:null,lastPrecioCierre:null}));
     }
     console.log(`[Supa] guardando ${key} → ${value.length ?? JSON.stringify(value).length} items`,value);
     const{error}=await supa.from('shared_data').upsert({key,value,updated_at:new Date().toISOString()},{onConflict:'key'});
@@ -3140,6 +3140,7 @@ function usdFamShowDetail(fam,bond){
         <div><span style="${flbl}">TIR (%)</span><input id="${fam.id}-d-tir" type="number" step="0.001" placeholder="calculada" style="${finp}"></div>
         <div><span style="${flbl}">TNA (%)</span><input id="${fam.id}-d-tna" type="number" step="0.001" placeholder="calculada" readonly style="${finpRo}"></div>
       </div>
+      <div id="${fam.id}-d-precio-nota" style="font-size:10px;color:var(--info);margin:-.3rem 0 .55rem"></div>
       <button class="btn primary" style="width:100%;margin:0;justify-content:center;padding:5px 0" onclick="${fam.id}DCalc()">▶ Calcular</button>
       <div id="${fam.id}-d-dur" style="font-size:10px;font-family:var(--mono);color:var(--text3);margin-top:.5rem;min-height:14px"></div>
     </div>
@@ -3195,6 +3196,15 @@ function usdFamShowDetail(fam,bond){
     document.getElementById(fam.id+'-d-precio').value=bond.lastPrecio.toFixed(4);
     fam.dCalc();
   }
+  usdFamPrecioNota(fam,bond);
+}
+
+// Debajo del precio de la calculadora, de dónde salió si no es de hoy.
+function usdFamPrecioNota(fam,bond){
+  const el=document.getElementById(fam.id+'-d-precio-nota');
+  if(!el)return;
+  const ci=bond&&!bond.manualOverride&&bond.lastPrecioCierre;
+  el.textContent=ci&&!ci.buscando?usdCierreTexto(bond)+'.':'';
 }
 
 function usdFamDRenderFlows(fam,liq,tirPct){
@@ -3255,7 +3265,8 @@ function usdFamChartRender(fam){
     const tir=bopTIR(b,chartLiq,b.lastPrecio,flows);
     if(tir==null)continue;
     const dur=bopDuracion(b,chartLiq,tir,flows);
-    pts.push({x:+dur.mod,y:+tir,ticker:b.ticker,precio:b.lastPrecioDisplay??b.lastPrecio});
+    pts.push({x:+dur.mod,y:+tir,ticker:b.ticker,precio:b.lastPrecioDisplay??b.lastPrecio,
+      cierre:usdCierreCorto(b)||null});
   }
   if(fam.chart){fam.chart.destroy();fam.chart=null;}
   if(!pts.length)return;
@@ -3305,7 +3316,8 @@ function usdFamChartRender(fam){
           if(ctx.datasetIndex!==0)return null;
           var p=pts[ctx.dataIndex];
           return p.ticker+': TIR '+p.y.toFixed(2)+'% · MD '+p.x.toFixed(2)
-            +(p.precio!=null?' · '+fmtPrecio(p.precio,usdSimbolo()):'');
+            +(p.precio!=null?' · '+fmtPrecio(p.precio,usdSimbolo()):'')
+            +(p.cierre?' ('+p.cierre+')':'');
         }}},
         datalabels:{},
       },
@@ -3359,8 +3371,11 @@ function usdFamDCalc(fam){
     const par=outD>0?(precio/(outD*(1+accrued/100))*100).toFixed(2):'—';
     const infoEl=document.getElementById(fam.id+'-d-flows-info');
     if(infoEl)infoEl.textContent=`Precio: ${precio.toFixed(4)} · Val. Técnico: ${valorTec} · Paridad: ${par} · Pagos pasados en gris`;
-    // persist for summary and refresh rows
+    // persist for summary and refresh rows. Otro precio que el del cierre ya
+    // es tuyo: deja de marcarse.
+    if(bond.lastPrecioCierre&&!(bond.lastPrecio!=null&&Math.abs(precio-bond.lastPrecio)<1e-6))bond.lastPrecioCierre=null;
     bond.lastPrecio=precio;bond.lastLiq=liq;
+    usdFamPrecioNota(fam,bond);
     fam.save();
     fam.renderRows();
   }
@@ -14347,6 +14362,88 @@ async function usdFetchPriceMap(){
   return{map,pctMap,bidMap,askMap,crudo};
 }
 
+// El precio de un bono en la moneda del selector, en vivo. Sin precio del ticker
+// de ESA moneda devuelve null: nunca se completa con el de otra.
+function usdPrecioVivo(row,map,mepRate){
+  const sym=usdCurrency==='ARS'?row.ars:usdCurrency==='MEP'?row.mep:row.cable;
+  const raw=sym?map[sym]:null;
+  if(!(raw>0))return{sym,precio:null};
+  if(usdCurrency==='ARS')return mepRate?{sym,precio:raw/mepRate,display:raw}:{sym,precio:null};
+  return{sym,precio:raw,display:raw};
+}
+
+// El último cierre de un ticker anterior a hoy. Primero el histórico de data912,
+// que trae la fecha; viene con una rueda de atraso, así que puede ser de antes de
+// ayer, y la fecha viaja con el precio. data912 sólo guarda historia de los
+// tickers líquidos —tiene GD30C pero no GD29C ni BPA7C, que son justo los que
+// suelen faltar—, así que si no está, el cierre anterior que informa BYMA, que
+// no dice de qué día es.
+async function usdCierreAnterior(sym){
+  if(!sym)return null;
+  const m=await seriesHist912(sym);
+  const hoy=hoyAR();
+  const f=[...m.keys()].filter(x=>x<hoy).sort().pop();
+  if(f)return{fecha:f,c:m.get(f),fuente:'data912'};
+  const b=(await bymaCierresAnteriores()).get(sym);
+  // El mismo plazo que se está mirando: contado inmediato o 24 horas.
+  const pl=document.getElementById('g-plazo');
+  const ci=pl&&String(pl.value)==='0';
+  const c=b?(ci?(b.ci||b.h24):(b.h24||b.ci)):null;
+  return c>0?{fecha:null,c,fuente:'byma'}:null;
+}
+
+// El cierre anterior de todas las especies de bonos públicos, en una llamada.
+const BYMA_BONOS_URL='https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/public-bonds';
+let _bymaCierres=null;
+async function bymaCierresAnteriores(){
+  if(_bymaCierres&&Date.now()-_bymaCierres.ts<CAUCION_TTL)return _bymaCierres.m;
+  const m=new Map();
+  try{
+    const res=await fetch(BYMA_BONOS_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({page_size:3000}),signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
+    if(!res.ok)throw new Error('BYMA HTTP '+res.status);
+    const crudo=await res.json();
+    const arr=Array.isArray(crudo)?crudo:((crudo&&crudo.data)||[]);
+    for(const x of arr){
+      if(!x||!x.symbol||!(x.previousClosingPrice>0))continue;
+      const e=m.get(x.symbol)||{};
+      e[String(x.settlementType)==='1'?'ci':'h24']=+x.previousClosingPrice;
+      m.set(x.symbol,e);
+    }
+    _bymaCierres={ts:Date.now(),m};
+  }catch(e){console.warn('[byma] cierres anteriores:',e.message);}
+  return m;
+}
+
+// La marca de un precio que no es de hoy, para la tabla, la calculadora y los
+// gráficos. lastPrecioCierre: {sym, moneda, fecha, fuente}, o con buscando o
+// sinPrecio mientras no hay número.
+const USD_MONEDA_TXT={ARS:'pesos',MEP:'MEP',Cable:'Cable'};
+function usdEsCierre(b){
+  const ci=b&&!b.manualOverride&&b.lastPrecioCierre;
+  return!!(ci&&!ci.buscando&&!ci.sinPrecio);
+}
+function usdCierreCorto(b){
+  if(!usdEsCierre(b))return'';
+  const f=b.lastPrecioCierre.fecha;
+  return f?`cierre ${f.slice(8,10)}/${f.slice(5,7)}`:'cierre ant.';
+}
+function usdCierreTexto(b){
+  const ci=b&&b.lastPrecioCierre;
+  if(!ci)return'';
+  const mon=USD_MONEDA_TXT[ci.moneda]||ci.moneda;
+  if(ci.buscando)return`Sin precio de hoy en ${mon}: buscando el último cierre`;
+  if(!ci.sym)return`Sin ticker en ${mon} en las equivalencias: no hay precio que mostrar`;
+  if(ci.sinPrecio)return`Sin precio en ${mon}: ni data912 ni BYMA traen ${ci.sym}`;
+  if(ci.fecha)return`Sin precio de hoy en ${mon} (${ci.sym}): es el último operado, del ${bopFmtDateDisp(ci.fecha)}. Sin variación, puntas ni monto del día`;
+  return`Sin precio de hoy en ${mon} (${ci.sym}): es el cierre anterior que informa BYMA. Sin variación, puntas ni monto del día`;
+}
+function usdCierreMarca(b){
+  const t=usdCierreCorto(b);
+  if(!t)return'';
+  return` <span title="${usdCierreTexto(b).replace(/"/g,'&quot;')}" style="display:inline-block;padding:0 4px;border:1px solid var(--info);border-radius:3px;color:var(--info);font-size:9px;line-height:13px;font-weight:400;white-space:nowrap">${t}</span>`;
+}
+
 function usdNextHabil(){
   const d=new Date();d.setDate(d.getDate()+1);
   while(!esHabil(d))d.setDate(d.getDate()+1);
@@ -14389,109 +14486,93 @@ async function usdRefreshPrices(){
       return (a!=null&&mepRate)?+(a/mepRate).toFixed(4):null;
     };
     const liq=usdNextHabil();
-    let updated=0;
-
-    // update Bopreales bonds
-    for(const bond of BOP_BONDS){
-      const row=EQUIV_DATA.find(e=>e.ticker===bond.ticker);
-      if(!row)continue;
-      let usdPrecio=null,sym=null;
-      if(usdCurrency==='ARS'){
-        const raw=map[row.ars];
-        if(raw!=null&&mepRate){usdPrecio=raw/mepRate;sym=row.ars;}
-      }else if(usdCurrency==='MEP'){
-        const raw=map[row.mep];
-        if(raw!=null){usdPrecio=raw;sym=row.mep;}
-      }else{
-        const raw=map[row.cable];
-        if(raw!=null){usdPrecio=raw;sym=row.cable;}
+    const fams=[
+      {bonds:BOP_BONDS,save:bopSave,page:'page-usd-bopreales',render:bopRenderSummaryRows,bop:true,n:0},
+      {bonds:GLO_BONDS,save:gloSave,page:'page-usd-globales',render:gloRenderSummaryRows,n:0},
+      {bonds:BON_BONDS,save:bonSave,page:'page-usd-bonares',render:bonRenderSummaryRows,n:0},
+    ];
+    const repintar=()=>{
+      for(const fam of fams){
+        if(fam.n)fam.save();
+        const pg=document.getElementById(fam.page);
+        if(pg&&pg.style.display!=='none')fam.render();
       }
-      if(usdPrecio!=null){
-        bond.lastPrecio=+usdPrecio.toFixed(4);bond.lastPrecioMEP=pxMEP(row);
-        bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+usdPrecio.toFixed(2);
-        bond.lastPctChange=sym&&pctMap[sym]!=null?pctMap[sym]:null;
-        if(sym){
-          const rb=bidMap[sym],ra=askMap[sym];
+      const sl=document.getElementById('page-usd-spreadleg');
+      if(sl&&sl.style.display!=='none')spreadLegRender();
+      if(document.getElementById('ures-sleg-list'))usdResRefresh();
+    };
+
+    // Precio en vivo, SÓLO del ticker de la moneda elegida. Lo que no tiene
+    // precio no se queda con el que traía: ese suele ser el de otra moneda —el
+    // MEP de la última vez— y en cable se lee como un spread que no existe.
+    const faltan=[];
+    for(const fam of fams){
+      for(const bond of fam.bonds){
+        const row=EQUIV_DATA.find(e=>e.ticker===bond.ticker);
+        if(!row)continue;
+        const v=usdPrecioVivo(row,map,mepRate);
+        if(v.precio!=null){
+          bond.lastPrecio=+v.precio.toFixed(4);
+          bond.lastPrecioDisplay=+v.display.toFixed(2);
+          bond.lastPrecioMEP=pxMEP(row);
+          bond.lastPctChange=pctMap[v.sym]!=null?pctMap[v.sym]:null;
+          const rb=bidMap[v.sym],ra=askMap[v.sym];
           bond.lastBid=rb!=null?(enPesos&&mepRate?rb/mepRate:+rb):null;
           bond.lastAsk=ra!=null?(enPesos&&mepRate?ra/mepRate:+ra):null;
+          Object.assign(bond,libroUsd(v.sym));
+          bond.lastPrecioCierre=null;
+          if(fam.bop&&!bond.lastLiq)bond.lastLiq=liq;
+          bond.manualOverride=false;fam.n++;
+        }else if(!bond.manualOverride){
+          // Mientras se busca el cierre, sin precio: mejor un guion que el de
+          // otra moneda.
+          Object.assign(bond,{lastPrecio:null,lastPrecioDisplay:null,lastPrecioMEP:pxMEP(row),
+            lastPctChange:null,lastBid:null,lastAsk:null,lastVol:null,lastOps:null,lastMonto:null,
+            lastPrecioCierre:{fecha:null,sym:v.sym||null,moneda:usdCurrency,buscando:true}});
+          fam.n++;
+          faltan.push({bond,sym:v.sym});
         }
-        Object.assign(bond,libroUsd(sym));
-        if(!bond.lastLiq)bond.lastLiq=liq;bond.manualOverride=false;updated++;
       }
     }
+    repintar();
 
-    if(updated)bopSave();
-    if(document.getElementById('page-usd-bopreales').style.display!=='none')bopRenderSummaryRows();
-
-    // update Globales bonds
-    let gloUpdated=0;
-    for(const bond of GLO_BONDS){
-      const row=EQUIV_DATA.find(e=>e.ticker===bond.ticker);
-      if(!row)continue;
-      let gloPrecio=null,gloSym=null;
-      if(usdCurrency==='ARS'){
-        const raw=map[row.ars];
-        if(raw!=null&&mepRate){gloPrecio=raw/mepRate;gloSym=row.ars;}
-      }else if(usdCurrency==='MEP'){
-        const raw=map[row.mep];
-        if(raw!=null){gloPrecio=raw;gloSym=row.mep;}
-      }else{
-        const raw=map[row.cable];
-        if(raw!=null){gloPrecio=raw;gloSym=row.cable;}
+    // Lo que no vino en vivo: el último operado en ESA moneda, con su fecha.
+    let alCierre=0,sinPrecio=0;
+    if(faltan.length){
+      if(statusEl)statusEl.textContent=`Buscando el cierre anterior de ${faltan.length} bono${faltan.length>1?'s':''}…`;
+      const cierres=await Promise.all(faltan.map(x=>usdCierreAnterior(x.sym).catch(()=>null)));
+      // En pesos, el cierre se pasa a dólares con el MEP de esa misma rueda; el
+      // de BYMA, que no tiene fecha, con el de la última rueda cerrada.
+      let mepDe=()=>null;
+      if(enPesos&&cierres.some(Boolean)){
+        const[a,d]=await Promise.all([seriesHist912('AL30'),seriesHist912('AL30D')]);
+        const hoy=hoyAR();
+        const ult=[...a.keys()].filter(f=>f<hoy&&d.has(f)).sort().pop();
+        mepDe=f=>{f=f||ult;const x=a.get(f),y=d.get(f);return x>0&&y>0?x/y:null;};
       }
-      if(gloPrecio!=null){
-        bond.lastPrecio=+gloPrecio.toFixed(4);bond.manualOverride=false;
-        bond.lastPrecioMEP=pxMEP(row);
-        bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+gloPrecio.toFixed(2);
-        bond.lastPctChange=gloSym&&pctMap[gloSym]!=null?pctMap[gloSym]:null;
-        if(gloSym){
-          const rb=bidMap[gloSym],ra=askMap[gloSym];
-          bond.lastBid=rb!=null?(usdCurrency==='ARS'?rb/mepRate:+rb):null;
-          bond.lastAsk=ra!=null?(usdCurrency==='ARS'?ra/mepRate:+ra):null;
+      faltan.forEach(({bond,sym},i)=>{
+        const ci=cierres[i];
+        let precio=null;
+        if(ci)precio=enPesos?((m=>m?ci.c/m:null)(mepDe(ci.fecha)||mepRate)):ci.c;
+        if(precio!=null){
+          bond.lastPrecio=+precio.toFixed(4);
+          bond.lastPrecioDisplay=+ci.c.toFixed(2);
+          bond.lastPrecioCierre={fecha:ci.fecha,sym,moneda:usdCurrency,fuente:ci.fuente};
+          alCierre++;
+        }else{
+          bond.lastPrecioCierre={fecha:null,sym:sym||null,moneda:usdCurrency,sinPrecio:true};
+          sinPrecio++;
         }
-        Object.assign(bond,libroUsd(gloSym));
-        gloUpdated++;
-      }
+      });
+      repintar();
     }
-    if(gloUpdated){gloSave();if(document.getElementById('page-usd-globales').style.display!=='none')gloRenderSummaryRows();}
 
-    // update Bonares bonds
-    let bonUpdated=0;
-    for(const bond of BON_BONDS){
-      const row=EQUIV_DATA.find(e=>e.ticker===bond.ticker);
-      if(!row)continue;
-      let bonPrecio=null,bonSym=null;
-      if(usdCurrency==='ARS'){
-        const raw=map[row.ars];
-        if(raw!=null&&mepRate){bonPrecio=raw/mepRate;bonSym=row.ars;}
-      }else if(usdCurrency==='MEP'){
-        const raw=map[row.mep];
-        if(raw!=null){bonPrecio=raw;bonSym=row.mep;}
-      }else{
-        const raw=map[row.cable];
-        if(raw!=null){bonPrecio=raw;bonSym=row.cable;}
-      }
-      if(bonPrecio!=null){
-        bond.lastPrecio=+bonPrecio.toFixed(4);bond.manualOverride=false;
-        bond.lastPrecioMEP=pxMEP(row);
-        bond.lastPrecioDisplay=usdCurrency==='ARS'?+(map[row.ars]).toFixed(2):+bonPrecio.toFixed(2);
-        bond.lastPctChange=bonSym&&pctMap[bonSym]!=null?pctMap[bonSym]:null;
-        if(bonSym){
-          const rb=bidMap[bonSym],ra=askMap[bonSym];
-          bond.lastBid=rb!=null?(usdCurrency==='ARS'?rb/mepRate:+rb):null;
-          bond.lastAsk=ra!=null?(usdCurrency==='ARS'?ra/mepRate:+ra):null;
-        }
-        Object.assign(bond,libroUsd(bonSym));
-        bonUpdated++;
-      }
-    }
-    if(bonUpdated){bonSave();if(document.getElementById('page-usd-bonares').style.display!=='none')bonRenderSummaryRows();}
-    if(document.getElementById('page-usd-spreadleg').style.display!=='none')spreadLegRender();
-    if(document.getElementById('ures-sleg-list'))usdResRefresh();
-
+    const updated=fams.reduce((t,f)=>t+f.n,0)-faltan.length;
     const now=new Date();
     const hhmm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-    if(statusEl)statusEl.textContent=`${hhmm} · ${updated} bonos · MEP ${mepRate?mepRate.toFixed(0):'—'}`;
+    if(statusEl)statusEl.textContent=`${hhmm} · ${updated} bonos`
+      +(alCierre?` · ${alCierre} al cierre anterior`:'')+(sinPrecio?` · ${sinPrecio} sin precio`:'')
+      +` · MEP ${mepRate?mepRate.toFixed(0):'—'}`;
     curvasSnapshotToday();
   }catch(e){
     if(statusEl)statusEl.textContent='Error: '+e.message;
@@ -14605,9 +14686,13 @@ function usdSumRowHtml(e,isSel,onClickFn,group){
   const ovr=b.manualOverride&&precioRaw!=null;
   const ovrStyle=ovr?'background:rgba(212,167,106,.14);box-shadow:inset 0 0 0 1px rgba(212,167,106,.45);':'';
   const ovrMark=ovr?` <span style="color:var(--warn);font-size:9px">✎</span>`:'';
+  // Un precio que no es de hoy va en otro color, con la fecha a la vista.
+  const cierre=!ovr&&b.lastPrecioCierre;
+  const pxTitle=cierre?usdCierreTexto(b).replace(/"/g,'&quot;')+' · click para editar':'Click para editar precio';
+  const pxColor=ovr?'var(--warn)':usdEsCierre(b)?'var(--info)':'var(--text)';
   return`<tr style="cursor:pointer;border-bottom:1px solid var(--border);${bg}" onclick="${onClickFn}('${b.ticker}')" ${hov}>
     <td style="padding:9px 14px;color:var(--accent);font-weight:600">${b.ticker}</td>
-    <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="Click para editar precio" style="padding:9px 12px;text-align:right;color:${ovr?'var(--warn)':'var(--text)'};font-variant-numeric:tabular-nums;cursor:text;${ovrStyle}">${precioStr}${ovrMark}</td>
+    <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--text3)">${varStr}</td>
     <td style="padding:9px 12px;text-align:right">${libroSpreadHTML(libroSpread(b.lastBid,b.lastAsk),b.lastMonto)}</td>
     <td style="padding:9px 12px;text-align:right"${b.lastOps?` title="${b.lastOps} operaciones"`:''}>${libroMontoHTML(b.lastMonto)}</td>
@@ -14656,6 +14741,7 @@ function usdRowCommit(inp){
     bond.lastPrecioDisplay=+px.toFixed(4);
   }
   bond.manualOverride=true;
+  bond.lastPrecioCierre=null;
   // Un precio escrito a mano está en la moneda que estabas mirando. Sólo se
   // puede archivar si esa moneda era MEP, que es la base del histórico.
   bond.lastPrecioMEP=usdCurrency==='MEP'?bond.lastPrecio:null;
@@ -15048,7 +15134,7 @@ function bopSaveModal(){
     bond.rateOverrides=old.rateOverrides||null;
     bond.fechaOverrides=old.fechaOverrides||null;
     const amortUnchanged=JSON.stringify(old.amort)===JSON.stringify(bond.amort)&&old.amortiza===bond.amortiza&&JSON.stringify(old.amortCustom)===JSON.stringify(bond.amortCustom)&&JSON.stringify(old.rateOverrides)===JSON.stringify(bond.rateOverrides);
-    if(amortUnchanged&&old.lastPrecio!=null)bond.lastPrecio=old.lastPrecio;
+    if(amortUnchanged&&old.lastPrecio!=null){bond.lastPrecio=old.lastPrecio;bond.lastPrecioCierre=old.lastPrecioCierre||null;}
     if(amortUnchanged&&old.lastPrecioMEP!=null)bond.lastPrecioMEP=old.lastPrecioMEP;
     if(amortUnchanged&&old.lastLiq)bond.lastLiq=old.lastLiq;
     BONDS[idx]=bond;
@@ -15581,7 +15667,7 @@ function usdResSumRender(){
 
     <td style="padding:8px 8px;color:${tc};font-weight:600">${e.ticker}</td>
     <td style="padding:8px 10px;text-align:right;color:var(--text2);white-space:nowrap">${bopFmtDateDisp(e.b.vencimiento)}</td>
-    <td style="padding:8px 10px;text-align:right">${(()=>{const p=e.b.lastPrecioDisplay??e.b.lastPrecio;return p!=null?`<span style="color:var(--text);font-variant-numeric:tabular-nums">${p>=1000?Math.round(p).toLocaleString('es-AR'):p.toFixed(2)}</span>`:'<span style="color:var(--text3)">—</span>';})()}</td>
+    <td style="padding:8px 10px;text-align:right;white-space:nowrap"${e.b.lastPrecioCierre&&!e.b.manualOverride?` title="${usdCierreTexto(e.b).replace(/"/g,'&quot;')}"`:''}>${(()=>{const p=e.b.lastPrecioDisplay??e.b.lastPrecio;const ci=usdEsCierre(e.b);return p!=null?`<span style="color:${ci?'var(--info)':'var(--text)'};font-variant-numeric:tabular-nums">${p>=1000?Math.round(p).toLocaleString('es-AR'):p.toFixed(2)}</span>${ci?usdCierreMarca(e.b):''}`:'<span style="color:var(--text3)">—</span>';})()}</td>
     <td style="padding:8px 10px;text-align:right">${f2(e.md,'var(--warn)')}</td>
     <td style="padding:8px 10px;text-align:right;font-weight:600">${f2p(e.tir,'var(--accent2)')}</td>
     <td style="padding:8px 10px;text-align:right">${f2p(e.tna,'var(--accent2)')}</td>
@@ -15794,7 +15880,8 @@ function usdResChartRender(enriched){
             tipEl.innerHTML=`<span style="color:${g.col}">${ticker}</span>`+
               `<span style="color:#5a6b5c"> · MD ${x.toFixed(2)} · TIR </span>`+
               `<span style="color:#e0ede1">${y.toFixed(2)}%</span>`+
-              (px!=null?`<span style="color:#5a6b5c"> · </span><span style="color:#e0ede1">${fmtPrecio(px,usdSimbolo())}</span>`:'');
+              (px!=null?`<span style="color:#5a6b5c"> · </span><span style="color:#e0ede1">${fmtPrecio(px,usdSimbolo())}</span>`:'')+
+              (pt.b&&usdEsCierre(pt.b)?`<span style="color:#5a6b5c"> (${usdCierreCorto(pt.b)})</span>`:'');
             const rect=chart.canvas.getBoundingClientRect();
             tipEl.style.left=(rect.left+tooltip.caretX+12)+'px';
             tipEl.style.top=(rect.top+tooltip.caretY-10)+'px';
@@ -16045,7 +16132,8 @@ async function _curvasSnapshotTodayImpl(){
       // selector de moneda. usdResCalcRow lee b.lastPrecio, así que hay que
       // prestárselo y devolverlo: guardar el precio de una base y la tasa de
       // otra sería peor que no guardar nada.
-      const px=b.lastPrecioMEP??(usdCurrency==='MEP'?b.lastPrecio:null);
+      // Un precio del cierre anterior no es de hoy: no se archiva.
+      const px=b.lastPrecioMEP??(usdCurrency==='MEP'&&!b.lastPrecioCierre?b.lastPrecio:null);
       if(px==null)return;
       if(curvasMuyCerca(b.vencimiento,liq))return;
       const bk=b.lastPrecio;
@@ -16253,7 +16341,8 @@ function curvasSnapshotFromMemory(sector){
       // Misma base MEP que el histórico: el punto de hoy se dibuja en el mismo
       // gráfico que las ruedas guardadas, y en cable quedaba medio punto de
       // tasa por encima de su propia serie.
-      const px=b.lastPrecioMEP??(usdCurrency==='MEP'?b.lastPrecio:null);
+      // Un precio del cierre anterior no es de hoy: no se archiva.
+      const px=b.lastPrecioMEP??(usdCurrency==='MEP'&&!b.lastPrecioCierre?b.lastPrecio:null);
       if(px==null)return;
       const bk=b.lastPrecio;
       try{b.lastPrecio=px;const r=usdResCalcRow(b,liq);if(r.tir==null||isNaN(r.tir))return;rows.push({ticker:b.ticker,tir:r.tir,md:r.md,dias:null,sector:sec,price:px,...curvasLibroDe(b.lastBid,b.lastAsk,b.lastMonto)});}catch(e){}
