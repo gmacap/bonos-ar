@@ -14065,6 +14065,10 @@ async function dlkFetchPrices(){
       });
       if(sintChanged){sintSaveBonds();SINT_DATA=SINT_BONDS.map(sintEnrich);sintRenderTable();}
     }
+    // El Resumen tiene DLK en la tabla, en BE · Devaluación y en el tablero. Sin
+    // esto quedaban vacíos al abrir la app: pesosCompletarCierres sólo repinta
+    // si falta algún precio, y fuera de rueda no corre el ciclo automático.
+    try{beRefreshIfVisible();}catch(e){}
     await pesosCompletarCierres();
   }catch(e){console.warn('dlkFetchPrices error:',e);}
 }

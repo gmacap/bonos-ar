@@ -3705,6 +3705,25 @@ const omitir = (label, motivo) =>
   else check(cpc.sinColorTnaTem && cpc.extremos, 'en la tabla del Resumen sólo la TIR lleva color: la más alta verde, la más baja roja',
              JSON.stringify(cpc));
 
+  // Cada fetcher de pesos repinta el Resumen al terminar. La tabla BE ·
+  // Devaluación quedaba vacía al abrir la app porque dlkFetchPrices no lo hacía.
+  console.log('\nLos precios de cada sector repintan el Resumen');
+  const rep = await page.evaluate(async () => {
+    try { await fetchData912('arg_bonds'); } catch (e) { return { sinRed: e.message }; }
+    switchSection('pesos'); switchTab('breakeven');
+    await new Promise(r => setTimeout(r, 800));
+    const out = {};
+    for (const [nombre, fn] of [['tasa fija', fetchPrices], ['CER', cerFetchPrices], ['TAMAR', tamarFetchPrices], ['DLK', dlkFetchPrices]]) {
+      const tb = document.getElementById('be-deval-tbody');
+      tb.innerHTML = '<tr><td>CENTINELA</td></tr>';
+      await fn();
+      out[nombre] = !tb.textContent.includes('CENTINELA');
+    }
+    return out;
+  });
+  if (rep.sinRed) omitir('los precios repintan el Resumen', 'data912 no responde: ' + rep.sinRed);
+  else check(Object.values(rep).every(Boolean), 'traer los precios de tasa fija, CER, TAMAR y DLK repinta el Resumen', JSON.stringify(rep));
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');
