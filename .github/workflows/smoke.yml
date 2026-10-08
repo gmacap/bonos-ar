@@ -41,12 +41,45 @@ jobs:
     name: App publicada
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Hasta 15 minutos esperando a Pages, más el test.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: npm install playwright && npx playwright install --with-deps chromium
-      - name: Esperar a que GitHub Pages publique
-        run: sleep 60
-      - run: node .github/scripts/smoke.js
+
+      # El deploy de Pages corre en paralelo con este job y tarda de uno a
+      # varios minutos. Con una espera fija de 60 segundos, si tardaba más se
+      # probaba la app vieja con los tests nuevos y fallaba sin que hubiera
+      # ningún error (pasó el 08/10/2026). Ahora se espera a que la URL que abre
+      # el test sirva el index.html de ESTE commit. Sin cache-buster a
+      # propósito: lo que cuenta es lo que le llega al navegador, y la CDN de
+      # Pages cachea 10 minutos, por eso la espera llega a 15.
+      #
+      # Si mientras tanto entró otro commit a main, éste ya no se va a publicar:
+      # se saltea el test, que lo corre la corrida del commit nuevo.
+      - name: Esperar a que GitHub Pages publique este commit
+        id: pages
+        run: |
+          url=$(node -p "require('./.github/scripts/app-url').PUBLICADA")
+          esperado=$(sha256sum index.html | cut -d' ' -f1)
+          for i in $(seq 1 90); do
+            publicado=$(curl -sf "$url" | sha256sum | cut -d' ' -f1)
+            if [ "$publicado" = "$esperado" ]; then
+              echo "Publicado tras $(( (i-1)*10 )) s: $url"
+              exit 0
+            fi
+            main=$(git ls-remote origin refs/heads/main | cut -f1)
+            if [ -n "$main" ] && [ "$main" != "$GITHUB_SHA" ]; then
+              echo "main ya avanzó a ${main:0:7}: el test lo corre la corrida de ese commit"
+              echo "saltar=1" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::GitHub Pages no publicó este commit en 15 minutos ($url)"
+          exit 1
+
+      - if: steps.pages.outputs.saltar != '1'
+        run: node .github/scripts/smoke.js
