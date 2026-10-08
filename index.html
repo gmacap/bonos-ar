@@ -10126,6 +10126,80 @@ function beTirTFAlPlazo(letras,dias){
     letras:[{...ant,peso:1-w},{...sig,peso:w}]};
 }
 
+// ── La ventana del breakeven ────────────────────────────────────────────────
+// El breakeven mide la inflación que mueve el CER entre el último publicado y el
+// fixing del bono. El IPC de un mes M entra al CER del 15 de M+1 al 14 de M+2
+// (la convención de projCalcularCER), así que la ventana cae sobre días
+// concretos de meses concretos, y el último casi siempre queda cortado.
+//
+// Antes, la referencia era el promedio simple de meses enteros hasta un "mes
+// hasta" sacado de una regla: el TZXA7, que fija el 16/04 y tiene 2 días de
+// marzo, se comparaba con un REM que contaba marzo entero; y el TZXY7, con 30
+// días de marzo, caía en el mismo "hasta marzo". Además el REM venía en meses
+// calendario y el breakeven en meses de 30,4 días.
+
+// Cuántos días de cada mes de IPC caen en la ventana (desde, hasta].
+function beMesesVentana(desdeStr,hastaStr){
+  const out=[];
+  const d=parseDate(desdeStr);d.setDate(d.getDate()+1);
+  const fin=parseDate(hastaStr);
+  while(d<=fin){
+    const md=new Date(d.getFullYear(),d.getMonth()-(d.getDate()>=15?1:2),1);
+    const mes=fmtDate(md).slice(0,7);
+    const ult=out[out.length-1];
+    if(ult&&ult.mes===mes)ult.dias++;else out.push({mes,dias:1});
+    d.setDate(d.getDate()+1);
+  }
+  return out;
+}
+
+// Una inflación mensual sobre la ventana, en la misma unidad que el breakeven:
+// el CER que daría ese sendero, del último publicado al fixing, elevado a 30,4
+// sobre los días. mapa: mes → inflación mensual en %.
+function beInflaVentana(meses,dias,mapa){
+  if(!meses.length||!(dias>0))return null;
+  let acum=1;
+  for(const m of meses){
+    const v=mapa(m.mes);
+    if(v==null||!isFinite(v))return null;
+    const[y,mm]=projMesAplica(m.mes).split('-').map(Number);
+    acum*=Math.pow(1+v/100,m.dias/projDiasMes(y,mm-1));
+  }
+  return(Math.pow(acum,30.4/dias)-1)*100;
+}
+
+// El REM sobre esa ventana. Los meses ya publicados van con el IPC publicado:
+// puede pasar que el INDEC publicó y el CER todavía no lo incorporó.
+function beRemVentana(meses,dias){
+  if(!REM_DATA||!Array.isArray(REM_DATA.ipc)||!REM_DATA.ipc.length||!meses.length)return null;
+  const anclas=(REM_DATA.anclas||{}).ipc||{};
+  const m1=meses[meses.length-1].mes;
+  const tope=Object.keys(anclas).sort().find(a=>a>=m1)||m1;
+  const rem=new Map(proyExtender(REM_DATA.ipc,anclas,'ipc',tope).map(x=>[x.mes,x]));
+  const pub=new Map(PROJ_INFLACION.filter(r=>r.tipo==='publicado'&&r.infla!=null).map(r=>[r.mes,r.infla]));
+  let conAncla=false,extrap=false;
+  const mensual=beInflaVentana(meses,dias,mes=>{
+    if(pub.has(mes))return pub.get(mes);
+    const x=rem.get(mes);
+    if(!x)return null;
+    if(x.origen==='ancla')conAncla=true;
+    if(x.origen==='extrap')extrap=true;
+    // Con los mismos 4 decimales que el sendero de la proyección.
+    return +(+x.v).toFixed(4);
+  });
+  if(mensual==null||extrap)return null;
+  return{mensual,conAncla,relevamiento:REM_DATA.relevamiento||null};
+}
+
+// "15/10 → 27/11/26 · sep 30 días, oct 13"
+function beVentanaTexto(res){
+  const v=res&&res.ventana;
+  if(!v)return'';
+  const ddmm=s=>s.split('-').reverse().slice(0,2).join('/');
+  const meses=v.meses.map((m,i)=>`${MESES_ES_BE[+m.mes.slice(5,7)-1].toLowerCase()}${i===0||m.mes.slice(0,4)!==v.meses[i-1].mes.slice(0,4)?'-'+m.mes.slice(2,4):''} ${m.dias}${i===0?' días':''}`);
+  return`${ddmm(v.desde)} → ${ddmm(v.hasta)}/${v.hasta.slice(2,4)} · ${meses.join(', ')}`;
+}
+
 function beHastaMes(vctoStr){
   const vcto=parseDate(vctoStr);
   const fixing=cerGetFechaCer(vcto);
@@ -10188,16 +10262,18 @@ function beCalcular(cerTicker){
     cerConocido:lastReal.valor,diasRestantes});
   if(!nuc)return{error:'Sin datos para el breakeven'};
   const{pfBE,cerFinalBE,varDiaria,inflaBE}=nuc;
+  // El "mes hasta" sólo lo usa el forward entre bonos.
   const hm=beHastaMes(cerBond.vcto);
-  const promInfla=bePromedioInfla(hm.año,hm.mes);
 
-  // Contra el REM, sobre los mismos meses que promedia la proyección: del primer
-  // mes sin publicar hasta el "hasta mes" del bono. El breakeven es la inflación
-  // que el precio descuenta para esa ventana, así que la referencia tiene que
-  // cubrir la misma. Si el REM no llega ni con su ancla anual, no se compara.
-  const hastaMesStr=`${hm.año}-${String(hm.mes+1).padStart(2,'0')}`;
-  const primerProy=(PROJ_INFLACION.find(r=>r.tipo!=='publicado')||{}).mes||null;
-  const rem=betrRemMensual(primerProy,hastaMesStr);
+  // Las referencias se miden sobre la misma ventana que el breakeven, en la
+  // misma unidad: el REM, y el sendero de inflación que tengas elegido (sale
+  // directo del CER proyectado). Si el REM no llega ni con su ancla, no se
+  // compara.
+  const fixStr=fmtDate(fixingVto);
+  const ventana={desde:lastReal.fecha,hasta:fixStr,dias:diasRestantes,meses:beMesesVentana(lastReal.fecha,fixStr)};
+  const rem=beRemVentana(ventana.meses,diasRestantes);
+  const cerProy=CER_PROJ.get(fixStr);
+  const promInfla=cerProy>0?(Math.pow(cerProy/lastReal.valor,30.4/diasRestantes)-1)*100:null;
 
   // meses restantes = diferencia entre "hasta mes" y último mes publicado
   const lastPub=[...PROJ_INFLACION].filter(r=>r.tipo==='publicado').slice(-1)[0];
@@ -10213,7 +10289,7 @@ function beCalcular(cerTicker){
     cerIni,cerFinalBE,
     lastReal:lastReal.valor,lastRealFecha:lastReal.fecha.split('-').reverse().join('/'),
     fixingVto:fmtDate(fixingVto).split('-').reverse().join('/'),
-    diasRestantes,varDiaria,inflaBE,hastaMes:hm,promInfla,mesesRestantes,
+    diasRestantes,varDiaria,inflaBE,hastaMes:hm,promInfla,mesesRestantes,ventana,
     rem:rem?{...rem}:null,
     difRem:(rem&&isFinite(inflaBE))?inflaBE-rem.mensual:null};
 }
@@ -10286,13 +10362,12 @@ function beRenderTabla(resultados){
       <td colspan="2" style="padding:2px 4px;color:var(--danger);font-size:9px">${res.error}</td>
       <td style="padding:1px 2px;text-align:center"><button onclick="beRemove('${ticker}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px">✕</button></td>
     </tr>`;
-    const hm=res.hastaMes;
-    const hmLabel=`${MESES_ES_BE[hm.mes]}-${String(hm.año).slice(2)}`;
     const promStr=res.promInfla!=null?fmtP2(res.promInfla):'—';
+    const fixCorto=res.fixingVto.replace(/\/(\d\d)(\d\d)$/,'/$2');
     return`<tr class="bb">
-      <td style="padding:1px 4px;font-family:var(--mono);white-space:nowrap;vertical-align:middle">
+      <td style="padding:1px 4px;font-family:var(--mono);white-space:nowrap;vertical-align:middle" title="${betrEsc('Ventana del breakeven: '+beVentanaTexto(res)+' · tu sendero de inflación sobre esa ventana: '+promStr)}">
         <div style="font-size:10px;color:var(--accent2);font-weight:600">${ticker}</div>
-        <div style="font-size:9px;color:var(--text3)">${hmLabel} · ${promStr}</div>
+        <div style="font-size:9px;color:var(--text3)">fix ${fixCorto} · ${promStr}</div>
       </td>
       <td style="padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle">
         <div style="font-size:11px;color:var(--accent);font-weight:700">${fmtP2(res.inflaBE)}</div>
@@ -10320,8 +10395,7 @@ function beCeldaRem(res){
   const signo=res.difRem>0?'+':'';
   const chico=Math.abs(res.difRem)<BE_REM_NEUTRO;
   const col=chico?'var(--text3)':(res.difRem>0?'var(--warn)':'var(--info)');
-  const t=`Breakeven ${fmtP2(res.inflaBE)} menos REM ${fmtP2(res.rem.mensual)} · ${res.rem.meses} meses`
-    +` (${res.rem.desde} a ${res.rem.hasta})`
+  const t=`Breakeven ${fmtP2(res.inflaBE)} menos REM ${fmtP2(res.rem.mensual)}, sobre la misma ventana: ${beVentanaTexto(res)}`
     +(res.rem.conAncla?' · completado con el ancla anual del REM':'')
     +(res.rem.relevamiento?` · relevamiento del ${betrF(res.rem.relevamiento)}`:'')
     +(chico?' · diferencia chica: con el rezago del CER la comparación es aproximada'
@@ -10340,8 +10414,6 @@ function beRenderDetalle(resultados){
 
   el.innerHTML=resultados.map(({ticker,res})=>{
     if(!res||res.error)return``;
-    const hm=res.hastaMes;
-    const hmLabel=`${MESES_ES_BE[hm.mes]}-${String(hm.año).slice(2)}`;
     const step=(n,label,val)=>`
       <div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:10px;color:var(--text3);min-width:16px;text-align:right">${n}.</span>
@@ -10351,7 +10423,7 @@ function beRenderDetalle(resultados){
     return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span style="font-size:13px;color:var(--accent);font-family:var(--mono);font-weight:500">${ticker}
-          <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:8px">par TF: ${res.tfTicker} · hasta: ${hmLabel} · BE: <span style="color:var(--accent)">${fmtP2(res.inflaBE)}</span></span>
+          <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:8px">par TF: ${res.tfTicker} · BE: <span style="color:var(--accent)">${fmtP2(res.inflaBE)}</span>${res.rem?` · REM en la misma ventana: ${fmtP2(res.rem.mensual)}`:''}</span>
         </span>
       </div>
       <div style="display:grid;gap:0;">
@@ -10360,7 +10432,7 @@ function beRenderDetalle(resultados){
           :`${res.letrasTF[0].ticker} a ${res.letrasTF[0].dias}d`),fmtPct(res.tirTF))}
         ${step(2,`Px sucio CER (${fmtN(res.psCER,2)}) × (1 + ${fmtPct(res.tirTF)})^(${res.diasCER}/365)`,fmtN(res.pfBE,4))}
         ${step(3,`(Pago Final BE / 100) × CER emisión (${res.fixingEmision} = ${fmtN(res.cerIni,4)})`,fmtN(res.cerFinalBE,4))}
-        ${step(4,`Días entre último CER real (${res.lastRealFecha}) y fixing vto (${res.fixingVto})`,res.diasRestantes+' días')}
+        ${step(4,`Ventana: del último CER publicado al fixing, ${beVentanaTexto(res)}`,res.diasRestantes+' días')}
         ${step(5,`(CER final BE / último CER real) ^ (1/${res.diasRestantes})`,fmtN(res.varDiaria,8))}
         ${step(6,`Var. diaria ^ 30.4 − 1`,fmtP2(res.inflaBE))}
       </div>

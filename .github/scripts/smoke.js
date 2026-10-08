@@ -3348,6 +3348,55 @@ const omitir = (label, motivo) =>
   else check(beTF.errores.length === 0, 'en vivo, cada breakeven interpolado queda entre sus dos LECAP',
              `${beTF.vivos} con par, ${beTF.interpolados} interpolados · ` + beTF.errores.slice(0, 3).join(' · '));
 
+  // La referencia contra el REM se mide sobre la misma ventana que el breakeven:
+  // los días de cada mes de IPC entre el último CER publicado y el fixing.
+  console.log('\nBreakeven de inflación: la ventana contra el REM');
+  const beVen = await page.evaluate(() => {
+    const out = {};
+    // El TZXD6 del 08/10/2026: del 15/10 al 27/11 son 30 días de septiembre y 13
+    // de octubre. El TZXA7, que fija el 16/04, tiene 2 días de marzo; el TZXY7,
+    // que fija el 14/05, 30.
+    const j = m => m.map(x => x.mes + ':' + x.dias).join(' ');
+    out.d6 = j(beMesesVentana('2026-10-15', '2026-11-27'));
+    out.a7 = beMesesVentana('2026-10-15', '2027-04-16').slice(-1)[0];
+    out.y7 = beMesesVentana('2026-10-15', '2027-05-14').slice(-1)[0];
+    // Un sendero plano proyecta el mismo CER que la app: con el IPC de septiembre
+    // en 2% y los 31 días de octubre, 30 días dan 1,02^(30/31).
+    out.plano = beInflaVentana([{ mes: '2026-09', dias: 30 }], 30, () => 2);
+    out.planoEsperado = (Math.pow(Math.pow(1.02, 30 / 31), 30.4 / 30) - 1) * 100;
+    // En vivo: con el REM como fuente, el REM de la ventana es el CER proyectado
+    // por la app hasta el fixing —la misma cuenta por dos caminos—.
+    if (!REM_DATA || !REM_DATA.ipc || !CER_INDEX.length) return { ...out, sinRem: true };
+    const prev = PROJ_FUENTE.infla;
+    PROJ_FUENTE.infla = 'rem'; projRecalc();
+    out.vivos = 0; out.errores = [];
+    for (const c of beCandidatos()) {
+      const r = beCalcular(c.ticker);
+      if (!r || r.error || !r.rem) continue;
+      out.vivos++;
+      if (Math.abs(r.rem.mensual - r.promInfla) > 1e-9) out.errores.push(`${c.ticker}: REM ${r.rem.mensual} vs CER proyectado ${r.promInfla}`);
+      if (r.ventana.meses.reduce((t, m) => t + m.dias, 0) !== r.diasRestantes) out.errores.push(`${c.ticker}: los días de la ventana no suman ${r.diasRestantes}`);
+    }
+    PROJ_FUENTE.infla = prev; projRecalc();
+    // El detalle muestra la ventana.
+    const r0 = beCandidatos().map(c => beCalcular(c.ticker)).find(r => r && !r.error);
+    out.texto = r0 ? beVentanaTexto(r0) : '';
+    return out;
+  });
+  check(beVen.d6 === '2026-09:30 2026-10:13', 'la ventana cuenta los días de cada mes de IPC entre el último CER y el fixing', beVen.d6);
+  check(beVen.a7.mes === '2027-03' && beVen.a7.dias === 2 && beVen.y7.mes === '2027-03' && beVen.y7.dias === 30,
+        'un fixing del 16 tiene 2 días del último mes y uno del 14 tiene 30: ya no son el mismo "hasta marzo"',
+        JSON.stringify({ a7: beVen.a7, y7: beVen.y7 }));
+  check(Math.abs(beVen.plano - beVen.planoEsperado) < 1e-12, 'el REM de la ventana está en la misma unidad que el breakeven',
+        `${beVen.plano} vs ${beVen.planoEsperado}`);
+  if (beVen.sinRem) omitir('REM de la ventana en vivo', 'rem.json no cargó');
+  else if (!beVen.vivos) omitir('REM de la ventana en vivo', 'ningún CER con breakeven');
+  else {
+    check(beVen.errores.length === 0, 'el REM de la ventana es el CER que proyecta la app con el REM, hasta el fixing',
+          `${beVen.vivos} bonos · ` + beVen.errores.slice(0, 3).join(' · '));
+    check(/→ .* días/.test(beVen.texto), 'el detalle muestra la ventana con los días de cada mes', beVen.texto);
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');
@@ -3574,7 +3623,8 @@ const omitir = (label, motivo) =>
     out.filas = [...document.querySelectorAll('#be-tbody tr')].length;
     out.cuentas = BE_BONOS.map(t => beCalcular(t)).filter(x => x && !x.error && x.rem)
       .map(x => ({ ok: Math.abs(x.difRem - (x.inflaBE - x.rem.mensual)) < 1e-9,
-                   cubre: x.rem.hasta === `${x.hastaMes.año}-${String(x.hastaMes.mes + 1).padStart(2, '0')}` }));
+                   cubre: !!(x.ventana && x.ventana.meses.length
+                     && x.ventana.meses.reduce((t, m) => t + m.dias, 0) === x.diasRestantes) }));
     BE_BONOS = guardadoBonos;
     beRecalc();
     // La primera tabla de la columna es la de BE · Inflación.
@@ -3602,7 +3652,7 @@ const omitir = (label, motivo) =>
         `+0,20 ${beRem.colores.arriba} · −0,20 ${beRem.colores.abajo} · +0,01 ${beRem.colores.chica}`);
   if (!beRem.cuentas.length) omitir('la diferencia contra el REM', 'ningún bono CER con LECAP de su plazo y REM que cubra');
   else check(beRem.cuentas.every(c => c.ok && c.cubre),
-             'la diferencia es el breakeven menos el REM de los mismos meses',
+             'la diferencia es el breakeven menos el REM de la misma ventana',
              `${beRem.cuentas.length} bono(s)`);
 
   // El precio al lado de la tasa, en el globo de cada gráfico de tasa. Mostrarlo
