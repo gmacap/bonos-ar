@@ -3445,6 +3445,66 @@ const omitir = (label, motivo) =>
     check(beFw.columna && beFw.celdas > 0, 'la tabla de breakeven muestra la columna del forward', `${beFw.celdas} filas`);
   }
 
+  // Breakeven de devaluación de los dollar linked y el tablero del Resumen.
+  console.log('\nBreakeven de devaluación y tablero del Resumen');
+  const beDv = await page.evaluate(async () => {
+    const out = {};
+    // Si el precio es exactamente el A3500 de hoy descontado a la tasa fija, el
+    // breakeven es cero; si la tasa fija sube, sube.
+    const spot = 1500, d = 60, tir = 0.25;
+    const precio = 100 * spot / Math.pow(1 + tir, d / 365);
+    out.cero = beDevalNucleo({ precio, cf: 100, diasPago: d, tirTF: tir, spot, diasTC: d }).devalBE;
+    out.sube = beDevalNucleo({ precio, cf: 100, diasPago: d, tirTF: 0.30, spot, diasTC: d }).devalBE > 0;
+    // El REM interpola sus cierres de mes: en un cierre da ese nivel.
+    if (REM_DATA && REM_DATA.tcn && REM_DATA.tcn.length > 1) {
+      const p1 = REM_DATA.tcn[1];
+      out.remCierre = { mes: p1.mes, nivel: p1.v, interp: remTCAl(proyUltDiaMes(p1.mes)) };
+    }
+    // En vivo: cada dollar linked con LECAP de su plazo tiene breakeven, y el
+    // REM se compara con su propio ritmo, no desde el A3500 de hoy.
+    out.filas = 0; out.conBE = 0; out.errores = [];
+    for (const b of beDevalBonos()) {
+      out.filas++;
+      const r = beDevalCalcular(b);
+      if (r.error) continue;
+      out.conBE++;
+      if (!isFinite(r.devalBE)) out.errores.push(`${b.ticker}: breakeven ${r.devalBE}`);
+      if (r.rem != null) {
+        const ritmo = (Math.pow(r.tcRem / r.tcRemHoy, 30.4 / r.diasTC) - 1) * 100;
+        if (Math.abs(r.rem - ritmo) > 1e-9) out.errores.push(`${b.ticker}: REM ${r.rem} vs ritmo propio ${ritmo}`);
+      }
+    }
+    out.duales = beDevalBonos().filter(b => TAMAR_BONDS.some(t => t.ticker === b.ticker)).length;
+    // El tablero: cinco tarjetas, y las medianas son las de las tablas.
+    switchSection('pesos'); switchTab('breakeven');
+    await new Promise(r => setTimeout(r, 1500));
+    beRefreshIfVisible();
+    const tb = document.getElementById('be-tablero');
+    out.tarjetas = tb ? tb.children.length : 0;
+    const dat = beTableroDatos();
+    const med = a => { const v = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y); const m = Math.floor(v.length / 2); return v.length ? (v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2) : null; };
+    const dv = beDevalBonos().map(beDevalCalcular).filter(r => !r.error);
+    out.medianaDeval = dat.deval.be == null || Math.abs(dat.deval.be - med(dv.map(r => r.devalBE))) < 1e-12;
+    const letras = (DATA.length ? DATA : LECAPS.map(enrich)).filter(r => r.precio > 0 && r.dias > 0 && isFinite(r.tna));
+    out.puntas = !dat.corta || (dat.corta.dias === Math.min(...letras.map(r => r.dias)) && dat.larga.dias === Math.max(...letras.map(r => r.dias)));
+    out.tablaDeval = (document.getElementById('be-deval-tbody') || {}).children ? document.getElementById('be-deval-tbody').children.length : 0;
+    return out;
+  });
+  check(Math.abs(beDv.cero) < 1e-9 && beDv.sube, 'el breakeven de devaluación es cero si el precio es el A3500 de hoy a la tasa fija, y sube con la tasa',
+        String(beDv.cero));
+  if (beDv.remCierre) check(Math.abs(beDv.remCierre.interp - beDv.remCierre.nivel) < 1e-9,
+                            'el A3500 del REM en un cierre de mes es el nivel de ese mes', JSON.stringify(beDv.remCierre));
+  if (!beDv.filas) omitir('breakeven de devaluación en vivo', 'sin dollar linked con precio');
+  else {
+    check(beDv.errores.length === 0 && beDv.duales === 0,
+          'los dollar linked con LECAP de su plazo tienen breakeven, sin duales, y el REM va con su propio ritmo',
+          `${beDv.conBE}/${beDv.filas} con breakeven · ` + beDv.errores.slice(0, 3).join(' · '));
+    check(beDv.tablaDeval === beDv.filas, 'la tabla BE · Devaluación del Resumen tiene una fila por dollar linked', `${beDv.tablaDeval} filas`);
+  }
+  check(beDv.tarjetas === 5 && beDv.medianaDeval && beDv.puntas,
+        'el tablero del Resumen tiene sus cinco tarjetas, con las puntas de la curva y las medianas de las tablas',
+        JSON.stringify({ tarjetas: beDv.tarjetas, mediana: beDv.medianaDeval, puntas: beDv.puntas }));
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');

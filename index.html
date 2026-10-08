@@ -1316,7 +1316,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 <!-- ═══════════════════════════════════════════════════════ BREAKEVEN PAGE -->
 <div id="page-breakeven" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;">
-  <div id="be-columns" style="display:flex;height:100%;gap:0;min-height:0;">
+  <!-- TABLERO DEL DÍA -->
+  <div id="be-tablero" style="height:60px;box-sizing:border-box;display:flex;align-items:stretch;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;"></div>
+  <div id="be-columns" style="display:flex;height:calc(100% - 60px);gap:0;min-height:0;">
 
 
     <!-- COL 1: Breakevens (resizable) -->
@@ -1370,6 +1372,24 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             </tr>
           </thead>
           <tbody id="be-tamar-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- BE DEVALUACIÓN -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
+          <div style="font-family:var(--serif);font-size:13px;font-weight:300;font-style:italic;color:var(--accent)">BE · Devaluación</div>
+          <button class="btn primary" style="margin:0;padding:2px 6px;font-size:10px" onclick="beDevalRecalc()">↻</button>
+        </div>
+        <table class="be-table">
+          <thead>
+            <tr class="bb2">
+              <th title="Dollar linked · abajo, la fecha de pago y el precio contra el A3500 de hoy" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:left">DLK</th>
+              <th title="Devaluación mensual que descuenta el precio contra la tasa fija de su plazo, desde el A3500 de hoy hasta el pago" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">BE</th>
+              <th title="Breakeven menos la devaluación mensual que espera el REM para el mismo período, en puntos porcentuales. Abajo, el REM con el que se comparó." style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">vs REM<span style="text-transform:none"> pp</span></th>
+            </tr>
+          </thead>
+          <tbody id="be-deval-tbody"></tbody>
         </table>
       </div>
 
@@ -10016,6 +10036,8 @@ function beRefreshIfVisible(){
   if(currentTab!=='breakeven')return;
   beRecalc();
   beTamarRecalc();
+  beDevalRecalc();
+  beTableroRender();
   beCPRecalc();
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     beRenderChartTF();
@@ -10034,6 +10056,10 @@ function beInit(){
   beChartSelLoadLs();
   beRecalc();
   beTamarRecalc();
+  // La lista de dollar linked se declara más abajo en el archivo: en el
+  // arranque, beInit corre antes, y tocarla ahí cortaba la carga de toda la
+  // página. Se pinta en cuanto termina de ejecutarse el script.
+  setTimeout(()=>{try{beDevalRecalc();beTableroRender();}catch(e){console.warn('[tablero]',e.message);}},0);
   beCPRecalc();
   // double rAF ensures canvas has real layout dimensions before Chart.js renders
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
@@ -10704,6 +10730,208 @@ function betfDetalleHTML(res){
     ${ult?fila('','para comparar: TAMAR publicada al '+betrF(ult.fecha)+' · promedio de 5 días',betrN(ult.valor,4)+'% · '+betrN(res.prom5,4)+'%'):''}
     ${res.sensible?'<div style="font-size:10px;color:var(--warn);margin-top:.5rem">⚠ '+betrEsc(beTamarAvisoSens(res))+'.</div>':''}
     ${res.extrapola?'<div style="font-size:10px;color:var(--warn);margin-top:.5rem">↗ '+betrEsc(beTamarAvisoExtrapola(res))+'.</div>':''}`;
+}
+
+// ══════════════════════════════════════════ BREAKEVEN DE DEVALUACIÓN (DLK)
+// La devaluación mensual que iguala un dollar linked con la tasa fija de su
+// plazo: el precio en pesos llevado al pago con la TIR de la tasa fija
+// interpolada (beTirTFAlPlazo, la misma del breakeven de inflación) dice qué
+// A3500 tiene que haber ese día; contra el de hoy, mensualizado. Igual que en la
+// solapa DLK, el tipo de cambio se aplica en la fecha del pago.
+//
+// Sólo para los que pagan todo al vencimiento: con cupones o amortizaciones en
+// el medio el breakeven de un solo pago no aplica. Los duales quedan afuera: su
+// precio incluye la otra pata.
+
+// El núcleo, sin estado. precio en $ por cada 100 USD de nominal, cf en USD.
+function beDevalNucleo(x){
+  if(!(x.precio>0)||!(x.cf>0)||!(x.diasPago>0)||!(x.tirTF>-1)||!(x.spot>0)||!(x.diasTC>0))return null;
+  const tcBE=x.precio*Math.pow(1+x.tirTF,x.diasPago/365)/x.cf;
+  return{tcBE,devalBE:(Math.pow(tcBE/x.spot,30.4/x.diasTC)-1)*100};
+}
+
+// El A3500 que espera el REM para una fecha: sus cierres de mes interpolados a
+// ritmo diario constante, como dlkTCProy, y antes del primero, con el ritmo del
+// primer tramo. Sin el A3500 de hoy a propósito: el REM se releva a fin de mes
+// y su nivel queda viejo, así que la comparación es contra su propio ritmo
+// —del nivel que espera para hoy al que espera para el pago—, como en la ficha
+// del comentario (fichaRemCalc).
+function remTCAl(fechaStr){
+  if(!REM_DATA||!Array.isArray(REM_DATA.tcn)||!REM_DATA.tcn.length)return null;
+  const f=String(fechaStr).slice(0,10);
+  const anclas=(REM_DATA.anclas||{}).tcn||{};
+  const hasta=f.slice(0,7);
+  const tope=Object.keys(anclas).sort().find(a=>a>=hasta)||hasta;
+  const pts=[];
+  let extrap=false;
+  proyExtender(REM_DATA.tcn,anclas,'tcn',tope).forEach(p=>{
+    if(!(p.v>0))return;
+    const fin=proyUltDiaMes(p.mes);
+    pts.push({fecha:fin,v:+p.v});
+    if(fin<=f&&p.origen==='extrap')extrap=true;
+  });
+  if(extrap||pts.length<2||f>pts[pts.length-1].fecha)return null;
+  const entre=(a,b)=>{
+    const n=diasACT(parseDate(a.fecha),parseDate(b.fecha));
+    return n>0?a.v*Math.pow(b.v/a.v,diasACT(parseDate(a.fecha),parseDate(f))/n):b.v;
+  };
+  if(f<=pts[0].fecha)return entre(pts[0],pts[1]);
+  for(let i=1;i<pts.length;i++)if(f<=pts[i].fecha)return entre(pts[i-1],pts[i]);
+  return null;
+}
+
+function beDevalCalcular(bond){
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  if(!bond||!(bond.precio>0)||!bond.vcto)return{error:'Sin precio'};
+  const spot=dlkTCHoy();
+  if(!(spot>0))return{error:'Sin A3500 de hoy'};
+  const{ff}=dlkBuildFF(bond,liq);
+  if(!ff.length)return{error:'Sin flujos'};
+  if(ff.length>1)return{error:'Paga antes del vencimiento: el breakeven de un solo pago no aplica'};
+  const ev=ff[0];
+  const diasPago=ev.dias;
+  const par=beTirTFAlPlazo(beTamarLetras(),diasPago);
+  if(!par)return{error:`Ninguna LECAP con precio vence después del ${ev.fecha.split('-').reverse().join('/')}`};
+  const diasTC=diasACT(TODAY,parseDate(ev.fecha));
+  const n=beDevalNucleo({precio:bond.precio,cf:ev.cf,diasPago,tirTF:par.tir/100,spot,diasTC});
+  if(!n)return{error:'Sin datos para el breakeven'};
+  // El REM, con su propio ritmo sobre los mismos días.
+  const tcRem=remTCAl(ev.fecha),tcRemHoy=remTCAl(fmtDate(TODAY));
+  const rem=tcRem>0&&tcRemHoy>0?(Math.pow(tcRem/tcRemHoy,30.4/diasTC)-1)*100:null;
+  return{ticker:bond.ticker,fecha:ev.fecha,cf:ev.cf,diasPago,diasTC,spot,
+    tfTicker:par.tickers.join('·'),tfTickers:par.tickers,tirTF:par.tir,
+    tcBE:n.tcBE,devalBE:n.devalBE,vsSpot:(bond.precio/ev.cf/spot-1)*100,
+    tcRem,tcRemHoy,rem,difRem:rem!=null?n.devalBE-rem:null};
+}
+
+// Los dollar linked que entran: con precio, sin vencer y que no sean duales.
+function beDevalBonos(){
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  return [...DLK_BONDS]
+    .filter(b=>b.vcto&&b.precio>0&&diasACT(liq,parseDate(b.vcto))>0)
+    .filter(b=>!TAMAR_BONDS.some(t=>t.ticker===b.ticker))
+    .sort((a,b)=>a.vcto.localeCompare(b.vcto));
+}
+
+function beDevalRecalc(){
+  const tbody=document.getElementById('be-deval-tbody');
+  if(!tbody)return;
+  const bonos=beDevalBonos();
+  if(!bonos.length){
+    tbody.innerHTML=`<tr><td colspan="3" style="padding:1rem;text-align:center;color:var(--text3);font-size:11px">Sin dollar linked con precio.</td></tr>`;
+    return;
+  }
+  const base='padding:1px 4px;font-family:var(--mono);white-space:nowrap;vertical-align:middle';
+  tbody.innerHTML=bonos.map(b=>{
+    const r=beDevalCalcular(b);
+    const fecha=b.vcto.split('-').reverse().join('/').slice(0,5);
+    const tk=`<td style="${base}"><div style="font-size:10px;color:var(--accent2);font-weight:600">${b.ticker}</div>`
+      +`<div style="font-size:9px;color:var(--text3)">${r&&!r.error?r.fecha.split('-').reverse().join('/').slice(0,5)+' · '+(r.vsSpot>=0?'+':'')+r.vsSpot.toFixed(2)+'%':fecha}</div></td>`;
+    if(!r||r.error)return`<tr class="bb">${tk}<td colspan="2" style="${base};text-align:right;color:var(--text3);font-size:10px" title="${betrEsc((r&&r.error)||'')}">—</td></tr>`;
+    const t=`A3500 de breakeven ${fmtN(r.tcBE,2)} el ${r.fecha.split('-').reverse().join('/')}, contra ${fmtN(r.spot,2)} hoy, en ${r.diasTC} días`
+      +` · tasa fija a ${r.diasPago}d: ${r.tfTickers.length>1?r.tfTickers.join(' y ')+', interpolada':r.tfTickers[0]}, TIR ${fmtP2(r.tirTF)}`
+      +(r.rem!=null?` · el REM espera ${fmtN(r.tcRem,2)} ese día y ${fmtN(r.tcRemHoy,2)} para hoy`:'');
+    let rem=`<td style="${base};text-align:right;color:var(--text3);font-size:10px" title="Sin REM que llegue a esa fecha">—</td>`;
+    if(r.difRem!=null){
+      const chico=Math.abs(r.difRem)<BE_REM_NEUTRO;
+      const col=chico?'var(--text3)':(r.difRem>0?'var(--warn)':'var(--info)');
+      const tr=`Breakeven ${fmtP2(r.devalBE)} menos REM ${fmtP2(r.rem)} mensual, hasta el pago. El REM va con su propio ritmo: de lo que espera para hoy a lo que espera para ese día, no desde el A3500 de hoy`
+        +(chico?' · diferencia chica':r.difRem>0?' · el mercado descuenta MÁS devaluación que el REM':' · el mercado descuenta MENOS devaluación que el REM')
+        +(REM_DATA&&REM_DATA.relevamiento?` · relevamiento del ${betrF(REM_DATA.relevamiento)}`:'');
+      rem=`<td style="${base};text-align:right" title="${betrEsc(tr)}"><div style="font-size:11px;color:${col};font-weight:600">${r.difRem>0?'+':''}${r.difRem.toFixed(2)}</div>`
+        +`<div style="font-size:9px;color:var(--text3)">${fmtP2(r.rem)}</div></td>`;
+    }
+    return`<tr class="bb">${tk}<td style="${base};text-align:right" title="${betrEsc(t)}">`
+      +`<div style="font-size:11px;color:var(--accent);font-weight:700">${fmtP2(r.devalBE)}</div>`
+      +`<div style="font-size:9px;color:var(--text3)">${r.tfTicker}</div></td>${rem}</tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════ TABLERO DEL DÍA
+// Arriba del Resumen: las puntas de la curva de tasa fija y las medianas de los
+// tres breakevens contra el REM. Mira todos los bonos, no sólo los elegidos en
+// cada tabla, así no cambia según qué tengas tildado.
+
+// La TAMAR que espera el REM sobre la ventana que proyecta el breakeven: de la
+// última publicada al fixing, promedio por días hábiles.
+function beRemTamarVentana(fixVto){
+  if(!REM_DATA||!Array.isArray(REM_DATA.tamar)||!REM_DATA.tamar.length||!fixVto)return null;
+  const ult=betrUltimaTamar();
+  if(!ult)return null;
+  const anclas=(REM_DATA.anclas||{}).tamar||{};
+  const m1=String(fixVto).slice(0,7);
+  const tope=Object.keys(anclas).sort().find(a=>a>=m1)||m1;
+  const porMes=new Map(proyExtender(REM_DATA.tamar,anclas,'tamar',tope).map(p=>[p.mes,p]));
+  let suma=0,n=0;
+  const d=parseDate(ult.fecha);d.setDate(d.getDate()+1);
+  const fin=parseDate(fixVto);
+  while(d<=fin){
+    if(esHabil(d)){
+      const p=porMes.get(fmtDate(d).slice(0,7));
+      if(!p||p.origen==='extrap')return null;
+      suma+=+p.v;n++;
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return n?suma/n:null;
+}
+
+function beMediana(xs){
+  const v=xs.filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);
+  if(!v.length)return null;
+  const m=Math.floor(v.length/2);
+  return v.length%2?v[m]:(v[m-1]+v[m])/2;
+}
+
+// Todo lo que muestra el tablero, sin DOM: se prueba aparte.
+function beTableroDatos(){
+  const letras=(DATA.length?DATA:LECAPS.map(enrich))
+    .filter(r=>r.precio>0&&r.dias>0&&r.tna!=null&&isFinite(r.tna)).sort((a,b)=>a.dias-b.dias);
+  const cer=beCandidatos()
+    .filter(b=>b.tipo!=='cupon'&&!TAMAR_BONDS.some(t=>t.ticker===b.ticker))
+    .map(b=>beCalcular(b.ticker)).filter(r=>r&&!r.error&&isFinite(r.inflaBE));
+  const dlk=beDevalBonos().map(beDevalCalcular).filter(r=>r&&!r.error&&isFinite(r.devalBE));
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  const tam=TAMAR_BONDS.filter(b=>b.vcto&&b.precio>0&&diasACT(liq,parseDate(b.vcto))>0)
+    .map(b=>beTamarCalcular(b.ticker)).filter(r=>r&&!r.error&&isFinite(r.tamar_be_tna));
+  return{
+    corta:letras[0]||null,larga:letras[letras.length-1]||null,
+    infla:{be:beMediana(cer.map(r=>r.inflaBE)),rem:beMediana(cer.map(r=>r.rem&&r.rem.mensual)),n:cer.length,
+      tickers:cer.map(r=>r.cerTicker)},
+    deval:{be:beMediana(dlk.map(r=>r.devalBE)),rem:beMediana(dlk.map(r=>r.rem)),n:dlk.length,
+      tickers:dlk.map(r=>r.ticker)},
+    tamar:{be:beMediana(tam.map(r=>r.tamar_be_tna)),rem:beMediana(tam.map(r=>beRemTamarVentana(r.fixVto))),n:tam.length,
+      tickers:tam.map(r=>r.ticker)},
+  };
+}
+
+function beTableroRender(){
+  const el=document.getElementById('be-tablero');
+  if(!el)return;
+  let d;
+  try{d=beTableroDatos();}catch(e){console.warn('[tablero]',e.message);return;}
+  const tile=(titulo,valor,abajo,tip)=>`<div title="${betrEsc(tip||'')}" style="flex:1 0 150px;min-width:150px;padding:7px 14px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:1px">
+      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">${titulo}</div>
+      <div style="font-size:17px;font-family:var(--mono);color:var(--accent);font-weight:600;line-height:1.15">${valor}</div>
+      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);white-space:nowrap">${abajo}</div>
+    </div>`;
+  const vsRem=(be,rem,unidad)=>{
+    if(be==null||rem==null)return'REM —';
+    const dif=be-rem;
+    const chico=Math.abs(dif)<BE_REM_NEUTRO;
+    const col=chico?'var(--text3)':(dif>0?'var(--warn)':'var(--info)');
+    return`REM ${fmtP2(rem)} · <span style="color:${col}">${dif>0?'+':''}${dif.toFixed(2)}${unidad}</span>`;
+  };
+  const letra=r=>r?tile(r===d.corta?'LECAP más corta':'LECAP / BONCAP más larga',fmtP2(r.tna),`${r.ticker} · TNA · ${r.dias} días`,
+    `${r.ticker}: TNA ${fmtP2(r.tna)}, TIR ${fmtP2(r.tir)}, vence el ${r.vcto.split('-').reverse().join('/')}`):'';
+  el.innerHTML=
+    letra(d.corta)+letra(d.larga)
+    +tile('Inflación BE · mediana',d.infla.be!=null?fmtP2(d.infla.be):'—',`mensual · ${vsRem(d.infla.be,d.infla.rem,' pp')}`,
+      `Mediana del breakeven de inflación de ${d.infla.n} CER contra la tasa fija de su plazo (${d.infla.tickers.join(', ')}). Sin bonos con cupón ni duales. El REM, sobre la ventana de cada bono.`)
+    +tile('Devaluación BE · mediana',d.deval.be!=null?fmtP2(d.deval.be):'—',`mensual · ${vsRem(d.deval.be,d.deval.rem,' pp')}`,
+      `Mediana del breakeven de devaluación de ${d.deval.n} dollar linked contra la tasa fija de su plazo (${d.deval.tickers.join(', ')}), del A3500 de hoy al pago.`)
+    +tile(`TAMAR BE · ${d.tamar.n} bono${d.tamar.n===1?'':'s'}`,d.tamar.be!=null?fmtP2(d.tamar.be):'—',`TNA · ${vsRem(d.tamar.be,d.tamar.rem,' pp')}`,
+      `${d.tamar.n>1?'Mediana de la':'La'} TAMAR promedio que iguala ${d.tamar.n>1?'a cada bono':'al bono'} con la tasa fija (${d.tamar.tickers.join(', ')}). El REM, promediado sobre los días que faltan proyectar.`);
 }
 
 // ══════════════════════════════════════════════ TAMAR REAL CONTRA CER (betr)
