@@ -3505,6 +3505,68 @@ const omitir = (label, motivo) =>
         'el tablero del Resumen tiene sus cinco tarjetas, con las puntas de la curva y las medianas de las tablas',
         JSON.stringify({ tarjetas: beDv.tarjetas, mediana: beDv.medianaDeval, puntas: beDv.puntas }));
 
+  // Modelos de curva: cada uno recupera su propia forma, el mejor ajuste elige
+  // el verdadero, la banda es de ±1σ y el selector repinta los gráficos.
+  console.log('\nModelos de curva');
+  const cur = await page.evaluate(async () => {
+    const out = {};
+    const xs = [10, 25, 50, 90, 140, 200, 280, 400];
+    const de = f => xs.map(x => ({ x, y: f(x) }));
+    const lo = 10, hi = 400, tau = lo * Math.pow(hi / lo, 20 / 40);
+    const g1 = x => (1 - Math.exp(-x / tau)) / (x / tau), g2 = x => g1(x) - Math.exp(-x / tau);
+    const formas = {
+      log: x => 3 + 2 * Math.log(x),
+      raiz: x => 1 + 0.5 * Math.sqrt(x),
+      lineal: x => 2 + 0.01 * x,
+      cuad: x => 1 + 0.5 * Math.log(x) + 0.1 * Math.log(x) ** 2,
+      ns: x => 5 - 2 * g1(x) + g2(x),
+    };
+    out.recupera = {}; out.auto = {};
+    for (const [m, f] of Object.entries(formas)) {
+      const aj = curvaAjustar(de(f), m);
+      out.recupera[m] = aj ? aj.sse < 1e-9 && Math.abs(aj.f(120) - f(120)) < 1e-6 : false;
+      const au = curvaAjustar(de(f), 'auto');
+      out.auto[m] = au ? au.modelo : null;
+    }
+    // La banda: ±σ de los residuos, sólo si se pide.
+    const ruido = xs.map((x, i) => ({ x, y: formas.log(x) + (i % 2 ? 0.1 : -0.1) }));
+    const aj = curvaAjustar(ruido, 'log');
+    const prev = { ...CURVA_PREF };
+    CURVA_PREF.banda = true;
+    const con = curvaDatasets(aj, xs, { color: '#fff' });
+    CURVA_PREF.banda = false;
+    const sin = curvaDatasets(aj, xs, { color: '#fff' });
+    CURVA_PREF.banda = prev.banda;
+    out.banda = { con: con.lista.length, sin: sin.lista.length, relleno: con.banda[1] && con.banda[1].fill,
+      ancho: con.banda.length ? con.banda[0].data[5].y - con.lista[0].data[5].y : null, sigma: aj.sigma };
+    out.vacia = curvaDatasets(null, xs, {}).lista.length === 1;
+    // El selector: repetido en cada gráfico, sincronizado, y repinta.
+    switchSection('pesos'); switchTab('lecap');
+    await new Promise(r => setTimeout(r, 1500));
+    curvaSetModelo('lineal');
+    const sels = [...document.querySelectorAll('[data-curva-sel] select')];
+    out.selectores = sels.length;
+    out.sincronizados = sels.every(x => x.value === 'lineal');
+    const tr = typeof curveChart !== 'undefined' && curveChart ? curveChart.data.datasets.find(d => d.curvaInfo) : null;
+    if (tr && tr.data.length > 3) {
+      const d = tr.data;
+      const pend = (d[2].y - d[1].y) / (d[2].x - d[1].x), pend2 = (d[d.length - 1].y - d[d.length - 2].y) / (d[d.length - 1].x - d[d.length - 2].x);
+      out.recta = Math.abs(pend - pend2) < 1e-3;
+      out.info = (document.querySelector('[data-curva-sel="tf"] .curva-info') || {}).textContent || '';
+    }
+    curvaSetModelo(prev.modelo || 'log');
+    out.sync = SUPA_USER_KEYS.includes(CURVA_LS);
+    return out;
+  });
+  check(Object.values(cur.recupera).every(Boolean), 'cada modelo de curva recupera su propia forma', JSON.stringify(cur.recupera));
+  check(Object.entries(cur.auto).every(([m, a]) => a === m), 'el mejor ajuste elige el modelo que generó los puntos', JSON.stringify(cur.auto));
+  check(cur.banda.con === 3 && cur.banda.sin === 1 && cur.banda.relleno === '-1' && Math.abs(cur.banda.ancho - cur.banda.sigma) < 1e-3 && cur.vacia,
+        'la banda es de ±1σ de los residuos y se puede sacar', JSON.stringify(cur.banda));
+  check(cur.selectores >= 8 && cur.sincronizados, 'el selector de curva está en cada gráfico y sincronizado', `${cur.selectores} selectores`);
+  if (cur.recta == null) omitir('el selector repinta la curva de tasa fija', 'sin LECAP con precio');
+  else check(cur.recta && /Lineal/.test(cur.info), 'el selector repinta la curva de tasa fija con el modelo elegido', cur.info);
+  check(cur.sync, 'la preferencia de curva viaja por usuario');
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');

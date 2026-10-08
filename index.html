@@ -616,7 +616,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div class="chart-area" id="chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);">
   <div class="chart-resize-handle" id="chart-resize-handle"></div>
   <div class="chart-toolbar">
-    <span class="chart-title">Curva de tasas</span>
+    <span class="chart-title">Curva de tasas</span><span data-curva-sel="tf" style="margin-left:10px"></span>
     <div class="chart-mode-row">
       <button class="chart-mode-btn active" onclick="setChartMode('tna',this)">TNA</button>
       <button class="chart-mode-btn" onclick="setChartMode('tir',this)">TIR</button>
@@ -871,7 +871,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <div id="cer-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="cer-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;gap:8px;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva CER · TIR Real</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva CER · TIR Real</span><span data-curva-sel="cer" style="margin-left:10px"></span>
       <span id="cer-chart-status" style="font-size:10px;color:var(--text3);margin-left:4px"></span>
     </div>
     <div style="flex:1;min-height:0;padding:.2rem .5rem;">
@@ -989,7 +989,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <div id="tamar-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="tamar-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva TAMAR · Margen TNA</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva TAMAR · Margen TNA</span><span data-curva-sel="tamar" style="margin-left:10px"></span>
     </div>
     <div style="flex:1;min-height:0;padding:.2rem .5rem;">
       <canvas id="tamar-curve-chart" style="width:100%;height:100%"></canvas>
@@ -1110,7 +1110,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <div id="dlk-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="dlk-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva DLK · TIR %</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Curva DLK · TIR %</span><span data-curva-sel="dlk" style="margin-left:10px"></span>
     </div>
     <div style="flex:1;min-height:0;padding:.2rem .5rem;">
       <canvas id="dlk-curve-chart" style="width:100%;height:100%"></canvas>
@@ -1456,6 +1456,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
                 <button class="mode-btn" id="be-chart-tf-tir" onclick="beChartTFSetMode('tir')">TIR</button>
                 <button class="mode-btn" id="be-chart-tf-tem" onclick="beChartTFSetMode('tem')">TEM</button>
               </div>
+              <span data-curva-sel style="margin-left:10px"></span>
             </div>
           </div>
         </div>
@@ -1485,6 +1486,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
                 <button class="mode-btn" id="be-chart-cer-tir" onclick="beChartCERSetMode('tir')">TIR</button>
                 <button class="mode-btn" id="be-chart-cer-tem" onclick="beChartCERSetMode('tem')">TEM</button>
               </div>
+              <span data-curva-sel style="margin-left:10px"></span>
             </div>
           </div>
         </div>
@@ -2075,7 +2077,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     </div>
     <div class="chart-area" id="bon-chart-area" style="height:200px;">
       <div class="chart-resize-handle" id="bon-chart-handle"></div>
-      <div class="chart-toolbar"><span class="chart-title">Curva TIR vs MD</span></div>
+      <div class="chart-toolbar"><span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="bon" style="margin-left:10px"></span></div>
       <div class="chart-wrap"><canvas id="bon-yield-chart"></canvas></div>
     </div>
   </div>
@@ -2108,7 +2110,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     </div>
     <div class="chart-area" id="glo-chart-area" style="height:200px;">
       <div class="chart-resize-handle" id="glo-chart-handle"></div>
-      <div class="chart-toolbar"><span class="chart-title">Curva TIR vs MD</span></div>
+      <div class="chart-toolbar"><span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="glo" style="margin-left:10px"></span></div>
       <div class="chart-wrap"><canvas id="glo-yield-chart"></canvas></div>
     </div>
   </div>
@@ -2147,7 +2149,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     <div class="chart-area" id="bop-chart-area" style="height:200px;">
       <div class="chart-resize-handle" id="bop-chart-handle"></div>
       <div class="chart-toolbar">
-        <span class="chart-title">Curva TIR vs MD</span>
+        <span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="bop" style="margin-left:10px"></span>
       </div>
       <div class="chart-wrap"><canvas id="bop-yield-chart"></canvas></div>
     </div>
@@ -2765,7 +2767,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -3293,22 +3295,9 @@ function usdFamChartRender(fam){
   }
   if(fam.chart){fam.chart.destroy();fam.chart=null;}
   if(!pts.length)return;
-  // logarithmic regression: y = a + b*ln(x)
-  const n=pts.length;
-  const lx=pts.map(p=>Math.log(Math.max(p.x,0.01)));
-  const sy=pts.reduce((s,p)=>s+p.y,0);
-  const slx=lx.reduce((s,v)=>s+v,0),slx2=lx.reduce((s,v)=>s+v*v,0);
-  const slxy=lx.reduce((s,v,i)=>s+v*pts[i].y,0);
-  const den=n*slx2-slx*slx;
-  var trendData=[];
-  if(den!==0){
-    const b=(n*slxy-slx*sy)/den,a=(sy-b*slx)/n;
-    const xMin=Math.max(Math.min(...pts.map(p=>p.x)),0.01),xMax=Math.max(...pts.map(p=>p.x));
-    for(var i=0;i<=120;i++){
-      const x=xMin+(xMax-xMin)*i/120;
-      trendData.push({x:+x.toFixed(3),y:+(a+b*Math.log(Math.max(x,0.01))).toFixed(3)});
-    }
-  }
+  // La curva, con el modelo del selector y su banda de ±1σ.
+  const curva=curvaDatasets(curvaAjustar(pts),pts.map(p=>p.x),
+    {color:fam.colorTendencia,relleno:fam.colorTendencia.replace(/[\d.]+\)$/,'0.08)'),label:'Tendencia',clave:fam.id});
   if(window.ChartDataLabels)Chart.register(ChartDataLabels);
   fam.chart=new Chart(canvas,{
     type:'scatter',
@@ -3324,12 +3313,7 @@ function usdFamChartRender(fam){
           anchor:'end',align:'top',offset:4,clip:false,
         },
       },
-      {
-        label:'Tendencia',data:trendData,
-        borderColor:fam.colorTendencia,borderWidth:1.5,
-        pointRadius:0,showLine:true,fill:false,tension:0,
-        datalabels:{display:false},
-      },
+      ...curva.lista,
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,layout:{padding:{top:22}},
@@ -3456,6 +3440,172 @@ const fmtDate=d=>{
 // en "cargando..." sin decir nada, que es exactamente lo que pasaba cuando
 // el proveedor dejaba de responder.
 const PRECIOS_TIMEOUT_MS=12000;
+
+// ══════════════════════════════════════════════════════════ MODELOS DE CURVA
+// El ajuste de la curva en los gráficos de cada solapa, del Resumen y de Curvas.
+// Antes todos usaban a + b·ln(x). Ahora se elige el modelo —o el que mejor
+// ajusta— y se dibuja una banda de ±1σ de los residuos: lo que queda afuera
+// está caro o barato contra su curva más allá del ruido habitual.
+//
+// La ficha del comentario sigue en logarítmico (curvasLogReg): sus niveles,
+// pendientes y residuos se comparan rueda contra rueda y no pueden cambiar de
+// significado con una preferencia de pantalla.
+const CURVA_LS='bonosAR_curva_modelo_v1';
+const CURVA_MODELOS=[
+  ['auto','Mejor ajuste'],['log','Logarítmica'],['raiz','Raíz cuadrada'],
+  ['lineal','Lineal'],['cuad','Cuadrática en ln'],['ns','Nelson-Siegel']];
+let CURVA_PREF={modelo:'log',banda:true};
+function curvaLoadLs(){
+  try{const r=localStorage.getItem(CURVA_LS);if(r){const p=JSON.parse(r);if(p&&typeof p==='object')CURVA_PREF={...CURVA_PREF,...p};}}catch(e){}
+}
+function curvaSaveLs(){
+  try{localStorage.setItem(CURVA_LS,JSON.stringify(CURVA_PREF));}catch(e){}
+}
+curvaLoadLs();
+
+// Mínimos cuadrados sobre una base de funciones: las ecuaciones normales,
+// resueltas por Gauss con pivoteo. Con a lo sumo tres términos alcanza.
+function curvaMCO(pts,base){
+  const k=base.length,n=pts.length;
+  if(n<k)return null;
+  const A=Array.from({length:k},()=>new Array(k).fill(0)),v=new Array(k).fill(0);
+  for(const p of pts){
+    const f=base.map(g=>g(p.x));
+    for(let i=0;i<k;i++){v[i]+=f[i]*p.y;for(let j=0;j<k;j++)A[i][j]+=f[i]*f[j];}
+  }
+  for(let c=0;c<k;c++){
+    let piv=c;
+    for(let r=c+1;r<k;r++)if(Math.abs(A[r][c])>Math.abs(A[piv][c]))piv=r;
+    if(Math.abs(A[piv][c])<1e-12)return null;
+    [A[c],A[piv]]=[A[piv],A[c]];[v[c],v[piv]]=[v[piv],v[c]];
+    for(let r=c+1;r<k;r++){const m=A[r][c]/A[c][c];for(let j=c;j<k;j++)A[r][j]-=m*A[c][j];v[r]-=m*v[c];}
+  }
+  const b=new Array(k).fill(0);
+  for(let i=k-1;i>=0;i--){let t=v[i];for(let j=i+1;j<k;j++)t-=A[i][j]*b[j];b[i]=t/A[i][i];}
+  const f=x=>base.reduce((t,g,i)=>t+b[i]*g(x),0);
+  return{f,coef:b,sse:pts.reduce((t,p)=>t+Math.pow(p.y-f(p.x),2),0)};
+}
+
+const curvaLn=x=>Math.log(Math.max(x,1e-6));
+// Un modelo sobre los puntos. Nelson-Siegel busca τ en una grilla logarítmica
+// entre el plazo más corto y el más largo, y para cada τ los tres betas por MCO.
+function curvaAjustarModelo(pts,modelo){
+  const uno=()=>1;
+  let r=null,k=0,tau=null;
+  if(modelo==='log'){r=curvaMCO(pts,[uno,curvaLn]);k=2;}
+  else if(modelo==='raiz'){r=curvaMCO(pts,[uno,x=>Math.sqrt(Math.max(x,0))]);k=2;}
+  else if(modelo==='lineal'){r=curvaMCO(pts,[uno,x=>x]);k=2;}
+  else if(modelo==='cuad'){r=curvaMCO(pts,[uno,curvaLn,x=>curvaLn(x)*curvaLn(x)]);k=3;}
+  else if(modelo==='ns'){
+    if(pts.length<4)return null;
+    const xs=pts.map(p=>p.x);
+    const lo=Math.min(...xs),hi=Math.max(...xs);
+    if(!(hi>lo))return null;
+    for(let i=0;i<=40;i++){
+      const t=lo*Math.pow(hi/lo,i/40);
+      const g1=x=>{const z=Math.max(x,1e-6)/t;return(1-Math.exp(-z))/z;};
+      const g2=x=>{const z=Math.max(x,1e-6)/t;return(1-Math.exp(-z))/z-Math.exp(-z);};
+      const q=curvaMCO(pts,[uno,g1,g2]);
+      if(q&&(!r||q.sse<r.sse)){r=q;tau=t;}
+    }
+    k=4;
+  }
+  if(!r)return null;
+  const n=pts.length;
+  const media=pts.reduce((t,p)=>t+p.y,0)/n;
+  const sst=pts.reduce((t,p)=>t+Math.pow(p.y-media,2),0);
+  // AICc: castiga los parámetros cuando hay pocos puntos, que es el caso de
+  // casi todas las curvas. Sin esto "mejor ajuste" elegiría siempre el más flexible.
+  // El piso al error es para un ajuste exacto: con cero el logaritmo no existe.
+  const aicc=n>k+1?n*Math.log(Math.max(r.sse,1e-12)/n)+2*k+2*k*(k+1)/(n-k-1):Infinity;
+  return{modelo,f:r.f,coef:r.coef,sse:r.sse,k,n,tau,aicc,
+    sigma:n>k?Math.sqrt(r.sse/(n-k)):null,r2:sst>0?1-r.sse/sst:null};
+}
+
+// El ajuste con el modelo del selector, o el que se pida. pts: [{x,y}] con x>0.
+function curvaAjustar(pts,modelo){
+  const ps=(pts||[]).filter(p=>p&&isFinite(p.x)&&isFinite(p.y)&&p.x>0);
+  if(ps.length<2)return null;
+  const m=modelo||CURVA_PREF.modelo||'log';
+  if(m!=='auto')return curvaAjustarModelo(ps,m)||curvaAjustarModelo(ps,'log');
+  const cand=['log','raiz','lineal','cuad','ns'].map(x=>curvaAjustarModelo(ps,x)).filter(a=>a&&isFinite(a.aicc));
+  if(!cand.length)return curvaAjustarModelo(ps,'log');
+  cand.sort((a,b)=>a.aicc-b.aicc);
+  return{...cand[0],auto:true};
+}
+
+// Los datasets de Chart.js: la línea y la banda. La línea siempre existe —vacía
+// si no hay ajuste— para no correr los índices de los datasets que siguen.
+//   o.color, o.relleno, o.ancho, o.guion, o.label, o.orden, o.sufijo, o.banda
+function curvaDatasets(aj,xs,o){
+  o=o||{};
+  const base={type:'line',pointRadius:0,pointHitRadius:0,pointHoverRadius:0,fill:false,tension:0,
+    showLine:true,datalabels:{display:false}};
+  if(o.orden!=null)base.order=o.orden;
+  const linea={...base,label:o.label||'Tendencia',data:[],borderColor:o.color,borderWidth:o.ancho||1.5};
+  if(o.guion)linea.borderDash=o.guion;
+  const out={linea,banda:[],lista:[linea],ajuste:aj};
+  const v=(xs||[]).filter(x=>isFinite(x)&&x>0);
+  if(!aj||v.length<2)return out;
+  const xMin=Math.min(...v),xMax=Math.max(...v);
+  if(!(xMax>xMin))return out;
+  const N=120;
+  for(let i=0;i<=N;i++){const x=xMin+(xMax-xMin)*i/N;linea.data.push({x:+x.toFixed(4),y:+aj.f(x).toFixed(4)});}
+  const nombre=(CURVA_MODELOS.find(m=>m[0]===aj.modelo)||[0,aj.modelo])[1];
+  linea.curvaInfo=`${aj.auto?'Mejor ajuste: ':''}${nombre}${aj.sigma!=null?` · ±1σ = ${(aj.sigma*100).toFixed(0)} pb`:''}`;
+  if(o.clave){
+    CURVA_INFO[o.clave]=linea.curvaInfo;
+    document.querySelectorAll(`[data-curva-sel="${o.clave}"] .curva-info`).forEach(el=>{el.textContent=linea.curvaInfo;});
+  }
+  if(o.banda!==false&&CURVA_PREF.banda&&aj.sigma>0){
+    const sg=aj.sigma,suf=o.sufijo||'';
+    out.banda=[
+      {...base,label:'_banda_sup'+suf,data:linea.data.map(p=>({x:p.x,y:+(p.y+sg).toFixed(4)})),borderWidth:0,borderColor:'transparent'},
+      {...base,label:'_banda_inf'+suf,data:linea.data.map(p=>({x:p.x,y:+(p.y-sg).toFixed(4)})),borderWidth:0,borderColor:'transparent',
+        fill:'-1',backgroundColor:o.relleno||'rgba(150,150,150,0.08)'},
+    ];
+    out.lista=[linea,...out.banda];
+  }
+  return out;
+}
+
+// Una sola perilla, repetida en el encabezado de cada gráfico con data-curva-sel.
+// Lo último que dibujó cada gráfico con una sola curva: qué modelo quedó —con
+// "mejor ajuste" no se sabe de antemano— y el desvío de la banda.
+const CURVA_INFO={};
+function curvaSelectorHTML(clave){
+  const est='background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:1px 4px;font-size:10px;font-family:var(--mono);color:var(--text);outline:none;text-transform:none;letter-spacing:0;cursor:pointer';
+  return`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">Curva
+    <select onchange="curvaSetModelo(this.value)" title="Modelo de la curva ajustada. Mejor ajuste elige el de menor AICc, que castiga los parámetros con pocos puntos" style="${est}">
+      ${CURVA_MODELOS.map(([v,l])=>`<option value="${v}"${v===CURVA_PREF.modelo?' selected':''}>${l}</option>`).join('')}
+    </select>
+    <label title="Banda de ±1 desvío de los residuos alrededor de la curva" style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;text-transform:none;letter-spacing:0">
+      <input type="checkbox" onchange="curvaSetBanda(this.checked)"${CURVA_PREF.banda?' checked':''} style="margin:0">±1σ</label>
+    ${clave?`<span class="curva-info" style="color:var(--text3);text-transform:none;letter-spacing:0">${CURVA_INFO[clave]||''}</span>`:''}
+  </span>`;
+}
+function curvaPintarSelectores(){
+  document.querySelectorAll('[data-curva-sel]').forEach(el=>{el.innerHTML=curvaSelectorHTML(el.getAttribute('data-curva-sel'));});
+}
+function curvaSetModelo(v){
+  if(!CURVA_MODELOS.some(m=>m[0]===v))return;
+  CURVA_PREF.modelo=v;curvaSaveLs();curvaPintarSelectores();curvaRepintar();
+}
+function curvaSetBanda(b){
+  CURVA_PREF.banda=!!b;curvaSaveLs();curvaPintarSelectores();curvaRepintar();
+}
+// Repinta todos los gráficos con curva. Los que no están en pantalla o no tienen
+// datos se saltean solos.
+function curvaRepintar(){
+  [()=>renderChart(),()=>cerRenderTabChart(),()=>tamarRenderTabChart(),()=>dlkRenderTabChart(),
+   ()=>{if(typeof currentTab!=='undefined'&&currentTab==='breakeven'){beRenderChartTF();beRenderChartCER();}},
+   ()=>['bop','bon','glo'].forEach(k=>usdFamChartRender(USD_FAM[k])),
+   ()=>{if(document.getElementById('ures-chart'))usdResChartRenderIndep();},
+   ()=>{if(document.getElementById('curvas-ars-chart'))_curvasArsDraw();},
+   ()=>{if(document.getElementById('curvas-usd-chart'))_curvasUsdDraw();},
+  ].forEach(g=>{try{g();}catch(e){console.warn('[curva] repintar:',e.message);}});
+}
+setTimeout(curvaPintarSelectores,0);
 
 function fetchData912(endpoint){
   return fetch(`https://data912.com/live/${endpoint}?_=${Date.now()}`,
@@ -4607,22 +4757,9 @@ function renderChart(){
   const overrides=pts.map(r=>!!r.manualOverride);
   const precios=pts.map(r=>r.precio);
 
-  // regression
-  const lx=xVals.map(x=>Math.log(x));
-  const n=xVals.length;
-  const sumLx=lx.reduce((s,v)=>s+v,0);
-  const sumY=yVals.reduce((s,v)=>s+v,0);
-  const sumLx2=lx.reduce((s,v)=>s+v*v,0);
-  const sumLxY=lx.reduce((s,v,i)=>s+v*yVals[i],0);
-  const denom=n*sumLx2-sumLx*sumLx;
-  const b=denom!==0?(n*sumLxY-sumLx*sumY)/denom:0;
-  const a=(sumY-b*sumLx)/n;
-  const xMin=Math.min(...xVals),xMax=Math.max(...xVals);
-  const trendData=[];
-  for(let i=0;i<=120;i++){
-    const x=xMin+(xMax-xMin)*i/120;
-    trendData.push({x:Math.round(x),y:a+b*Math.log(x)});
-  }
+  // La curva, con el modelo del selector y su banda de ±1σ.
+  const curva=curvaDatasets(curvaAjustar(xVals.map((x,i)=>({x,y:yVals[i]}))),xVals,
+    {color:'rgba(122,179,212,0.55)',relleno:'rgba(122,179,212,0.10)',label:'Tendencia',clave:'tf'});
 
   const axisLabels={tna:'TNA (%)',tir:'TIR (%)',tem:'TEM (%)'};
   const pointColors=pts.map(r=>r.manualOverride?'#d4a96a':'#a8d5a2');
@@ -4662,17 +4799,7 @@ function renderChart(){
             clip:false,
           },
         },
-        {
-          label:'Tendencia log.',
-          data:trendData,
-          borderColor:'rgba(122,179,212,0.55)',
-          borderWidth:1.5,
-          pointRadius:0,
-          showLine:true,
-          fill:false,
-          tension:0,
-          datalabels:{display:false},
-        },
+        ...curva.lista,
       ]
     },
     options:{
@@ -12427,7 +12554,7 @@ function cerRenderTabChart(){
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
   if(cerTabChart){cerTabChart.destroy();cerTabChart=null;}
   if(!pts.length){if(status)status.textContent='(sin datos)';return;}
-  cerTabChart=beDrawScatter(canvas,pts,'#6eb8d5','#3a8aad','TIR Real (%)');
+  cerTabChart=beDrawScatter(canvas,pts,'#6eb8d5','#3a8aad','TIR Real (%)','cer');
 }
 
 // ── TAMAR TAB CHART ───────────────────────────────────────────────────────────
@@ -12447,7 +12574,7 @@ function tamarRenderTabChart(){
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
   if(tamarTabChart){tamarTabChart.destroy();tamarTabChart=null;}
   if(!pts.length)return;
-  tamarTabChart=beDrawScatter(canvas,pts,'#38bdf8','#0ea5e9','Margen TNA (%)');
+  tamarTabChart=beDrawScatter(canvas,pts,'#38bdf8','#0ea5e9','Margen TNA (%)','tamar');
 }
 
 // ── CHART BOND SELECTORS ──────────────────────────────────────────────────────
@@ -12560,8 +12687,9 @@ function beRenderChartTF(){
     }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
     if(!pts.length)continue;
     const c=CHART_TIPO_COLORS[tipo];
-    const trend=beCalcTrend(pts);
-    if(trend.length) datasets.push({label:'_trend_'+tipo,data:trend,type:'line',borderColor:c.trend,borderWidth:1.5,pointRadius:0,fill:false,tension:0.4,order:tipoOrder,datalabels:{display:false}});
+    const curva=curvaDatasets(curvaAjustar(pts.map(p=>({x:p.dias,y:p.val}))),pts.map(p=>p.dias),
+      {color:c.trend,relleno:c.trend.replace(/[\d.]+\)$/,'0.07)'),label:'_trend_'+tipo,orden:tipoOrder,sufijo:'_'+tipo});
+    if(curva.linea.data.length) datasets.push(...curva.lista);
     datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:c.point,borderColor:c.border,pointRadius:5,pointHoverRadius:7,order:10+tipoOrder});
     tipoOrder++;
   }
@@ -12680,8 +12808,9 @@ function beRenderChartCER(){
     }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
     if(!pts.length)continue;
     const c=CHART_TIPO_COLORS[tipo];
-    const trend=beCalcTrend(pts);
-    if(trend.length) datasets.push({label:'_trend_'+tipo,data:trend,type:'line',borderColor:c.trend,borderWidth:1.5,pointRadius:0,fill:false,tension:0.4,order:tipoOrder,datalabels:{display:false}});
+    const curva=curvaDatasets(curvaAjustar(pts.map(p=>({x:p.dias,y:p.val}))),pts.map(p=>p.dias),
+      {color:c.trend,relleno:c.trend.replace(/[\d.]+\)$/,'0.07)'),label:'_trend_'+tipo,orden:tipoOrder,sufijo:'_'+tipo});
+    if(curva.linea.data.length) datasets.push(...curva.lista);
     datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:c.point,borderColor:c.border,pointRadius:5,pointHoverRadius:7,order:10+tipoOrder});
     tipoOrder++;
   }
@@ -12726,23 +12855,19 @@ function beRenderChartCER(){
   });
 }
 
-function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel){
+function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel,clave){
   const xVals=pts.map(p=>p.dias),yVals=pts.map(p=>p.val);
-  const lx=xVals.map(x=>Math.log(x));
-  const n=xVals.length;
-  const slx=lx.reduce((s,v)=>s+v,0),sy=yVals.reduce((s,v)=>s+v,0);
-  const slx2=lx.reduce((s,v)=>s+v*v,0),slxy=lx.reduce((s,v,i)=>s+v*yVals[i],0);
-  const den=n*slx2-slx*slx;
-  const b=den!==0?(n*slxy-slx*sy)/den:0,a=(sy-b*slx)/n;
-  const xMin=Math.min(...xVals),xMax=Math.max(...xVals);
-  const trendData=[];
-  for(let i=0;i<=100;i++){const x=xMin+(xMax-xMin)*i/100;trendData.push({x:Math.round(x),y:a+b*Math.log(x)});}
+  // La curva va primero y los puntos segundos: las etiquetas se pintan sobre el
+  // dataset 1. La banda, al final.
+  const curva=curvaDatasets(curvaAjustar(xVals.map((x,i)=>({x,y:yVals[i]}))),xVals,
+    {color:'rgba(168,213,162,0.4)',relleno:'rgba(168,213,162,0.08)',label:'Tendencia',orden:1,clave});
   if(window.ChartDataLabels)Chart.register(ChartDataLabels);
   return new Chart(canvas,{
     type:'scatter',
     data:{datasets:[
-      {label:'Tendencia',data:trendData,type:'line',borderColor:'rgba(168,213,162,0.4)',borderWidth:1.5,pointRadius:0,fill:false,tension:0.4,order:1},
-      {label:yLabel,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:ptColor,borderColor:ptBorder,pointRadius:5,pointHoverRadius:7,order:2}
+      curva.linea,
+      {label:yLabel,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:ptColor,borderColor:ptBorder,pointRadius:5,pointHoverRadius:7,order:2},
+      ...curva.banda,
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,animation:{duration:0},
@@ -12812,20 +12937,6 @@ function beGetChartRate(e,tipo,mode){
   return null;
 }
 
-function beCalcTrend(pts){
-  if(pts.length<2)return[];
-  const xV=pts.map(p=>p.dias),yV=pts.map(p=>p.val);
-  const lx=xV.map(x=>Math.log(x));
-  const n=xV.length;
-  const slx=lx.reduce((s,v)=>s+v,0),sy=yV.reduce((s,v)=>s+v,0);
-  const slx2=lx.reduce((s,v)=>s+v*v,0),slxy=lx.reduce((s,v,i)=>s+v*yV[i],0);
-  const den=n*slx2-slx*slx;
-  const b=den!==0?(n*slxy-slx*sy)/den:0,a=(sy-b*slx)/n;
-  const xMin=Math.min(...xV),xMax=Math.max(...xV);
-  const res=[];
-  for(let i=0;i<=100;i++){const x=xMin+(xMax-xMin)*i/100;res.push({x:Math.round(x),y:a+b*Math.log(x)});}
-  return res;
-}
 
 function beRenderTipoChips(chartId){
   const el=document.getElementById('be-chart-'+chartId+'-tipos');
@@ -12921,7 +13032,7 @@ function dlkRenderTabChart(){
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
   if(dlkTabChart){dlkTabChart.destroy();dlkTabChart=null;}
   if(!pts.length)return;
-  dlkTabChart=beDrawScatter(canvas,pts,'#f59e0b','#d97706','TIR (%)');
+  dlkTabChart=beDrawScatter(canvas,pts,'#f59e0b','#d97706','TIR (%)','dlk');
 }
 
 function dlkLoadBonds(){
@@ -15833,7 +15944,7 @@ function usdResumenRender(){
   <!-- COL 3 chart -->
   <div style="flex:1;min-width:200px;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:5px 10px;background:var(--surface2);border-bottom:1px solid var(--border2);flex-shrink:0;display:flex;align-items:center;gap:8px">
-      <span style="${ttl}">Curva de rendimientos</span>
+      <span style="${ttl}">Curva de rendimientos</span><span data-curva-sel style="margin-left:10px"></span>
       <button class="btn" style="padding:1px 6px;font-size:10px" onclick="usdResChartTogglePanel()">bonos ▾</button>
     </div>
     <div id="ures-chart-panel" style="display:none;padding:5px 10px;border-bottom:1px solid var(--border2);flex-shrink:0;overflow-x:auto">
@@ -16178,6 +16289,7 @@ function usdResChartRenderIndep(){
 function usdResChartRender(enriched){
   const canvas=document.getElementById('ures-chart');
   if(!canvas)return;
+  curvaPintarSelectores();
   if(usdResChart){usdResChart.destroy();usdResChart=null;}
   const pts=enriched.filter(e=>e.md!=null&&e.tir!=null);
   if(!pts.length)return;
@@ -16187,19 +16299,6 @@ function usdResChartRender(enriched){
     {sec:'BON',col:'#d4a843'},
     {sec:'BOP',col:'#74c4a0'},
   ];
-
-  // logarithmic regression: y = a + b*ln(x) — same approach as ARS chart
-  function linReg(arr){
-    const n=arr.length;if(n<2)return null;
-    const lx=arr.map(p=>Math.log(Math.max(p.md,0.01)));
-    const sy=arr.reduce((s,p)=>s+p.tir,0);
-    const slx=lx.reduce((s,v)=>s+v,0);
-    const slx2=lx.reduce((s,v)=>s+v*v,0);
-    const slxy=lx.reduce((s,v,i)=>s+v*arr[i].tir,0);
-    const den=n*slx2-slx*slx;if(!den)return null;
-    const b=(n*slxy-slx*sy)/den,a=(sy-b*slx)/n;
-    return{a,b};
-  }
 
   const groups=GRP.map(g=>({...g,pts:pts.filter(p=>usdResGetSec(p.ticker)===g.sec)})).filter(g=>g.pts.length>0);
   if(!groups.length)return;
@@ -16232,30 +16331,13 @@ function usdResChartRender(enriched){
     });
     dsInfo.push({type:'scatter',grpIdx:gi});
 
-    // logarithmic regression: y = a + b*ln(x), same approach as ARS chart
-    const reg=linReg(g.pts);
-    if(reg){
-      const mdArr=g.pts.map(p=>p.md);
-      const mdMin=Math.max(Math.min(...mdArr),0.01),mdMax=Math.max(...mdArr);
-      const trendPts=[];
-      for(let i=0;i<=120;i++){
-        const x=mdMin+(mdMax-mdMin)*i/120;
-        const y=reg.a+reg.b*Math.log(Math.max(x,0.01));
-        trendPts.push({x:+x.toFixed(3),y:+y.toFixed(4)});
-      }
-      datasets.push({
-        label:g.sec+'_trend',
-        type:'line',
-        data:trendPts,
-        borderColor:g.col,
-        borderWidth:2,
-        pointRadius:0,
-        showLine:true,
-        fill:false,
-        tension:0,
-        datalabels:{display:false},
-      });
-      dsInfo.push({type:'trend',grpIdx:gi});
+    // La curva del grupo, con el modelo del selector y su banda de ±1σ. La
+    // banda se registra en dsInfo para que el globo la saltee.
+    const curva=curvaDatasets(curvaAjustar(g.pts.map(p=>({x:p.md,y:p.tir}))),g.pts.map(p=>p.md),
+      {color:g.col,relleno:g.col+'14',ancho:2,label:g.sec+'_trend',sufijo:'_'+g.sec});
+    if(curva.linea.data.length){
+      datasets.push(curva.linea);dsInfo.push({type:'trend',grpIdx:gi});
+      curva.banda.forEach(b=>{datasets.push(b);dsInfo.push({type:'banda',grpIdx:gi});});
     }
   });
 
@@ -16886,6 +16968,7 @@ function curvasArsInit(){
       <input type="date" id="curvas-ars-d2" value="${d2}" onchange="curvasArsRender()" style="font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;color:var(--text)">
       <button class="btn primary" style="padding:3px 10px;font-size:10px" onclick="curvasArsRender()">Ver</button>
     </div>
+    <span data-curva-sel="curvas-ars" style="margin-left:10px"></span>
     <div id="curvas-ars-msg" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:auto"></div>
   </div>
   <div id="curvas-ars-bonds" style="padding:5px 14px;border-bottom:1px solid var(--border);flex-shrink:0;min-height:28px;background:var(--surface2);display:flex;flex-wrap:wrap;align-items:center;gap:3px"></div>
@@ -16938,6 +17021,7 @@ function curvasArsToggleBond(ticker){
 }
 
 function _curvasArsDraw(){
+  curvaPintarSelectores();
   const {snap1,snap2,d1,d2,sector}=_curvasArsCache;
   const msg=document.getElementById('curvas-ars-msg');
   const canvas=document.getElementById('curvas-ars-chart');
@@ -16974,14 +17058,15 @@ function _curvasArsDraw(){
   if(pts1.length){
     const t1=pts1.map(p=>p.ticker);
     datasets.push({label:curvasFmtDate(d1),data:pts1.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
-    const r1=curvasLogReg(pts1);
-    if(r1)datasets.push({label:'_t1',data:curvasTrendPts(r1,pts1),type:'line',borderColor:col2,borderWidth:1.5,borderDash:[4,3],pointRadius:0,fill:false,datalabels:{display:false}});
+    // La de la fecha 1 va sin banda: dos bandas superpuestas no se leen.
+    const c1=curvaDatasets(curvaAjustar(pts1),pts1.map(p=>p.x),{color:col2,ancho:1.5,guion:[4,3],label:'_t1',banda:false});
+    if(c1.linea.data.length)datasets.push(c1.linea);
   }
   if(pts2.length){
     const t2=pts2.map(p=>p.ticker);
     datasets.push({label:curvasFmtDate(d2),data:pts2.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
-    const r2=curvasLogReg(pts2);
-    if(r2)datasets.push({label:'_t2',data:curvasTrendPts(r2,pts2),type:'line',borderColor:col,borderWidth:2,pointRadius:0,fill:false,datalabels:{display:false}});
+    const c2=curvaDatasets(curvaAjustar(pts2),pts2.map(p=>p.x),{color:col,relleno:col+'1a',ancho:2,label:'_t2',sufijo:'_2',clave:'curvas-ars'});
+    if(c2.linea.data.length)datasets.push(...c2.lista);
   }
 
   if(curvasArsChart){curvasArsChart.destroy();curvasArsChart=null;}
@@ -18455,6 +18540,7 @@ function curvasUsdInit(){
       <input type="date" id="curvas-usd-d2" value="${d2}" onchange="curvasUsdRender()" style="font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;color:var(--text)">
       <button class="btn primary" style="padding:3px 10px;font-size:10px" onclick="curvasUsdRender()">Ver</button>
     </div>
+    <span data-curva-sel style="margin-left:10px"></span>
     <div id="curvas-usd-msg" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:auto"></div>
   </div>
   <div id="curvas-usd-bonds" style="padding:5px 14px;border-bottom:1px solid var(--border);flex-shrink:0;min-height:28px;background:var(--surface2);display:flex;flex-wrap:wrap;align-items:center;gap:3px"></div>
@@ -18643,6 +18729,7 @@ function curvasUsdToggleBond(ticker){
 }
 
 function _curvasUsdDraw(){
+  curvaPintarSelectores();
   const {snap1,snap2,d1,d2,sector}=_curvasUsdCache;
   const msg=document.getElementById('curvas-usd-msg');
   const canvas=document.getElementById('curvas-usd-chart');
@@ -18682,14 +18769,14 @@ function _curvasUsdDraw(){
     if(pts1.length){
       const t1=pts1.map(p=>p.ticker);
       datasets.push({label:`${sec} ${curvasFmtDate(d1)}`,data:pts1.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
-      const r1=curvasLogReg(pts1);
-      if(r1)datasets.push({label:`_t_${sec}_1`,data:curvasTrendPts(r1,pts1),type:'line',borderColor:col2,borderWidth:1.5,borderDash:[4,3],pointRadius:0,fill:false,datalabels:{display:false}});
+      const c1=curvaDatasets(curvaAjustar(pts1),pts1.map(p=>p.x),{color:col2,ancho:1.5,guion:[4,3],label:`_t_${sec}_1`,banda:false});
+      if(c1.linea.data.length)datasets.push(c1.linea);
     }
     if(pts2.length){
       const t2=pts2.map(p=>p.ticker);
       datasets.push({label:`${sec} ${curvasFmtDate(d2)}`,data:pts2.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
-      const r2=curvasLogReg(pts2);
-      if(r2)datasets.push({label:`_t_${sec}_2`,data:curvasTrendPts(r2,pts2),type:'line',borderColor:col,borderWidth:2,pointRadius:0,fill:false,datalabels:{display:false}});
+      const c2=curvaDatasets(curvaAjustar(pts2),pts2.map(p=>p.x),{color:col,relleno:col+'1a',ancho:2,label:`_t_${sec}_2`,sufijo:`_${sec}`});
+      if(c2.linea.data.length)datasets.push(...c2.lista);
     }
   });
 
