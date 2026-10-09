@@ -17110,8 +17110,6 @@ var CART_FAMS={
   GLO:{l:'Globales',c:'#6baed6',moneda:'USD',factor:'Hard dollar',hist:'GLO'},
   BOP:{l:'Bopreales',c:'#74c4a0',moneda:'USD',factor:'Hard dollar',hist:'BOP'},
 };
-var CART_SHOCKS=[-200,-100,100,200];
-var CART_FX=10;
 var CART_VAR_DIAS=365, CART_VAR_MIN=40;
 var CART=null;            // {activa, carteras:[{id, nombre, pos:[{inst, vn}]}], vista:{ars, usd}}
 var cartVarCache=new Map();
@@ -17233,27 +17231,27 @@ function cartEvaluar(pos,liq){
       const b=LECAPS.find(x=>x.ticker===ticker);
       if(!b)return{...out,error:'No está en la lista de tasa fija'};
       const r=enrich(b);
-      Object.assign(out,{precio:r.precio,marca:pesosCierreMarca(b),propia:{v:r.tir,u:'TIR'},tirMoneda:r.tir,y:r.tir,
+      Object.assign(out,{b,precio:r.precio,marca:pesosCierreMarca(b),propia:{v:r.tir,u:'TIR'},tirMoneda:r.tir,y:r.tir,
         flujos:[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:r.vf}]});
     }else if(fam==='CER'){
       const b=CER_BONDS.find(x=>x.ticker===ticker);
       if(!b)return{...out,error:'No está en la lista CER'};
       const e=cerEnrich(b),factor=cerFactor(b.emision);
       const fl=factor>0&&b.precio>0?cerBuildFlujos(b,b.precio,factor).slice(1).map(f=>({fecha:fmtDate(f.fecha),flujo:f.monto})):[];
-      Object.assign(out,{precio:b.precio,marca:pesosCierreMarca(b),propia:{v:e.tir,u:'real'},
+      Object.assign(out,{b,precio:b.precio,marca:pesosCierreMarca(b),propia:{v:e.tir,u:'real'},
         tirMoneda:isFinite(e.tirProy)?e.tirProy:null,y:e.tir,flujos:fl});
     }else if(fam==='TAMAR'){
       const b=TAMAR_BONDS.find(x=>x.ticker===ticker);
       if(!b)return{...out,error:'No está en la lista TAMAR'};
       const e=tamarEnrich(b),v=tamarVista(e),tc0=b.tcInicial||1;
-      Object.assign(out,{precio:b.precio,marca:pesosCierreMarca(b),propia:{v:v.margenTNA,u:'margen'},tirMoneda:e.tirProy,y:e.tirProy,
+      Object.assign(out,{b,precio:b.precio,marca:pesosCierreMarca(b),propia:{v:v.margenTNA,u:'margen'},tirMoneda:e.tirProy,y:e.tirProy,
         flujos:e.vpvProy>0?[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:e.vpvProy*tc0}]:[]});
     }else if(fam==='DUAL'){
       const b=TAMAR_BONDS.find(x=>x.ticker===ticker);
       if(!b)return{...out,error:'No está en la lista de duales'};
       const d=dualCalcular(b);
       const pago=d.ramaA>0&&d.ramaB>0?Math.max(d.ramaA,d.ramaB):d.ramaB;
-      Object.assign(out,{precio:b.precio,marca:pesosCierreMarca(b),propia:{v:d.margenTNA,u:'margen'},tirMoneda:d.tea,y:d.tea,
+      Object.assign(out,{b,precio:b.precio,marca:pesosCierreMarca(b),propia:{v:d.margenTNA,u:'margen'},tirMoneda:d.tea,y:d.tea,
         flujos:pago>0?[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:pago}]:[]});
     }else if(fam==='DLK'){
       const b=DLK_BONDS.find(x=>x.ticker===ticker);
@@ -17262,14 +17260,14 @@ function cartEvaluar(pos,liq){
       // Los flujos en dólares a la TIR en dólares; el precio es en pesos, y con el
       // A3500 quieto se mueve en la misma proporción.
       const ff=dlkBuildFF(b,G_LIQ||addHabiles(TODAY,1)).ff.map(ev=>({fecha:ev.fecha,flujo:ev.cf*(tc||1)}));
-      Object.assign(out,{precio:b.precio,marca:pesosCierreMarca(b),propia:{v:e.tir,u:'USD'},
+      Object.assign(out,{b,precio:b.precio,marca:pesosCierreMarca(b),propia:{v:e.tir,u:'USD'},
         tirMoneda:e.tirPesos!=null&&isFinite(e.tirPesos)?e.tirPesos:null,y:e.tir,flujos:ff});
     }else{
       const b=USD_FAM[fam.toLowerCase()].bonds.find(x=>x.ticker===ticker);
       if(!b)return{...out,error:'No está en la lista de '+F.l};
       const fl=bopGenFlows(b);
       const tir=b.lastPrecio>0?bopTIR(b,liq,b.lastPrecio,fl):null;
-      Object.assign(out,{precio:b.lastPrecio,marca:usdCierreMarca(b),propia:{v:tir,u:'TIR'},tirMoneda:tir,y:tir,
+      Object.assign(out,{b,precio:b.lastPrecio,marca:usdCierreMarca(b),propia:{v:tir,u:'TIR'},tirMoneda:tir,y:tir,
         md:tir!=null?bopDuracion(b,liq,tir,fl).mod:null,flujos:fl.map(f=>({fecha:f.fecha,flujo:f.flujo}))});
     }
   }catch(e){return{...out,error:e.message};}
@@ -17277,14 +17275,6 @@ function cartEvaluar(pos,liq){
   out.valor=out.vn*out.precio/100;
   if(out.md==null&&out.y!=null&&isFinite(out.y))out.md=cartMD(out.flujos,liq,out.y);
   return out;
-}
-
-// El precio relativo ante un shock de dy pb en la tasa propia.
-function cartShock(ev,liq,dy){
-  if(ev.y==null||!isFinite(ev.y)||!ev.flujos||!ev.flujos.length)return null;
-  const base=retPV(ev.flujos,liq,ev.y);
-  if(!(base>0))return null;
-  return retPV(ev.flujos,liq,ev.y+dy/100)/base-1;
 }
 
 // El cálculo de la cartera, sin DOM. mep: pesos por dólar.
@@ -17307,26 +17297,298 @@ function cartCalcular(cartera,vista,mep,liq){
   // Exposición por factor.
   const factores={};
   ok.forEach(p=>{factores[p.F.factor]=(factores[p.F.factor]||0)+p.valorVista;});
-  // Escenarios: shocks paralelos y dólar.
-  const porFam=fn=>{const o={};ok.forEach(p=>{const v=fn(p);if(v!=null&&isFinite(v))o[p.F.factor]=(o[p.F.factor]||0)+v;});return o;};
-  const escenarios=CART_SHOCKS.map(dy=>{
-    const f=porFam(p=>{const r=cartShock(p,liq,dy);return r==null?null:p.valorVista*r;});
-    return{nombre:`${dy>0?'+':''}${dy} pb`,porFactor:f,total:Object.values(f).reduce((s,v)=>s+v,0)};
-  });
-  for(const sg of[1,-1]){
-    const k=1+sg*CART_FX/100;
-    const f=porFam(p=>{
-      const atado=p.fam==='DLK'||p.moneda==='USD';
-      if(vista==='ARS')return atado?p.valorVista*(k-1):0;
-      return atado?0:p.valorVista*(1/k-1);
-    });
-    escenarios.push({nombre:`Dólar ${sg>0?'+':'−'}${CART_FX}%`,porFactor:f,total:Object.values(f).reduce((s,v)=>s+v,0)});
-  }
   const mayor=ok.reduce((a,p)=>!a||p.valorVista>a.valorVista?p:a,null);
   return{pos,ok,total,vista,mep,
     tirPesos:pond(pesos,'tirMoneda'),tirDolares:pond(dolares,'tirMoneda'),
     pesosValor:pesos.reduce((s,p)=>s+p.valorVista,0),dolaresValor:dolares.reduce((s,p)=>s+p.valorVista,0),
-    md:pond(ok,'md'),dv01:ok.reduce((s,p)=>s+(p.dv01||0),0),factores,escenarios,mayor};
+    md:pond(ok,'md'),dv01:ok.reduce((s,p)=>s+(p.dv01||0),0),factores,mayor,liq};
+}
+
+// ── Escenario a una fecha ────────────────────────────────────────────────────
+// La cartera valuada en una fecha de corte con cinco palancas, cada una el
+// movimiento de un factor hasta el corte. En cero, todo queda como hoy: cada bono
+// mantiene su TIR y sólo devenga. Cada posición vale en el corte los flujos que
+// le quedan, a su TIR de hoy más la palanca que le toca, más lo que cobró hasta
+// ahí (reinvertido a la curva de tasa fija si es en pesos, al Treasury si es en
+// dólares).
+//
+//   ref    tasa de referencia, pb: la TIR de tasa fija, y la tasa con que se
+//          descuenta lo que pagan TAMAR y duales
+//   cer    CER real, pb: la TIR real de los CER. El CER entre hoy y el corte
+//          sale del sendero de inflación elegido.
+//   tamar  TAMAR real, pb: el sendero de TAMAR de lo que falta publicar, con la
+//          inflación quieta. Mueve el pago de los TAMAR y la rama B de los duales.
+//   fx     devaluación, %: el A3500 y el MEP en el corte contra hoy. Mueve el
+//          dollar linked, el hard dollar (al pasarlo a pesos) y la rama dólar de
+//          los duales.
+//   usd    tasa en dólares, pb: la TIR del hard dollar y la de los dollar linked.
+//
+// El retorno se descompone en la base (todas en cero), el aporte de cada palanca
+// sola contra la base y la interacción, que es lo que queda: las palancas no
+// suman exacto porque el valor no es lineal (convexidad, la rama que gana en un
+// dual, el dólar que multiplica a la tasa en dólares).
+var CART_PALANCAS=[
+  {k:'ref',l:'Tasa de referencia',d:'curva de tasa fija en pesos',u:'pb',min:-1500,max:1500,paso:25},
+  {k:'cer',l:'CER real',d:'TIR real de los CER',u:'pb',min:-500,max:500,paso:25},
+  {k:'tamar',l:'TAMAR real',d:'sendero de TAMAR, inflación quieta',u:'pb',min:-1500,max:1500,paso:25},
+  {k:'fx',l:'Devaluación al corte',d:'A3500 y MEP contra hoy',u:'%',min:-30,max:100,paso:1},
+  {k:'usd',l:'Tasa en dólares',d:'TIR del hard dollar y del DLK',u:'pb',min:-500,max:500,paso:25},
+];
+var CART_ESC_DIAS=91;
+var CART_ESC_RES={ars:null,usd:null};
+
+function cartEsc(c){
+  c.esc=c.esc||{};
+  const e=c.esc;
+  if(e.reinvertir==null)e.reinvertir=true;
+  CART_PALANCAS.forEach(q=>{if(!isFinite(e[q.k]))e[q.k]=0;});
+  return e;
+}
+function cartEscCorte(c,liq){
+  const e=cartEsc(c);
+  if(e.corte&&e.corte>liq)return e.corte;
+  return fmtDate(new Date(parseDate(liq).getTime()+CART_ESC_DIAS*86400000+12*3600000));
+}
+// guardar: sólo al soltar la palanca, no en cada paso del arrastre.
+function cartEscSet(sec,k,v,guardar){
+  const e=cartEsc(cartActiva());
+  e[k]=k==='corte'||k==='reinvertir'?v:(v===''||v==null?0:+v);
+  if(guardar)cartGuardar();
+  else cartEscRender(sec);
+}
+function cartEscCero(sec){
+  const e=cartEsc(cartActiva());
+  CART_PALANCAS.forEach(q=>{e[q.k]=0;});
+  cartGuardar();
+}
+
+// El TAMAR con el sendero de lo que falta publicar corrido dT pb: el valor al
+// vencimiento por 100 de nominal, en pesos. Con dT = 0 es el de tamarEnrich.
+function cartTamarVPV(b,dT){
+  const tc0=b.tcInicial||1;
+  const e=tamarEnrich({...b,precio:b.precio>0?b.precio:100*tc0});
+  const d=e&&e._debug;
+  if(!d||!(e.vpvProy>0))return null;
+  const T=d.DIAS_TAMAR_TRANSCURRIDOS,P=d.DIAS_TAMAR_PROYECTAR,margen=b.margen||0;
+  if(!(P>0)||!dT)return e.vpvProy*tc0;
+  const mensualDe=tna=>Math.pow(Math.pow(1+(tna+margen)/100*32/365,365/32),1/12)-1;
+  const tna=dualTnaDeMensual(d.TAMAR_MARGEN_PROY_F/100,margen)+dT/100;
+  const nmc=(T*d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS/100+P*mensualDe(tna))/(T+P);
+  return 100*Math.pow(1+nmc,d.DIAS_360/360*12)*tc0;
+}
+
+// El contexto del escenario: fechas, tipo de cambio y tasas de reinversión.
+function cartEscContexto(res,c){
+  const liq=res.liq,corte=cartEscCorte(c,liq);
+  const dias=Math.max(0,diasACT(parseDate(liq),parseDate(corte)));
+  const tf=(DATA.length?DATA:LECAPS.map(enrich)).filter(r=>r.precio>0&&r.dias>0&&isFinite(r.tir)).map(r=>({dias:r.dias,tir:r.tir}));
+  const rP=retTasaCurva(tf,Math.max(dias,1));
+  let rU=null;
+  if(retUst&&retUst.pts)rU=ustEfectiva(ustEnPlazo(retUst.pts,Math.max(dias,1)/365));
+  const spot=dlkTCHoy();
+  return{liq,corte,dias,rP:rP!=null?rP:0,rU:rU!=null?rU:4,spot,mep:res.mep,
+    devSendero:spot>0?(dlkTCProy(corte)/spot-1)*100:null,
+    devRem:(()=>{const a=remTCAl(corte),h=remTCAl(fmtDate(TODAY));return a>0&&h>0?(a/h-1)*100:null;})()};
+}
+
+// Lo que vale una posición en el corte, por 100 de nominal y en su moneda, con
+// unas palancas: el valor de lo que le queda más lo cobrado hasta el corte.
+function cartValorCorte(ev,ctx,L,reinvertir){
+  const{liq,corte}=ctx,cD=parseDate(corte),lD=parseDate(liq);
+  const crec=(r,desde)=>reinvertir?Math.pow(1+r/100,Math.max(0,diasACT(parseDate(desde),cD))/365):1;
+  const rP=ctx.rP+L.ref/100,rU=ctx.rU;
+  const b=ev.b,pago=b&&b.vcto?fmtDate(siguienteHabil(parseDate(b.vcto))):null;
+  // Un solo pago en pesos al vencimiento, descontado a y + ref.
+  const unPago=(monto,y)=>{
+    if(!(monto>0)||!pago)return null;
+    if(parseDate(pago)<=cD)return monto*crec(rP,pago);
+    return monto/Math.pow(1+(y+L.ref/100)/100,diasACT(cD,parseDate(pago))/365);
+  };
+  switch(ev.fam){
+    case'TF':return unPago(ev.flujos[0]&&ev.flujos[0].flujo,ev.y);
+    case'TAMAR':return unPago(cartTamarVPV(b,L.tamar),ev.y);
+    case'DUAL':{
+      const d=dualCalcular(b);
+      if(d.error)return null;
+      const B=cartTamarVPV(b,L.tamar);
+      let A=d.ramaA;
+      // La rama dólar: el sendero del dólar corrido para que en el corte valga lo
+      // que dice la palanca.
+      if(d.tipo==='dlk'&&A>0&&ctx.spot>0){const base=dlkTCProy(corte)/ctx.spot;if(base>0)A=A*(1+L.fx/100)/base;}
+      const pagoF=A>0&&B>0?Math.max(A,B):B;
+      return unPago(pagoF,ev.y);
+    }
+    case'CER':{
+      const em=cerGetValorCer(parseDate(b.emision));
+      if(!(em>0))return null;
+      const fac=f=>{const v=cerGetValorCerProyectado(parseDate(f));return v>0?v/em:null;};
+      const fC=fac(corte);
+      if(!(fC>0))return null;
+      let cobrado=0;
+      for(const f of ev.flujos){
+        const fd=parseDate(f.fecha);
+        if(fd<=lD||fd>cD)continue;
+        const k=fac(f.fecha);if(k>0)cobrado+=f.flujo*k*crec(rP,f.fecha);
+      }
+      return retPV(ev.flujos,corte,ev.y+L.cer/100)*fC+cobrado;
+    }
+    case'DLK':{
+      if(!(ctx.spot>0))return null;
+      const tcC=ctx.spot*(1+L.fx/100),tH=Math.max(1,diasACT(lD,cD));
+      const ff=dlkBuildFF(b,G_LIQ||addHabiles(TODAY,1)).ff.map(x=>({fecha:x.fecha,flujo:x.cf}));
+      let cobrado=0;
+      for(const f of ff){
+        const fd=parseDate(f.fecha);
+        if(fd>cD)continue;
+        // El A3500 del pago, en el camino de hoy al corte a ritmo constante.
+        const tc=ctx.spot*Math.pow(1+L.fx/100,diasACT(lD,fd)/tH);
+        cobrado+=f.flujo*tc*crec(rP,f.fecha);
+      }
+      return tcC*retPV(ff,corte,ev.y+L.usd/100)+cobrado;
+    }
+    default:{ // hard dollar, en dólares
+      let cobrado=0;
+      for(const f of ev.flujos){
+        const fd=parseDate(f.fecha);
+        if(fd<=lD||fd>cD)continue;
+        cobrado+=f.flujo*crec(rU,f.fecha);
+      }
+      return retPV(ev.flujos,corte,ev.y+L.usd/100)+cobrado;
+    }
+  }
+}
+
+// La cartera en el corte con unas palancas, en la moneda de la vista.
+function cartEscValuar(res,ctx,L,reinvertir){
+  const mepC=ctx.mep*(1+L.fx/100);
+  const conv=(v,mon)=>mon===res.vista?v:(mon==='USD'?v*mepC:v/mepC);
+  const pos=res.ok.map(ev=>{
+    const v=cartValorCorte(ev,ctx,L,reinvertir);
+    const vC=v!=null&&isFinite(v)?conv(ev.vn*v/100,ev.moneda):null;
+    return{ev,hoy:ev.valorVista,corte:vC};
+  });
+  const ok=pos.filter(x=>x.corte!=null);
+  const hoy=ok.reduce((s,x)=>s+x.hoy,0),corte=ok.reduce((s,x)=>s+x.corte,0);
+  return{pos,hoy,corte,r:hoy>0?corte/hoy-1:null,faltan:pos.length-ok.length};
+}
+
+// Todo el escenario: con las palancas elegidas, la base y cada una sola.
+function cartEscCalcular(res,c){
+  const e=cartEsc(c),ctx=cartEscContexto(res,c);
+  const L={};CART_PALANCAS.forEach(q=>{L[q.k]=+e[q.k]||0;});
+  const cero={};CART_PALANCAS.forEach(q=>{cero[q.k]=0;});
+  const total=cartEscValuar(res,ctx,L,e.reinvertir);
+  const base=cartEscValuar(res,ctx,cero,e.reinvertir);
+  const aportes=CART_PALANCAS.map(q=>{
+    const v=cartEscValuar(res,ctx,{...cero,[q.k]:L[q.k]},e.reinvertir);
+    return{q,valor:L[q.k],r:v.r!=null&&base.r!=null?v.r-base.r:null};
+  });
+  const suma=aportes.reduce((s,a)=>s+(a.r||0),0);
+  return{ctx,L,total,base,aportes,interaccion:total.r!=null&&base.r!=null?total.r-base.r-suma:null};
+}
+
+// La curva de cada palanca: el retorno de la cartera en todo su rango, con las
+// otras donde están.
+function cartEscCurva(res,c,q,n){
+  const e=cartEsc(c),ctx=cartEscContexto(res,c);
+  const L={};CART_PALANCAS.forEach(x=>{L[x.k]=+e[x.k]||0;});
+  const out=[];
+  for(let i=0;i<=n;i++){
+    const x=q.min+(q.max-q.min)*i/n;
+    const v=cartEscValuar(res,ctx,{...L,[q.k]:x},e.reinvertir);
+    out.push({x,r:v.r});
+  }
+  return out;
+}
+function cartSpark(canvas,pts,actual,q){
+  if(!canvas||!canvas.getContext)return;
+  const dpr=window.devicePixelRatio||1,w=canvas.clientWidth||140,h=canvas.clientHeight||34;
+  canvas.width=w*dpr;canvas.height=h*dpr;
+  const g=canvas.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,w,h);
+  const ys=pts.map(p=>p.r).filter(v=>v!=null&&isFinite(v));
+  if(!ys.length)return;
+  let lo=Math.min(...ys,0),hi=Math.max(...ys,0);if(hi-lo<1e-6){hi+=0.01;lo-=0.01;}
+  const X=x=>2+(w-4)*(x-q.min)/(q.max-q.min),Y=y=>h-3-(h-6)*(y-lo)/(hi-lo);
+  const css=getComputedStyle(document.documentElement);
+  g.strokeStyle=css.getPropertyValue('--border2')||'#444';g.lineWidth=1;
+  g.beginPath();g.moveTo(0,Y(0));g.lineTo(w,Y(0));g.stroke();
+  g.strokeStyle=css.getPropertyValue('--accent')||'#a8d5a2';g.lineWidth=1.5;g.beginPath();
+  pts.forEach((p,i)=>{if(p.r==null)return;const x=X(p.x),y=Y(p.r);i?g.lineTo(x,y):g.moveTo(x,y);});
+  g.stroke();
+  const a=pts.reduce((m,p)=>Math.abs(p.x-actual)<Math.abs(m.x-actual)?p:m,pts[0]);
+  g.fillStyle=css.getPropertyValue('--warn')||'#d4a96a';
+  g.beginPath();g.arc(X(Math.max(q.min,Math.min(q.max,actual))),Y(a.r!=null?a.r:0),3,0,2*Math.PI);g.fill();
+}
+
+function cartEscRender(sec){
+  const S=CART_SEC&&CART_SEC[sec];
+  const res=CART_ESC_RES&&CART_ESC_RES[sec];
+  if(!S||!res)return;
+  const p=S.p,c=cartActiva(),e=cartEsc(c),mon=res.vista;
+  const box=document.getElementById(p+'-e-palancas');
+  if(!box)return;
+  const esc=cartEscCalcular(res,c);
+  const ctx=esc.ctx;
+  // Controles
+  const ci=document.getElementById(p+'-e-corte');if(ci&&document.activeElement!==ci)ci.value=ctx.corte;
+  ['si','no'].forEach(k=>{const b=document.getElementById(`${p}-e-ri-${k}`);if(b)b.classList.toggle('active',(k==='si')===!!e.reinvertir);});
+  const tz=document.getElementById(p+'-e-tasas');
+  if(tz)tz.textContent=`${ctx.dias} días · reinversión: pesos ${cartN(ctx.rP+esc.L.ref/100)}% (tasa fija al plazo${esc.L.ref?' + palanca':''}), dólares ${cartN(ctx.rU)}% (Treasury)`;
+  const pct=v=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+(v*100).toFixed(2)+'%';
+  const col=v=>v==null?'var(--text3)':v>0?'var(--accent)':v<0?'var(--danger)':'var(--text3)';
+  // Palancas: se arman una vez y después sólo se actualizan, para no cortar el arrastre.
+  if(!box.querySelector('input[type=range]')){
+    box.innerHTML=CART_PALANCAS.map(q=>`<div style="display:grid;grid-template-columns:150px 1fr 74px 140px 22px;gap:8px;align-items:center">
+      <div><div style="font-size:12px;color:var(--text)">${q.l}</div><div style="font-size:9px;color:var(--text3)">${q.d}</div></div>
+      <input type="range" id="${p}-e-${q.k}-r" min="${q.min}" max="${q.max}" step="${q.paso}" oninput="cartEscSet('${sec}','${q.k}',this.value,false)" onchange="cartEscSet('${sec}','${q.k}',this.value,true)" style="width:100%;accent-color:var(--accent)">
+      <span style="display:flex;align-items:center;gap:3px"><input type="number" id="${p}-e-${q.k}-n" step="${q.paso}" style="width:58px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 4px;font-family:var(--mono);font-size:11px;color:var(--text);text-align:right" onchange="cartEscSet('${sec}','${q.k}',this.value,true)"><span style="font-size:10px;color:var(--text3)">${q.u}</span></span>
+      <canvas id="${p}-e-${q.k}-c" style="width:140px;height:34px" title="Retorno de la cartera en todo el rango de la palanca; el punto es donde está"></canvas>
+      <button onclick="cartEscSet('${sec}','${q.k}',0,true)" title="En cero" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px">↺</button>
+      ${q.k==='fx'?`<div style="grid-column:2/5;font-size:10px;color:var(--text3);font-family:var(--mono)" id="${p}-e-fx-ref"></div>`:''}
+    </div>`).join('');
+  }
+  CART_PALANCAS.forEach(q=>{
+    const r=document.getElementById(`${p}-e-${q.k}-r`),n=document.getElementById(`${p}-e-${q.k}-n`);
+    if(r&&document.activeElement!==r)r.value=e[q.k];
+    if(n&&document.activeElement!==n)n.value=e[q.k];
+    cartSpark(document.getElementById(`${p}-e-${q.k}-c`),cartEscCurva(res,c,q,16),+e[q.k]||0,q);
+  });
+  const fr=document.getElementById(p+'-e-fx-ref');
+  if(fr){
+    const b=(v,t)=>v==null||!isFinite(v)?'':`<button class="btn" style="padding:1px 6px;font-size:10px" onclick="cartEscSet('${sec}','fx',${(+v).toFixed(1)},true)">${t} ${v>=0?'+':''}${(+v).toFixed(1)}%</button>`;
+    fr.innerHTML=`al corte: ${b(ctx.devSendero,'sendero ('+dualFuente('tcn')+')')} ${b(ctx.devRem,'REM')}`;
+  }
+  // Resultado
+  const T=esc.total,dias=ctx.dias;
+  const anual=T.r!=null&&dias>0?Math.pow(1+T.r,365/dias)-1:null;
+  const tile=(t,v,sb,cl)=>`<div style="border:1px solid var(--border);border-radius:4px;padding:8px 10px;background:var(--surface)">
+    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">${t}</div>
+    <div style="font-family:var(--mono);font-size:16px;color:${cl||'var(--accent)'};margin:2px 0">${v}</div>
+    <div style="font-size:10px;color:var(--text3)">${sb}</div></div>`;
+  document.getElementById(p+'-e-tiles').innerHTML=
+    tile('Valor al corte',cartFmt(T.corte,mon),`hoy ${cartFmt(T.hoy,mon)}`,'var(--text)')
+    +tile('Retorno al corte',pct(T.r),`resultado ${cartFmt(T.corte-T.hoy,mon)}`,col(T.r))
+    +tile('Anualizado',pct(anual),`TEA, ${dias} días`,col(anual))
+    +tile('Sin palancas',pct(esc.base.r),'todo quieto: el devengamiento',col(esc.base.r));
+  const td='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+  const fila=(n,sub,v,bold)=>`<tr><td style="${td};text-align:left;${bold?'font-weight:600':''}">${n}${sub?` <span style="font-size:10px;color:var(--text3)">${sub}</span>`:''}</td><td style="${td};color:${col(v)};${bold?'font-weight:600':''}">${pct(v)}</td><td style="${td};color:var(--text3)">${v!=null&&T.hoy?cartFmt(v*T.hoy,mon):'—'}</td></tr>`;
+  document.getElementById(p+'-e-desc').innerHTML=fila('Base','todo quieto',esc.base.r)
+    +esc.aportes.map(a=>fila(a.q.l,`${a.valor>0?'+':''}${a.valor} ${a.q.u}`,a.valor?a.r:0)).join('')
+    +fila('Interacción','lo que no suma lineal',esc.interaccion)
+    +fila('Total','',T.r,true);
+  // Por familia y por posición.
+  const th='padding:6px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+  const porFam={};
+  T.pos.forEach(x=>{const f=x.ev.F.factor;const o=porFam[f]=porFam[f]||{hoy:0,corte:0,ok:true};o.hoy+=x.hoy;if(x.corte==null)o.ok=false;else o.corte+=x.corte;});
+  document.getElementById(p+'-e-fam-h').innerHTML=`<tr><th style="${th};text-align:left">Factor</th><th style="${th}">Hoy</th><th style="${th}">Al corte</th><th style="${th}">Retorno</th></tr>`;
+  document.getElementById(p+'-e-fam').innerHTML=Object.entries(porFam).map(([f,o])=>{const r=o.ok&&o.hoy>0?o.corte/o.hoy-1:null;
+    return`<tr><td style="${td};text-align:left">${f}</td><td style="${td}">${cartFmt(o.hoy,mon)}</td><td style="${td}">${o.ok?cartFmt(o.corte,mon):'—'}</td><td style="${td};color:${col(r)}">${pct(r)}</td></tr>`;}).join('');
+  document.getElementById(p+'-e-pos-h').innerHTML=`<tr><th style="${th};text-align:left">Instrumento</th><th style="${th}">Hoy</th><th style="${th}">Al corte</th><th style="${th}">Retorno</th><th style="${th}">Base</th></tr>`;
+  document.getElementById(p+'-e-pos').innerHTML=T.pos.map((x,i)=>{
+    const r=x.corte!=null&&x.hoy>0?x.corte/x.hoy-1:null;
+    const b0=esc.base.pos[i],rb=b0&&b0.corte!=null&&b0.hoy>0?b0.corte/b0.hoy-1:null;
+    return`<tr><td style="${td};text-align:left;color:${x.ev.F.c};font-weight:600">${x.ev.ticker}</td><td style="${td}">${cartFmt(x.hoy,mon)}</td>
+      <td style="${td}">${x.corte!=null?cartFmt(x.corte,mon):'—'}</td><td style="${td};color:${col(r)}">${pct(r)}</td><td style="${td};color:var(--text3)">${pct(rb)}</td></tr>`;}).join('');
 }
 
 // ── VaR histórico ────────────────────────────────────────────────────────────
@@ -17428,19 +17690,38 @@ function cartPaginaHTML(sec){
         <thead id="${p}-thead"></thead><tbody id="${p}-tbody"></tbody></table></div>
     </section>
     <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start">
-      <section style="flex:1 1 300px;min-width:0">
+      <section style="flex:1 1 300px;min-width:0;max-width:720px">
         <div style="${tit};margin-bottom:6px">Exposición por factor</div>
         <div id="${p}-fact"></div>
       </section>
-      <section style="flex:2 1 520px;min-width:0">
-        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="${tit}">Escenarios</span>
-          <span style="${sub}">±pb sobre la tasa de cada bono en su unidad · dólar: MEP y A3500 juntos</span></div>
-        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px">
-          <thead id="${p}-esc-thead"></thead><tbody id="${p}-esc-tbody"></tbody></table></div>
-      </section>
     </div>
+    <section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap"><span style="${tit}">Escenario a una fecha</span>
+        <span style="${sub}">cada palanca es el movimiento de un factor hasta el corte; en cero, todo queda como hoy y cada bono sólo devenga a su TIR</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:10px">
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Fecha de corte</span>
+          <span style="display:flex;gap:4px;align-items:center"><input type="date" id="${p}-e-corte" style="${sel}" onchange="cartEscSet('${sec}','corte',this.value||null,true)">
+          <button class="btn" style="padding:2px 6px;font-size:10px" onclick="cartEscSet('${sec}','corte',null,true)" title="Volver a tres meses">↺</button></span></label>
+        <div style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Reinvertir cobros</span>
+          <div class="mode-row" style="margin-bottom:0;width:auto"><button class="mode-btn" style="padding:5px 10px" id="${p}-e-ri-si" onclick="cartEscSet('${sec}','reinvertir',true,true)">Sí</button><button class="mode-btn" style="padding:5px 10px" id="${p}-e-ri-no" onclick="cartEscSet('${sec}','reinvertir',false,true)">No</button></div></div>
+        <span id="${p}-e-tasas" style="${sub}"></span>
+        <button class="btn" style="padding:3px 9px;font-size:10px;margin-left:auto" onclick="cartEscCero('${sec}')">Todas las palancas en cero</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start">
+        <div id="${p}-e-palancas" style="flex:1 1 470px;min-width:0;display:flex;flex-direction:column;gap:10px"></div>
+        <div style="flex:1 1 440px;min-width:0;display:flex;flex-direction:column;gap:10px">
+          <div id="${p}-e-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px"></div>
+          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px"><tbody id="${p}-e-desc"></tbody></table></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:22px;margin-top:12px">
+        <div style="flex:1 1 380px;min-width:0;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px"><thead id="${p}-e-fam-h"></thead><tbody id="${p}-e-fam"></tbody></table></div>
+        <div style="flex:1 1 460px;min-width:0;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px"><thead id="${p}-e-pos-h"></thead><tbody id="${p}-e-pos"></tbody></table></div>
+      </div>
+    </section>
     <div style="font-size:10px;color:var(--text3);line-height:1.6;max-width:1100px">
-      Valor: nominales × precio de pantalla / 100, en la moneda del bono, pasado a la de la vista con el MEP (AL30/AL30D). La TIR en pesos de CER, TAMAR, duales y dollar linked es con el escenario elegido (inflación, TAMAR y dólar); la de tasa fija, la de mercado. DV01: lo que cambia el valor con +1 pb en la tasa de cada bono. VaR: histórico a un día con los retornos totales diarios del último año (precio más lo pagado) y los pesos de hoy; sólo cuentan las ruedas en que todos los bonos tienen precio. En el escenario de dólar, los duales se tratan como pesos (hoy gana la rama TAMAR). Las carteras se guardan con tu usuario.</div>
+      Valor: nominales × precio de pantalla / 100, en la moneda del bono, pasado a la de la vista con el MEP (AL30/AL30D). La TIR en pesos de CER, TAMAR, duales y dollar linked es con el escenario elegido (inflación, TAMAR y dólar); la de tasa fija, la de mercado. DV01: lo que cambia el valor con +1 pb en la tasa de cada bono. VaR: histórico a un día con los retornos totales diarios del último año (precio más lo pagado) y los pesos de hoy; sólo cuentan las ruedas en que todos los bonos tienen precio.
+      Escenario a una fecha: cada bono se valúa en el corte con los flujos que le quedan, a su TIR de hoy más la palanca que le toca, y suma lo que cobró hasta ahí. Tasa de referencia: la TIR de tasa fija y la tasa de descuento de TAMAR y duales. CER real: la TIR real de los CER; el CER del medio sale del sendero de inflación elegido. TAMAR real: el sendero de TAMAR de lo que falta publicar, con la inflación quieta; mueve lo que paga TAMAR y la rama TAMAR de los duales. Devaluación: el A3500 y el MEP en el corte contra hoy; mueve el dollar linked, el hard dollar y la rama dólar de los duales. Tasa en dólares: la TIR del hard dollar y la de los dollar linked. Las carteras y sus escenarios se guardan con tu usuario.</div>
   </div>`;
 }
 
@@ -17452,6 +17733,7 @@ function cartInit(sec){
   // Se relee al entrar: al iniciar sesión las carteras llegan después.
   CART=null;
   cartRender(sec);
+  if(!retUst)ustCurvaEn(hoyAR()).then(c=>{if(c){retUst=c;cartEscRender(sec);}}).catch(()=>{});
 }
 
 var _cartMep=null;
@@ -17545,16 +17827,8 @@ function cartPintar(sec,res){
       <div style="flex:1;height:10px;background:var(--surface2);border-radius:2px;overflow:hidden"><div style="width:${(w*100).toFixed(1)}%;height:100%;background:${colF[f]}"></div></div>
       <span style="width:52px;text-align:right">${pct(w)}</span><span style="width:120px;text-align:right;color:var(--text3)">${cartFmt(v,mon)}</span></div>`;
   }).join(''):'<div style="color:var(--text3);font-size:11px">—</div>';
-  // Escenarios
-  const facs=fs.map(([f])=>f);
-  document.getElementById(p+'-esc-thead').innerHTML=`<tr><th style="${th};text-align:left">Escenario</th><th style="${th}">Resultado</th><th style="${th}">%</th>
-    ${facs.map(f=>`<th style="${th}">${f}</th>`).join('')}</tr>`;
-  const colR=v=>v>0?'var(--accent)':v<0?'var(--danger)':'var(--text3)';
-  document.getElementById(p+'-esc-tbody').innerHTML=res.ok.length?res.escenarios.map(e=>`<tr>
-    <td style="${td};text-align:left">${e.nombre}</td>
-    <td style="${td};color:${colR(e.total)};font-weight:600">${e.total>0?'+':''}${cartFmt(e.total,mon)}</td>
-    <td style="${td};color:${colR(e.total)}">${res.total>0?(e.total>=0?'+':'')+(e.total/res.total*100).toFixed(2)+'%':'—'}</td>
-    ${facs.map(f=>{const v=e.porFactor[f]||0;return`<td style="${td};color:${colR(v)}">${v?(v>=0?'+':'')+Math.round(v).toLocaleString('es-AR'):'0'}</td>`;}).join('')}</tr>`).join(''):'';
+  CART_ESC_RES[sec]=res;
+  cartEscRender(sec);
 }
 
 function cartPintarVaR(sec,res,v){

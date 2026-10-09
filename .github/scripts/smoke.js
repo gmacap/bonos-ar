@@ -4001,13 +4001,50 @@ const omitir = (label, motivo) =>
       const res = cartCalcular(c, vista, mep, liq);
       const suma = res.ok.reduce((s, p) => s + p.valorVista, 0);
       const dv01 = res.ok.reduce((s, p) => s + p.valorVista * p.md * 1e-4, 0);
-      const e100 = res.escenarios.find(e => e.nombre === '+100 pb').total;
-      const fx = res.escenarios.find(e => e.nombre === 'Dólar +10%').total;
-      const atado = res.ok.filter(p => p.fam === 'DLK' || p.moneda === 'USD').reduce((s, p) => s + p.valorVista, 0);
-      const fxEsperado = vista === 'ARS' ? 0.1 * atado : (res.total - atado) * (1 / 1.1 - 1);
-      out[vista] = { total: Math.abs(res.total - suma) < 1e-6, dv01: Math.abs(res.dv01 - dv01) < 1e-6,
-        e100: e100 < 0 && Math.abs(-e100 / (dv01 * 100) - 1) < 0.05, fx: Math.abs(fx - fxEsperado) < 1e-6 };
+      out[vista] = { total: Math.abs(res.total - suma) < 1e-6, dv01: Math.abs(res.dv01 - dv01) < 1e-6 };
     }
+    // El escenario a una fecha, con la tasa fija sola: en cero devenga a su TIR,
+    // y la palanca de referencia la descuenta a TIR + palanca.
+    // Una letra que venza después del corte de tres meses.
+    const tfL = LECAPS.filter(b => b.precio > 0 && parseDate(b.vcto) > new Date(parseDate(liq).getTime() + 120 * 86400000)).pop() || tf;
+    const tfSola = { pos: [{ inst: 'TF|' + tfL.ticker, vn: 1000000 }], esc: { corte: null, reinvertir: false } };
+    const resTF = cartCalcular(tfSola, 'ARS', mep, liq);
+    const evTF = resTF.ok[0], ctx = cartEscContexto(resTF, tfSola);
+    const pago = fmtDate(siguienteHabil(parseDate(tfL.vcto)));
+    if (evTF && pago > ctx.corte) {
+      const cero = { ref: 0, cer: 0, tamar: 0, fx: 0, usd: 0 };
+      const base = cartEscValuar(resTF, ctx, cero, false).r;
+      const conRef = cartEscValuar(resTF, ctx, { ...cero, ref: 100 }, false).r;
+      const vf = evTF.flujos[0].flujo, t = diasACT(parseDate(ctx.corte), parseDate(pago)) / 365;
+      out.escTF = Math.abs(base - (Math.pow(1 + evTF.y / 100, ctx.dias / 365) - 1)) < 1e-9
+        && Math.abs(conRef - (vf / Math.pow(1 + (evTF.y + 1) / 100, t) / evTF.precio - 1)) < 1e-9;
+      tfSola.esc.ref = 100;
+      const esc = cartEscCalcular(resTF, tfSola);
+      out.unaPalanca = Math.abs(esc.interaccion) < 1e-12;
+    }
+    // Con dólares solos vistos en pesos, la devaluación multiplica el valor al corte.
+    const usdSola = { pos: [{ inst: 'BON|' + usd.ticker, vn: 10000 }], esc: { reinvertir: true } };
+    const resU = cartCalcular(usdSola, 'ARS', mep, liq), ctxU = cartEscContexto(resU, usdSola);
+    const v0 = cartEscValuar(resU, ctxU, { ref: 0, cer: 0, tamar: 0, fx: 0, usd: 0 }, true).corte;
+    const v10 = cartEscValuar(resU, ctxU, { ref: 0, cer: 0, tamar: 0, fx: 10, usd: 0 }, true).corte;
+    out.fxEsc = Math.abs(v10 / v0 - 1.1) < 1e-9;
+    // TAMAR y CER: cada palanca mueve su familia para el lado que corresponde.
+    const tam = TAMAR_BONDS.find(b => b.precio > 0 && !dualTipo(b) && parseDate(b.vcto) > parseDate(liq));
+    const cer = CER_BONDS.find(b => b.precio > 0 && !TAMAR_BONDS.some(t => t.ticker === b.ticker) && parseDate(b.vcto) > new Date(parseDate(liq).getTime() + 200 * 86400000));
+    if (tam && cer) {
+      const cc = { pos: [{ inst: 'TAMAR|' + tam.ticker, vn: 1e6 }, { inst: 'CER|' + cer.ticker, vn: 1e6 }], esc: { reinvertir: true } };
+      const rc = cartCalcular(cc, 'ARS', mep, liq), cx = cartEscContexto(rc, cc);
+      const L0 = { ref: 0, cer: 0, tamar: 0, fx: 0, usd: 0 };
+      const val = L => { const v = cartEscValuar(rc, cx, L, true).pos; return v.map(x => x.corte); };
+      const b0 = val(L0), tUp = val({ ...L0, tamar: 500 }), cUp = val({ ...L0, cer: 100 });
+      out.palancas = tUp[0] > b0[0] && Math.abs(tUp[1] - b0[1]) < 1e-9 && cUp[1] < b0[1] && Math.abs(cUp[0] - b0[0]) < 1e-9;
+    }
+    // La pantalla: cinco palancas con su curva, y la descomposición.
+    switchSection('pesos'); switchTab('cartera');
+    await new Promise(r => setTimeout(r, 1500));
+    out.palancasDom = document.querySelectorAll('#cart-e-palancas input[type=range]').length === 5
+      && document.querySelectorAll('#cart-e-palancas canvas').length === 5
+      && document.querySelectorAll('#cart-e-desc tr').length === 8;
     // La misma cartera desde dólares.
     switchSection('usd'); switchUsdTab('usd-cartera');
     await new Promise(r => setTimeout(r, 1500));
@@ -4021,9 +4058,14 @@ const omitir = (label, motivo) =>
   if (ca.sinPrecios) omitir('cartera en vivo', 'sin precios de tasa fija o de Bonares');
   else {
     check(ca.monto, 'una posición cargada en monto se pasa a nominales con el precio');
-    check(ca.mep && ['ARS', 'USD'].every(v => ca[v].total && ca[v].dv01 && ca[v].e100 && ca[v].fx),
-          'en pesos y en dólares: el total suma las posiciones, el DV01 es valor × MD, +100 pb ≈ −100 × DV01 y el dólar mueve lo atado al dólar',
-          JSON.stringify({ ARS: ca.ARS, USD: ca.USD }));
+    check(ca.mep && ['ARS', 'USD'].every(v => ca[v].total && ca[v].dv01),
+          'en pesos y en dólares: el total suma las posiciones y el DV01 es valor × MD', JSON.stringify({ ARS: ca.ARS, USD: ca.USD }));
+    if (ca.escTF == null) omitir('escenario de tasa fija al corte', 'la letra vence antes del corte');
+    else check(ca.escTF && ca.unaPalanca, 'escenario al corte: en cero la tasa fija devenga a su TIR, la palanca de referencia la descuenta a TIR + palanca, y con una sola palanca no hay interacción');
+    check(ca.fxEsc, 'escenario al corte: con dólares vistos en pesos, la devaluación multiplica el valor');
+    if (ca.palancas == null) omitir('palancas de TAMAR y CER', 'sin TAMAR o CER con precio');
+    else check(ca.palancas, 'escenario al corte: la palanca de TAMAR sube el TAMAR y no toca el CER; la de CER real baja el CER y no toca el TAMAR');
+    check(ca.palancasDom, 'el escenario muestra las cinco palancas con su curva y la descomposición');
     check(ca.desdeUsd && ca.botones && ca.sync, 'la misma cartera se ve desde las dos secciones y viaja por usuario', JSON.stringify(ca));
   }
 
