@@ -376,6 +376,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab active" id="nav-breakeven" onclick="switchTab('breakeven')">Resumen</button>
   <button class="nav-tab" id="nav-forwards" onclick="switchTab('forwards')">Forwards</button>
   <button class="nav-tab" id="nav-retornos" onclick="switchTab('retornos')">Retornos</button>
+  <button class="nav-tab" id="nav-cartera" onclick="switchTab('cartera')">Cartera</button>
   <button class="nav-tab" id="nav-lecap" onclick="switchTab('lecap')">Tasa Fija</button>
   <button class="nav-tab" id="nav-cer" onclick="switchTab('cer')">CER</button>
   <button class="nav-tab" id="nav-tamar" onclick="switchTab('tamar')">TAMAR</button>
@@ -394,6 +395,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab active" id="nav-usd-resumen"     onclick="switchUsdTab('usd-resumen')">Resumen</button>
   <button class="nav-tab"        id="nav-usd-forwards"    onclick="switchUsdTab('usd-forwards')">Forwards</button>
   <button class="nav-tab"        id="nav-usd-retornos"    onclick="switchUsdTab('usd-retornos')">Retornos</button>
+  <button class="nav-tab"        id="nav-usd-cartera"     onclick="switchUsdTab('usd-cartera')">Cartera</button>
   <button class="nav-tab"        id="nav-usd-spreadleg"   onclick="switchUsdTab('usd-spreadleg')">Spread Leg.</button>
   <button class="nav-tab"        id="nav-usd-bonares"     onclick="switchUsdTab('usd-bonares')">Bonares</button>
   <button class="nav-tab"        id="nav-usd-globales"    onclick="switchUsdTab('usd-globales')">Globales</button>
@@ -1029,6 +1031,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <div id="page-retornos" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
+<div id="page-cartera" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 
 <!-- ═══════════════════════════════════════════════════════ DUAL PAGE -->
 <div id="page-dual" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
@@ -2074,6 +2077,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 </div>
 <div id="page-usd-retornos" class="pg" style="overflow-y:auto"></div>
+<div id="page-usd-cartera" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-spreadleg" class="pg">
   <div style="display:flex;flex-direction:column;height:100%">
     <div style="display:flex;align-items:center;gap:8px;padding:0 1rem;height:40px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
@@ -2820,7 +2824,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -4979,13 +4983,13 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-spreadleg','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series','usd-comentario'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-escenarios','page-comentario','page-dual','page-retornos'];
+    'page-escenarios','page-comentario','page-dual','page-retornos','page-cartera'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -5020,6 +5024,7 @@ function switchUsdTab(tab){
   if(tab==='usd-bonares') bonInit();
   if(tab==='usd-forwards') usdFwdRecalc();
   if(tab==='usd-retornos') retInit('usd');
+  if(tab==='usd-cartera') cartInit('usd');
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();desvMontar('usd');}
@@ -5086,6 +5091,9 @@ function switchTab(tab){
     // mostrar botón + Nueva solo al admin
     const newBtn=document.getElementById('dlk-new-btn');
     if(newBtn) newBtn.style.display=isAdmin()?'':'none';
+  } else if(tab==='cartera'){
+    document.getElementById('page-cartera').style.display='block';
+    cartInit('ars');
   } else if(tab==='retornos'){
     document.getElementById('page-retornos').style.display='block';
     retInit('ars');
@@ -10227,6 +10235,7 @@ function beRefreshIfVisible(){
   if(currentTab==='escenarios'){try{escRecalc();}catch(e){}return;}
   if(currentTab==='dual'){try{dualRender();}catch(e){console.warn('[dual]',e.message);}return;}
   if(currentTab==='retornos'){try{retRender('ars');}catch(e){console.warn('[retornos]',e.message);}return;}
+  if(currentTab==='cartera'){try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}return;}
   if(currentTab!=='breakeven')return;
   beRecalc();
   beTamarRecalc();
@@ -15535,6 +15544,7 @@ async function usdRefreshPrices(){
       const sl=document.getElementById('page-usd-spreadleg');
       if(sl&&sl.style.display!=='none')spreadLegRender();
       if(currentSection==='usd'&&currentUsdTab==='usd-retornos')try{retRender('usd');}catch(e){console.warn('[retornos]',e.message);}
+      if(currentSection==='usd'&&currentUsdTab==='usd-cartera')try{cartRender('usd');}catch(e){console.warn('[cartera]',e.message);}
       if(document.getElementById('ures-sleg-list'))usdResRefresh();
     };
 
@@ -17063,6 +17073,509 @@ function abDibujar(sec,res){
       plugins:{datalabels:{display:false},legend:{display:true,position:'top',labels:{color:'#8a9a8a',boxWidth:10,font:{size:10}}},
         tooltip:{mode:'nearest',intersect:false,callbacks:{title:q=>q[0]?betrF(deDia(q[0].raw.x)):'',label:q=>`${q.dataset.label}: ${q.raw.y.toFixed(2)}`}}},
       scales}});
+}
+
+// ══════════════════════════════════════════════════════════════ CARTERA
+// Carteras con nombre, de instrumentos en pesos y en dólares, con sus números de
+// riesgo. La misma cartera se ve desde las dos secciones; cada una abre con su
+// moneda de vista (pesos o dólar MEP) y se puede cambiar.
+//
+// Cada posición se valúa con su precio de pantalla y se lleva a un juego de
+// flujos y una tasa propia, con los que se reprecian los shocks:
+//   tasa fija   el valor final, a la TIR
+//   CER         los flujos reales, a la TIR real (el shock mueve el precio real,
+//               y el nominal en la misma proporción)
+//   TAMAR       el valor al vencimiento con el sendero de TAMAR, a la TIR en
+//               pesos que resulta; los duales, con la rama que gana
+//   DLK         los flujos en dólares, a la TIR en dólares (con el A3500 quieto)
+//   hard dollar los flujos del bono, a su TIR
+// El shock de ±pb es sobre la tasa de cada bono en su propia unidad. El de dólar
+// mueve juntos el MEP y el A3500: en pesos, el dollar linked y el hard dollar
+// suben; en dólares, todo lo demás baja.
+//
+// DV01: lo que cambia el valor con +1 pb en la tasa de cada posición.
+// VaR: histórico a un día, con los retornos totales diarios de cada bono del
+// último año (precio más lo que pagó) y los pesos de hoy. Se usan sólo las
+// ruedas en que todos tienen precio: un bono nuevo achica la ventana.
+//
+// Estado con var: se repinta desde beRefreshIfVisible y usdRefreshPrices.
+var CART_LS='bonosAR_carteras_v1';
+var CART_FAMS={
+  TF:{l:'Tasa fija',c:'#fbbf24',moneda:'ARS',factor:'Tasa fija',hist:'TF'},
+  CER:{l:'CER',c:'#4ade80',moneda:'ARS',factor:'CER',hist:'CER'},
+  TAMAR:{l:'TAMAR',c:'#38bdf8',moneda:'ARS',factor:'TAMAR',hist:'TAMAR'},
+  DUAL:{l:'Dual',c:'#22d3ee',moneda:'ARS',factor:'Duales',hist:'TAMAR'},
+  DLK:{l:'Dollar linked',c:'#a855f7',moneda:'ARS',factor:'Dólar oficial',hist:'DLK'},
+  BON:{l:'Bonares',c:'#d4a843',moneda:'USD',factor:'Hard dollar',hist:'BON'},
+  GLO:{l:'Globales',c:'#6baed6',moneda:'USD',factor:'Hard dollar',hist:'GLO'},
+  BOP:{l:'Bopreales',c:'#74c4a0',moneda:'USD',factor:'Hard dollar',hist:'BOP'},
+};
+var CART_SHOCKS=[-200,-100,100,200];
+var CART_FX=10;
+var CART_VAR_DIAS=365, CART_VAR_MIN=40;
+var CART=null;            // {activa, carteras:[{id, nombre, pos:[{inst, vn}]}], vista:{ars, usd}}
+var cartVarCache=new Map();
+var CART_SEC={ars:{pagina:'page-cartera',p:'cart'},usd:{pagina:'page-usd-cartera',p:'ucart'}};
+
+function cartLeer(){
+  if(CART)return CART;
+  CART={activa:null,carteras:[],vista:{ars:'ARS',usd:'USD'}};
+  try{const r=localStorage.getItem(CART_LS);if(r)CART={...CART,...JSON.parse(r)};}catch(e){}
+  if(!CART.carteras.length)CART.carteras=[{id:'c'+Date.now(),nombre:'Mi cartera',pos:[]}];
+  if(!CART.carteras.some(c=>c.id===CART.activa))CART.activa=CART.carteras[0].id;
+  CART.vista=CART.vista||{ars:'ARS',usd:'USD'};
+  return CART;
+}
+function cartGuardar(){
+  try{localStorage.setItem(CART_LS,JSON.stringify(CART));}catch(e){}
+  cartRepintarTodo();
+}
+function cartActiva(){const C=cartLeer();return C.carteras.find(c=>c.id===C.activa)||C.carteras[0];}
+function cartRepintarTodo(){
+  ['ars','usd'].forEach(sec=>{
+    const pg=document.getElementById(CART_SEC[sec].pagina);
+    if(pg&&pg.innerHTML.trim()&&pg.style.display!=='none')cartRender(sec);
+  });
+}
+
+// ── Acciones ─────────────────────────────────────────────────────────────────
+function cartElegir(id){cartLeer().activa=id;cartGuardar();}
+function cartNueva(){
+  const C=cartLeer();
+  const c={id:'c'+Date.now(),nombre:`Cartera ${C.carteras.length+1}`,pos:[]};
+  C.carteras.push(c);C.activa=c.id;cartGuardar();
+}
+function cartRenombrar(nombre){
+  const c=cartActiva();
+  c.nombre=String(nombre||'').trim()||c.nombre;
+  cartGuardar();
+}
+function cartBorrar(){
+  const C=cartLeer(),c=cartActiva();
+  if(!confirm(`¿Borrar la cartera "${c.nombre}"? No se puede deshacer.`))return;
+  C.carteras=C.carteras.filter(x=>x.id!==c.id);
+  if(!C.carteras.length)C.carteras=[{id:'c'+Date.now(),nombre:'Mi cartera',pos:[]}];
+  C.activa=C.carteras[0].id;cartGuardar();
+}
+function cartVista(sec,m){cartLeer().vista[sec]=m;cartGuardar();}
+function cartAgregar(sec){
+  const p=CART_SEC[sec].p;
+  const inst=(document.getElementById(p+'-inst')||{}).value;
+  const cant=parseFloat((document.getElementById(p+'-cant')||{}).value);
+  const modo=(document.getElementById(p+'-modo')||{}).value||'vn';
+  const msg=document.getElementById(p+'-msg');
+  if(!inst||!(cant>0)){if(msg)msg.textContent='Elegí un instrumento y una cantidad mayor que cero';return;}
+  let vn=cant;
+  if(modo==='monto'){
+    // El monto va en la moneda del instrumento: nominales = monto / precio × 100.
+    const ev=cartEvaluar({inst,vn:100},bopFmtDate(G_LIQ||addHabiles(TODAY,1)));
+    if(!(ev.precio>0)){if(msg)msg.textContent='Ese instrumento no tiene precio: cargalo en nominales';return;}
+    vn=cant/ev.precio*100;
+  }
+  const c=cartActiva();
+  const ya=c.pos.find(x=>x.inst===inst);
+  if(ya)ya.vn+=vn;else c.pos.push({inst,vn});
+  if(msg)msg.textContent='';
+  const ci=document.getElementById(p+'-cant');if(ci)ci.value='';
+  cartGuardar();
+}
+function cartSetVn(inst,v){
+  const c=cartActiva(),x=c.pos.find(q=>q.inst===inst);
+  const n=parseFloat(v);
+  if(!x||!(n>0))return cartRepintarTodo();
+  x.vn=n;cartGuardar();
+}
+function cartQuitar(inst){
+  const c=cartActiva();
+  c.pos=c.pos.filter(q=>q.inst!==inst);
+  cartGuardar();
+}
+
+// ── El catálogo ──────────────────────────────────────────────────────────────
+function cartCatalogo(){
+  const liq=parseDate(bopFmtDate(G_LIQ||addHabiles(TODAY,1)));
+  const vivo=v=>v&&parseDate(v)>liq;
+  const esTamar=t=>TAMAR_BONDS.some(x=>x.ticker===t);
+  const out=[];
+  const add=(fam,lista,vto,filtro)=>lista.filter(b=>vivo(b[vto])&&(!filtro||filtro(b)))
+    .sort((a,z)=>String(a[vto]).localeCompare(String(z[vto])))
+    .forEach(b=>out.push({inst:`${fam}|${b.ticker}`,fam,ticker:b.ticker}));
+  add('TF',LECAPS,'vcto');
+  add('CER',CER_BONDS,'vcto',b=>!esTamar(b.ticker));
+  add('TAMAR',TAMAR_BONDS,'vcto',b=>!dualTipo(b));
+  add('DUAL',TAMAR_BONDS,'vcto',b=>!!dualTipo(b));
+  add('DLK',DLK_BONDS,'vcto',b=>!esTamar(b.ticker));
+  add('BON',BON_BONDS,'vencimiento');add('GLO',GLO_BONDS,'vencimiento');add('BOP',BOP_BONDS,'vencimiento');
+  return out;
+}
+
+// Duration modificada de unos flujos a una TIR efectiva %.
+function cartMD(flujos,liq,y){
+  const d=parseDate(liq);
+  let pv=0,t=0;
+  for(const f of flujos){
+    const fd=parseDate(f.fecha);
+    if(fd<=d)continue;
+    const a=diasACT(d,fd)/365,v=f.flujo/Math.pow(1+y/100,a);
+    pv+=v;t+=a*v;
+  }
+  return pv>0?(t/pv)/(1+y/100):null;
+}
+
+// Una posición: precio, valor, tasas, flujos para repreciar y factor.
+function cartEvaluar(pos,liq){
+  const[fam,ticker]=String(pos.inst).split('|');
+  const F=CART_FAMS[fam];
+  const out={inst:pos.inst,fam,ticker,vn:pos.vn,F,moneda:F?F.moneda:null};
+  if(!F)return{...out,error:'Familia desconocida'};
+  try{
+    if(fam==='TF'){
+      const b=LECAPS.find(x=>x.ticker===ticker);
+      if(!b)return{...out,error:'No está en la lista de tasa fija'};
+      const r=enrich(b);
+      Object.assign(out,{precio:r.precio,marca:pesosCierreMarca(b),propia:{v:r.tir,u:'TIR'},tirMoneda:r.tir,y:r.tir,
+        flujos:[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:r.vf}]});
+    }else if(fam==='CER'){
+      const b=CER_BONDS.find(x=>x.ticker===ticker);
+      if(!b)return{...out,error:'No está en la lista CER'};
+      const e=cerEnrich(b),factor=cerFactor(b.emision);
+      const fl=factor>0&&b.precio>0?cerBuildFlujos(b,b.precio,factor).slice(1).map(f=>({fecha:fmtDate(f.fecha),flujo:f.monto})):[];
+      Object.assign(out,{precio:b.precio,marca:pesosCierreMarca(b),propia:{v:e.tir,u:'real'},
+        tirMoneda:isFinite(e.tirProy)?e.tirProy:null,y:e.tir,flujos:fl});
+    }else if(fam==='TAMAR'){
+      const b=TAMAR_BONDS.find(x=>x.ticker===ticker);
+      if(!b)return{...out,error:'No está en la lista TAMAR'};
+      const e=tamarEnrich(b),v=tamarVista(e),tc0=b.tcInicial||1;
+      Object.assign(out,{precio:b.precio,marca:pesosCierreMarca(b),propia:{v:v.margenTNA,u:'margen'},tirMoneda:e.tirProy,y:e.tirProy,
+        flujos:e.vpvProy>0?[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:e.vpvProy*tc0}]:[]});
+    }else if(fam==='DUAL'){
+      const b=TAMAR_BONDS.find(x=>x.ticker===ticker);
+      if(!b)return{...out,error:'No está en la lista de duales'};
+      const d=dualCalcular(b);
+      const pago=d.ramaA>0&&d.ramaB>0?Math.max(d.ramaA,d.ramaB):d.ramaB;
+      Object.assign(out,{precio:b.precio,marca:pesosCierreMarca(b),propia:{v:d.margenTNA,u:'margen'},tirMoneda:d.tea,y:d.tea,
+        flujos:pago>0?[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:pago}]:[]});
+    }else if(fam==='DLK'){
+      const b=DLK_BONDS.find(x=>x.ticker===ticker);
+      if(!b)return{...out,error:'No está en la lista DLK'};
+      const e=dlkEnrich(b),tc=dlkTCHoy();
+      // Los flujos en dólares a la TIR en dólares; el precio es en pesos, y con el
+      // A3500 quieto se mueve en la misma proporción.
+      const ff=dlkBuildFF(b,G_LIQ||addHabiles(TODAY,1)).ff.map(ev=>({fecha:ev.fecha,flujo:ev.cf*(tc||1)}));
+      Object.assign(out,{precio:b.precio,marca:pesosCierreMarca(b),propia:{v:e.tir,u:'USD'},
+        tirMoneda:e.tirPesos!=null&&isFinite(e.tirPesos)?e.tirPesos:null,y:e.tir,flujos:ff});
+    }else{
+      const b=USD_FAM[fam.toLowerCase()].bonds.find(x=>x.ticker===ticker);
+      if(!b)return{...out,error:'No está en la lista de '+F.l};
+      const fl=bopGenFlows(b);
+      const tir=b.lastPrecio>0?bopTIR(b,liq,b.lastPrecio,fl):null;
+      Object.assign(out,{precio:b.lastPrecio,marca:usdCierreMarca(b),propia:{v:tir,u:'TIR'},tirMoneda:tir,y:tir,
+        md:tir!=null?bopDuracion(b,liq,tir,fl).mod:null,flujos:fl.map(f=>({fecha:f.fecha,flujo:f.flujo}))});
+    }
+  }catch(e){return{...out,error:e.message};}
+  if(!(out.precio>0))return{...out,error:'Sin precio'};
+  out.valor=out.vn*out.precio/100;
+  if(out.md==null&&out.y!=null&&isFinite(out.y))out.md=cartMD(out.flujos,liq,out.y);
+  return out;
+}
+
+// El precio relativo ante un shock de dy pb en la tasa propia.
+function cartShock(ev,liq,dy){
+  if(ev.y==null||!isFinite(ev.y)||!ev.flujos||!ev.flujos.length)return null;
+  const base=retPV(ev.flujos,liq,ev.y);
+  if(!(base>0))return null;
+  return retPV(ev.flujos,liq,ev.y+dy/100)/base-1;
+}
+
+// El cálculo de la cartera, sin DOM. mep: pesos por dólar.
+function cartCalcular(cartera,vista,mep,liq){
+  const conv=(v,mon)=>v==null?null:mon===vista?v:(mon==='USD'?v*mep:v/mep);
+  const pos=cartera.pos.map(p=>{
+    const ev=cartEvaluar(p,liq);
+    ev.valorVista=ev.error?null:conv(ev.valor,ev.moneda);
+    return ev;
+  });
+  const ok=pos.filter(p=>p.valorVista!=null&&isFinite(p.valorVista));
+  const total=ok.reduce((s,p)=>s+p.valorVista,0);
+  ok.forEach(p=>{p.peso=total>0?p.valorVista/total:null;p.dv01=p.md!=null?p.valorVista*p.md*0.0001:null;});
+  const pond=(lista,campo)=>{
+    const l=lista.filter(p=>p[campo]!=null&&isFinite(p[campo]));
+    const v=l.reduce((s,p)=>s+p.valorVista,0);
+    return v>0?{v:l.reduce((s,p)=>s+p.valorVista*p[campo],0)/v,cobertura:v/(lista.reduce((s,p)=>s+p.valorVista,0)||1)}:null;
+  };
+  const pesos=ok.filter(p=>p.moneda==='ARS'),dolares=ok.filter(p=>p.moneda==='USD');
+  // Exposición por factor.
+  const factores={};
+  ok.forEach(p=>{factores[p.F.factor]=(factores[p.F.factor]||0)+p.valorVista;});
+  // Escenarios: shocks paralelos y dólar.
+  const porFam=fn=>{const o={};ok.forEach(p=>{const v=fn(p);if(v!=null&&isFinite(v))o[p.F.factor]=(o[p.F.factor]||0)+v;});return o;};
+  const escenarios=CART_SHOCKS.map(dy=>{
+    const f=porFam(p=>{const r=cartShock(p,liq,dy);return r==null?null:p.valorVista*r;});
+    return{nombre:`${dy>0?'+':''}${dy} pb`,porFactor:f,total:Object.values(f).reduce((s,v)=>s+v,0)};
+  });
+  for(const sg of[1,-1]){
+    const k=1+sg*CART_FX/100;
+    const f=porFam(p=>{
+      const atado=p.fam==='DLK'||p.moneda==='USD';
+      if(vista==='ARS')return atado?p.valorVista*(k-1):0;
+      return atado?0:p.valorVista*(1/k-1);
+    });
+    escenarios.push({nombre:`Dólar ${sg>0?'+':'−'}${CART_FX}%`,porFactor:f,total:Object.values(f).reduce((s,v)=>s+v,0)});
+  }
+  const mayor=ok.reduce((a,p)=>!a||p.valorVista>a.valorVista?p:a,null);
+  return{pos,ok,total,vista,mep,
+    tirPesos:pond(pesos,'tirMoneda'),tirDolares:pond(dolares,'tirMoneda'),
+    pesosValor:pesos.reduce((s,p)=>s+p.valorVista,0),dolaresValor:dolares.reduce((s,p)=>s+p.valorVista,0),
+    md:pond(ok,'md'),dv01:ok.reduce((s,p)=>s+(p.dv01||0),0),factores,escenarios,mayor};
+}
+
+// ── VaR histórico ────────────────────────────────────────────────────────────
+// Retornos totales diarios de una posición: (precio + lo que pagó) / precio
+// anterior − 1, en la moneda del instrumento.
+function cartRetornosDiarios(precio,flujos){
+  const fechas=[...precio.keys()].sort();
+  const out=new Map();
+  for(let i=1;i<fechas.length;i++){
+    const a=fechas[i-1],b=fechas[i],pa=precio.get(a),pb=precio.get(b);
+    if(!(pa>0)||!(pb>0))continue;
+    const cobro=flujos.reduce((s,q)=>q.fecha>a&&q.fecha<=b?s+q.monto:s,0);
+    out.set(b,(pb+cobro)/pa-1);
+  }
+  return out;
+}
+function cartPercentil(v,q){
+  const s=[...v].sort((a,b)=>a-b);
+  if(!s.length)return null;
+  const i=(s.length-1)*q,lo=Math.floor(i),hi=Math.ceil(i);
+  return s[lo]+(s[hi]-s[lo])*(i-lo);
+}
+async function cartVaR(res){
+  if(!res.ok.length||!(res.total>0))return null;
+  const clave=res.vista+'|'+res.ok.map(p=>p.inst+':'+p.valorVista.toFixed(0)).join(',');
+  const c=cartVarCache.get(clave);
+  if(c&&Date.now()-c.ts<10*60*1000)return c.v;
+  const hoy=hoyAR(),desde=fmtDate(new Date(parseDate(hoy).getTime()-CART_VAR_DIAS*86400000));
+  const necesitaMep=res.ok.some(p=>p.moneda!==res.vista);
+  const[series,mep]=await Promise.all([
+    Promise.all(res.ok.map(async p=>{
+      const h=await abTraer(p.F.hist,p.ticker,desde,hoy);
+      const def=abDefinicion(p.F.hist==='TAMAR'?'TAMAR':p.F.hist,p.ticker);
+      return cartRetornosDiarios(h.precio,abFlujos(p.F.hist,def));
+    })),
+    necesitaMep?seriesMepSerie().catch(()=>null):Promise.resolve(null)]);
+  const mepDe=f=>mep?mep.mapa.get(f):null;
+  let fechas=[...series[0].keys()];
+  for(const m of series.slice(1))fechas=fechas.filter(f=>m.has(f));
+  fechas.sort();
+  const R=[];
+  for(let k=0;k<fechas.length;k++){
+    const f=fechas[k];
+    let r=0,ok=true;
+    for(let i=0;i<res.ok.length;i++){
+      const p=res.ok[i];
+      let ri=series[i].get(f);
+      if(p.moneda!==res.vista){
+        // El retorno pasado a la moneda de la vista con el MEP de las dos ruedas.
+        const ant=k>0?fechas[k-1]:null,m1=mepDe(f),m0=ant?mepDe(ant):null;
+        if(!(m1>0)||!(m0>0)){ok=false;break;}
+        ri=p.moneda==='USD'?(1+ri)*m1/m0-1:(1+ri)*m0/m1-1;
+      }
+      r+=p.peso*ri;
+    }
+    if(ok)R.push(r);
+  }
+  const v=R.length<CART_VAR_MIN?{n:R.length,insuficiente:true}
+    :{n:R.length,v95:-cartPercentil(R,0.05)*res.total,v99:-cartPercentil(R,0.01)*res.total,desde:fechas[0]};
+  cartVarCache.set(clave,{ts:Date.now(),v});
+  return v;
+}
+
+// ── Pantalla ─────────────────────────────────────────────────────────────────
+var cartFmt=(v,mon)=>v==null||!isFinite(v)?'—':(v<0?'−':'')+(mon==='USD'?'US$ ':'$ ')+Math.round(Math.abs(v)).toLocaleString('es-AR');
+var cartN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
+
+function cartPaginaHTML(sec){
+  const p=CART_SEC[sec].p;
+  const sel='background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:3px 6px;font-size:11px;font-family:var(--mono);color:var(--text);outline:none';
+  const lbl='font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em';
+  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+  const sub='font-size:10px;color:var(--text3);font-family:var(--mono)';
+  return`<div style="display:flex;flex-direction:column;gap:16px;padding:12px 18px 28px">
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+      <span style="${tit};font-size:17px">Cartera</span>
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Cartera</span>
+        <select id="${p}-sel" style="${sel}" onchange="cartElegir(this.value)"></select></label>
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Nombre</span>
+        <input type="text" id="${p}-nombre" style="${sel};width:150px" onchange="cartRenombrar(this.value)"></label>
+      <button class="btn" style="padding:3px 9px;font-size:10px" onclick="cartNueva()">+ Nueva</button>
+      <button class="btn" style="padding:3px 9px;font-size:10px" onclick="cartBorrar()">Borrar</button>
+      <div style="display:flex;flex-direction:column;gap:3px;margin-left:10px"><span style="${lbl}">Ver en</span>
+        <div class="mode-row" style="margin-bottom:0;width:auto"><button class="mode-btn" style="white-space:nowrap;padding:5px 10px" id="${p}-v-ARS" onclick="cartVista('${sec}','ARS')">Pesos</button><button class="mode-btn" style="white-space:nowrap;padding:5px 10px" id="${p}-v-USD" onclick="cartVista('${sec}','USD')">Dólar MEP</button></div></div>
+      <button class="btn" style="padding:3px 9px;font-size:10px;margin-left:auto" onclick="cartCSV()">⬇ CSV</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:10px 12px;border:1px solid var(--border);border-radius:4px;background:var(--surface)">
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Instrumento</span><select id="${p}-inst" style="${sel};min-width:220px"></select></label>
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Cantidad</span><input type="number" id="${p}-cant" min="0" step="any" style="${sel};width:130px" onkeydown="if(event.key==='Enter')cartAgregar('${sec}')"></label>
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">En</span><select id="${p}-modo" style="${sel}">
+        <option value="vn">Nominales (VN)</option><option value="monto">Monto, en la moneda del bono</option></select></label>
+      <button class="btn primary" style="padding:4px 12px;font-size:11px" onclick="cartAgregar('${sec}')">Agregar</button>
+      <span id="${p}-msg" style="${sub};color:var(--warn)"></span>
+    </div>
+    <div id="${p}-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px"></div>
+    <section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="${tit}">Posiciones</span><span id="${p}-sub" style="${sub}"></span></div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:960px">
+        <thead id="${p}-thead"></thead><tbody id="${p}-tbody"></tbody></table></div>
+    </section>
+    <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start">
+      <section style="flex:1 1 300px;min-width:0">
+        <div style="${tit};margin-bottom:6px">Exposición por factor</div>
+        <div id="${p}-fact"></div>
+      </section>
+      <section style="flex:2 1 520px;min-width:0">
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span style="${tit}">Escenarios</span>
+          <span style="${sub}">±pb sobre la tasa de cada bono en su unidad · dólar: MEP y A3500 juntos</span></div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px">
+          <thead id="${p}-esc-thead"></thead><tbody id="${p}-esc-tbody"></tbody></table></div>
+      </section>
+    </div>
+    <div style="font-size:10px;color:var(--text3);line-height:1.6;max-width:1100px">
+      Valor: nominales × precio de pantalla / 100, en la moneda del bono, pasado a la de la vista con el MEP (AL30/AL30D). La TIR en pesos de CER, TAMAR, duales y dollar linked es con el escenario elegido (inflación, TAMAR y dólar); la de tasa fija, la de mercado. DV01: lo que cambia el valor con +1 pb en la tasa de cada bono. VaR: histórico a un día con los retornos totales diarios del último año (precio más lo pagado) y los pesos de hoy; sólo cuentan las ruedas en que todos los bonos tienen precio. En el escenario de dólar, los duales se tratan como pesos (hoy gana la rama TAMAR). Las carteras se guardan con tu usuario.</div>
+  </div>`;
+}
+
+function cartInit(sec){
+  const S=CART_SEC[sec];
+  const pg=document.getElementById(S.pagina);
+  if(!pg)return;
+  if(!pg.innerHTML.trim())pg.innerHTML=cartPaginaHTML(sec);
+  // Se relee al entrar: al iniciar sesión las carteras llegan después.
+  CART=null;
+  cartRender(sec);
+}
+
+var _cartMep=null;
+async function cartRender(sec){
+  const S=CART_SEC&&CART_SEC[sec];
+  if(!S)return;
+  const p=S.p;
+  const tbody=document.getElementById(p+'-tbody');
+  if(!tbody)return;
+  const C=cartLeer(),c=cartActiva(),vista=C.vista[sec]||(sec==='usd'?'USD':'ARS');
+  // Controles
+  const sel=document.getElementById(p+'-sel');
+  if(sel){sel.innerHTML=C.carteras.map(x=>`<option value="${x.id}">${betrEsc(x.nombre)}</option>`).join('');sel.value=c.id;}
+  const nom=document.getElementById(p+'-nombre');if(nom&&document.activeElement!==nom)nom.value=c.nombre;
+  ['ARS','USD'].forEach(m=>{const b=document.getElementById(`${p}-v-${m}`);if(b)b.classList.toggle('active',vista===m);});
+  const inst=document.getElementById(p+'-inst');
+  if(inst&&document.activeElement!==inst){
+    const v=inst.value;
+    const cat=cartCatalogo();
+    inst.innerHTML=Object.keys(CART_FAMS).map(f=>{
+      const xs=cat.filter(x=>x.fam===f);
+      return xs.length?`<optgroup label="${CART_FAMS[f].l}">${xs.map(x=>`<option value="${x.inst}">${x.ticker}</option>`).join('')}</optgroup>`:'';
+    }).join('');
+    if(v)inst.value=v;
+  }
+  // El MEP para pasar de moneda: AL30 sobre AL30D en vivo, y si no, el medio de
+  // las puntas de la barra.
+  let mep=null;
+  try{mep=await seriesMepVivo();}catch(e){}
+  if(!(mep>0))mep=_usdMep&&_usdMep.bid>0&&_usdMep.ask>0?(_usdMep.bid+_usdMep.ask)/2:null;
+  _cartMep=mep;
+  const liq=bopFmtDate(G_LIQ||addHabiles(TODAY,1));
+  const res=cartCalcular(c,vista,mep||1,liq);
+  if(!(mep>0)&&res.ok.some(x=>x.moneda!==vista))res.sinMep=true;
+  cartPintar(sec,res);
+  // El VaR llega después: pide historia.
+  const tv=document.getElementById(p+'-var');
+  if(tv)tv.innerHTML='calculando…';
+  cartVaR(res).then(v=>cartPintarVaR(sec,res,v)).catch(e=>{if(tv)tv.textContent='sin datos';console.warn('[cartera] VaR:',e.message);});
+}
+
+function cartPintar(sec,res){
+  const p=CART_SEC[sec].p,mon=res.vista;
+  const tile=(t,v,sb,id)=>`<div style="border:1px solid var(--border);border-radius:4px;padding:8px 10px;background:var(--surface)">
+    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">${t}</div>
+    <div ${id?`id="${id}"`:''} style="font-family:var(--mono);font-size:16px;color:var(--accent);margin:2px 0">${v}</div>
+    <div style="font-size:10px;color:var(--text3);line-height:1.4">${sb}</div></div>`;
+  const pct=v=>v==null||!isFinite(v)?'—':(v*100).toFixed(1)+'%';
+  document.getElementById(p+'-tiles').innerHTML=
+    tile('Valor',cartFmt(res.total,mon),`${res.ok.length} posiciones · MEP ${res.mep>1?cartN(res.mep,0):'—'}${res.sinMep?' · sin MEP: no se puede pasar de moneda':''}`)
+    +tile('TIR en pesos',res.tirPesos?cartN(res.tirPesos.v)+'%':'—',`${pct(res.pesosValor/(res.total||1))} de la cartera · con el escenario`)
+    +tile('TIR en dólares',res.tirDolares?cartN(res.tirDolares.v)+'%':'—',`${pct(res.dolaresValor/(res.total||1))} de la cartera`)
+    +tile('Duration',res.md?cartN(res.md.v):'—','modificada, ponderada por valor')
+    +tile('DV01',cartFmt(res.dv01,mon),'por +1 pb en todas las tasas')
+    +tile('VaR 1 día',`<span id="${p}-var">…</span>`,'<span id="'+p+'-var-sub">histórico, último año</span>')
+    +tile('Mayor posición',res.mayor?`${res.mayor.ticker} ${pct(res.mayor.peso)}`:'—',res.mayor?res.mayor.F.l:'');
+  const th='padding:6px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+  document.getElementById(p+'-thead').innerHTML=`<tr><th style="${th};text-align:left">Instrumento</th><th style="${th};text-align:left">Familia</th>
+    <th style="${th}">Nominales</th><th style="${th}">Precio</th><th style="${th}">Valor</th><th style="${th}">Peso</th>
+    <th style="${th}" title="La tasa propia de cada familia">Tasa</th><th style="${th}" title="TIR en pesos con el escenario para los de pesos; en dólares para el hard dollar">TIR moneda</th>
+    <th style="${th}">MD</th><th style="${th}">DV01</th><th style="${th}"></th></tr>`;
+  const td='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+  const tb=document.getElementById(p+'-tbody');
+  if(!res.pos.length){
+    tb.innerHTML=`<tr><td colspan="11" style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Cartera vacía. Agregá instrumentos con el formulario de arriba.</td></tr>`;
+  }else tb.innerHTML=res.pos.map(x=>{
+    const F=x.F||{l:'?',c:'var(--text3)'};
+    const ini=`<td style="${td};text-align:left;color:${F.c};font-weight:600">${x.ticker}</td><td style="${td};text-align:left;color:var(--text3)">${F.l}</td>
+      <td style="${td}"><input type="number" value="${+(+x.vn).toFixed(2)}" step="any" min="0" style="width:110px;text-align:right;background:transparent;border:1px solid var(--border2);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:11px;padding:1px 4px" onchange="cartSetVn('${x.inst}',this.value)"></td>`;
+    const quitar=`<td style="${td}"><button onclick="cartQuitar('${x.inst}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px" title="Quitar">✕</button></td>`;
+    if(x.error)return`<tr>${ini}<td colspan="7" style="${td};text-align:left;color:var(--text3)">${betrEsc(x.error)}</td>${quitar}</tr>`;
+    const u={TIR:'',real:' real',margen:' mgn',USD:' USD'}[x.propia&&x.propia.u]||'';
+    return`<tr>${ini}
+      <td style="${td}">${x.moneda==='USD'?'US$ ':'$ '}${fmtPrecio(x.precio,'').trim()}${x.marca||''}</td>
+      <td style="${td};color:var(--text)">${cartFmt(x.valorVista,mon)}</td>
+      <td style="${td}">${pct(x.peso)}</td>
+      <td style="${td};color:var(--warn)">${x.propia&&x.propia.v!=null&&isFinite(x.propia.v)?cartN(x.propia.v)+'%'+u:'—'}</td>
+      <td style="${td}">${x.tirMoneda!=null&&isFinite(x.tirMoneda)?cartN(x.tirMoneda)+'%':'—'}</td>
+      <td style="${td}">${cartN(x.md)}</td>
+      <td style="${td}">${cartFmt(x.dv01,mon)}</td>${quitar}</tr>`;
+  }).join('');
+  const sb=document.getElementById(p+'-sub');
+  if(sb)sb.textContent=`valores en ${mon==='USD'?'dólares MEP':'pesos'} · liquidación ${betrF(bopFmtDate(G_LIQ||addHabiles(TODAY,1)))}`;
+  // Factores
+  const fs=Object.entries(res.factores).sort((a,b)=>b[1]-a[1]);
+  const colF={};Object.values(CART_FAMS).forEach(F=>{colF[F.factor]=colF[F.factor]||F.c;});
+  document.getElementById(p+'-fact').innerHTML=fs.length?fs.map(([f,v])=>{
+    const w=res.total>0?v/res.total:0;
+    return`<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-family:var(--mono);font-size:11px">
+      <span style="width:100px;color:var(--text2)">${f}</span>
+      <div style="flex:1;height:10px;background:var(--surface2);border-radius:2px;overflow:hidden"><div style="width:${(w*100).toFixed(1)}%;height:100%;background:${colF[f]}"></div></div>
+      <span style="width:52px;text-align:right">${pct(w)}</span><span style="width:120px;text-align:right;color:var(--text3)">${cartFmt(v,mon)}</span></div>`;
+  }).join(''):'<div style="color:var(--text3);font-size:11px">—</div>';
+  // Escenarios
+  const facs=fs.map(([f])=>f);
+  document.getElementById(p+'-esc-thead').innerHTML=`<tr><th style="${th};text-align:left">Escenario</th><th style="${th}">Resultado</th><th style="${th}">%</th>
+    ${facs.map(f=>`<th style="${th}">${f}</th>`).join('')}</tr>`;
+  const colR=v=>v>0?'var(--accent)':v<0?'var(--danger)':'var(--text3)';
+  document.getElementById(p+'-esc-tbody').innerHTML=res.ok.length?res.escenarios.map(e=>`<tr>
+    <td style="${td};text-align:left">${e.nombre}</td>
+    <td style="${td};color:${colR(e.total)};font-weight:600">${e.total>0?'+':''}${cartFmt(e.total,mon)}</td>
+    <td style="${td};color:${colR(e.total)}">${res.total>0?(e.total>=0?'+':'')+(e.total/res.total*100).toFixed(2)+'%':'—'}</td>
+    ${facs.map(f=>{const v=e.porFactor[f]||0;return`<td style="${td};color:${colR(v)}">${v?(v>=0?'+':'')+Math.round(v).toLocaleString('es-AR'):'0'}</td>`;}).join('')}</tr>`).join(''):'';
+}
+
+function cartPintarVaR(sec,res,v){
+  const p=CART_SEC[sec].p;
+  const el=document.getElementById(p+'-var'),sb=document.getElementById(p+'-var-sub');
+  if(!el)return;
+  if(!v){el.textContent='—';return;}
+  if(v.insuficiente){el.textContent='—';if(sb)sb.textContent=`historia insuficiente: ${v.n} ruedas en común`;return;}
+  el.innerHTML=`${cartFmt(v.v95,res.vista)} <span style="font-size:11px;color:var(--text3)">95%</span>`;
+  if(sb)sb.innerHTML=`99%: ${cartFmt(v.v99,res.vista)} · ${v.n} ruedas desde ${betrF(v.desde)}`;
+}
+
+function cartCSV(){
+  const c=cartActiva(),liq=bopFmtDate(G_LIQ||addHabiles(TODAY,1));
+  const filas=[['Instrumento','Familia','Nominales','Moneda','Precio','Valor','Tasa propia','TIR moneda','MD']];
+  c.pos.forEach(p=>{const e=cartEvaluar(p,liq);filas.push([e.ticker,e.F?e.F.l:'',e.vn,e.moneda,e.precio,e.valor,e.propia?e.propia.v:'',e.tirMoneda,e.md]);});
+  const txt=filas.map(r=>r.map(v=>v==null?'':typeof v==='number'?String(+v.toFixed(6)).replace('.',','):`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\ufeff'+txt],{type:'text/csv;charset=utf-8'}));
+  a.download=`cartera-${c.nombre.replace(/[^\w-]+/g,'_')}-${liq}.csv`;
+  a.click();
 }
 
 // ══════════════════════════════════════════════════════ USD RESUMEN ══════════

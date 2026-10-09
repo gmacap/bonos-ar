@@ -3968,6 +3968,65 @@ const omitir = (label, motivo) =>
   if (!fw.celdas) omitir('matrices de forwards', 'sin tasas');
   else check(fw.dobles === 0 && fw.infinitos === 0, 'las matrices de forwards en pesos no muestran "%%" ni infinitos', JSON.stringify(fw));
 
+  // Cartera: valores, DV01, escenarios y VaR, y que se vea igual desde las dos
+  // secciones.
+  console.log('\nCartera');
+  const ca = await page.evaluate(async () => {
+    const out = {};
+    // Sintéticos: el retorno diario suma lo pagado, y el percentil interpola.
+    const rd = cartRetornosDiarios(new Map([['2026-01-01', 100], ['2026-01-02', 101]]), [{ fecha: '2026-01-02', monto: 1 }]);
+    out.retorno = Math.abs(rd.get('2026-01-02') - 0.02) < 1e-12;
+    out.percentil = cartPercentil([1, 2, 3, 4, 5], 0.25) === 2 && cartPercentil([0, 10], 0.05) === 0.5;
+    const previo = JSON.stringify(cartLeer());
+    switchSection('pesos'); switchTab('cartera');
+    await new Promise(r => setTimeout(r, 800));
+    cartNueva();
+    const c = cartActiva();
+    const liq = bopFmtDate(G_LIQ || addHabiles(TODAY, 1));
+    const tf = LECAPS.find(b => b.precio > 0 && parseDate(b.vcto) > parseDate(liq));
+    const usd = BON_BONDS.find(b => b.lastPrecio > 0);
+    if (!tf || !usd) { out.sinPrecios = true; CART = JSON.parse(previo); cartGuardar(); return out; }
+    // Una posición en monto: los nominales salen del precio.
+    document.getElementById('cart-inst').value = 'TF|' + tf.ticker;
+    document.getElementById('cart-cant').value = '1000000';
+    document.getElementById('cart-modo').value = 'monto';
+    cartAgregar('ars');
+    out.monto = Math.abs(c.pos[0].vn - 1000000 / tf.precio * 100) < 1e-6;
+    c.pos.push({ inst: 'BON|' + usd.ticker, vn: 10000 });
+    cartGuardar();
+    await new Promise(r => setTimeout(r, 1500));
+    const mep = _cartMep;
+    out.mep = mep > 0;
+    for (const vista of ['ARS', 'USD']) {
+      const res = cartCalcular(c, vista, mep, liq);
+      const suma = res.ok.reduce((s, p) => s + p.valorVista, 0);
+      const dv01 = res.ok.reduce((s, p) => s + p.valorVista * p.md * 1e-4, 0);
+      const e100 = res.escenarios.find(e => e.nombre === '+100 pb').total;
+      const fx = res.escenarios.find(e => e.nombre === 'Dólar +10%').total;
+      const atado = res.ok.filter(p => p.fam === 'DLK' || p.moneda === 'USD').reduce((s, p) => s + p.valorVista, 0);
+      const fxEsperado = vista === 'ARS' ? 0.1 * atado : (res.total - atado) * (1 / 1.1 - 1);
+      out[vista] = { total: Math.abs(res.total - suma) < 1e-6, dv01: Math.abs(res.dv01 - dv01) < 1e-6,
+        e100: e100 < 0 && Math.abs(-e100 / (dv01 * 100) - 1) < 0.05, fx: Math.abs(fx - fxEsperado) < 1e-6 };
+    }
+    // La misma cartera desde dólares.
+    switchSection('usd'); switchUsdTab('usd-cartera');
+    await new Promise(r => setTimeout(r, 1500));
+    out.desdeUsd = document.querySelectorAll('#ucart-tbody tr').length === c.pos.length && document.getElementById('ucart-sel').value === c.id;
+    out.botones = !!document.getElementById('nav-cartera') && !!document.getElementById('nav-usd-cartera');
+    out.sync = SUPA_USER_KEYS.includes(CART_LS);
+    CART = JSON.parse(previo); cartGuardar();
+    return out;
+  });
+  check(ca.retorno && ca.percentil, 'el retorno diario de la cartera suma lo cobrado y el percentil del VaR interpola');
+  if (ca.sinPrecios) omitir('cartera en vivo', 'sin precios de tasa fija o de Bonares');
+  else {
+    check(ca.monto, 'una posición cargada en monto se pasa a nominales con el precio');
+    check(ca.mep && ['ARS', 'USD'].every(v => ca[v].total && ca[v].dv01 && ca[v].e100 && ca[v].fx),
+          'en pesos y en dólares: el total suma las posiciones, el DV01 es valor × MD, +100 pb ≈ −100 × DV01 y el dólar mueve lo atado al dólar',
+          JSON.stringify({ ARS: ca.ARS, USD: ca.USD }));
+    check(ca.desdeUsd && ca.botones && ca.sync, 'la misma cartera se ve desde las dos secciones y viaja por usuario', JSON.stringify(ca));
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');
