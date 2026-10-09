@@ -14352,7 +14352,7 @@ function fwdBuildTable(bonds, tipo, wrapId){
   html+=`</tr></thead><tbody>`;
 
   rows.forEach((ri,i)=>{
-    const tasaLabel=ri.tasa!=null?fmtP2(ri.tasa)+'%':'—';
+    const tasaLabel=ri.tasa!=null?fmtP2(ri.tasa):'—';   // fmtP2 ya trae el %
     const pxDisplay=ri.precio!=null?fmtARS(ri.precio):'—';
     html+=`<tr><td style="${td}text-align:left;color:var(--accent);font-weight:500">${ri.bond.ticker}</td>`;
     html+=`<td style="${td}text-align:right;color:var(--text2);cursor:pointer" title="Click para editar precio"
@@ -14362,7 +14362,13 @@ function fwdBuildTable(bonds, tipo, wrapId){
       else if(j===i){const st=fwdCellStyle(ri.tasa,minV,maxV,true);html+=`<td style="${td}${st}">${tasaLabel}</td>`;}
       else{
         if(ri.tasa==null||rj.tasa==null){html+=`<td style="${td}background:var(--bg);color:var(--text3)">—</td>`;}
-        else{const fwd=(rj.tasa*rj.dur-ri.tasa*ri.dur)/(rj.dur-ri.dur);const st=fwdCellStyle(fwd,minV,maxV,false);html+=`<td style="${td}${st}">${fmtP2(fwd)}%</td>`;}
+        else{
+          // Dos bonos con la misma duration no tienen tramo entre ellos: la
+          // cuenta divide por cero.
+          const fwd=Math.abs(rj.dur-ri.dur)>1e-6?(rj.tasa*rj.dur-ri.tasa*ri.dur)/(rj.dur-ri.dur):NaN;
+          if(!isFinite(fwd)){html+=`<td style="${td}background:var(--bg);color:var(--text3)" title="Misma duration: no hay forward entre los dos">—</td>`;}
+          else{const st=fwdCellStyle(fwd,minV,maxV,false);html+=`<td style="${td}${st}">${fmtP2(fwd)}</td>`;}
+        }
       }
     });
     html+=`</tr>`;

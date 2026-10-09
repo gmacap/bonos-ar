@@ -3076,6 +3076,9 @@ const omitir = (label, motivo) =>
     out.vsRefOk = f.bloques.filter(b => b.volumen.vsRef != null)
       .every(b => Math.abs(b.volumen.vsRef - b.volumen.prom / b.volumen.ref) < 1e-9);
     out.conVsRef = f.bloques.filter(b => b.volumen.vsRef != null).length;
+    // La app archiva fotos durante la rueda: en la primera hora, la última
+    // rueda guardada es la de hoy y todavía no tiene monto.
+    out.finHoy = f.fin === hoyAR();
     out.rem = !!(f.rem && f.rem.tenores[0].infla && isFinite(f.rem.tenores[0].infla.mensual));
     const t = fichaTexto(f);
     out.textoRem = t.includes('REFERENCIAS DEL REM');
@@ -3096,6 +3099,7 @@ const omitir = (label, motivo) =>
   if (ref.sinFicha) omitir('referencias en la ficha real', 'no hay dos ruedas archivadas');
   else {
     if (!(ref.volRef > 0)) omitir('volumen contra las ruedas previas', 'no hay 20 ruedas previas con monto');
+    else if (!ref.conVsRef && ref.finHoy) omitir('volumen contra las ruedas previas', 'la rueda de hoy recién empieza y todavía no tiene monto');
     else check(ref.vsRefOk && ref.conVsRef > 0 && ref.textoVol,
                'el volumen de cada curva se compara con su promedio de las ruedas previas', `${ref.conVsRef} curvas`);
     if (!ref.rem) omitir('implícitas contra el REM', 'rem.json no cargó');
@@ -3899,9 +3903,11 @@ const omitir = (label, motivo) =>
       const ch = seriesEstado[sec].chart;
       const o = { datasets: ch ? ch.data.datasets.length : 0, resumen: document.getElementById(`series-${sec}-ab-res`).textContent };
       if (ch && o.datasets === 3) {
-        const ult = d => d.data[d.data.length - 1];
-        const ra = ult(ch.data.datasets[0]), rb = ult(ch.data.datasets[1]), rel = ult(ch.data.datasets[2]);
-        o.relativo = ra && rb && rel && ra.x === rel.x && rb.x === rel.x ? Math.abs(rel.y - 100 * (1 + ra.y / 100) / (1 + rb.y / 100)) < 1e-3 : null;
+        // En la última rueda con los dos: durante la rueda la foto de hoy puede
+        // haber llegado para uno solo.
+        const ds = ch.data.datasets, rel = ds[2].data[ds[2].data.length - 1];
+        const ra = rel && ds[0].data.find(q => q.x === rel.x), rb = rel && ds[1].data.find(q => q.x === rel.x);
+        o.relativo = ra && rb ? Math.abs(rel.y - 100 * (1 + ra.y / 100) / (1 + rb.y / 100)) < 1e-3 : null;
       }
       o.sectoresOcultos = document.getElementById(`series-${sec}-sectores`).style.display === 'none';
       seriesSetModo(sec, 'tasas');
@@ -3924,6 +3930,17 @@ const omitir = (label, motivo) =>
     check(o.datasets === 3 && o.relativo === true && /rindió más/.test(o.resumen) && o.sectoresOcultos && o.vuelve,
           `A/B en ${nombre}: dos retornos totales y el relativo, y al salir vuelven los sectores`, JSON.stringify(o));
   }
+
+  // Las matrices de forwards en pesos: sin "%%" ni infinitos.
+  console.log('\nForwards en pesos');
+  const fw = await page.evaluate(async () => {
+    switchSection('pesos'); switchTab('forwards');
+    await new Promise(r => setTimeout(r, 2000));
+    const t = ['fwd-tf-wrap', 'fwd-cer-wrap', 'fwd-tamar-wrap'].map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
+    return { celdas: (t.match(/%/g) || []).length, dobles: (t.match(/%%/g) || []).length, infinitos: (t.match(/Infinity|NaN/g) || []).length };
+  });
+  if (!fw.celdas) omitir('matrices de forwards', 'sin tasas');
+  else check(fw.dobles === 0 && fw.infinitos === 0, 'las matrices de forwards en pesos no muestran "%%" ni infinitos', JSON.stringify(fw));
 
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
