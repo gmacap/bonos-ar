@@ -19986,6 +19986,47 @@ var RET_SEC={
   },
 };
 
+// La grilla de TIR de salida se elige por familia: en pesos, tasa fija va en TEA
+// nominal y CER en TIR real, y una grilla no sirve para la otra. En dólares hay
+// una sola. Tope de columnas para que la tabla siga siendo legible.
+var RET_GRILLA_MAX=25;
+function retGrillaClave(sec){return RET_SEC[sec].salidas?sec:retFamilias(sec)[0].id;}
+function retGrillaDefecto(sec){
+  const a=RET_SEC[sec].salidas||retFamilias(sec)[0].salidas;
+  return{min:a[0],max:a[a.length-1],paso:+(a[1]-a[0]).toFixed(6)};
+}
+// {vals, nota}: los valores a mostrar y, si la elegida no sirve o se recortó, por qué.
+function retGrilla(min,max,paso){
+  if(![min,max,paso].every(v=>v!=null&&isFinite(v)))return{error:'Completá desde, hasta y paso'};
+  if(!(paso>0))return{error:'El paso tiene que ser mayor que cero'};
+  if(!(max>min))return{error:'"Hasta" tiene que ser mayor que "desde"'};
+  const n=Math.floor((max-min)/paso+1e-9)+1;
+  const k=Math.min(n,RET_GRILLA_MAX);
+  const vals=[];
+  for(let i=0;i<k;i++)vals.push(+(min+i*paso).toFixed(6));
+  return{vals,nota:n>RET_GRILLA_MAX?`Se muestran ${RET_GRILLA_MAX} de ${n} columnas: subí el paso`:''};
+}
+function retSalidas(sec){
+  const P=retPref(sec),d=retGrillaDefecto(sec);
+  const g=(P.grilla||{})[retGrillaClave(sec)];
+  if(!g)return{...retGrilla(d.min,d.max,d.paso),actual:d,propia:false};
+  const r=retGrilla(+g.min,+g.max,+g.paso);
+  if(r.error)return{...retGrilla(d.min,d.max,d.paso),actual:g,propia:true,nota:r.error+': se usa la grilla por defecto'};
+  return{...r,actual:g,propia:true};
+}
+function retSetGrilla(sec,campo,valor){
+  const P=retPref(sec),k=retGrillaClave(sec);
+  P.grilla=P.grilla||{};
+  if(campo==null)delete P.grilla[k];
+  else{
+    const g={...(P.grilla[k]||retGrillaDefecto(sec))};
+    g[campo]=valor===''?null:+valor;
+    P.grilla[k]=g;
+  }
+  retSetPref(sec,'grilla',P.grilla);
+}
+var retFmtTasa=y=>String(+(+y).toFixed(2));
+
 function retPrefDefecto(sec){
   const S=RET_SEC[sec];
   return{corte:null,reinvertir:true,tasa:null,
@@ -20149,6 +20190,13 @@ function retPaginaHTML(sec){
         <button class="btn" style="padding:2px 6px;font-size:10px" onclick="retSetPref('${sec}','tasa',null)" title="Volver a la tasa por defecto">↺</button>
         <span id="${p}-tasa-nota" style="${sub}"></span></span></label>
       <div style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">${S.exclusivo?'Familia':'Familias'}</span><div id="${p}-familias" style="display:flex;gap:4px"></div></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">TIR de salida (%): desde · hasta · paso</span>
+        <span style="display:flex;gap:4px;align-items:center">
+          <input type="number" id="${p}-g-min" step="0.5" style="${sel};width:58px" title="Primera columna" onchange="retSetGrilla('${sec}','min',this.value)">
+          <input type="number" id="${p}-g-max" step="0.5" style="${sel};width:58px" title="Última columna" onchange="retSetGrilla('${sec}','max',this.value)">
+          <input type="number" id="${p}-g-paso" step="0.25" min="0" style="${sel};width:52px" title="Distancia entre columnas" onchange="retSetGrilla('${sec}','paso',this.value)">
+          <button class="btn" style="padding:2px 6px;font-size:10px" onclick="retSetGrilla('${sec}',null)" title="Volver a la grilla por defecto">↺</button>
+          <span id="${p}-g-nota" style="${sub};color:var(--warn)"></span></span></div>
       <span id="${p}-st" style="margin-left:auto;${sub}"></span>
     </div>
     <section>
@@ -20205,7 +20253,8 @@ function retRender(sec){
   if(!tbody)return;
   const P=retPref(sec);
   const fams=retFamilias(sec);
-  const salidas=S.salidas||fams[0].salidas;
+  const grilla=retSalidas(sec);
+  const salidas=grilla.vals;
   const liq=retLiq(),corte=retCorte(sec),tasa=retTasa(sec);
   const reinvertir=P.reinvertir!==false;
   const E=RET_ESTADO[sec];
@@ -20213,6 +20262,11 @@ function retRender(sec){
   const ci=document.getElementById(p+'-corte');if(ci&&document.activeElement!==ci)ci.value=corte;
   const ti=document.getElementById(p+'-tasa');if(ti&&document.activeElement!==ti)ti.value=(+tasa.v).toFixed(2);
   const tn=document.getElementById(p+'-tasa-nota');if(tn)tn.textContent=tasa.texto||'';
+  [['min',grilla.actual.min],['max',grilla.actual.max],['paso',grilla.actual.paso]].forEach(([k,v])=>{
+    const el=document.getElementById(`${p}-g-${k}`);
+    if(el&&document.activeElement!==el)el.value=v==null||!isFinite(v)?'':retFmtTasa(v);
+  });
+  const gn=document.getElementById(p+'-g-nota');if(gn)gn.textContent=grilla.nota||'';
   ['si','no'].forEach(k=>{const el=document.getElementById(`${p}-reinv-${k}`);if(el)el.classList.toggle('active',(k==='si')===reinvertir);});
   Object.keys(RET_VENTANAS).forEach(v=>{const el=document.getElementById(`${p}-v-${v}`);if(el)el.classList.toggle('active',P.ventana===v);});
   const fe=document.getElementById(p+'-familias');
@@ -20230,7 +20284,7 @@ function retRender(sec){
   document.getElementById(p+'-thead').innerHTML=`<tr>
     <th style="${th};text-align:left">Bono</th><th style="${th}">Precio</th><th style="${th}">TIR hoy</th>
     <th style="${th}" title="Salida a la TIR de hoy">TIR const.</th>
-    ${salidas.map(y=>`<th style="${th}">${retN(y,1)}%</th>`).join('')}
+    ${salidas.map(y=>`<th style="${th}">${retFmtTasa(y)}%</th>`).join('')}
     <th style="${th};border-left:1px solid var(--border2)" title="TIR de salida con retorno cero">BE ret. 0</th>
     <th style="${th}" title="TIR de salida que empata con la tasa de reinversión">BE vs reinv.</th>
     <th style="${th}" title="pb que puede subir la TIR hasta el BE de retorno cero">Colchón (pb)</th></tr>`;
@@ -20330,7 +20384,7 @@ async function retRenderCamino(sec,liq,corte){
   if(!r){if(E.chart){E.chart.destroy();E.chart=null;}return;}
   sel.value=r.ticker;
   const fam=r.fam;
-  const salidas=S.salidas||fam.salidas;
+  const salidas=retSalidas(sec).vals;
   const tirSim=P.tirSim!=null&&isFinite(P.tirSim)?+P.tirSim:r.tir;
   const ts=document.getElementById(p+'-tirsim');if(ts&&document.activeElement!==ts)ts.value=(+tirSim).toFixed(2);
   const corridoHoy=fam.corrido?fam.corrido(r,liq):0;
@@ -20363,9 +20417,9 @@ async function retRenderCamino(sec,liq,corte){
   });
   const dsHist={label:'Cotización',data:histPts,borderColor:'#e8e8e8',borderWidth:1.3,pointRadius:0,tension:0,showLine:true,order:1};
   const abanico=salidas.map((y,i)=>{
-    const k=i/(salidas.length-1);
+    const k=salidas.length>1?i/(salidas.length-1):0;
     const col=`rgba(${Math.round(74+(248-74)*k)},${Math.round(222+(113-222)*k)},${Math.round(128+(113-128)*k)},0.55)`;
-    return{label:`TIR ${retN(y,1)}%`,data:camino(y),borderColor:col,borderWidth:0.8,pointRadius:0,tension:0,showLine:true,order:3,abanico:true};
+    return{label:`TIR ${retFmtTasa(y)}%`,data:camino(y),borderColor:col,borderWidth:0.8,pointRadius:0,tension:0,showLine:true,order:3,abanico:true};
   });
   const dsSim={label:`TIR simulada ${retN(tirSim)}%`,data:camino(tirSim),borderColor:'#f59e0b',borderWidth:2.4,pointRadius:0,tension:0,showLine:true,order:0};
   const dsMer={label:`TIR de mercado ${retN(r.tir)}%`,data:camino(r.tir),borderColor:'rgba(232,232,232,0.6)',borderWidth:1,borderDash:[4,4],pointRadius:0,tension:0,showLine:true,order:2};
@@ -20412,7 +20466,7 @@ async function retRenderCamino(sec,liq,corte){
       `${n.amort>0&&n.renta>0?`renta ${u} ${retN(n.renta)} · amortización ${u} ${retN(n.amort)} · `:''}retorno total sin reinvertir ${retPct(n.retorno(tirSim))}`);
   const nota=document.getElementById(p+'-chart-nota');
   if(nota)nota.textContent=(fam.corrido?'Precio limpio: el sucio menos lo corrido, así que la renta no lo baja y las amortizaciones sí (líneas punteadas). ':'')
-    +`Cada línea de color es el precio que tiene que tener el bono en cada fecha para rendir esa TIR, de ${retN(salidas[0],1)}% (verde) a ${retN(salidas[salidas.length-1],1)}% (rojo). `
+    +`Cada línea de color es el precio que tiene que tener el bono en cada fecha para rendir esa TIR, de ${retFmtTasa(salidas[0])}% (verde) a ${retFmtTasa(salidas[salidas.length-1])}% (rojo), las mismas de la grilla. `
     +(hist.length?`Historia: ${betrF(hist[0].fecha)} a ${betrF(hist[hist.length-1].fecha)}, ${S.notaHist()}.`:'Sin historia guardada para este bono.');
 }
 

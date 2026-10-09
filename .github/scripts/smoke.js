@@ -3779,7 +3779,7 @@ const omitir = (label, motivo) =>
       // El camino de precio se dibuja cuando llega la historia.
       for (let i = 0; i < 20 && !E.chart; i++) await new Promise(r => setTimeout(r, 300));
       o.chart = E.chart ? E.chart.data.datasets.length : 0;
-      o.salidas = (RET_SEC[sec].salidas || retFamilias(sec)[0].salidas).length;
+      o.salidas = retSalidas(sec).vals.length;
       o.sync = SUPA_USER_KEYS.includes(RET_SEC[sec].ls);
       return o;
     };
@@ -3787,9 +3787,32 @@ const omitir = (label, motivo) =>
     out.tf = await probar('ars', () => { switchSection('pesos'); switchTab('retornos'); }, 'tf');
     out.cer = await probar('ars', () => { retRender('ars'); }, 'cer');
     out.botones = !!document.getElementById('nav-usd-retornos') && !!document.getElementById('nav-retornos');
+    // La grilla de TIR de salida: la elegida, la de por defecto si no sirve, y
+    // un tope de columnas.
+    switchSection('usd'); switchUsdTab('usd-retornos');
+    await new Promise(r => setTimeout(r, 1200));
+    const cols = () => [...document.querySelectorAll('#ret-thead th')].map(t => t.textContent).filter(t => /^-?[\d.]+%$/.test(t));
+    const nota = () => document.getElementById('ret-g-nota').textContent;
+    const prev = JSON.parse(JSON.stringify(retPref('usd').grilla || {}));
+    retSetGrilla('usd', null);
+    const def = cols();
+    retSetGrilla('usd', 'min', 4); retSetGrilla('usd', 'max', 10); retSetGrilla('usd', 'paso', 2);
+    const propia = cols();
+    retSetGrilla('usd', 'paso', 0);
+    const invalida = { cols: cols().length, nota: nota() };
+    retSetGrilla('usd', 'min', 0); retSetGrilla('usd', 'max', 100); retSetGrilla('usd', 'paso', 1);
+    const larga = { cols: cols().length, nota: nota() };
+    retSetGrilla('usd', null);
+    const vuelta = cols();
+    const P = retPref('usd'); P.grilla = prev; retSetPref('usd', 'grilla', prev);
+    out.grilla = { def: def.length, propia, invalida, larga, vuelta: vuelta.length };
     return out;
   });
   check(ret.vence, 'un bono que vence antes del corte rinde lo mismo con cualquier TIR de salida y no tiene breakeven');
+  { const g = ret.grilla;
+    check(g.def === 9 && g.propia.join(' ') === '4% 6% 8% 10%' && g.invalida.cols === 9 && /paso/.test(g.invalida.nota)
+          && g.larga.cols === 25 && /25 de 101/.test(g.larga.nota) && g.vuelta === 9,
+          'la grilla de TIR de salida se elige con desde, hasta y paso, vuelve a la de defecto si no sirve y corta en 25 columnas', JSON.stringify(g)); }
   check(ret.botones && ret.usd.sync && ret.tf.sync, 'Retornos está en pesos y en dólares, con preferencias por usuario');
   for (const [k, nombre] of [['usd', 'dólares'], ['tf', 'tasa fija'], ['cer', 'CER real']]) {
     const o = ret[k];
