@@ -20081,7 +20081,10 @@ function retItems(sec){
   for(const fam of retFamilias(sec)){
     for(const it of fam.items(liq))out.push({...it,fam});
   }
-  return out.sort((a,z)=>a.vto.localeCompare(z.vto)||a.ticker.localeCompare(z.ticker));
+  // Por duration modificada, que es lo que ordena el riesgo de tasa; los que no
+  // la tienen, al final.
+  const md=x=>x.md!=null&&isFinite(x.md)?x.md:Infinity;
+  return out.sort((a,z)=>md(a)-md(z)||a.vto.localeCompare(z.vto)||a.ticker.localeCompare(z.ticker));
 }
 
 // El núcleo, sin DOM: precio de hoy, flujos, fechas y la tasa de reinversión en
@@ -20282,25 +20285,26 @@ function retRender(sec){
 
   const th='padding:6px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
   document.getElementById(p+'-thead').innerHTML=`<tr>
-    <th style="${th};text-align:left">Bono</th><th style="${th}">Precio</th><th style="${th}">TIR hoy</th>
+    <th style="${th};text-align:left">Bono</th><th style="${th}">Precio</th><th style="${th}" title="Duration modificada: la tabla va ordenada por esta columna">MD</th><th style="${th}">TIR hoy</th>
     <th style="${th}" title="Salida a la TIR de hoy">TIR const.</th>
     ${salidas.map(y=>`<th style="${th}">${retFmtTasa(y)}%</th>`).join('')}
     <th style="${th};border-left:1px solid var(--border2)" title="TIR de salida con retorno cero">BE ret. 0</th>
     <th style="${th}" title="TIR de salida que empata con la tasa de reinversión">BE vs reinv.</th>
     <th style="${th}" title="pb que puede subir la TIR hasta el BE de retorno cero">Colchón (pb)</th></tr>`;
   if(!E.data.length){
-    tbody.innerHTML=`<tr><td colspan="${7+salidas.length}" style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Sin bonos con precio en ${S.exclusivo?'la familia elegida':'las familias elegidas'}.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="${8+salidas.length}" style="padding:2rem;text-align:center;color:var(--text3);font-size:12px">Sin bonos con precio en ${S.exclusivo?'la familia elegida':'las familias elegidas'}.</td></tr>`;
   }else{
     const vals=E.data.filter(r=>!r.error).flatMap(r=>[r.constante,...r.grilla]).filter(v=>isFinite(v));
     const cap=Math.max(0.02,...vals.map(Math.abs));
     const td='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
     tbody.innerHTML=E.data.map(r=>{
       const tk=`<td style="${td};text-align:left;color:${r.fam.color};font-weight:600" title="${r.fam.label} · vence ${betrF(r.vto)}">${r.ticker}</td>`;
-      if(r.error)return`<tr>${tk}<td colspan="${6+salidas.length}" style="${td};color:var(--text3);text-align:left">${betrEsc(r.error)}</td></tr>`;
+      if(r.error)return`<tr>${tk}<td colspan="${7+salidas.length}" style="${td};color:var(--text3);text-align:left">${betrEsc(r.error)}</td></tr>`;
       const nota=r.n.vence?' title="Vence antes del corte: lo cobrado no depende de la TIR de salida"':'';
       const na=r.corto?` title="Vence ${r.resto} días después del corte: la TIR de salida casi no mueve el precio y el breakeven no dice nada"`:r.n.vence?' title="Vence antes del corte"':'';
       return`<tr>${tk}
         <td style="${td}">${retN(r.precio)}${r.marca||''}</td>
+        <td style="${td};color:var(--text2)">${retN(r.md)}</td>
         <td style="${td};color:var(--warn)">${retN(r.tir)}%</td>
         <td style="${td};${retColor(r.constante,cap)};font-weight:600"${nota}>${retPct(r.constante)}</td>
         ${r.grilla.map(v=>`<td style="${td};${retColor(v,cap)}"${nota}>${retPct(v)}</td>`).join('')}

@@ -3747,6 +3747,9 @@ const omitir = (label, motivo) =>
       const ok = E.data.filter(r => !r.error);
       o.filas = ok.length;
       o.dom = document.querySelectorAll(`#${RET_SEC[sec].p}-tbody tr`).length;
+      // Ordenados por duration modificada.
+      const mds = E.data.map(r => r.md != null && isFinite(r.md) ? r.md : Infinity);
+      if (mds.some((m, i) => i && m < mds[i - 1])) o.errores.push('no está ordenada por duration: ' + mds.join(' '));
       for (const r of ok) {
         // Reinvirtiendo a la TIR de hoy y saliendo a esa misma TIR, el retorno
         // es el valor futuro de los mismos flujos.
