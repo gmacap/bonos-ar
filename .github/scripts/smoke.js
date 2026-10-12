@@ -4549,7 +4549,7 @@ const omitir = (label, motivo) =>
   console.log('\nSolapas en desarrollo: sólo para admins');
   const dev = await page.evaluate(() => {
     const vis = id => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; };
-    const ids = ['nav-escenarios', 'nav-comentario', 'nav-usd-comentario'];
+    const ids = ['nav-escenarios', 'nav-comentario', 'nav-usd-comentario', 'nav-cartera', 'nav-usd-cartera'];
     const sinSesion = ids.map(vis);
     // Admin simulado, sincrónico y restaurado en la misma llamada: nada escribe
     // localStorage en el medio, así que la sincronización con Supabase no se entera.
@@ -4571,7 +4571,7 @@ const omitir = (label, motivo) =>
     const otros = ['nav-breakeven', 'nav-proyecciones', 'nav-series-ars', 'nav-usd-series'].map(vis);
     return { sinSesion, conAdmin, restaurado, trasPesos, trasUsd, otros, admin: !!isAdmin() };
   });
-  check(dev.sinSesion.every(v => !v), 'sin sesión no se ven Escenarios ni Comentario', JSON.stringify(dev.sinSesion));
+  check(dev.sinSesion.every(v => !v), 'sin sesión no se ven Escenarios, Comentario ni Cartera', JSON.stringify(dev.sinSesion));
   check(dev.conAdmin.every(v => v), 'el admin sí las ve', JSON.stringify(dev.conAdmin));
   check(dev.restaurado.every(v => !v) && !dev.admin, 'al dejar de ser admin se vuelven a ocultar', JSON.stringify(dev.restaurado));
   check(dev.trasPesos === 'breakeven' && dev.trasUsd === 'usd-resumen',

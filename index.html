@@ -376,7 +376,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab active" id="nav-breakeven" onclick="switchTab('breakeven')">Resumen</button>
   <button class="nav-tab" id="nav-forwards" onclick="switchTab('forwards')">Forwards</button>
   <button class="nav-tab" id="nav-retornos" onclick="switchTab('retornos')">Retornos</button>
-  <button class="nav-tab" id="nav-cartera" onclick="switchTab('cartera')">Cartera</button>
+  <button class="nav-tab nav-dev" id="nav-cartera" onclick="switchTab('cartera')" style="display:none">Cartera</button>
   <button class="nav-tab" id="nav-lecap" onclick="switchTab('lecap')">Tasa Fija</button>
   <button class="nav-tab" id="nav-cer" onclick="switchTab('cer')">CER</button>
   <button class="nav-tab" id="nav-tamar" onclick="switchTab('tamar')">TAMAR</button>
@@ -395,7 +395,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab active" id="nav-usd-resumen"     onclick="switchUsdTab('usd-resumen')">Resumen</button>
   <button class="nav-tab"        id="nav-usd-forwards"    onclick="switchUsdTab('usd-forwards')">Forwards</button>
   <button class="nav-tab"        id="nav-usd-retornos"    onclick="switchUsdTab('usd-retornos')">Retornos</button>
-  <button class="nav-tab"        id="nav-usd-cartera"     onclick="switchUsdTab('usd-cartera')">Cartera</button>
+  <button class="nav-tab nav-dev" id="nav-usd-cartera"     onclick="switchUsdTab('usd-cartera')" style="display:none">Cartera</button>
   <button class="nav-tab"        id="nav-usd-spreadleg"   onclick="switchUsdTab('usd-spreadleg')">Spread Leg.</button>
   <button class="nav-tab"        id="nav-usd-bonares"     onclick="switchUsdTab('usd-bonares')">Bonares</button>
   <button class="nav-tab"        id="nav-usd-globales"    onclick="switchUsdTab('usd-globales')">Globales</button>
@@ -2754,8 +2754,8 @@ function authUpdateAdminUI(){
 // solapas sin sesión y tiene que poder seguir probándolas.
 //
 // Para liberar una, se le saca la clase nav-dev al botón y se la quita de acá.
-const TABS_DESARROLLO=['escenarios','comentario'];
-const USD_TABS_DESARROLLO=['usd-comentario'];
+const TABS_DESARROLLO=['escenarios','comentario','cartera'];
+const USD_TABS_DESARROLLO=['usd-comentario','usd-cartera'];
 
 // Un admin que cierra sesión parado en una solapa en desarrollo se quedaría
 // mirando una pantalla cuyo botón acaba de desaparecer. Se lo lleva al Resumen.
