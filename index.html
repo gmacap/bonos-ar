@@ -369,6 +369,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       style="display:none;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;
              padding:3px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;
              border:1px solid var(--border2);color:var(--text3)"></span>
+    <span id="bcra-aviso" onclick="bcraReintentarTodo()"
+      style="display:none;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;
+             padding:3px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;
+             border:1px solid var(--warn);color:var(--warn)"></span>
     <button class="auth-btn" id="auth-btn" onclick="authAction()">
       <span id="auth-btn-label">Iniciar sesión</span>
     </button>
@@ -6198,6 +6202,121 @@ let DLK_INDEX=[];  // [{fecha:'YYYY-MM-DD', valor:number}] — $/USD mayorista
 // con la caché caliente, lee este valor sincrónicamente antes de llegar allá.
 let dlkTCOverride=null;
 
+// ── Cuando el BCRA no contesta ───────────────────────────────────────────────
+// La API del BCRA a veces tarda más de 15 segundos en una consulta y la
+// siguiente contesta en medio segundo. Cada página se pide hasta tres veces,
+// con más espera cada vez. Si igual no contesta, queda la serie guardada
+// aunque tenga más de 23 horas, con un aviso arriba que dice de qué día es, y
+// se vuelve a pedir sola cada cinco minutos hasta que el BCRA conteste.
+//
+// La serie guardada vencida además se pinta apenas abre la app, mientras se
+// pide la nueva: es la misma que se usaba ayer y no deja la pantalla vacía.
+var BCRA_ESPERAS=[15000,30000,45000];
+var BCRA_REINTENTO_MS=5*60*1000;
+var BCRA_ESTADO={};   // {cer|dlk|tamar: {guardado,ultimo,motivo} | {sinDatos,motivo}}
+var BCRA_TIMERS={};
+var BCRA_SERIES={
+  cer:  {nombre:'CER',  clave:CER_CACHE_KEY,  st:['g-cer-status','cer-data-status'],
+         indice:()=>CER_INDEX,   reintentar:()=>cerFetchIndex(true)},
+  dlk:  {nombre:'A3500',clave:DLK_CACHE_KEY,  st:['g-dlk-status'],
+         indice:()=>DLK_INDEX,   reintentar:()=>dlkFetchIndex(true)},
+  tamar:{nombre:'TAMAR',clave:TAMAR_CACHE_KEY,st:['g-tamar-status'],
+         indice:()=>TAMAR_INDEX, reintentar:()=>tamarFetchIndex(true)},
+};
+
+// Una página de una serie del BCRA por el Worker. Lanza si no contesta en
+// ningún intento: una página que falta no puede pasar por el final de la serie.
+async function bcraPedirPagina(url){
+  let motivo='';
+  for(let i=0;i<BCRA_ESPERAS.length;i++){
+    try{
+      const res=await fetch(url,{signal:AbortSignal.timeout(BCRA_ESPERAS[i])});
+      if(res.ok){
+        const json=await res.json();
+        // v4: {results:[{idVariable, detalle:[{fecha,valor}]}], metadata}
+        if(json.results&&json.results[0]&&json.results[0].detalle)
+          return{results:json.results[0].detalle,metadata:json.metadata};
+        return json;
+      }
+      motivo='HTTP '+res.status;
+    }catch(e){
+      motivo=e&&e.name==='TimeoutError'?`sin respuesta en ${BCRA_ESPERAS[i]/1000} s`:((e&&e.message)||'error de red');
+    }
+    if(i<BCRA_ESPERAS.length-1)await new Promise(r=>setTimeout(r,1000*(i+1)));
+  }
+  throw new Error('el BCRA no respondió ('+motivo+')');
+}
+
+function bcraCacheLeer(clave){
+  try{
+    const c=JSON.parse(localStorage.getItem(clave)||'null');
+    if(c&&Array.isArray(c.data)&&c.data.length)return c;
+  }catch(e){}
+  return null;
+}
+function bcraStatus(k,texto,clase){
+  for(const id of BCRA_SERIES[k].st){
+    const el=document.getElementById(id);
+    if(el){el.textContent=texto;el.className='api-status '+clase;}
+  }
+}
+function bcraFechaHora(ts){
+  const d=new Date(ts);
+  return fmtDate(d).split('-').reverse().join('/').slice(0,5)+' '
+    +d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+}
+
+// Lo que queda cuando el BCRA no contesta: la serie que ya está en memoria, que
+// es la guardada si se pintó al abrir. Devuelve si hay serie.
+function bcraSinRespuesta(k,motivo){
+  const s=BCRA_SERIES[k];
+  const serie=s.indice();
+  const g=bcraCacheLeer(s.clave);
+  if(serie.length){
+    BCRA_ESTADO[k]={guardado:g?g.ts:null,ultimo:serie[serie.length-1].fecha,motivo};
+    bcraStatus(k,`${s.nombre} guardado${g?' el '+bcraFechaHora(g.ts):''} · el BCRA no respondió`,'loading');
+  }else{
+    BCRA_ESTADO[k]={sinDatos:true,motivo};
+    bcraStatus(k,`${s.nombre}: el BCRA no respondió`,'err');
+  }
+  console.warn(`[${s.nombre}] ${motivo}`);
+  try{updateIndexBanners();}catch(e){}
+  bcraAvisoPintar();
+  clearTimeout(BCRA_TIMERS[k]);
+  BCRA_TIMERS[k]=setTimeout(()=>{try{s.reintentar();}catch(e){}},BCRA_REINTENTO_MS);
+  return serie.length>0;
+}
+function bcraOk(k){
+  clearTimeout(BCRA_TIMERS[k]);
+  delete BCRA_TIMERS[k];
+  if(BCRA_ESTADO[k]){delete BCRA_ESTADO[k];bcraAvisoPintar();}
+}
+
+// El aviso de arriba: qué serie está vieja y de qué día es.
+function bcraAvisoPintar(){
+  const el=document.getElementById('bcra-aviso');
+  if(!el)return;
+  const ks=Object.keys(BCRA_SERIES).filter(k=>BCRA_ESTADO[k]);
+  if(!ks.length){el.style.display='none';el.textContent='';return;}
+  const fd=f=>f.split('-').reverse().join('/');
+  el.textContent='⚠ BCRA sin respuesta · '+ks.map(k=>{
+    const e=BCRA_ESTADO[k],n=BCRA_SERIES[k].nombre;
+    return e.sinDatos?`${n} sin datos`:`${n} del ${e.guardado?bcraFechaHora(e.guardado).slice(0,5):'—'}`;
+  }).join(' · ');
+  el.title=ks.map(k=>{
+    const e=BCRA_ESTADO[k],n=BCRA_SERIES[k].nombre;
+    const motivo=e.motivo?e.motivo.charAt(0).toUpperCase()+e.motivo.slice(1):'';
+    return e.sinDatos?`${n}: no hay serie guardada en este navegador. ${motivo}.`
+      :`${n}: se usa la serie guardada el ${e.guardado?bcraFechaHora(e.guardado):'—'}, con datos hasta el ${fd(e.ultimo)}. ${motivo}.`;
+  }).join('\n')+'\nSe vuelve a pedir sola cada cinco minutos. Clic para pedirla ahora.';
+  el.style.display='inline-flex';
+}
+function bcraReintentarTodo(){
+  const el=document.getElementById('bcra-aviso');
+  if(el)el.textContent='⚠ BCRA: pidiendo de nuevo…';
+  for(const k of Object.keys(BCRA_ESTADO))try{BCRA_SERIES[k].reintentar();}catch(e){}
+}
+
 // ── MAE: mayorista y futuros de dólar en vivo ─────────────────────────────────
 // El A3500 no es un precio en vivo: es un fix que el BCRA publica una vez por día
 // (serie DLK_ID=5, que ya cargamos en DLK_INDEX). Lo que cotiza durante la rueda
@@ -6368,14 +6487,7 @@ function tamarIndexGet(dateStr){
 }
 
 async function tamarFetchPage(desde,limit,offset){
-  const url=`${WORKER_URL}?id=${TAMAR_ID}&desde=${desde}&limit=${limit}&offset=${offset}`;
-  const res=await fetch(url,{signal:AbortSignal.timeout(15000)});
-  if(!res.ok)return null;
-  const json=await res.json();
-  if(json.results&&json.results[0]&&json.results[0].detalle){
-    return{results:json.results[0].detalle, metadata:json.metadata};
-  }
-  return json;
+  return bcraPedirPagina(`${WORKER_URL}?id=${TAMAR_ID}&desde=${desde}&limit=${limit}&offset=${offset}`);
 }
 
 async function tamarFetchIndex(force=false){
@@ -6393,6 +6505,8 @@ async function tamarFetchIndex(force=false){
         }
       }
     }catch(e){}
+    const g=bcraCacheLeer(TAMAR_CACHE_KEY);
+    if(!TAMAR_INDEX.length&&g)TAMAR_INDEX=g.data;
   }
 
   if(st){st.textContent='TAMAR: cargando…';st.className='api-status loading';}
@@ -6403,7 +6517,6 @@ async function tamarFetchIndex(force=false){
     const LIMIT=3000;
     while(true){
       const page=await tamarFetchPage(DESDE,LIMIT,offset);
-      if(!page)break;
       const items=page.results||[];
       allResults.push(...items);
       const total=page.metadata?.resultset?.count||0;
@@ -6411,10 +6524,7 @@ async function tamarFetchIndex(force=false){
       offset+=LIMIT;
     }
 
-    if(!allResults.length){
-      if(st){st.textContent='TAMAR: sin datos';st.className='api-status err';}
-      return false;
-    }
+    if(!allResults.length)return bcraSinRespuesta('tamar','el BCRA no devolvió registros');
 
     TAMAR_INDEX=allResults
       .filter(r=>r.fecha&&r.valor!=null)
@@ -6423,6 +6533,7 @@ async function tamarFetchIndex(force=false){
       .sort((a,b)=>a.fecha.localeCompare(b.fecha));
 
     try{localStorage.setItem(TAMAR_CACHE_KEY,JSON.stringify({ts:Date.now(),data:TAMAR_INDEX}));}catch(e){}
+    bcraOk('tamar');
     proyInvalidar(); // cambió el promedio de 5 días, base del sendero plano
 
     const last=TAMAR_INDEX[TAMAR_INDEX.length-1];
@@ -6433,8 +6544,7 @@ async function tamarFetchIndex(force=false){
     if(currentTab==='tamar') tamarRenderTabChart();
     return true;
   }catch(e){
-    if(st){st.textContent='TAMAR: error: '+e.message;st.className='api-status err';}
-    return false;
+    return bcraSinRespuesta('tamar',e.message);
   }
 }
 
@@ -6451,14 +6561,7 @@ function dlkIndexGet(dateStr){
 }
 
 async function dlkFetchPage(desde,limit,offset){
-  const url=`${WORKER_URL}?id=${DLK_ID}&desde=${desde}&limit=${limit}&offset=${offset}`;
-  const res=await fetch(url,{signal:AbortSignal.timeout(15000)});
-  if(!res.ok)return null;
-  const json=await res.json();
-  if(json.results&&json.results[0]&&json.results[0].detalle){
-    return{results:json.results[0].detalle,metadata:json.metadata};
-  }
-  return json;
+  return bcraPedirPagina(`${WORKER_URL}?id=${DLK_ID}&desde=${desde}&limit=${limit}&offset=${offset}`);
 }
 
 async function dlkFetchIndex(force=false){
@@ -6477,6 +6580,8 @@ async function dlkFetchIndex(force=false){
         }
       }
     }catch(e){}
+    const g=bcraCacheLeer(DLK_CACHE_KEY);
+    if(!DLK_INDEX.length&&g){DLK_INDEX=g.data;dlkRenderIndexStrip();a3500Pintar();}
   }
   if(st){st.textContent='DLK: cargando…';st.className='api-status loading';}
   try{
@@ -6486,17 +6591,13 @@ async function dlkFetchIndex(force=false){
     const LIMIT=3000;
     while(true){
       const page=await dlkFetchPage(DESDE,LIMIT,offset);
-      if(!page)break;
       const items=page.results||[];
       allResults.push(...items);
       const total=page.metadata?.resultset?.count||0;
       if(!items.length||allResults.length>=total)break;
       offset+=LIMIT;
     }
-    if(!allResults.length){
-      if(st){st.textContent='DLK: sin datos';st.className='api-status err';}
-      return false;
-    }
+    if(!allResults.length)return bcraSinRespuesta('dlk','el BCRA no devolvió registros');
     DLK_INDEX=allResults
       .filter(r=>r.fecha&&r.valor!=null)
       .map(r=>({fecha:(r.fecha||'').split('T')[0],valor:parseFloat(r.valor)}))
@@ -6523,6 +6624,7 @@ async function dlkFetchIndex(force=false){
         <pre style="color:var(--accent2);margin:2px 0">${JSON.stringify(DLK_INDEX[DLK_INDEX.length-1])}</pre>
       </div>`;
     try{localStorage.setItem(DLK_CACHE_KEY,JSON.stringify({ts:Date.now(),data:DLK_INDEX}));}catch(e){}
+    bcraOk('dlk');
     proyInvalidar();
     const last=DLK_INDEX[DLK_INDEX.length-1];
     const prev=DLK_INDEX[DLK_INDEX.length-2];
@@ -6540,8 +6642,7 @@ async function dlkFetchIndex(force=false){
     if(force&&DLK_BONDS.length) dlkFetchPrices();
     return true;
   }catch(e){
-    if(st){st.textContent='DLK: error: '+e.message;st.className='api-status err';}
-    return false;
+    return bcraSinRespuesta('dlk',e.message);
   }
 }
 
@@ -6615,19 +6716,7 @@ function cerIndexGet(dateStr){
 }
 
 async function cerFetchPage(desde,limit,offset){
-  const url=`${WORKER_URL}?id=30&desde=${desde}&limit=${limit}&offset=${offset}`;
-  const res=await fetch(url,{signal:AbortSignal.timeout(15000)});
-  if(!res.ok)return null;
-  const json=await res.json();
-  // v4 estructura: {results:[{idVariable:30, detalle:[{fecha,valor}]}]}
-  // extraer detalle del primer resultado
-  if(json.results&&json.results[0]&&json.results[0].detalle){
-    return {
-      results: json.results[0].detalle,
-      metadata: json.metadata
-    };
-  }
-  return json;
+  return bcraPedirPagina(`${WORKER_URL}?id=30&desde=${desde}&limit=${limit}&offset=${offset}`);
 }
 
 async function cerFetchIndex(force=false){
@@ -6650,6 +6739,9 @@ async function cerFetchIndex(force=false){
         }
       }
     }catch(e){}
+    // Vencida, se pinta igual mientras llega la nueva.
+    const g=bcraCacheLeer(CER_CACHE_KEY);
+    if(!CER_INDEX.length&&g&&g.data.length>100){CER_INDEX=g.data;cerRenderIndexStrip();}
   }
 
   if(st){st.textContent='CER: cargando…';st.className='api-status loading';}
@@ -6663,7 +6755,7 @@ async function cerFetchIndex(force=false){
 
     while(true){
       const page=await cerFetchPage(DESDE,LIMIT,offset);
-      if(!page||!page.results||!page.results.length)break;
+      if(!page.results||!page.results.length)break;
       allResults=allResults.concat(page.results);
       if(st)st.textContent=`CER: ${allResults.length} registros…`;
       const total=page.metadata?.resultset?.count;
@@ -6672,10 +6764,7 @@ async function cerFetchIndex(force=false){
       offset+=LIMIT;
     }
 
-    if(!allResults.length){
-      if(st){st.textContent='CER: sin datos';st.className='api-status err';}
-      return false;
-    }
+    if(!allResults.length)return bcraSinRespuesta('cer','el BCRA no devolvió registros');
 
     // debug: loguear primer registro para verificar estructura
     console.log('CER primer registro:', JSON.stringify(allResults[0]));
@@ -6687,6 +6776,7 @@ async function cerFetchIndex(force=false){
       .sort((a,b)=>a.fecha.localeCompare(b.fecha));
 
     try{localStorage.setItem(CER_CACHE_KEY,JSON.stringify({ts:Date.now(),data:CER_INDEX}));}catch(e){}
+    bcraOk('cer');
 
     const last=CER_INDEX[CER_INDEX.length-1];
     const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
@@ -6713,8 +6803,7 @@ async function cerFetchIndex(force=false){
     return true;
 
   }catch(e){
-    if(st){st.textContent='error: '+e.message;st.className='api-status err';}
-    return false;
+    return bcraSinRespuesta('cer',e.message);
   }
 }
 

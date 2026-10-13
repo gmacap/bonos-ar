@@ -3626,6 +3626,78 @@ const omitir = (label, motivo) =>
         'los grises de texto se leen en los tres temas, y los ejes de los gráficos usan el del tema',
         JSON.stringify(contraste));
 
+  // El BCRA a veces no contesta. Cada página se reintenta con más espera, una
+  // página que falta en el medio no deja una serie a medias, y sin respuesta
+  // queda la serie guardada con un aviso arriba que se va cuando contesta. Se
+  // simula con un fetch falso para el CER; todo lo demás va a la red de verdad.
+  console.log('\nSeries del BCRA sin respuesta');
+  const bcra = await page.evaluate(async () => {
+    const out = {};
+    const copia = CER_INDEX.slice();
+    if (copia.length < 100) return { sinCer: true };
+    const fetchReal = window.fetch, esperas = BCRA_ESPERAS;
+    const cacheReal = localStorage.getItem(CER_CACHE_KEY);
+    BCRA_ESPERAS = [200, 200, 200];
+    const respuesta = (filas, total) => new Response(JSON.stringify({
+      status: 200, metadata: { resultset: { count: total } }, results: [{ idVariable: 30, detalle: filas }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const esCer = u => /workers\.dev\/cer\?id=30&/.test(String(u));
+    const url = `${WORKER_URL}?id=30&desde=2002-01-01&limit=3000&offset=0`;
+    try {
+      // Dos fallas y a la tercera contesta; tres fallas y lanza.
+      let n = 0;
+      window.fetch = (u, o) => esCer(u) ? (++n < 3 ? Promise.reject(new TypeError('red')) : Promise.resolve(respuesta(copia, copia.length))) : fetchReal(u, o);
+      const p = await bcraPedirPagina(url);
+      out.reintenta = n === 3 && p.results.length === copia.length;
+      n = 0;
+      window.fetch = (u, o) => esCer(u) ? (n++, Promise.reject(new TypeError('red'))) : fetchReal(u, o);
+      try { await bcraPedirPagina(url); out.lanza = false; } catch (e) { out.lanza = n === 3 && /no respondió/.test(e.message); }
+
+      // La primera página llega y la segunda no: ni serie a medias ni guardada.
+      window.fetch = (u, o) => esCer(u)
+        ? (/offset=0(&|$)/.test(String(u)) ? Promise.resolve(respuesta(copia.slice(0, 3000), copia.length)) : Promise.reject(new TypeError('red')))
+        : fetchReal(u, o);
+      await cerFetchIndex(true);
+      out.sinMedias = CER_INDEX.length === copia.length && localStorage.getItem(CER_CACHE_KEY) === cacheReal;
+
+      // Abre con la guardada vencida y el BCRA no contesta: se pinta la guardada
+      // antes de pedir, queda con el aviso de qué día es y se reintenta sola.
+      const viejo = Date.now() - 3 * 24 * 3600 * 1000;
+      localStorage.setItem(CER_CACHE_KEY, JSON.stringify({ ts: viejo, data: copia }));
+      CER_INDEX = [];
+      window.fetch = (u, o) => esCer(u) ? Promise.reject(new TypeError('red')) : fetchReal(u, o);
+      const pendiente = cerFetchIndex();
+      out.alAbrir = CER_INDEX.length === copia.length;
+      await pendiente;
+      const av = document.getElementById('bcra-aviso');
+      out.aviso = av && av.style.display !== 'none' ? av.textContent : null;
+      out.avisoFecha = !!out.aviso && out.aviso.includes('CER del ' + bcraFechaHora(viejo).slice(0, 5));
+      out.reintento = !!BCRA_TIMERS.cer;
+      out.siguen = CER_INDEX.length === copia.length;
+
+      // Contesta: el aviso se va y deja de reintentar.
+      window.fetch = (u, o) => esCer(u) ? Promise.resolve(respuesta(copia, copia.length)) : fetchReal(u, o);
+      await cerFetchIndex(true);
+      out.vuelve = !BCRA_ESTADO.cer && !BCRA_TIMERS.cer && av.style.display === 'none' && CER_INDEX.length === copia.length;
+    } finally {
+      window.fetch = fetchReal; BCRA_ESPERAS = esperas;
+      clearTimeout(BCRA_TIMERS.cer); delete BCRA_TIMERS.cer; delete BCRA_ESTADO.cer; bcraAvisoPintar();
+      CER_INDEX = copia;
+      if (cacheReal != null) localStorage.setItem(CER_CACHE_KEY, cacheReal);
+    }
+    return out;
+  });
+  if (bcra.sinCer) omitir('series del BCRA sin respuesta', 'no hay CER cargado para simularlo');
+  else {
+    check(bcra.reintenta && bcra.lanza, 'cada página del BCRA se pide hasta tres veces, y si no contesta falla en vez de cortar la serie',
+          JSON.stringify({ reintenta: bcra.reintenta, lanza: bcra.lanza }));
+    check(bcra.sinMedias, 'una página que falta en el medio no deja la serie a medias ni la guarda');
+    check(bcra.alAbrir && bcra.siguen && bcra.avisoFecha && bcra.reintento,
+          'sin respuesta del BCRA queda la serie guardada aunque esté vencida, con el aviso de qué día es, y se reintenta sola',
+          bcra.aviso || JSON.stringify(bcra));
+    check(bcra.vuelve, 'cuando el BCRA contesta, el aviso se va');
+  }
+
   // Modelos de curva: cada uno recupera su propia forma, el mejor ajuste elige
   // el verdadero, la banda es de ±1σ y el selector repinta los gráficos.
   console.log('\nModelos de curva');
