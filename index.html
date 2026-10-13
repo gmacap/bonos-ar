@@ -11364,7 +11364,11 @@ function beTableroRender(){
       +`Proyectada: de hoy a ${v.proy?fmtN(v.proy.tc1,2)+' el '+v.proy.f1.split('-').reverse().join('/')+', sendero de Proyecciones con '+v.proy.fuente:'—'}.`
       :'Sin A3500 todavía.');
 
-  if(!TAB_CAU&&!TAB_CAU_PIDIENDO&&Date.now()-TAB_CAU_FALLO>5*60*1000)tabCauTraer();
+  // La caución se pide después de las series que valúan los bonos: en el
+  // arranque van todas al BCRA por el mismo Worker, y el BCRA a veces se cuelga.
+  // Cada índice que llega pasa por proyInvalidar, que vuelve a pintar acá.
+  if(!TAB_CAU&&!TAB_CAU_PIDIENDO&&Date.now()-TAB_CAU_FALLO>5*60*1000
+     &&CER_INDEX.length&&DLK_INDEX.length&&TAMAR_INDEX.length)tabCauTraer();
 }
 
 // ══════════════════════════════════════════════ TAMAR REAL CONTRA CER (betr)
