@@ -4532,14 +4532,15 @@ const omitir = (label, motivo) =>
   });
   if (pxUsd.famDelBono == null) omitir('el globo de los Bonares', 'sin precios en vivo');
   else {
-    check(/TIR .*% · MD .*· (US\$|\$)[\d.,]+$/.test(pxUsd.fam || ''),
+    // Sin precio de hoy el globo agrega "(cierre dd/mm)": es el precio igual.
+    check(/TIR .*% · MD .*· (US\$|\$)[\d.,]+( \(cierre (\d{2}\/\d{2}|ant\.)\))?$/.test(pxUsd.fam || ''),
           'el globo de los Bonares cierra con el precio', pxUsd.fam);
     check(pxUsd.famPrecio === pxUsd.famDelBono,
           'y es el precio que muestra la tabla, en la moneda del selector',
           `${pxUsd.famPrecio} vs ${pxUsd.famDelBono} (${pxUsd.moneda})`);
   }
   if (!pxUsd.res) omitir('el globo del Resumen USD', 'sin precios en vivo');
-  else check(/MD .*TIR .*% · (US\$|\$)[\d.,]+$/.test(pxUsd.res),
+  else check(/MD .*TIR .*% · (US\$|\$)[\d.,]+( \(cierre (\d{2}\/\d{2}|ant\.)\))?$/.test(pxUsd.res),
              'el globo del Resumen USD cierra con el precio', pxUsd.res);
 
   // En Series el precio no sale del bono en memoria sino del snapshot de esa
