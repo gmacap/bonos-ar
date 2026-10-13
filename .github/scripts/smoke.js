@@ -4351,8 +4351,16 @@ const omitir = (label, motivo) =>
     const out = {};
     const liq = G_LIQ || addHabiles(TODAY, 1);
     // La ventana de TAMAR sin corte tiene que dar lo mismo que la solapa TAMAR.
-    const bono = TAMAR_BONDS.find(b => b.vcto && b.emision && b.precio > 0 &&
-      diasACT(liq, parseDate(b.vcto)) > 60 && tamarEnrich(b)._debug);
+    // El bono es el que menos amplifica el precio, (devengados + a proyectar) /
+    // a proyectar: con el primero que venciera, cerca del fixing, medio punto de
+    // precio en la rueda movía la tabla cinco puntos y la comparación de abajo
+    // contra el precio archivado fallaba según la hora. Sin duales: su precio
+    // tiene la otra pata.
+    const amplifica = b => { const v = betrVentanaTamar(b, null); return v && v.P > 0 ? (v.T + v.P) / v.P : Infinity; };
+    const bono = TAMAR_BONDS.filter(b => b.vcto && b.emision && b.precio > 0 &&
+      diasACT(liq, parseDate(b.vcto)) > 60 && tamarEnrich(b)._debug &&
+      !CER_BONDS.some(c => c.ticker === b.ticker) && !DLK_BONDS.some(c => c.ticker === b.ticker))
+      .sort((x, y) => amplifica(x) - amplifica(y))[0];
     if (!bono) return { sinBono: true };
     const d = tamarEnrich(bono)._debug;
     const v = betrVentanaTamar(bono, null);
