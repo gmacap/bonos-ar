@@ -3597,6 +3597,35 @@ const omitir = (label, motivo) =>
         JSON.stringify({ cambia: tab.cambia, guardado: tab.guardado, mismo: tab.mismoSelect, sigue: tab.siguePuesto }));
   check(tab.sinBasura, 'el tablero no muestra undefined, NaN ni null', tab.texto.slice(0, 160));
 
+  // Los grises de texto se tienen que leer: 4,5:1 contra el fondo y las dos
+  // superficies en los tres temas, que es el mínimo para texto chico. El gris
+  // tenue de antes daba 2,2:1 en el tema oscuro. Los ejes de los gráficos usan
+  // el mismo gris del tema.
+  const contraste = await page.evaluate(() => {
+    const lum = hex => {
+      const h = hex.replace('#', '');
+      return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+        .map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+        .reduce((a, c, i) => a + c * [0.2126, 0.7152, 0.0722][i], 0);
+    };
+    const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const previo = localStorage.getItem('bonosAR_theme') || 'dark';
+    const out = { peor: {}, ejes: {} };
+    for (const t of ['dark', 'mid', 'light']) {
+      setTheme(t);
+      const cs = getComputedStyle(document.body), v = k => cs.getPropertyValue(k).trim();
+      let peor = Infinity;
+      for (const txt of ['--text2', '--text3']) for (const f of ['--bg', '--surface', '--surface2']) peor = Math.min(peor, cr(v(txt), v(f)));
+      out.peor[t] = +peor.toFixed(2);
+      out.ejes[t] = colGris() === v('--text3') && Chart.defaults.color === v('--text3');
+    }
+    setTheme(previo);
+    return out;
+  });
+  check(Object.values(contraste.peor).every(x => x >= 4.5) && Object.values(contraste.ejes).every(Boolean),
+        'los grises de texto se leen en los tres temas, y los ejes de los gráficos usan el del tema',
+        JSON.stringify(contraste));
+
   // Modelos de curva: cada uno recupera su propia forma, el mejor ajuste elige
   // el verdadero, la banda es de ±1σ y el selector repinta los gráficos.
   console.log('\nModelos de curva');

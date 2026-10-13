@@ -16,7 +16,10 @@
   --alto-barras:113px; --alto-barras-usd:149px;
   --bg:#0d0f0e;--surface:#141715;--surface2:#1a1d1b;
   --border:#252825;--border2:#2e322e;
-  --text:#e8ede9;--text2:#8a9489;--text3:#4d554e;
+  /* Contraste contra --bg, --surface y --surface2: --text3 entre 4,5 y 5,1:1,
+     el mínimo para texto chico; --text2 entre 7,3 y 8,3:1, para que los dos
+     grises se sigan distinguiendo. El --text3 de antes daba 2,2:1. */
+  --text:#e8ede9;--text2:#a3ada2;--text3:#7d867d;
   --accent:#a8d5a2;--accent2:#6eb868;--accent-dim:#1a2e1a;
   --warn:#d4a96a;--warn-dim:#2e2412;
   --info:#7ab3d4;--info-dim:#121f2a;
@@ -27,7 +30,8 @@
 body.theme-mid{
   --bg:#1a1f1b;--surface:#222722;--surface2:#2a302a;
   --border:#333a33;--border2:#3d453d;
-  --text:#d8e8d9;--text2:#8aaa8b;--text3:#5a726b;
+  /* --text3 entre 4,6 y 5,7:1; --text2 entre 7,3 y 9:1. */
+  --text:#d8e8d9;--text2:#a9c6aa;--text3:#869b91;
   --accent:#8ecc88;--accent2:#5aaa54;--accent-dim:#1a2e1a;
   --warn:#d4a96a;--warn-dim:#2e2412;
   --info:#7ab3d4;--info-dim:#162130;
@@ -3387,13 +3391,13 @@ function usdFamChartRender(fam){
       },
       scales:{
         x:{type:'linear',
-          title:{display:true,text:'Modified Duration',color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
-          ticks:{color:'#4d554e',font:{size:10,family:'DM Mono, monospace'},callback:function(v){return v.toFixed(2);}},
+          title:{display:true,text:'Modified Duration',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'},callback:function(v){return v.toFixed(2);}},
           grid:{color:'#252825'},
         },
         y:{
-          title:{display:true,text:'TIR (%)',color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
-          ticks:{color:'#4d554e',font:{size:10,family:'DM Mono, monospace'},callback:function(v){return v.toFixed(2)+'%';}},
+          title:{display:true,text:'TIR (%)',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'},callback:function(v){return v.toFixed(2)+'%';}},
           grid:{color:'#252825'},
         },
       },
@@ -4890,14 +4894,14 @@ function renderChart(){
       },
       scales:{
         x:{
-          title:{display:true,text:'Días al vencimiento',color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
-          ticks:{color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
+          title:{display:true,text:'Días al vencimiento',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
           grid:{color:'#252825'},
           type:'linear',
         },
         y:{
-          title:{display:true,text:axisLabels[chartMode],color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
-          ticks:{color:'#4d554e',font:{size:10,family:'DM Mono, monospace'},callback:v=>v.toFixed(2)+'%'},
+          title:{display:true,text:axisLabels[chartMode],color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'},callback:v=>v.toFixed(2)+'%'},
           grid:{color:'#252825'},
         },
       },
@@ -8352,7 +8356,7 @@ function proyRenderChartTamar(){
           }}}},
       scales:{
         x:{type:'linear',min:ts(desdeF),max:ts(hastaF),
-          ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:false,
+          ticks:{color:colGris(),font:{size:9},maxRotation:0,autoSkip:false,
             callback:v=>proyMesLabel(fmtDate(new Date(v)).substring(0,7))},
           // Una marca por mes, pero sólo las que caen dentro de lo que se ve: si
           // no, al ampliar el eje sigue rotulando meses que ya no están.
@@ -8365,7 +8369,7 @@ function proyRenderChartTamar(){
         // que no son redondos y sin esto la etiqueta sale con quince decimales
         // y se come el ancho del dibujo.
         y:{position:'left',min:minV<0?Math.floor(minV/5)*5:0,
-          ticks:{color:'#6b7280',font:{size:9},callback:v=>(+v).toFixed(1)+'%'},
+          ticks:{color:colGris(),font:{size:9},callback:v=>(+v).toFixed(1)+'%'},
           grid:{color:c=>c.tick&&c.tick.value===0?'rgba(107,114,128,.45)':'rgba(107,114,128,.12)'}}}},
     plugins:[proyPluginFuturo(ch=>ch.scales.x.getPixelForValue(hoyTs))]
   });
@@ -8428,7 +8432,7 @@ function proyRenderChartTcn(){
 
   const escalas={
     x:{type:'linear',min:ts(desdeF),max:ts(hastaF),
-      ticks:{color:'#6b7280',font:{size:9},maxRotation:0,autoSkip:false,
+      ticks:{color:colGris(),font:{size:9},maxRotation:0,autoSkip:false,
         callback:v=>proyMesLabel(fmtDate(new Date(v)).substring(0,7))},
       // Una marca por mes, pero sólo las que caen dentro de lo que se ve: si no,
       // al ampliar el eje sigue rotulando meses que ya no están en pantalla.
@@ -8437,7 +8441,7 @@ function proyRenderChartTcn(){
           .filter(t=>t.value>=ax.min&&t.value<=ax.max);
       },
       grid:{display:false}},
-    y:{position:'left',ticks:{color:'#6b7280',font:{size:9},callback:v=>'$'+Math.round(v)},
+    y:{position:'left',ticks:{color:colGris(),font:{size:9},callback:v=>'$'+Math.round(v)},
       grid:{color:'rgba(107,114,128,.12)'}},
   };
 
@@ -11290,10 +11294,10 @@ function tabMontar(el){
   };
   const tile=(k,titulo)=>`<div id="tab-${k}" style="flex:1 0 210px;min-width:210px;padding:4px 14px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:1px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="font-size:9px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">${titulo}</span>${sel(k)}
+        <span style="font-size:10px;font-family:var(--mono);color:var(--text2);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">${titulo}</span>${sel(k)}
       </div>
       <div id="tab-${k}-v" style="display:flex;align-items:baseline;gap:14px;font-family:var(--mono);line-height:1.15;white-space:nowrap"></div>
-      <div id="tab-${k}-s" style="font-size:9px;font-family:var(--mono);color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      <div id="tab-${k}-s" style="font-size:10px;font-family:var(--mono);color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
     </div>`;
   el.innerHTML=tile('cau','Caución')+tile('infla','Inflación')+tile('treal','TAMAR real')+tile('deval','Devaluación');
   el.dataset.tab='2';
@@ -11310,7 +11314,7 @@ function beTableroRender(){
     if(s&&document.activeElement!==s&&s.value!==d.n[k])s.value=d.n[k];
   }
   const num=(v,etq,color,tip)=>`<span${tip?` title="${betrEsc(tip)}"`:''}><span style="font-size:16px;font-weight:600;color:${color}">${v!=null&&isFinite(v)?fmtP2(v):'—'}</span>`
-    +` <span style="font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">${etq}</span></span>`;
+    +` <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">${etq}</span></span>`;
   const poner=(k,valores,abajo,tip)=>{
     const v=document.getElementById(`tab-${k}-v`),s=document.getElementById(`tab-${k}-s`),t=document.getElementById(`tab-${k}`);
     if(v)v.innerHTML=valores;
@@ -12018,8 +12022,8 @@ function dualRenderChart(filas){
           anchor:'end',align:'top',offset:3,clamp:true,clip:false,overlap:false}
       },
       scales:{
-        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Días',color:'#6b7c6b',font:{size:9}}},
-        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:yLabel,color:'#6b7c6b',font:{size:9}}}
+        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9}},title:{display:true,text:'Días',color:colGris(),font:{size:9}}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:yLabel,color:colGris(),font:{size:9}}}
       }
     }
   });
@@ -12707,6 +12711,17 @@ equivInit();
 snapEstadoRefrescar();
 
 // ══════════════════════════════════════════════════════════════ THEME
+// El gris de los ejes y las leyendas de los gráficos es el --text3 del tema
+// activo: estaba escrito fijo en un gris que sobre el fondo oscuro no se leía.
+// Es función declarada para que la vean los gráficos de más arriba.
+function colGris(){
+  try{return getComputedStyle(document.body).getPropertyValue('--text3').trim()||'#7d867d';}
+  catch(e){return'#7d867d';}
+}
+function chartColorDefecto(){
+  try{if(window.Chart&&Chart.defaults)Chart.defaults.color=colGris();}catch(e){}
+}
+chartColorDefecto();
 function setTheme(t){
   document.body.classList.remove('theme-mid','theme-light');
   if(t==='mid')document.body.classList.add('theme-mid');
@@ -12716,6 +12731,7 @@ function setTheme(t){
     if(b)b.classList.toggle('active',x===t);
   });
   try{localStorage.setItem('bonosAR_theme',t);}catch(e){}
+  chartColorDefecto();
   // resize charts after theme change
   [curveChart,beChartTF,beChartCER,cerTabChart,tamarTabChart,dlkTabChart].forEach(c=>{if(c)c.resize();});
 }
@@ -13496,8 +13512,8 @@ function beRenderChartTF(){
         }
       },
       scales:{
-        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Días',color:'#6b7c6b',font:{size:9}}},
-        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:beChartTFMode.toUpperCase()+' (%)',color:'#6b7c6b',font:{size:9}}}
+        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9}},title:{display:true,text:'Días',color:colGris(),font:{size:9}}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:beChartTFMode.toUpperCase()+' (%)',color:colGris(),font:{size:9}}}
       }
     }
   });
@@ -13578,8 +13594,8 @@ function beRenderChartCER(){
         }
       },
       scales:{
-        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Días',color:'#6b7c6b',font:{size:9}}},
-        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:modeLabel,color:'#6b7c6b',font:{size:9}}}
+        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9}},title:{display:true,text:'Días',color:colGris(),font:{size:9}}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:modeLabel,color:colGris(),font:{size:9}}}
       }
     }
   });
@@ -13620,8 +13636,8 @@ function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel,clave){
           overlap:false}
       },
       scales:{
-        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Días',color:'#6b7c6b',font:{size:9}}},
-        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:yLabel,color:'#6b7c6b',font:{size:9}}}
+        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9}},title:{display:true,text:'Días',color:colGris(),font:{size:9}}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:yLabel,color:colGris(),font:{size:9}}}
       }
     }
   });
@@ -16545,13 +16561,13 @@ function slegChartRender(rows){
       },
       scales:{
         x:{type:'linear',
-          title:{display:true,text:'Vencimiento',color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
-          ticks:{color:'#4d554e',font:{size:10,family:'DM Mono, monospace'},callback:function(v){return Math.round(v);}},
+          title:{display:true,text:'Vencimiento',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'},callback:function(v){return Math.round(v);}},
           grid:{color:'#252825'},
         },
         y:{
-          title:{display:true,text:'Spread (%)',color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
-          ticks:{color:'#4d554e',font:{size:10,family:'DM Mono, monospace'},callback:function(v){return v.toFixed(2)+'%';}},
+          title:{display:true,text:'Spread (%)',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'},callback:function(v){return v.toFixed(2)+'%';}},
           grid:{color:'#252825'},
         },
       },
@@ -16829,9 +16845,9 @@ function slegHistDibujar(f){
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
       plugins:{datalabels:{display:false},legend:{display:true,position:'top',labels:{color:'#8a9a8a',boxWidth:10,font:{size:10}}},
         tooltip:{filter:it=>it.datasetIndex===0,callbacks:{title:c=>c[0]?betrF(deDia(c[0].raw.x)):'',label:c=>`${Math.round(c.raw.y)} pb`}}},
-      scales:{x:{type:'linear',min:x0,max:x1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},maxTicksLimit:10,
+      scales:{x:{type:'linear',min:x0,max:x1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9},maxTicksLimit:10,
           callback:n=>{const d=deDia(n);return`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(2,4)}`;}}},
-        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Spread (pb)',color:'#6b7c6b',font:{size:9}}}}}});
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9}},title:{display:true,text:'Spread (pb)',color:colGris(),font:{size:9}}}}}});
 }
 
 // ── DESVÍO HISTÓRICO CONTRA LA CURVA ────────────────────────────────────────
@@ -17072,9 +17088,9 @@ function desvDibujar(sec,f){
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
       plugins:{datalabels:{display:false},legend:{display:true,position:'top',labels:{color:'#8a9a8a',boxWidth:10,font:{size:10}}},
         tooltip:{filter:it=>it.datasetIndex===0,callbacks:{title:q=>q[0]?betrF(deDia(q[0].raw.x)):'',label:q=>`${q.raw.y>=0?'+':''}${Math.round(q.raw.y)} pb`}}},
-      scales:{x:{type:'linear',min:x0,max:x1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},maxTicksLimit:8,
+      scales:{x:{type:'linear',min:x0,max:x1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9},maxTicksLimit:8,
           callback:n=>{const d=deDia(n);return`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(2,4)}`;}}},
-        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:'Desvío (pb)',color:'#6b7c6b',font:{size:9}}}}}});
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9}},title:{display:true,text:'Desvío (pb)',color:colGris(),font:{size:9}}}}}});
 }
 
 // ── A/B: dos instrumentos frente a frente ───────────────────────────────────
@@ -17289,8 +17305,8 @@ function abDibujar(sec,res){
   const ds=res.series.map(s=>({label:s.label,data:s.y.map((v,i)=>v==null?null:{x:xs[i],y:+(+v).toFixed(4)}).filter(Boolean),
     borderColor:s.k==='rel'?'rgba(232,232,232,0.75)':AB_COLOR[s.k],borderDash:s.k==='rel'?[5,4]:[],
     borderWidth:s.k==='rel'?1.3:1.8,pointRadius:0,showLine:true,tension:0,fill:false,yAxisID:s.eje}));
-  const escala=(titulo,pos,grid)=>({position:pos,grid:{color:grid?'rgba(255,255,255,0.05)':'transparent'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:titulo,color:'#6b7c6b',font:{size:9}}});
-  const scales={x:{type:'linear',min:xs[0],max:xs[xs.length-1],grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},maxTicksLimit:10,
+  const escala=(titulo,pos,grid)=>({position:pos,grid:{color:grid?'rgba(255,255,255,0.05)':'transparent'},ticks:{color:colGris(),font:{size:9}},title:{display:true,text:titulo,color:colGris(),font:{size:9}}});
+  const scales={x:{type:'linear',min:xs[0],max:xs[xs.length-1],grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9},maxTicksLimit:10,
       callback:n=>{const d=deDia(n);return`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(2,4)}`;}}},
     y:escala(res.ejeY,'left',true)};
   if(res.ejes===2)scales.y2=escala(res.ejeY2,'right',false);
@@ -18632,13 +18648,13 @@ function usdResChartRender(enriched){
       },
       scales:{
         x:{
-          title:{display:true,text:'Duración Modificada',color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
-          ticks:{color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
+          title:{display:true,text:'Duración Modificada',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
           grid:{color:'#1e2420'},
         },
         y:{
-          title:{display:true,text:'TIR (%)',color:'#4d554e',font:{size:10,family:'DM Mono, monospace'}},
-          ticks:{color:'#4d554e',font:{size:10,family:'DM Mono, monospace'},callback:v=>v.toFixed(1)+'%'},
+          title:{display:true,text:'TIR (%)',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'},callback:v=>v.toFixed(1)+'%'},
           grid:{color:'#1e2420'},
         },
       },
@@ -21462,8 +21478,8 @@ async function retRenderCamino(sec,liq,corte){
           title:ctx=>ctx[0]?betrF(deDia(ctx[0].raw.x)):'',
           label:ctx=>`${ctx.dataset.label}: ${ctx.raw.y.toFixed(2)}`}}},
       scales:{
-        x:{type:'linear',min:d0,max:d1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9},maxTicksLimit:10,callback:fmtX}},
-        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#6b7c6b',font:{size:9}},title:{display:true,text:S.ejeY||fam.ejeY,color:'#6b7c6b',font:{size:9}}}}}});
+        x:{type:'linear',min:d0,max:d1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9},maxTicksLimit:10,callback:fmtX}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:colGris(),font:{size:9}},title:{display:true,text:S.ejeY||fam.ejeY,color:colGris(),font:{size:9}}}}}});
 
   // Las tarjetas
   const u=S.unidad;
