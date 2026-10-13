@@ -3479,18 +3479,9 @@ const omitir = (label, motivo) =>
       }
     }
     out.duales = beDevalBonos().filter(b => TAMAR_BONDS.some(t => t.ticker === b.ticker)).length;
-    // El tablero: cinco tarjetas, y las medianas son las de las tablas.
     switchSection('pesos'); switchTab('breakeven');
     await new Promise(r => setTimeout(r, 1500));
     beRefreshIfVisible();
-    const tb = document.getElementById('be-tablero');
-    out.tarjetas = tb ? tb.children.length : 0;
-    const dat = beTableroDatos();
-    const med = a => { const v = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y); const m = Math.floor(v.length / 2); return v.length ? (v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2) : null; };
-    const dv = beDevalBonos().map(beDevalCalcular).filter(r => !r.error);
-    out.medianaDeval = dat.deval.be == null || Math.abs(dat.deval.be - med(dv.map(r => r.devalBE))) < 1e-12;
-    const letras = (DATA.length ? DATA : LECAPS.map(enrich)).filter(r => r.precio > 0 && r.dias > 0 && isFinite(r.tna));
-    out.puntas = !dat.corta || (dat.corta.dias === Math.min(...letras.map(r => r.dias)) && dat.larga.dias === Math.max(...letras.map(r => r.dias)));
     out.tablaDeval = (document.getElementById('be-deval-tbody') || {}).children ? document.getElementById('be-deval-tbody').children.length : 0;
     return out;
   });
@@ -3505,9 +3496,106 @@ const omitir = (label, motivo) =>
           `${beDv.conBE}/${beDv.filas} con breakeven · ` + beDv.errores.slice(0, 3).join(' · '));
     check(beDv.tablaDeval === beDv.filas, 'la tabla BE · Devaluación del Resumen tiene una fila por dollar linked', `${beDv.tablaDeval} filas`);
   }
-  check(beDv.tarjetas === 5 && beDv.medianaDeval && beDv.puntas,
-        'el tablero del Resumen tiene sus cinco tarjetas, con las puntas de la curva y las medianas de las tablas',
-        JSON.stringify({ tarjetas: beDv.tarjetas, mediana: beDv.medianaDeval, puntas: beDv.puntas }));
+
+  // El tablero del Resumen: caución, inflación, TAMAR real y devaluación, cada
+  // una con su ventana. Lo realizado sale de las series y lo proyectado, del
+  // sendero de Proyecciones; las ventanas de inflación cortan en el último IPC
+  // publicado y no dejan un mes afuera.
+  console.log('\nTablero del Resumen');
+  const tab = await page.evaluate(async () => {
+    const out = { errores: [] };
+    const err = m => out.errores.push(m);
+    const cerca = (a, b, tol = 1e-9) => a != null && b != null && Math.abs(a - b) < tol;
+    switchSection('pesos'); switchTab('breakeven');
+    await new Promise(r => setTimeout(r, 800));
+    beRefreshIfVisible();
+    for (let i = 0; i < 40 && !TAB_CAU && !TAB_CAU_FALLO; i++) await new Promise(r => setTimeout(r, 500));
+    const tb = document.getElementById('be-tablero');
+    out.tarjetas = tb ? tb.children.length : 0;
+    out.opciones = ['cau', 'infla', 'treal', 'deval'].map(k => { const s = document.getElementById('tab-n-' + k); return s ? s.options.length : 0; });
+
+    if (tabMasMeses('2026-03-31', -1) !== '2026-02-28') err('un mes antes del 31/03 es el 28/02: ' + tabMasMeses('2026-03-31', -1));
+    if (tabMasMeses('2026-10-12', 12) !== '2027-10-12') err('doce meses después del 12/10/26: ' + tabMasMeses('2026-10-12', 12));
+
+    const filas = projCalcAcum();
+    const k = filas.map(r => r.tipo).lastIndexOf('publicado');
+    out.publicados = k + 1;
+    const geo = xs => (Math.pow(xs.reduce((a, x) => a * (1 + x / 100), 1), 1 / xs.length) - 1) * 100;
+    for (const n of [1, 3, 12]) {
+      const i = tabInfla(n), r = tabTReal(n), d = tabDeval(n);
+      if (k + 1 >= n) {
+        const ult = filas.slice(k - n + 1, k + 1), proy = filas.slice(k + 1, k + 1 + n);
+        if (!i.ult || !cerca(i.ult.v, geo(ult.map(x => x.inflaEfectiva)))) err(`inflación ${n}m realizada: ${i.ult && i.ult.v}`);
+        if (!i.ult || i.ult.hasta !== filas[k].mes) err(`inflación ${n}m no corta en el último publicado`);
+        if (!i.proy || !cerca(i.proy.v, geo(proy.map(x => x.inflaEfectiva)))) err(`inflación ${n}m proyectada: ${i.proy && i.proy.v}`);
+        if (i.ult && i.proy && i.proy.desde !== proyMesAdd(i.ult.hasta, 1)) err(`inflación ${n}m deja un mes afuera: ${i.ult.hasta} → ${i.proy.desde}`);
+        const porMes = new Map(PROJ_INFLACION.map(x => [x.mes, x]));
+        if (i.proy && proy.some(x => porMes.get(x.mes) && porMes.get(x.mes).infla == null) && !/plano/.test(i.proy.fuente))
+          err(`inflación ${n}m: un mes sin fuente tiene que decir plano (${i.proy.fuente})`);
+        for (const [lado, x] of [['realizada', r.ult], ['proyectada', r.proy]]) {
+          if (!x) { err(`TAMAR real ${n}m ${lado} vacía`); continue; }
+          const ref = lado === 'realizada' ? i.ult : i.proy;
+          if (x.desde !== ref.desde || x.hasta !== ref.hasta) err(`TAMAR real ${n}m ${lado}: otra ventana que la inflación`);
+          const a = x.det.reduce((p, m) => p * (1 + tamarTEM(m.tna) / 100) / (1 + m.infla / 100), 1);
+          if (!cerca(x.v, (Math.pow(a, 12 / n) - 1) * 100)) err(`TAMAR real ${n}m ${lado}: ${x.v}`);
+          for (const m of x.det) if (m.mes < proyMesHoy() && !cerca(m.tna, tamarPromMes(m.mes))) err(`TAMAR real: ${m.mes} no usa la TAMAR publicada`);
+        }
+      }
+      if (d.spot) {
+        const hoy = fmtDate(TODAY);
+        if (!d.ult || d.ult.f0 > tabMasMeses(hoy, -n)) err(`devaluación ${n}m: arranca después de la fecha pedida`);
+        else if (!cerca(d.ult.v, (Math.pow(d.spot / d.ult.tc0, 30.4 / diasACT(parseDate(d.ult.f0), TODAY)) - 1) * 100)) err(`devaluación ${n}m realizada: ${d.ult.v}`);
+        const f1 = tabMasMeses(hoy, n);
+        if (!d.proy || d.proy.f1 !== f1 || !cerca(d.proy.tc1, dlkTCProy(f1)) ||
+            !cerca(d.proy.v, (Math.pow(dlkTCProy(f1) / d.spot, 30.4 / diasACT(TODAY, parseDate(f1))) - 1) * 100))
+          err(`devaluación ${n}m proyectada: ${d.proy && d.proy.v}`);
+      }
+    }
+    out.spot = dlkTCHoy();
+
+    out.cauFallo = !TAB_CAU;
+    if (TAB_CAU) {
+      for (const n of ['1s', '1m', '12m']) {
+        const c = tabCaucion(n);
+        const vals = [...TAB_CAU].filter(([f, v]) => f > c.desde && f <= fmtDate(TODAY) && v > 0).map(x => x[1]);
+        if (!vals.length) { if (n !== '1s') err(`caución ${n}: sin ruedas`); continue; }
+        if (!cerca(c.prom, vals.reduce((a, x) => a + x, 0) / vals.length)) err(`caución ${n}: ${c.prom}`);
+        if (c.primera <= c.desde) err(`caución ${n}: entra una rueda de antes de la ventana`);
+      }
+      const a = tabCaucion('1m'), b = tabCaucion('12m');
+      if (!(b.obs > a.obs)) err('caución: doce meses tienen más ruedas que uno');
+    }
+
+    // El desplegable cambia la ventana, queda guardado y no se rearma la tarjeta.
+    const antes = localStorage.getItem(TAB_LS);
+    const sel = document.getElementById('tab-n-infla');
+    const subAntes = document.getElementById('tab-infla-s').textContent;
+    sel.value = sel.value === '12' ? '1' : '12'; sel.dispatchEvent(new Event('change'));
+    const elegido = sel.value;
+    await new Promise(r => setTimeout(r, 100));
+    out.subDespues = document.getElementById('tab-infla-s').textContent;
+    out.cambia = out.subDespues !== subAntes;
+    out.guardado = (JSON.parse(localStorage.getItem(TAB_LS) || '{}')).infla === elegido;
+    out.mismoSelect = document.getElementById('tab-n-infla') === sel;
+    beTableroRender();
+    out.siguePuesto = document.getElementById('tab-n-infla').value === elegido;
+    if (antes == null) localStorage.removeItem(TAB_LS); else localStorage.setItem(TAB_LS, antes);
+    beTableroRender();
+    out.texto = tb.innerText.replace(/\n/g, ' | ');
+    out.sinBasura = !/undefined|NaN|null|Infinity/.test(out.texto);
+    return out;
+  });
+  check(tab.tarjetas === 4 && tab.opciones.join() === '5,4,4,4',
+        'el tablero tiene caución, inflación, TAMAR real y devaluación, cada una con su ventana',
+        JSON.stringify({ tarjetas: tab.tarjetas, opciones: tab.opciones }));
+  check(tab.errores.length === 0,
+        'cada tarjeta es la cuenta de sus series: promedio geométrico, la TAMAR publicada y el sendero de Proyecciones',
+        tab.errores.slice(0, 4).join(' · ') || `${tab.publicados} IPC publicados · A3500 ${tab.spot}`);
+  if (tab.cauFallo) omitir('promedio de la caución', 'el BCRA no devolvió la serie de pases ahora');
+  check(tab.cambia && tab.guardado && tab.mismoSelect && tab.siguePuesto,
+        'el desplegable cambia la ventana, se guarda y sobrevive al repintado',
+        JSON.stringify({ cambia: tab.cambia, guardado: tab.guardado, mismo: tab.mismoSelect, sigue: tab.siguePuesto }));
+  check(tab.sinBasura, 'el tablero no muestra undefined, NaN ni null', tab.texto.slice(0, 160));
 
   // Modelos de curva: cada uno recupera su propia forma, el mejor ajuste elige
   // el verdadero, la banda es de ±1σ y el selector repinta los gráficos.

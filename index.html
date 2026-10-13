@@ -2824,7 +2824,7 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1'];
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_escenarios_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -6989,7 +6989,7 @@ let _proySendero={tamar:null,tcn:null};
 // llama desde el arranque, así que la declaración tiene que verse antes.
 let _proyInflMes=null;
 let _projHistStart=null;
-function proyInvalidar(){_proySendero={tamar:null,tcn:null};_proyInflMes=null;_projHistStart=null;}
+function proyInvalidar(){_proySendero={tamar:null,tcn:null};_proyInflMes=null;_projHistStart=null;tabProgramar();}
 
 function proyMesAdd(mesStr,n){
   const[y,m]=mesStr.split('-').map(Number);
@@ -11051,9 +11051,35 @@ function beDevalRecalc(){
 }
 
 // ══════════════════════════════════════════════════════════ TABLERO DEL DÍA
-// Arriba del Resumen: las puntas de la curva de tasa fija y las medianas de los
-// tres breakevens contra el REM. Mira todos los bonos, no sólo los elegidos en
-// cada tabla, así no cambia según qué tengas tildado.
+// Arriba del Resumen: el costo del dinero y las tres variables que mueven los
+// bonos en pesos —inflación, TAMAR real y devaluación—, cada una con lo que
+// pasó en los últimos N meses y lo que se proyecta para los N siguientes. Cada
+// tarjeta elige su N.
+//
+// Lo proyectado es el sendero de la solapa Proyecciones, el mismo con el que
+// se valúan los CER, los TAMAR y los dollar linked: si ahí la fuente es el REM,
+// acá también. Cada tarjeta dice qué fuente está usando.
+//
+// Inflación y TAMAR real cortan en el último IPC publicado: lo realizado son
+// los N meses publicados hasta ahí y lo proyectado, los N siguientes, así no
+// queda un mes en el medio que no esté en ninguno de los dos.
+//
+// Estado en var y no en const: proyInvalidar programa el repintado desde el
+// arranque, antes de que el script llegue a esta parte.
+var TAB_LS='bonosAR_tablero_v1';
+var TAB_DEF={cau:'1m',infla:'3',treal:'3',deval:'3'};
+var TAB_OPC={
+  cau:[['1s','1 semana'],['1m','1 mes'],['3m','3 meses'],['6m','6 meses'],['12m','12 meses']],
+  meses:[['1','1 mes'],['3','3 meses'],['6','6 meses'],['12','12 meses']],
+};
+// Mensualizar con 30,4 días, como los breakevens del Resumen.
+var TAB_MES_DIAS=30.4;
+// Caución: pases entre terceros a un día del BCRA, la misma serie del panel
+// Dinero. BYMA publica la rueda del día y nada de historia.
+var TAB_CAU=null,TAB_CAU_PIDIENDO=false,TAB_CAU_FALLO=0;
+var TAB_TIMER=null;
+var TAB_ORIGEN={futuro:'Futuros',respaldo:'REM',rem:'REM',ancla:'REM',manual:'Manual',
+  '5dias':'5 días',extrap:'extrapolado',real:'realizada',plano:'plano'};
 
 // La TAMAR que espera el REM sobre la ventana que proyecta el breakeven: de la
 // última publicada al fixing, promedio por días hábiles.
@@ -11079,62 +11105,262 @@ function beRemTamarVentana(fixVto){
   return n?suma/n:null;
 }
 
-function beMediana(xs){
-  const v=xs.filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);
-  if(!v.length)return null;
-  const m=Math.floor(v.length/2);
-  return v.length%2?v[m]:(v[m-1]+v[m])/2;
+function tabLeer(){
+  let p={};
+  try{const r=localStorage.getItem(TAB_LS);if(r)p=JSON.parse(r)||{};}catch(e){}
+  const o={...TAB_DEF};
+  for(const k in TAB_DEF){
+    const ops=k==='cau'?TAB_OPC.cau:TAB_OPC.meses;
+    if(p[k]!=null&&ops.some(x=>x[0]===String(p[k])))o[k]=String(p[k]);
+  }
+  return o;
+}
+function tabSetN(k,v){
+  if(!(k in TAB_DEF))return;
+  const o=tabLeer();o[k]=String(v);
+  try{localStorage.setItem(TAB_LS,JSON.stringify(o));}catch(e){}
+  beTableroRender();
+}
+// Repinta una sola vez aunque lleguen juntos el CER, la TAMAR, el A3500 y los
+// futuros: todos pasan por proyInvalidar.
+function tabProgramar(){
+  try{clearTimeout(TAB_TIMER);}catch(e){}
+  TAB_TIMER=setTimeout(()=>{try{if(currentTab==='breakeven')beTableroRender();}catch(e){}},80);
+}
+
+// La misma fecha n meses antes o después; si ese mes es más corto, su último día.
+function tabMasMeses(fecha,n){
+  const d=parseDate(fecha);
+  const y=d.getFullYear(),m=d.getMonth()+n;
+  return fmtDate(new Date(y,m,Math.min(d.getDate(),new Date(y,m+1,0).getDate())));
+}
+// Promedio geométrico de variaciones en %.
+function tabGeo(xs){
+  let a=1;xs.forEach(x=>{a*=1+x/100;});
+  return(Math.pow(a,1/xs.length)-1)*100;
+}
+function tabMesCorto(mes){
+  const[y,m]=mes.split('-').map(Number);
+  return MESES_ES[m-1].toLowerCase()+' '+String(y).slice(-2);
+}
+function tabRango(a,b){
+  if(a===b)return tabMesCorto(a);
+  const ya=a.slice(2,4),yb=b.slice(2,4);
+  const ma=MESES_ES[+a.slice(5,7)-1].toLowerCase(),mb=MESES_ES[+b.slice(5,7)-1].toLowerCase();
+  return ya===yb?`${ma}–${mb} ${yb}`:`${ma} ${ya}–${mb} ${yb}`;
+}
+function tabFuentes(origenes,auto){
+  const out=[];
+  origenes.forEach(o=>{const l=o==='auto'?auto:(TAB_ORIGEN[o]||o);if(l&&!out.includes(l))out.push(l);});
+  return out.join(' + ');
+}
+
+// ── Caución ──────────────────────────────────────────────────────────────────
+async function tabCauTraer(){
+  if(TAB_CAU_PIDIENDO)return;
+  TAB_CAU_PIDIENDO=true;
+  try{
+    const desde=fmtDate(new Date(TODAY.getFullYear()-1,TODAY.getMonth()-1,1));
+    const m=await bcraSerieDiaria(DINERO_ID_PASES,desde);
+    if(m&&m.size)TAB_CAU=m;
+    else TAB_CAU_FALLO=Date.now();
+  }catch(e){TAB_CAU_FALLO=Date.now();console.warn('[tablero] caución:',e.message);}
+  finally{TAB_CAU_PIDIENDO=false;}
+  if(TAB_CAU)tabProgramar();
+}
+function tabCaucion(n){
+  const hoy=fmtDate(TODAY);
+  const desde=n==='1s'?fmtDate(new Date(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate()-7))
+    :tabMasMeses(hoy,-parseInt(n,10));
+  const obs=TAB_CAU?[...TAB_CAU].filter(([f,v])=>f>desde&&f<=hoy&&v>0).sort((a,b)=>a[0].localeCompare(b[0])):[];
+  let hoyByma=null;
+  try{hoyByma=caucionCorta();}catch(e){}
+  return{n,desde,cargando:!TAB_CAU,obs:obs.length,
+    primera:obs.length?obs[0][0]:null,hasta:obs.length?obs[obs.length-1][0]:null,
+    prom:obs.length?obs.reduce((s,x)=>s+x[1],0)/obs.length:null,hoy:hoyByma};
+}
+
+// ── Inflación ────────────────────────────────────────────────────────────────
+// El sendero resuelto de Proyecciones: los meses publicados salen del CER y los
+// siguientes, de la fuente elegida. Devuelve los n de cada lado del corte.
+function tabInflaVentanas(n){
+  if(!PROJ_INFLACION.length)return null;
+  const rows=projCalcAcum();
+  let k=-1;
+  rows.forEach((r,i)=>{if(r.tipo==='publicado')k=i;});
+  if(k<0)return null;
+  const ult=rows.slice(Math.max(0,k-n+1),k+1);
+  const proy=rows.slice(k+1,k+1+n);
+  return{ult:ult.length===n?ult:null,proy:proy.length===n?proy:null};
+}
+// De dónde sale cada mes proyectado. Un mes que la fuente no cubre lo rellena
+// projCalcAcum con el último valor: eso es "plano", no lo que eligió el usuario,
+// y con la fuente manual vacía es todo el sendero.
+function tabInflaFuente(ms){
+  if(!ms)return'';
+  const por=new Map(PROJ_INFLACION.map(r=>[r.mes,r]));
+  return tabFuentes(ms.map(m=>{
+    const r=por.get(m.mes);
+    return r&&r.infla!=null?(r.origen||(PROJ_FUENTE.infla==='rem'?'rem':'manual')):'plano';
+  }),'');
+}
+function tabInfla(n){
+  const V=tabInflaVentanas(n);
+  if(!V)return{n,ult:null,proy:null};
+  const lado=(ms,fuente)=>ms?{v:tabGeo(ms.map(r=>r.inflaEfectiva)),desde:ms[0].mes,hasta:ms[ms.length-1].mes,
+    meses:ms.map(r=>({mes:r.mes,v:r.inflaEfectiva})),fuente}:null;
+  return{n,ult:lado(V.ult,'INDEC vía CER'),proy:lado(V.proy,tabInflaFuente(V.proy))};
+}
+
+// ── TAMAR real ───────────────────────────────────────────────────────────────
+// Mes contra mes, como en Proyecciones: la TEM de la TAMAR de ese mes —plazo
+// fijo a 32 días— deflactada por la inflación de ese mismo mes, y anualizada.
+// Los meses ya cerrados usan la TAMAR publicada aunque estén del lado
+// proyectado: lo que se proyecta ahí es la inflación.
+function tabTamarMes(mes){
+  if(mes<proyMesHoy()){const v=tamarPromMes(mes);return v!=null?{tna:v,origen:'real'}:null;}
+  const p=tamarSendero().mapa.get(mes);
+  return p?{tna:p.v,origen:p.origen}:null;
+}
+function tabRealDe(ms){
+  if(!ms)return null;
+  let a=1;
+  const det=[];
+  for(const r of ms){
+    const t=tabTamarMes(r.mes);
+    if(!t||t.tna==null||!isFinite(t.tna))return null;
+    a*=(1+tamarTEM(t.tna)/100)/(1+r.inflaEfectiva/100);
+    det.push({mes:r.mes,tna:t.tna,infla:r.inflaEfectiva,origen:t.origen});
+  }
+  return{v:(Math.pow(a,12/ms.length)-1)*100,desde:ms[0].mes,hasta:ms[ms.length-1].mes,det,
+    tna:det.reduce((s,x)=>s+x.tna,0)/det.length,infla:tabGeo(det.map(x=>x.infla))};
+}
+function tabTReal(n){
+  const V=tabInflaVentanas(n);
+  if(!V)return{n,ult:null,proy:null};
+  const ult=tabRealDe(V.ult),proy=tabRealDe(V.proy);
+  if(proy)proy.fuente='inflación '+tabInflaFuente(V.proy)+' · TAMAR '
+    +tabFuentes(proy.det.map(x=>x.origen),proyFuenteLabel('tamar'));
+  return{n,ult,proy};
+}
+
+// ── Devaluación ──────────────────────────────────────────────────────────────
+// Del A3500 de hace n meses al de hoy, y de hoy al sendero dentro de n meses.
+function tabDeval(n){
+  const spot=dlkTCHoy();
+  if(!(spot>0)||!DLK_INDEX.length)return{n,spot:null,ult:null,proy:null};
+  const hoy=fmtDate(TODAY);
+  const mens=(tc1,tc0,dias)=>dias>0&&tc0>0&&tc1>0?(Math.pow(tc1/tc0,TAB_MES_DIAS/dias)-1)*100:null;
+  const f0=tabMasMeses(hoy,-n);
+  let a=null;
+  for(const r of DLK_INDEX)if(r.fecha<=f0&&r.valor>0&&(!a||r.fecha>a.fecha))a=r;
+  const ult=a?{v:mens(spot,a.valor,diasACT(parseDate(a.fecha),TODAY)),tc0:a.valor,f0:a.fecha,tc1:spot}:null;
+  const f1=tabMasMeses(hoy,n);
+  const tcP=dlkTCProy(f1);
+  let proy=null;
+  if(tcP>0){
+    const ms=new Set();
+    for(let m=proyMesHoy();m<=f1.slice(0,7);m=proyMesAdd(m,1))ms.add(m);
+    const orig=dlkSendero().lista.filter(p=>ms.has(p.mes)).map(p=>p.origen);
+    proy={v:mens(tcP,spot,diasACT(TODAY,parseDate(f1))),tc0:spot,tc1:tcP,f1,
+      fuente:tabFuentes(orig,proyFuenteLabel('tcn'))};
+  }
+  return{n,spot,ult,proy};
 }
 
 // Todo lo que muestra el tablero, sin DOM: se prueba aparte.
 function beTableroDatos(){
-  const letras=(DATA.length?DATA:LECAPS.map(enrich))
-    .filter(r=>r.precio>0&&r.dias>0&&r.tna!=null&&isFinite(r.tna)).sort((a,b)=>a.dias-b.dias);
-  const cer=beCandidatos()
-    .filter(b=>b.tipo!=='cupon'&&!TAMAR_BONDS.some(t=>t.ticker===b.ticker))
-    .map(b=>beCalcular(b.ticker)).filter(r=>r&&!r.error&&isFinite(r.inflaBE));
-  const dlk=beDevalBonos().map(beDevalCalcular).filter(r=>r&&!r.error&&isFinite(r.devalBE));
-  const liq=G_LIQ||addHabiles(TODAY,1);
-  const tam=TAMAR_BONDS.filter(b=>b.vcto&&b.precio>0&&diasACT(liq,parseDate(b.vcto))>0)
-    .map(b=>beTamarCalcular(b.ticker)).filter(r=>r&&!r.error&&isFinite(r.tamar_be_tna));
-  return{
-    corta:letras[0]||null,larga:letras[letras.length-1]||null,
-    infla:{be:beMediana(cer.map(r=>r.inflaBE)),rem:beMediana(cer.map(r=>r.rem&&r.rem.mensual)),n:cer.length,
-      tickers:cer.map(r=>r.cerTicker)},
-    deval:{be:beMediana(dlk.map(r=>r.devalBE)),rem:beMediana(dlk.map(r=>r.rem)),n:dlk.length,
-      tickers:dlk.map(r=>r.ticker)},
-    tamar:{be:beMediana(tam.map(r=>r.tamar_be_tna)),rem:beMediana(tam.map(r=>beRemTamarVentana(r.fixVto))),n:tam.length,
-      tickers:tam.map(r=>r.ticker)},
+  const n=tabLeer();
+  const intento=(f,x)=>{try{return f(x);}catch(e){console.warn('[tablero]',e.message);return null;}};
+  return{n,
+    caucion:intento(tabCaucion,n.cau),
+    infla:intento(tabInfla,+n.infla),
+    treal:intento(tabTReal,+n.treal),
+    deval:intento(tabDeval,+n.deval)};
+}
+
+// Las cuatro tarjetas se arman una vez: repintar sólo cambia los números, así
+// un desplegable abierto no se cierra cuando llega un precio.
+function tabMontar(el){
+  if(el.dataset.tab==='2')return;
+  const sel=k=>{
+    const ops=k==='cau'?TAB_OPC.cau:TAB_OPC.meses;
+    return`<select id="tab-n-${k}" onchange="tabSetN('${k}',this.value)" title="Ventana" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:0 2px;height:16px;font-size:9px;font-family:var(--mono);color:var(--text2);outline:none;cursor:pointer">`
+      +ops.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')+`</select>`;
   };
+  const tile=(k,titulo)=>`<div id="tab-${k}" style="flex:1 0 210px;min-width:210px;padding:4px 14px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:1px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:9px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">${titulo}</span>${sel(k)}
+      </div>
+      <div id="tab-${k}-v" style="display:flex;align-items:baseline;gap:14px;font-family:var(--mono);line-height:1.15;white-space:nowrap"></div>
+      <div id="tab-${k}-s" style="font-size:9px;font-family:var(--mono);color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    </div>`;
+  el.innerHTML=tile('cau','Caución')+tile('infla','Inflación')+tile('treal','TAMAR real')+tile('deval','Devaluación');
+  el.dataset.tab='2';
 }
 
 function beTableroRender(){
   const el=document.getElementById('be-tablero');
   if(!el)return;
+  tabMontar(el);
   let d;
   try{d=beTableroDatos();}catch(e){console.warn('[tablero]',e.message);return;}
-  const tile=(titulo,valor,abajo,tip)=>`<div title="${betrEsc(tip||'')}" style="flex:1 0 150px;min-width:150px;padding:7px 14px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:1px">
-      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">${titulo}</div>
-      <div style="font-size:17px;font-family:var(--mono);color:var(--accent);font-weight:600;line-height:1.15">${valor}</div>
-      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);white-space:nowrap">${abajo}</div>
-    </div>`;
-  const vsRem=(be,rem,unidad)=>{
-    if(be==null||rem==null)return'REM —';
-    const dif=be-rem;
-    const chico=Math.abs(dif)<BE_REM_NEUTRO;
-    const col=chico?'var(--text3)':(dif>0?'var(--warn)':'var(--info)');
-    return`REM ${fmtP2(rem)} · <span style="color:${col}">${dif>0?'+':''}${dif.toFixed(2)}${unidad}</span>`;
+  for(const k in d.n){
+    const s=document.getElementById('tab-n-'+k);
+    if(s&&document.activeElement!==s&&s.value!==d.n[k])s.value=d.n[k];
+  }
+  const num=(v,etq,color,tip)=>`<span${tip?` title="${betrEsc(tip)}"`:''}><span style="font-size:16px;font-weight:600;color:${color}">${v!=null&&isFinite(v)?fmtP2(v):'—'}</span>`
+    +` <span style="font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">${etq}</span></span>`;
+  const poner=(k,valores,abajo,tip)=>{
+    const v=document.getElementById(`tab-${k}-v`),s=document.getElementById(`tab-${k}-s`),t=document.getElementById(`tab-${k}`);
+    if(v)v.innerHTML=valores;
+    if(s)s.innerHTML=abajo;
+    if(t)t.title=tip||'';
   };
-  const letra=r=>r?tile(r===d.corta?'LECAP más corta':'LECAP / BONCAP más larga',fmtP2(r.tna),`${r.ticker} · TNA · ${r.dias} días`,
-    `${r.ticker}: TNA ${fmtP2(r.tna)}, TIR ${fmtP2(r.tir)}, vence el ${r.vcto.split('-').reverse().join('/')}`):'';
-  el.innerHTML=
-    letra(d.corta)+letra(d.larga)
-    +tile('Inflación BE · mediana',d.infla.be!=null?fmtP2(d.infla.be):'—',`mensual · ${vsRem(d.infla.be,d.infla.rem,' pp')}`,
-      `Mediana del breakeven de inflación de ${d.infla.n} CER contra la tasa fija de su plazo (${d.infla.tickers.join(', ')}). Sin bonos con cupón ni duales. El REM, sobre la ventana de cada bono.`)
-    +tile('Devaluación BE · mediana',d.deval.be!=null?fmtP2(d.deval.be):'—',`mensual · ${vsRem(d.deval.be,d.deval.rem,' pp')}`,
-      `Mediana del breakeven de devaluación de ${d.deval.n} dollar linked contra la tasa fija de su plazo (${d.deval.tickers.join(', ')}), del A3500 de hoy al pago.`)
-    +tile(`TAMAR BE · ${d.tamar.n} bono${d.tamar.n===1?'':'s'}`,d.tamar.be!=null?fmtP2(d.tamar.be):'—',`TNA · ${vsRem(d.tamar.be,d.tamar.rem,' pp')}`,
-      `${d.tamar.n>1?'Mediana de la':'La'} TAMAR promedio que iguala ${d.tamar.n>1?'a cada bono':'al bono'} con la tasa fija (${d.tamar.tickers.join(', ')}). El REM, promediado sobre los días que faltan proyectar.`);
+  const etqN=(k,n)=>((k==='cau'?TAB_OPC.cau:TAB_OPC.meses).find(x=>x[0]===String(n))||[0,''])[1];
+  const fd=f=>f?f.split('-').reverse().join('/').slice(0,5):'—';
+
+  // Caución
+  const c=d.caucion||{};
+  poner('cau',
+    num(c.prom,'prom.','var(--accent)')+(c.hoy!=null?num(c.hoy,'hoy','var(--text2)','Caución en pesos al plazo más corto que operó hoy en BYMA'):''),
+    c.cargando?'cargando la serie del BCRA…'
+      :(c.obs?`TNA · ${fd(c.primera)}–${fd(c.hasta)} · ${c.obs} rueda${c.obs===1?'':'s'}`:'TNA · sin datos en la ventana'),
+    `Promedio simple de la caución a un día de ${etqN('cau',c.n)}: pases entre terceros del BCRA, que es el mismo mercado y sale con dos ruedas de rezago.`
+      +(c.hoy!=null?' Al lado, la de BYMA de hoy.':''));
+
+  // Inflación
+  const i=d.infla||{};
+  poner('infla',
+    num(i.ult&&i.ult.v,'últ.','var(--text)')+num(i.proy&&i.proy.v,'proy.','var(--accent)'),
+    `mensual · ${i.ult?tabRango(i.ult.desde,i.ult.hasta):'—'} | ${i.proy?tabRango(i.proy.desde,i.proy.hasta):'—'}`
+      +(i.proy?` · ${i.proy.fuente}`:''),
+    `Promedio geométrico de la inflación mensual. Últimos ${etqN('infla',i.n)} publicados (INDEC, leído del CER)`
+      +(i.ult?`: ${i.ult.meses.map(m=>tabMesCorto(m.mes)+' '+m.v.toFixed(2)+'%').join(', ')}`:'')
+      +`. Proyectada: los ${etqN('infla',i.n)} siguientes del sendero de Proyecciones, fuente ${i.proy?i.proy.fuente:'—'}`
+      +(i.proy?`: ${i.proy.meses.map(m=>tabMesCorto(m.mes)+' '+m.v.toFixed(2)+'%').join(', ')}`:'')+'.'
+      +(i.proy&&/plano/.test(i.proy.fuente)?' Plano: la fuente no cubre esos meses y se repite el último valor conocido. El sendero se elige en los selectores del Resumen o en Proyecciones.':''));
+
+  // TAMAR real
+  const r=d.treal||{};
+  const detR=x=>x?` (TAMAR ${x.tna.toFixed(2)}% TNA, inflación ${x.infla.toFixed(2)}% mensual)`:'';
+  poner('treal',
+    num(r.ult&&r.ult.v,'últ.','var(--text)')+num(r.proy&&r.proy.v,'proy.','var(--accent)'),
+    `TEA · ${r.ult?tabRango(r.ult.desde,r.ult.hasta):'—'} | ${r.proy?tabRango(r.proy.desde,r.proy.hasta):'—'}`,
+    `TAMAR deflactada mes contra mes por la inflación de ese mismo mes —la TEM de plazo fijo a 32 días contra la mensual— y anualizada, como en Proyecciones. `
+      +`Mismas ventanas que la tarjeta de inflación con ${etqN('treal',r.n)}: realizada${detR(r.ult)}; proyectada${detR(r.proy)}`
+      +(r.proy?`, fuentes: ${r.proy.fuente}`:'')+'.');
+
+  // Devaluación
+  const v=d.deval||{};
+  poner('deval',
+    num(v.ult&&v.ult.v,'últ.','var(--text)')+num(v.proy&&v.proy.v,'proy.','var(--accent)'),
+    `mensual · A3500`+(v.proy?` · ${v.proy.fuente}`:''),
+    v.spot?`Devaluación mensual del A3500, con 30,4 días por mes. Últimos ${etqN('deval',v.n)}: de ${v.ult?fmtN(v.ult.tc0,2)+' el '+fd(v.ult.f0):'—'} a ${fmtN(v.spot,2)} hoy. `
+      +`Proyectada: de hoy a ${v.proy?fmtN(v.proy.tc1,2)+' el '+v.proy.f1.split('-').reverse().join('/')+', sendero de Proyecciones con '+v.proy.fuente:'—'}.`
+      :'Sin A3500 todavía.');
+
+  if(!TAB_CAU&&!TAB_CAU_PIDIENDO&&Date.now()-TAB_CAU_FALLO>5*60*1000)tabCauTraer();
 }
 
 // ══════════════════════════════════════════════ TAMAR REAL CONTRA CER (betr)
