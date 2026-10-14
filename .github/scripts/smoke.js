@@ -2286,9 +2286,13 @@ const omitir = (label, motivo) =>
     const delMes = p.filter(r => r.fecha.substring(0, 7) === m1);
     let ritmo = null;
     if (delMes.length > 20) {
+      // La banda sube el ritmo del mes repartido en los días de ese mes: del 1
+      // al último hay un día menos, así que se lleva al mes entero con sus días.
+      // Con 30 fijos daba bien en noviembre y mal en diciembre.
       const a = delMes[0], b = delMes[delMes.length - 1];
       const dias = (new Date(b.fecha) - new Date(a.fecha)) / 86400000;
-      ritmo = ((b.sup / a.sup) ** (30 / dias) - 1) * 100;
+      const [y, m] = m1.split('-').map(Number);
+      ritmo = ((b.sup / a.sup) ** (new Date(y, m, 0).getDate() / dias) - 1) * 100;
     }
     const infl = new Map(projCalcAcum().map(r => [r.mes, r.inflaEfectiva]));
     const esperada = infl.get(proyMesAdd(m1, -2));
@@ -3698,6 +3702,46 @@ const omitir = (label, motivo) =>
     check(bcra.vuelve, 'cuando el BCRA contesta, el aviso se va');
   }
 
+  // El IPC nuevo no espera a que venza la caché: del 10 en adelante, si el CER
+  // guardado no llega al 15 del mes siguiente, se vuelve a pedir.
+  const ipc = await page.evaluate(async () => {
+    const f = (ult, y, m, d) => cerEsperaIpc([{ fecha: ult, valor: 1 }], new Date(y, m - 1, d));
+    const out = {
+      antesDel10: f('2026-10-15', 2026, 10, 9) === false,
+      faltaElNuevo: f('2026-10-15', 2026, 10, 14) === true,
+      yaLlego: f('2026-11-15', 2026, 10, 14) === false,
+      principioDeMes: f('2026-11-15', 2026, 11, 5) === false,
+      diciembre: f('2026-12-15', 2026, 12, 20) === true && f('2027-01-15', 2026, 12, 20) === false,
+    };
+    // Con la caché recién guardada pero corta, cerFetchIndex va a la red.
+    const copia = CER_INDEX.slice();
+    if (copia.length < 100 || !cerEsperaIpc(copia.slice(0, -40)) ) return { ...out, sinRed: true };
+    const cacheReal = localStorage.getItem(CER_CACHE_KEY), fetchReal = window.fetch;
+    let pidio = false;
+    try {
+      localStorage.setItem(CER_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: copia.slice(0, -40) }));
+      CER_INDEX = [];
+      window.fetch = (u, o) => {
+        if (/workers\.dev\/cer\?id=30&/.test(String(u))) {
+          pidio = true;
+          return Promise.resolve(new Response(JSON.stringify({ status: 200, metadata: { resultset: { count: copia.length } },
+            results: [{ idVariable: 30, detalle: copia }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        }
+        return fetchReal(u, o);
+      };
+      await cerFetchIndex();
+      out.vaALaRed = pidio && CER_INDEX.length === copia.length;
+    } finally {
+      window.fetch = fetchReal; CER_INDEX = copia;
+      if (cacheReal != null) localStorage.setItem(CER_CACHE_KEY, cacheReal);
+    }
+    return out;
+  });
+  check(ipc.antesDel10 && ipc.faltaElNuevo && ipc.yaLlego && ipc.principioDeMes && ipc.diciembre,
+        'del 10 en adelante, un CER guardado que no llega al 15 del mes siguiente se da por viejo', JSON.stringify(ipc));
+  if (ipc.sinRed) omitir('el CER guardado corto va a la red', 'antes del 10 del mes la regla no aplica');
+  else check(ipc.vaALaRed, 'con el CER guardado corto, la app lo vuelve a pedir aunque tenga menos de 23 horas');
+
   // Modelos de curva: cada uno recupera su propia forma, el mejor ajuste elige
   // el verdadero, la banda es de ±1σ y el selector repinta los gráficos.
   console.log('\nModelos de curva');
@@ -4272,6 +4316,8 @@ const omitir = (label, motivo) =>
       const c = beCerConocidoAl(f);
       return c && c.fecha <= beHorizonteCer(f);
     });
+    // Hoy no hay que adivinar: el horizonte llega a lo que ya publicó el BCRA.
+    out.hoyLlega = beHorizonteCer(hoyAR()) >= CER_INDEX[CER_INDEX.length - 1].fecha;
     const guardado = [...(BE_BONOS || [])];
     const liq = G_LIQ || addHabiles(TODAY, 1);
     // Dos CER cero cupón con LECAP de su plazo. Con menos de tres meses por
@@ -4321,6 +4367,7 @@ const omitir = (label, motivo) =>
         'el horizonte del CER de cada rueda sigue la convención del 15',
         (serieBE.horizontes || []).join(' · '));
   check(serieBE.sinFuturo, 'ninguna rueda pasada usa un CER que todavía no estaba publicado');
+  check(serieBE.hoyLlega, 'la rueda de hoy usa todo el CER publicado, aunque el IPC haya salido antes del 15');
   if (serieBE.sinBonos) omitir('la serie del BE de inflación', 'ningún CER cero cupón con LECAP de su plazo');
   else if (serieBE.error) omitir('la serie del BE de inflación', serieBE.error);
   else {

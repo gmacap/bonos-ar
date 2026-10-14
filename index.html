@@ -6719,6 +6719,16 @@ async function cerFetchPage(desde,limit,offset){
   return bcraPedirPagina(`${WORKER_URL}?id=30&desde=${desde}&limit=${limit}&offset=${offset}`);
 }
 
+// Del 10 de cada mes en adelante sale el IPC y el BCRA estira el CER hasta el
+// 15 del mes siguiente. Si la serie guardada todavía no llega ahí, se pide de
+// nuevo aunque tenga menos de 23 horas: si no, el IPC nuevo tardaba hasta un
+// día en aparecer. Mientras llega, se pinta la guardada.
+function cerEsperaIpc(data,hoy=TODAY){
+  if(!data||!data.length||hoy.getDate()<10)return false;
+  const meta=fmtDate(new Date(hoy.getFullYear(),hoy.getMonth()+1,15));
+  return data[data.length-1].fecha<meta;
+}
+
 async function cerFetchIndex(force=false){
   const st=document.getElementById('g-cer-status');
   const stTab=document.getElementById('cer-data-status');
@@ -6729,7 +6739,7 @@ async function cerFetchIndex(force=false){
       const cached=localStorage.getItem(CER_CACHE_KEY);
       if(cached){
         const{ts,data}=JSON.parse(cached);
-        if(Date.now()-ts<CER_CACHE_TTL&&data&&data.length>100){
+        if(Date.now()-ts<CER_CACHE_TTL&&data&&data.length>100&&!cerEsperaIpc(data)){
           CER_INDEX=data;
           const last=data[data.length-1];
           if(st){st.textContent=`CER ${last.fecha.split('-').reverse().join('/')} = ${last.valor.toFixed(4)}`;st.className='api-status ok';}
@@ -20051,6 +20061,15 @@ async function seriesTraerPrecios(sector,desde,hasta,moneda){
 // inflación conocida que la que había. Es la única aproximación del método y
 // está acotada a esos días.
 function beHorizonteCer(fecha){
+  // La rueda de hoy no necesita la convención: lo publicado es lo que trae la
+  // serie. Sin esto, del 10 al 14, con el IPC ya publicado, la serie seguía
+  // mostrando el del mes anterior hasta el 15.
+  if(fecha>=hoyAR()&&CER_INDEX.length){
+    const ult=CER_INDEX[CER_INDEX.length-1].fecha;
+    const d0=parseDate(fecha),y0=d0.getFullYear(),m0=d0.getMonth();
+    const conv=fmtDate(d0.getDate()>=15?new Date(y0,m0+1,15):new Date(y0,m0,15));
+    return ult>conv?ult:conv;
+  }
   const d=parseDate(fecha);
   const y=d.getFullYear(),m=d.getMonth();
   return fmtDate(d.getDate()>=15?new Date(y,m+1,15):new Date(y,m,15));
