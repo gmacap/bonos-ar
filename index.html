@@ -1384,7 +1384,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 
     <!-- COL 1: Breakevens (resizable) -->
-    <div id="be-col1" style="width:315px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
+    <div id="be-col1" style="width:370px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
 
       <!-- BE Inflación -->
       <div>
@@ -1402,6 +1402,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <thead>
             <tr class="bb2">
               <th title="Bono CER · abajo, la fecha de su fixing y tu sendero de inflación sobre la misma ventana" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:left">CER</th>
+              <th title="Último mes de inflación que toma el bono: el IPC que mueve el CER de su fixing. Abajo, cuántos días de ese IPC entran hasta el fixing, sobre los días en que mueve el CER." style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">IPC</th>
               <th title="Inflación mensual que descuenta el precio contra su LECAP" style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">BE</th>
               <th title="Breakeven menos la inflación mensual que espera el REM para la misma ventana, en puntos porcentuales. Abajo de cada diferencia, el REM con el que se comparó." style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">vs REM<span style="text-transform:none"> pp</span></th>
               <th title="Forward: la inflación mensual que el precio descuenta entre el fixing del bono anterior de la lista y el de este. Abajo, el REM del mismo tramo." style="padding:1px 4px;font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">Fwd</th>
@@ -10674,20 +10675,52 @@ function beRecalc(){
 
 const MESES_ES_BE=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
+// El último mes de inflación que toma el bono: el IPC que mueve el CER de su
+// fixing. Cada IPC mueve el CER durante un mes, desde el 15 del mes siguiente,
+// así que un fixing en el medio toma sólo una parte: el TZXD6, que fija el
+// 27/11, toma 13 de los 30 días de octubre. Los días se cuentan desde que ese
+// IPC empieza a mover el CER y no desde el último CER publicado: con el CER al
+// 15/11 la ventana del breakeven tiene 12 días de octubre, pero el bono toma 13.
+// Misma convención de días que beMesesVentana.
+function beUltimoIpc(res){
+  const h=res&&res.ventana&&res.ventana.hasta;
+  if(!h)return null;
+  const f=parseDate(h);
+  const md=new Date(f.getFullYear(),f.getMonth()-(f.getDate()>=15?1:2),1);
+  const ini=new Date(md.getFullYear(),md.getMonth()+1,15);
+  const dias=diasACT(ini,f)+1;
+  const total=projDiasMes(ini.getFullYear(),ini.getMonth());
+  return{mes:fmtDate(md).slice(0,7),dias,total,completo:dias>=total};
+}
+function beCeldaIpc(res){
+  const base='padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle';
+  const u=beUltimoIpc(res);
+  if(!u)return`<td style="${base};color:var(--text3);font-size:10px">—</td>`;
+  const[y,m]=u.mes.split('-').map(Number);
+  const nom=`${MESES_ES_BE[m-1].toLowerCase()}-${String(y).slice(2)}`;
+  const t=`El CER del fixing (${res.fixingVto}) toma la inflación hasta ${nom}`
+    +(u.completo?', entera':`: ${u.dias} de los ${u.total} días en que ese IPC mueve el CER`)
+    +` · ventana: ${beVentanaTexto(res)}`;
+  return`<td style="${base}" title="${betrEsc(t)}">
+    <div style="font-size:11px;color:var(--text);font-weight:600">${nom}</div>
+    <div style="font-size:9px;color:var(--text3)">${u.completo?'completo':`${u.dias}/${u.total} d`}</div>
+  </td>`;
+}
+
 function beRenderTabla(resultados){
   const tbody=document.getElementById('be-tbody');
   if(!tbody)return;
 
   if(!resultados.length){
-    tbody.innerHTML=`<tr><td colspan="5" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:11px">Elegí bonos CER con +/−</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="6" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:11px">Elegí bonos CER con +/−</td></tr>`;
     return;
   }
 
   tbody.innerHTML=resultados.map(({ticker,res,fwd})=>{
-    if(!res)return`<tr><td colspan="5" style="padding:2px 4px;color:var(--danger);font-size:10px">${ticker}: sin datos</td></tr>`;
+    if(!res)return`<tr><td colspan="6" style="padding:2px 4px;color:var(--danger);font-size:10px">${ticker}: sin datos</td></tr>`;
     if(res.error)return`<tr>
       <td style="padding:2px 4px;font-family:var(--mono);font-size:10px;color:var(--accent2)">${ticker}</td>
-      <td colspan="3" style="padding:2px 4px;color:var(--danger);font-size:9px">${res.error}</td>
+      <td colspan="4" style="padding:2px 4px;color:var(--danger);font-size:9px;white-space:normal">${res.error}</td>
       <td style="padding:1px 2px;text-align:center"><button onclick="beRemove('${ticker}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px">✕</button></td>
     </tr>`;
     const promStr=res.promInfla!=null?fmtP2(res.promInfla):'—';
@@ -10698,6 +10731,7 @@ function beRenderTabla(resultados){
         <div style="font-size:10px;color:var(--accent2);font-weight:600">${ticker}</div>
         <div style="font-size:9px;color:var(--text3)">${fixCorto} · ${promStr}</div>
       </td>
+      ${beCeldaIpc(res)}
       <td style="padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle">
         <div style="font-size:11px;color:var(--accent);font-weight:700">${fmtP2(res.inflaBE)}</div>
         <div style="font-size:9px;color:var(--text3)">${res.tfTicker||''}</div>
@@ -13295,10 +13329,10 @@ function beCPSaveModal(){
 // ── COLUMN RESIZER ────────────────────────────────────────────────────────────
 const BE_COL_LS='bonosAR_be_colwidths';
 // El ancho guardado se respeta, salvo que sea de antes de que la primera columna
-// tuviera la TAMAR real (285) o el forward del breakeven (315): con menos, la
-// columna nueva quedaba cortada, y el ancho viejo estaba en el localStorage de
-// todos los que ya habían entrado.
-const BE_COL1_MIN_UTIL=315;
+// tuviera la TAMAR real (285), el forward del breakeven (315) o el último mes de
+// IPC (370, con lugar para la barra de desplazamiento): con menos, la columna nueva quedaba cortada, y el ancho viejo
+// estaba en el localStorage de todos los que ya habían entrado.
+const BE_COL1_MIN_UTIL=370;
 function beColWidthsLoad(){
   try{const r=localStorage.getItem(BE_COL_LS);if(r){const m=JSON.parse(r);['be-col1','be-col2'].forEach(id=>{
     const col=document.getElementById(id);

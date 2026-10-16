@@ -3359,7 +3359,7 @@ const omitir = (label, motivo) =>
   // La referencia contra el REM se mide sobre la misma ventana que el breakeven:
   // los días de cada mes de IPC entre el último CER publicado y el fixing.
   console.log('\nBreakeven de inflación: la ventana contra el REM');
-  const beVen = await page.evaluate(() => {
+  const beVen = await page.evaluate(async () => {
     const out = {};
     // El TZXD6 del 08/10/2026: del 15/10 al 27/11 son 30 días de septiembre y 13
     // de octubre. El TZXA7, que fija el 16/04, tiene 2 días de marzo; el TZXY7,
@@ -3368,6 +3368,15 @@ const omitir = (label, motivo) =>
     out.d6 = j(beMesesVentana('2026-10-15', '2026-11-27'));
     out.a7 = beMesesVentana('2026-10-15', '2027-04-16').slice(-1)[0];
     out.y7 = beMesesVentana('2026-10-15', '2027-05-14').slice(-1)[0];
+    // La columna IPC: el último mes que toma el fixing, con sus días sobre los
+    // del mes en que ese IPC mueve el CER. Son los mismos que da la ventana
+    // contada desde el 15/10, y no dependen del último CER publicado.
+    const ult = h => beUltimoIpc({ ventana: { hasta: h } });
+    out.ipc = { d6: ult('2026-11-27'), a7: ult('2027-04-16'), y7: ult('2027-05-14'), fin: ult('2026-12-14'), ini: ult('2026-11-15') };
+    out.ipcVentana = ['2026-11-27', '2027-04-16', '2027-05-14'].every(h => {
+      const v = beMesesVentana('2026-10-15', h).slice(-1)[0], u = ult(h);
+      return v.mes === u.mes && v.dias === u.dias;
+    });
     // Un sendero plano proyecta el mismo CER que la app: con el IPC de septiembre
     // en 2% y los 31 días de octubre, 30 días dan 1,02^(30/31).
     out.plano = beInflaVentana([{ mes: '2026-09', dias: 30 }], 30, () => 2);
@@ -3389,12 +3398,44 @@ const omitir = (label, motivo) =>
     // El detalle muestra la ventana.
     const r0 = beCandidatos().map(c => beCalcular(c.ticker)).find(r => r && !r.error);
     out.texto = r0 ? beVentanaTexto(r0) : '';
+    // La tabla del Resumen: cada fila con su columna IPC, y es la del cálculo.
+    // Bonos con breakeven: los más cortos ya tienen el fixing publicado. Y con
+    // el Resumen a la vista, que si no la tabla no tiene ancho para medir.
+    const guardado = [...(BE_BONOS || [])];
+    BE_BONOS = beCandidatos().filter(c => { const r = beCalcular(c.ticker); return r && !r.error; }).slice(0, 3).map(c => c.ticker);
+    switchSection('pesos'); switchTab('breakeven');
+    await new Promise(r => setTimeout(r, 800));
+    beRecalc();
+    const ths = [...document.querySelectorAll('#be-tbody')].map(t => t.closest('table').querySelectorAll('thead th').length)[0];
+    out.tabla = { ths, filas: [] };
+    for (const tr of document.querySelectorAll('#be-tbody tr')) {
+      const tds = tr.querySelectorAll('td');
+      if (tds.length !== 6) continue;
+      const tk = tds[0].querySelector('div') && tds[0].querySelector('div').textContent.trim();
+      const u = beUltimoIpc(beCalcular(tk));
+      out.tabla.filas.push({ tk, celda: tds[1].textContent.replace(/\s+/g, ' ').trim(), mes: u && u.mes, dias: u && u.dias, total: u && u.total });
+    }
+    // Con el ancho mínimo de la columna, la tabla entra entera: la columna corta
+    // lo que se pasa, y sin esto el forward quedaba afuera.
+    const col = document.getElementById('be-col1'), anchoPrevio = col.style.width;
+    col.style.width = BE_COL1_MIN_UTIL + 'px';
+    const tabla = document.querySelector('#be-tbody').closest('table');
+    out.tabla.entra = tabla.scrollWidth <= col.clientWidth - 24 + 1;
+    out.tabla.anchos = [tabla.scrollWidth, col.clientWidth];
+    col.style.width = anchoPrevio;
+    BE_BONOS = guardado; beRecalc();
     return out;
   });
   check(beVen.d6 === '2026-09:30 2026-10:13', 'la ventana cuenta los días de cada mes de IPC entre el último CER y el fixing', beVen.d6);
   check(beVen.a7.mes === '2027-03' && beVen.a7.dias === 2 && beVen.y7.mes === '2027-03' && beVen.y7.dias === 30,
         'un fixing del 16 tiene 2 días del último mes y uno del 14 tiene 30: ya no son el mismo "hasta marzo"',
         JSON.stringify({ a7: beVen.a7, y7: beVen.y7 }));
+  check(beVen.ipc.d6.mes === '2026-10' && beVen.ipc.d6.dias === 13 && beVen.ipc.d6.total === 30 && !beVen.ipc.d6.completo
+        && beVen.ipc.a7.mes === '2027-03' && beVen.ipc.a7.dias === 2 && beVen.ipc.y7.completo
+        && beVen.ipc.fin.mes === '2026-10' && beVen.ipc.fin.completo && beVen.ipc.ini.mes === '2026-10' && beVen.ipc.ini.dias === 1
+        && beVen.ipcVentana,
+        'la columna IPC es el último mes de la ventana: el TZXD6 toma 13 de los 30 días de octubre y el TZXY7, marzo entero',
+        JSON.stringify(beVen.ipc));
   check(Math.abs(beVen.plano - beVen.planoEsperado) < 1e-12, 'el REM de la ventana está en la misma unidad que el breakeven',
         `${beVen.plano} vs ${beVen.planoEsperado}`);
   if (beVen.sinRem) omitir('REM de la ventana en vivo', 'rem.json no cargó');
@@ -3403,6 +3444,14 @@ const omitir = (label, motivo) =>
     check(beVen.errores.length === 0, 'el REM de la ventana es el CER que proyecta la app con el REM, hasta el fixing',
           `${beVen.vivos} bonos · ` + beVen.errores.slice(0, 3).join(' · '));
     check(/→ .* días/.test(beVen.texto), 'el detalle muestra la ventana con los días de cada mes', beVen.texto);
+    const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const bien = f => f.mes && f.celda.startsWith(meses[+f.mes.slice(5, 7) - 1] + '-' + f.mes.slice(2, 4))
+      && (f.dias >= f.total ? /completo/.test(f.celda) : f.celda.endsWith(`${f.dias}/${f.total} d`));
+    check(beVen.tabla.ths === 6 && beVen.tabla.filas.length > 0 && beVen.tabla.filas.every(bien),
+          'la tabla BE · Inflación muestra el último mes de IPC de cada bono',
+          JSON.stringify(beVen.tabla).slice(0, 220));
+    check(beVen.tabla.entra, 'con la columna IPC, la tabla entra en el ancho mínimo de la columna sin cortarse',
+          beVen.tabla.anchos.join(' en '));
   }
 
   // El forward entre bonos: el cociente de los dos CER de breakeven entre sus
@@ -3437,7 +3486,7 @@ const omitir = (label, motivo) =>
     });
     const th = document.querySelector('#be-col1 table thead');
     out.columna = th ? /Fwd/.test(th.textContent) : false;
-    out.celdas = [...document.querySelectorAll('#be-tbody tr')].filter(tr => tr.children.length === 5).length;
+    out.celdas = [...document.querySelectorAll('#be-tbody tr')].filter(tr => tr.children.length === 6).length;
     BE_BONOS = guardado; beRecalc();
     return out;
   });
