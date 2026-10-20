@@ -6248,10 +6248,20 @@ async function bcraPedirPagina(url){
   throw new Error('el BCRA no respondió ('+motivo+')');
 }
 
+// Un cero o un negativo nunca es dato en estas series —CER, A3500, TAMAR,
+// bandas—, así que se descarta al llegar del BCRA y también al leer lo
+// guardado: un 0 que entró en la copia guardada se quedaba ahí 23 horas como
+// "último dato".
+function bcraLimpiar(data){
+  return Array.isArray(data)?data.filter(x=>x&&x.fecha&&x.valor>0):[];
+}
 function bcraCacheLeer(clave){
   try{
     const c=JSON.parse(localStorage.getItem(clave)||'null');
-    if(c&&Array.isArray(c.data)&&c.data.length)return c;
+    if(c&&Array.isArray(c.data)){
+      c.data=bcraLimpiar(c.data);
+      if(c.data.length)return c;
+    }
   }catch(e){}
   return null;
 }
@@ -6500,7 +6510,7 @@ async function tamarFetchIndex(force=false){
       if(cached){
         const{ts,data}=JSON.parse(cached);
         if(Date.now()-ts<TAMAR_CACHE_TTL&&data?.length){
-          TAMAR_INDEX=data;
+          TAMAR_INDEX=bcraLimpiar(data);
           if(st){st.textContent=`TAMAR · ${TAMAR_INDEX.length} registros (cache)`;st.className='api-status ok';}
           return true;
         }
@@ -6530,7 +6540,7 @@ async function tamarFetchIndex(force=false){
     TAMAR_INDEX=allResults
       .filter(r=>r.fecha&&r.valor!=null)
       .map(r=>({fecha:(r.fecha||'').split('T')[0],valor:parseFloat(r.valor)}))
-      .filter(r=>r.fecha&&!isNaN(r.valor))
+      .filter(r=>r.fecha&&r.valor>0)
       .sort((a,b)=>a.fecha.localeCompare(b.fecha));
 
     try{localStorage.setItem(TAMAR_CACHE_KEY,JSON.stringify({ts:Date.now(),data:TAMAR_INDEX}));}catch(e){}
@@ -6573,7 +6583,7 @@ async function dlkFetchIndex(force=false){
       if(cached){
         const{ts,data}=JSON.parse(cached);
         if(Date.now()-ts<DLK_CACHE_TTL&&data?.length){
-          DLK_INDEX=data;
+          DLK_INDEX=bcraLimpiar(data);
           if(st){st.textContent=`DLK · ${DLK_INDEX.length} registros (cache)`;st.className='api-status ok';}
           dlkRenderIndexStrip();
           a3500Pintar();
@@ -6602,7 +6612,7 @@ async function dlkFetchIndex(force=false){
     DLK_INDEX=allResults
       .filter(r=>r.fecha&&r.valor!=null)
       .map(r=>({fecha:(r.fecha||'').split('T')[0],valor:parseFloat(r.valor)}))
-      .filter(r=>r.fecha&&!isNaN(r.valor))
+      .filter(r=>r.fecha&&r.valor>0)
       .sort((a,b)=>a.fecha.localeCompare(b.fecha));
 
     // DEBUG — loguear estructura cruda y primeros registros procesados
@@ -6741,7 +6751,7 @@ async function cerFetchIndex(force=false){
       if(cached){
         const{ts,data}=JSON.parse(cached);
         if(Date.now()-ts<CER_CACHE_TTL&&data&&data.length>100&&!cerEsperaIpc(data)){
-          CER_INDEX=data;
+          CER_INDEX=bcraLimpiar(data);
           const last=data[data.length-1];
           if(st){st.textContent=`CER ${last.fecha.split('-').reverse().join('/')} = ${last.valor.toFixed(4)}`;st.className='api-status ok';}
           if(stTab){stTab.textContent=`CER · ${data.length} registros`;stTab.className='api-status ok';}
@@ -6783,7 +6793,7 @@ async function cerFetchIndex(force=false){
     CER_INDEX=allResults
       .filter(r=>r.fecha&&r.valor!=null)
       .map(r=>({fecha:(r.fecha||'').split('T')[0],valor:parseFloat(r.valor)}))
-      .filter(r=>r.fecha&&!isNaN(r.valor))
+      .filter(r=>r.fecha&&r.valor>0)
       .sort((a,b)=>a.fecha.localeCompare(b.fecha));
 
     try{localStorage.setItem(CER_CACHE_KEY,JSON.stringify({ts:Date.now(),data:CER_INDEX}));}catch(e){}
@@ -7496,7 +7506,7 @@ async function bandaFetchSerie(id){
   const det=(j.results&&j.results[0]&&j.results[0].detalle)||[];
   return det.filter(r=>r.fecha&&r.valor!=null)
     .map(r=>({fecha:(r.fecha||'').split('T')[0],valor:parseFloat(r.valor)}))
-    .filter(r=>r.fecha&&!isNaN(r.valor));
+    .filter(r=>r.fecha&&r.valor>0);
 }
 async function bandaFetchIndex(force=false){
   if(!force){

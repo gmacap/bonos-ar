@@ -3751,6 +3751,44 @@ const omitir = (label, motivo) =>
     check(bcra.vuelve, 'cuando el BCRA contesta, el aviso se va');
   }
 
+  // Un 0 en la TAMAR, el CER o el A3500 nunca es dato: no entra ni desde el
+  // BCRA ni desde la copia guardada, que si no lo mostraba como último dato.
+  const ceros = await page.evaluate(async () => {
+    const out = {};
+    const l = bcraLimpiar([{ fecha: 'a', valor: 0 }, { fecha: 'b', valor: 24.6 }, { fecha: 'c', valor: -1 }, { fecha: 'd', valor: NaN }, null]);
+    out.limpia = l.length === 1 && l[0].fecha === 'b';
+    const copia = TAMAR_INDEX.slice();
+    if (copia.length < 20) return { ...out, sinTamar: true };
+    const ultima = copia[copia.length - 1];
+    const conCero = copia.concat([{ fecha: fmtDate(new Date(parseDate(ultima.fecha).getTime() + 3 * 86400000)), valor: 0 }]);
+    const cacheReal = localStorage.getItem(TAMAR_CACHE_KEY), fetchReal = window.fetch;
+    try {
+      // Desde el BCRA: llega la serie con un 0 al final.
+      window.fetch = (u, o) => /workers\.dev\/cer\?id=44&/.test(String(u))
+        ? Promise.resolve(new Response(JSON.stringify({ status: 200, metadata: { resultset: { count: conCero.length } },
+            results: [{ idVariable: 44, detalle: conCero.slice().reverse() }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+        : fetchReal(u, o);
+      await tamarFetchIndex(true);
+      const s1 = [...TAMAR_INDEX].sort((a, b) => a.fecha.localeCompare(b.fecha));
+      out.desdeBcra = s1.every(x => x.valor > 0) && s1[s1.length - 1].fecha === ultima.fecha;
+      // Desde la copia guardada: una que ya tenía el 0.
+      window.fetch = fetchReal;
+      localStorage.setItem(TAMAR_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: conCero }));
+      TAMAR_INDEX = [];
+      await tamarFetchIndex();
+      out.desdeCopia = TAMAR_INDEX.length === copia.length && TAMAR_INDEX.every(x => x.valor > 0);
+    } finally {
+      window.fetch = fetchReal; TAMAR_INDEX = copia;
+      if (cacheReal != null) localStorage.setItem(TAMAR_CACHE_KEY, cacheReal);
+      try { tamarRenderIndexStrip(); proyInvalidar(); } catch (e) {}
+    }
+    return out;
+  });
+  check(ceros.limpia, 'un cero o un negativo no es dato en las series del BCRA');
+  if (ceros.sinTamar) omitir('TAMAR en cero', 'la serie de TAMAR no cargó');
+  else check(ceros.desdeBcra && ceros.desdeCopia, 'una TAMAR en 0 no queda como último dato, ni desde el BCRA ni desde la copia guardada',
+             JSON.stringify(ceros));
+
   // El IPC nuevo no espera a que venza la caché: del 10 en adelante, si el CER
   // guardado no llega al 15 del mes siguiente, se vuelve a pedir.
   const ipc = await page.evaluate(async () => {
