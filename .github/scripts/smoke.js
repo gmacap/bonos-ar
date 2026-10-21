@@ -4476,6 +4476,56 @@ const omitir = (label, motivo) =>
   if (cartUsd.sinPrecios) omitir('dólares en la Cartera de Pesos', 'sin precios de Bonares');
   else check(cartUsd.pidio >= 1 && cartUsd.conPrecio, 'en la Cartera de Pesos, un bono en dólares sin precio se pide solo y aparece', JSON.stringify(cartUsd));
 
+  // Mientras un refresco busca el cierre de un bono, la Cartera se queda con el
+  // precio que tenía; y si nada cambió, no repinta.
+  const cartEst = await page.evaluate(async () => {
+    const tf = LECAPS.find(b => b.precio > 0 && b.vcto && parseDate(b.vcto) > TODAY);
+    const usd = BON_BONDS.find(b => cartPrecioUsd(b) > 0);
+    if (!tf || !usd) return { sinPrecios: true };
+    const previo = JSON.stringify(cartLeer());
+    const liq = bopFmtDate(G_LIQ || addHabiles(TODAY, 1));
+    const out = {};
+    const g = { tf: { ...tf }, usd: { mep: usd.lastPrecioMEP, px: usd.lastPrecio, ci: usd.lastPrecioCierre } };
+    try {
+      switchSection('pesos'); switchTab('cartera');
+      await new Promise(r => setTimeout(r, 500));
+      cartNueva();
+      cartActiva().pos = [{ inst: 'TF|' + tf.ticker, vn: 1e6 }, { inst: 'BON|' + usd.ticker, vn: 1e4 }];
+      cartGuardar();
+      await new Promise(r => setTimeout(r, 1500));
+      const antes = cartCalcular(cartActiva(), 'ARS', _cartMep || 1, liq).pos.map(x => x.precio);
+      // Como en pesosSinPrecioHoy y usdRefreshPrices mientras buscan el cierre.
+      const i = LECAPS.indexOf(tf);
+      LECAPS[i] = { ...tf, precio: null, precioCierre: { buscando: true } };
+      Object.assign(usd, { lastPrecio: null, lastPrecioMEP: null, lastPrecioCierre: { buscando: true } });
+      const durante = cartCalcular(cartActiva(), 'ARS', _cartMep || 1, liq).pos.map(x => x.precio);
+      out.estable = antes.every(v => v > 0) && antes.every((v, k) => v === durante[k]);
+      // Sin precio de verdad (el cierre no apareció): ahí sí, sin precio.
+      LECAPS[i] = { ...tf, precio: null, precioCierre: { sinPrecio: true } };
+      out.sinPrecio = cartEvaluar({ inst: 'TF|' + tf.ticker, vn: 100 }, liq).error === 'Sin precio';
+      LECAPS[i] = g.tf;
+      Object.assign(usd, { lastPrecio: g.usd.px, lastPrecioMEP: g.usd.mep, lastPrecioCierre: g.usd.ci });
+      // Si nada cambió, no repinta: el contenido de las tarjetas sigue siendo el mismo nodo.
+      await cartRender('ars');
+      const nodo = document.querySelector('#cart-tiles > div');
+      await cartRender('ars'); await cartRender('ars');
+      out.noRepinta = !!nodo && document.querySelector('#cart-tiles > div') === nodo;
+      cartActiva().pos[0].vn = 2e6;
+      await cartRender('ars');
+      out.repintaSiCambia = document.querySelector('#cart-tiles > div') !== nodo;
+    } finally {
+      const i = LECAPS.findIndex(b => b.ticker === g.tf.ticker); if (i >= 0) LECAPS[i] = g.tf;
+      Object.assign(usd, { lastPrecio: g.usd.px, lastPrecioMEP: g.usd.mep, lastPrecioCierre: g.usd.ci });
+      CART = JSON.parse(previo); cartGuardar();
+    }
+    return out;
+  });
+  if (cartEst.sinPrecios) omitir('precios estables en la Cartera', 'sin precios de tasa fija o de Bonares');
+  else {
+    check(cartEst.estable && cartEst.sinPrecio, 'mientras se busca el cierre, la Cartera se queda con el último precio; sin cierre, sin precio', JSON.stringify(cartEst));
+    check(cartEst.noRepinta && cartEst.repintaSiCambia, 'la Cartera no se repinta si nada cambió, y sí cuando cambia', JSON.stringify(cartEst));
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');

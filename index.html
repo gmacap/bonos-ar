@@ -17618,17 +17618,33 @@ function cartPrecioUsd(b){
   if(b.lastPrecioMEP>0)return b.lastPrecioMEP;
   return b.lastPrecio>0&&usdCurrency!=='Cable'?b.lastPrecio:null;
 }
+// El último precio bueno de cada posición. En cada refresco, un bono sin precio
+// en vivo queda unos segundos en blanco mientras se busca su cierre anterior; la
+// Cartera se queda con el que tenía hasta que llega el nuevo, en vez de mostrar
+// "Sin precio" en el medio.
+var CART_PX=new Map();
+function cartPxEstable(inst,px,buscando){
+  if(px>0){CART_PX.set(inst,px);return px;}
+  return buscando&&CART_PX.has(inst)?CART_PX.get(inst):px;
+}
+function cartBonoEstable(inst,b){
+  if(!b)return b;
+  const px=cartPxEstable(inst,b.precio,!!(b.precioCierre&&b.precioCierre.buscando));
+  return px===b.precio?b:{...b,precio:px};
+}
+
 // Los precios en dólares los trae la sección Dólares. Si la cartera tiene un
-// bono sin precio —se entró por Pesos antes de que llegaran, o la lista de bonos
-// llegó después del primer pedido—, se piden una vez y se repinta. Un minuto
-// entre pedidos, para no insistir con un bono que de verdad no tiene precio.
+// bono al que nunca le llegó nada —se entró por Pesos antes de que llegaran, o
+// la lista de bonos llegó después del primer pedido—, se piden y se repinta.
+// Uno que ya pasó por un refresco y no tiene precio en MEP no se vuelve a pedir:
+// pedir de nuevo deja en blanco, mientras dura, a todos los que no operaron.
 var CART_USD_PIDIENDO=false,CART_USD_TS=0;
 function cartPedirUsd(c){
   const falta=c.pos.some(x=>{
     const[f,t]=String(x.inst).split('|');
     if(!['BON','GLO','BOP'].includes(f))return false;
     const b=USD_FAM[f.toLowerCase()].bonds.find(y=>y.ticker===t);
-    return!(cartPrecioUsd(b)>0);
+    return!b||(!(cartPrecioUsd(b)>0)&&!b.lastPrecioCierre);
   });
   if(!falta||CART_USD_PIDIENDO||Date.now()-CART_USD_TS<60000)return;
   CART_USD_PIDIENDO=true;CART_USD_TS=Date.now();
@@ -17648,33 +17664,33 @@ function cartEvaluar(pos,liq){
   if(!F)return{...out,error:'Familia desconocida'};
   try{
     if(fam==='TF'){
-      const b=LECAPS.find(x=>x.ticker===ticker);
+      const b=cartBonoEstable(pos.inst,LECAPS.find(x=>x.ticker===ticker));
       if(!b)return{...out,error:'No está en la lista de tasa fija'};
       const r=enrich(b);
       Object.assign(out,{b,precio:r.precio,marca:pesosCierreMarca(b),propia:{v:r.tir,u:'TIR'},tirMoneda:r.tir,y:r.tir,
         flujos:[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:r.vf}]});
     }else if(fam==='CER'){
-      const b=CER_BONDS.find(x=>x.ticker===ticker);
+      const b=cartBonoEstable(pos.inst,CER_BONDS.find(x=>x.ticker===ticker));
       if(!b)return{...out,error:'No está en la lista CER'};
       const e=cerEnrich(b),factor=cerFactor(b.emision);
       const fl=factor>0&&b.precio>0?cerBuildFlujos(b,b.precio,factor).slice(1).map(f=>({fecha:fmtDate(f.fecha),flujo:f.monto})):[];
       Object.assign(out,{b,precio:b.precio,marca:pesosCierreMarca(b),propia:{v:e.tir,u:'real'},
         tirMoneda:isFinite(e.tirProy)?e.tirProy:null,y:e.tir,flujos:fl});
     }else if(fam==='TAMAR'){
-      const b=TAMAR_BONDS.find(x=>x.ticker===ticker);
+      const b=cartBonoEstable(pos.inst,TAMAR_BONDS.find(x=>x.ticker===ticker));
       if(!b)return{...out,error:'No está en la lista TAMAR'};
       const e=tamarEnrich(b),v=tamarVista(e),tc0=b.tcInicial||1;
       Object.assign(out,{b,precio:b.precio,marca:pesosCierreMarca(b),propia:{v:v.margenTNA,u:'margen'},tirMoneda:e.tirProy,y:e.tirProy,
         flujos:e.vpvProy>0?[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:e.vpvProy*tc0}]:[]});
     }else if(fam==='DUAL'){
-      const b=TAMAR_BONDS.find(x=>x.ticker===ticker);
+      const b=cartBonoEstable(pos.inst,TAMAR_BONDS.find(x=>x.ticker===ticker));
       if(!b)return{...out,error:'No está en la lista de duales'};
       const d=dualCalcular(b);
       const pago=d.ramaA>0&&d.ramaB>0?Math.max(d.ramaA,d.ramaB):d.ramaB;
       Object.assign(out,{b,precio:b.precio,marca:pesosCierreMarca(b),propia:{v:d.margenTNA,u:'margen'},tirMoneda:d.tea,y:d.tea,
         flujos:pago>0?[{fecha:fmtDate(siguienteHabil(parseDate(b.vcto))),flujo:pago}]:[]});
     }else if(fam==='DLK'){
-      const b=DLK_BONDS.find(x=>x.ticker===ticker);
+      const b=cartBonoEstable(pos.inst,DLK_BONDS.find(x=>x.ticker===ticker));
       if(!b)return{...out,error:'No está en la lista DLK'};
       const e=dlkEnrich(b),tc=dlkTCHoy();
       // Los flujos en dólares a la TIR en dólares; el precio es en pesos, y con el
@@ -17685,7 +17701,7 @@ function cartEvaluar(pos,liq){
     }else{
       const b=USD_FAM[fam.toLowerCase()].bonds.find(x=>x.ticker===ticker);
       if(!b)return{...out,error:'No está en la lista de '+F.l};
-      const fl=bopGenFlows(b),px=cartPrecioUsd(b);
+      const fl=bopGenFlows(b),px=cartPxEstable(pos.inst,cartPrecioUsd(b),!!(b.lastPrecioCierre&&b.lastPrecioCierre.buscando));
       const tir=px>0?bopTIR(b,liq,px,fl):null;
       Object.assign(out,{b,precio:px,marca:b.lastPrecioMEP>0?'':usdCierreMarca(b),propia:{v:tir,u:'TIR'},tirMoneda:tir,y:tir,
         md:tir!=null?bopDuracion(b,liq,tir,fl).mod:null,flujos:fl.map(f=>({fecha:f.fecha,flujo:f.flujo}))});
@@ -18211,6 +18227,7 @@ function cartListaInst(sec){
 function cartTipo(sec){cartListaInst(sec);}
 
 var _cartMep=null;
+var CART_FIRMA={ars:null,usd:null};
 async function cartRender(sec){
   const S=CART_SEC&&CART_SEC[sec];
   if(!S)return;
@@ -18234,8 +18251,16 @@ async function cartRender(sec){
   const liq=bopFmtDate(G_LIQ||addHabiles(TODAY,1));
   const res=cartCalcular(c,vista,mep||1,liq);
   if(!(mep>0)&&res.ok.some(x=>x.moneda!==vista))res.sinMep=true;
-  cartPintar(sec,res);
   cartPedirUsd(c);
+  // Sólo se repinta si algo cambió. Un refresco de precios llama varias veces
+  // seguidas —pesos, dólares, cierres—, y repintar igual borraba y redibujaba
+  // tarjetas, tabla, gráfico y VaR: parecía que la página se recargaba.
+  const firma=JSON.stringify([c.id,vista,liq,mep>0?+mep.toFixed(2):null,
+    res.pos.map(x=>[x.inst,x.vn,x.precio,x.error||'']),c.tasas||null]);
+  const tiles=document.getElementById(p+'-tiles');
+  if(firma===CART_FIRMA[sec]&&tiles&&tiles.innerHTML)return;
+  CART_FIRMA[sec]=firma;
+  cartPintar(sec,res);
   // El VaR llega después: pide historia.
   const tv=document.getElementById(p+'-var');
   if(tv)tv.innerHTML='calculando…';
