@@ -590,20 +590,20 @@ const omitir = (label, motivo) =>
     const msg = document.getElementById('curvas-usd-msg');
     const pares = _curvasSpreadCache.pares || [];
     return {
-      chipSLEG: !!document.getElementById('curvas-usd-chip-SLEG'),
+      chipSLEG: !!document.querySelector('#curvas-usd-sector option[value="SLEG"]'),
       pares: pares.length,
       conDato: pares.filter(p => p.s1 != null || p.s2 != null).length,
       etiquetas: pares.slice(0, 3).map(p => p.label),
-      chips: chips ? chips.querySelectorAll('button').length : 0,
+      chips: chips ? chips.querySelectorAll('.msel-panel > .msel-item').length : 0,
       msg: msg ? msg.textContent : '',
       chart: !!curvasUsdChart,
       ejeY: curvasUsdChart ? curvasUsdChart.options.scales.y.title.text : '',
     };
   });
-  check(sleg.chipSLEG, 'existe el chip Spread Leg.');
+  check(sleg.chipSLEG, 'Spread Leg. está en el desplegable de tipo');
   check(sleg.pares > 0, 'arma pares Global/Bonar', `${sleg.pares}: ${sleg.etiquetas.join(', ')}`);
   check(sleg.conDato > 0, 'calcula spreads', `${sleg.conDato}/${sleg.pares} con dato`);
-  check(sleg.chips === sleg.pares, 'un chip por par', `${sleg.chips} chips`);
+  check(sleg.chips === sleg.pares, 'una casilla por par en la lista de pares', `${sleg.chips} casillas`);
   check(sleg.chart, 'dibuja el gráfico');
   check(/Spread/.test(sleg.ejeY), 'el eje Y es el spread', sleg.ejeY);
 
@@ -665,7 +665,7 @@ const omitir = (label, motivo) =>
 
     const r = await page.evaluate(s => {
       const st = seriesEstado[s], cfg = SERIES_CFG[s];
-      const chips = document.getElementById(`series-${s}-chips`);
+      const chips = document.getElementById(`series-${s}-bonos`);
       const d1 = document.getElementById(`series-${s}-d1`);
       const d2 = document.getElementById(`series-${s}-d2`);
       return {
@@ -673,7 +673,7 @@ const omitir = (label, motivo) =>
         sectores: cfg.sectores.map(o => o.v),
         fechas: st.cache.fechas.length,
         bonos: st.cache.porBono.size,
-        chips: chips ? chips.querySelectorAll('button').length : 0,
+        chips: chips ? chips.querySelectorAll('.msel-panel > .msel-item').length : 0,
         // Las barras de volumen son un dataset más y no una línea por bono.
         series: st.chart ? st.chart.data.datasets.filter(d => d.type !== 'bar').length : -1,
         ejeY: st.chart ? st.chart.options.scales.y.title.text : '',
@@ -683,7 +683,7 @@ const omitir = (label, motivo) =>
 
     check(r.fechas > 0, `${sec}: trae ruedas`, `${r.fechas}`);
     check(r.bonos > 0, `${sec}: arma series por bono`, `${r.bonos}`);
-    check(r.chips === r.bonos, `${sec}: un chip por bono con datos`, `${r.chips} chips`);
+    check(r.chips === r.bonos, `${sec}: una casilla por bono con datos en la lista`, `${r.chips} casillas`);
     check(r.series === r.bonos, `${sec}: todos seleccionados al abrir`, `${r.series} líneas`);
     check(r.d1 < r.d2, `${sec}: rango por defecto válido`, `${r.d1} a ${r.d2}`);
     check(/%/.test(r.ejeY), `${sec}: eje Y con la métrica`, r.ejeY);
@@ -973,11 +973,11 @@ const omitir = (label, motivo) =>
       const bar = document.getElementById(`series-${s}-fwdbar`);
       const selC = document.getElementById(`series-${s}-fwd-corto`);
       const selL = document.getElementById(`series-${s}-fwd-largo`);
-      const sleg = document.getElementById(`series-${s}-chip-SLEG`);
+      const sleg = document.querySelector(`#series-${s}-sector option[value="SLEG"]`);
       const tod = document.getElementById(`series-${s}-todos`);
       return {
         modo: st.modo, sector: st.sector,
-        activo: document.getElementById(`series-${s}-modo-fwd`).classList.contains('active'),
+        activo: document.getElementById(`series-${s}-vista`).value === 'fwd',
         barra: bar ? bar.style.display : '',
         todos: tod ? tod.style.display : '',
         opciones: selC ? selC.options.length : 0,
@@ -1027,7 +1027,7 @@ const omitir = (label, motivo) =>
         puntos: vals.length, finitos: vals.length > 0 && vals.every(v => isFinite(v)),
         esperado, obtenido,
         ejeY: st.chart ? st.chart.options.scales.y.title.text : '',
-        chips: document.getElementById(`series-${s}-chips`).querySelectorAll('button').length,
+        chips: document.getElementById(`series-${s}-bonos`).querySelectorAll('.msel-panel > .msel-item').length,
         guardadas: (guardado[st.sector] || []).length,
       };
     }, sec);
@@ -1037,7 +1037,7 @@ const omitir = (label, motivo) =>
     check(add.esperado !== null && Math.abs(add.esperado - add.obtenido) < 1e-9,
           `${sec}: el forward graficado es el del par elegido`, `${add.esperado} vs ${add.obtenido}`);
     check(/Forward/.test(add.ejeY), `${sec}: eje Y de forwards`, add.ejeY);
-    check(add.chips === 1, `${sec}: un chip por combinación`, `${add.chips}`);
+    check(add.chips === 1, `${sec}: una fila por combinación en la lista de pares`, `${add.chips}`);
     check(add.guardadas === 1, `${sec}: la combinación queda guardada`, `${add.guardadas}`);
 
     const rech = await page.evaluate(s => {
@@ -1271,9 +1271,9 @@ const omitir = (label, motivo) =>
       const st = seriesEstado[s];
       const out = { modo: st.modo, ejeY: st.chart ? st.chart.options.scales.y.title.text : '',
                     bonos: st.cache.porBono.size, ruedas: st.cache.fechas.length };
-      // Los chips que no son un bono quedan bloqueados en este modo.
+      // Los tipos que no son un bono quedan bloqueados en el desplegable.
       out.bloqueados = SERIES_CFG[s].sectores.filter(o => {
-        const el = document.getElementById(`series-${s}-chip-${o.v}`);
+        const el = document.querySelector(`#series-${s}-sector option[value="${o.v}"]`);
         return el && el.disabled;
       }).map(o => o.v);
       out.sinPrecio = SERIES_CFG[s].sectores.filter(o => o.precio === false).map(o => o.v);
@@ -4187,6 +4187,74 @@ const omitir = (label, motivo) =>
           'el spread de hoy es TIR del Bonar menos TIR del Global, con una tarjeta y una fila de canje por par',
           `${sl.vivos}/${sl.pares} pares · ` + sl.errores.slice(0, 2).join(' · '));
     check(Array.isArray(sl.historia) && sl.historia.every(n => n >= 20), 'cada par tiene historia en el rango por defecto', JSON.stringify(sl.historia));
+  }
+
+  // Gráficos: los filtros son desplegables, y en Series se pueden superponer
+  // bonos de otros tipos, cada uno en su unidad.
+  console.log('\nGráficos: filtros en desplegables y bonos de otros tipos');
+  const gr = await page.evaluate(async () => {
+    const out = {};
+    const tag = id => (document.getElementById(id) || {}).tagName || null;
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    switchSection('pesos'); switchTab('series-ars');
+    await espera(2500);
+    if (seriesEstado.ars.modo !== 'tasas') { seriesSetModo('ars', 'tasas'); await espera(2500); }
+    if (seriesEstado.ars.sector !== 'TF') { seriesSetSector('ars', 'TF'); await espera(2500); }
+    out.seriesSel = ['series-ars-vista', 'series-ars-sector', 'series-ars-mon'].map(tag);
+    out.sinChips = !document.querySelector('[id^="series-ars-chip-"]') && !document.getElementById('series-ars-chips');
+    const st = seriesEstado.ars, caja = document.getElementById('series-ars-bonos');
+    const lineas = () => st.chart ? st.chart.data.datasets.filter(d => d.type !== 'bar').length : 0;
+    caja.querySelector('.msel-btn').click();
+    out.abre = caja.classList.contains('abierto');
+    const antes = lineas();
+    caja.querySelector('.msel-panel input[type=checkbox]').click();
+    await espera(200);
+    out.casilla = antes > 0 && lineas() === antes - 1 && caja.classList.contains('abierto');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    out.cierra = !caja.classList.contains('abierto');
+    seriesTodos('ars', true);
+    // Un CER con historia y un Global sobre la tasa fija.
+    const d1 = document.getElementById('series-ars-d1').value, d2 = document.getElementById('series-ars-d2').value;
+    let cerT = null;
+    try {
+      const cd = await seriesTraerTipo('tasas', 'CER', d1, d2);
+      const e = [...cd.porBono.entries()].sort((a, b) => b[1].size - a[1].size)[0];
+      cerT = e ? e[0] : null;
+    } catch (e) {}
+    const previo = (st.extra || []).slice();
+    if (cerT) {
+      st.extra = [];
+      seriesExtra('ars', 'CER', cerT); await espera(3500);
+      seriesExtra('ars', 'GLO', 'GD30'); await espera(3500);
+      const ds = st.chart ? st.chart.data.datasets.filter(d => d.type !== 'bar') : [];
+      const dc = ds.find(d => d._k === cerT), dg = ds.find(d => d._k === 'GD30');
+      const g = JSON.parse(localStorage.getItem(SERIES_FWD_LS) || '{}');
+      out.mezcla = { cer: cerT, cerOk: !!dc && /TIR real/.test(dc.label) && dc.data.some(v => v != null),
+        gdOk: !!dg && /TIR USD/.test(dg.label) && dg.data.some(v => v != null),
+        tf: ds.filter(d => / · TNA$/.test(d.label)).length,
+        ejeY: st.chart ? st.chart.options.scales.y.title.text : '',
+        resumen: caja.querySelector('.msel-btn').textContent,
+        guardado: g.extra && g.extra.ars ? g.extra.ars.length : 0 };
+      seriesExtraLimpiar('ars'); await espera(2500);
+      out.limpia = !!st.chart && st.chart.data.datasets.every(d => !/ · /.test(d.label));
+      st.extra = previo; seriesFwdSave();
+    }
+    switchTab('curvas-ars'); await espera(3000);
+    out.curvasSel = [tag('curvas-ars-sector'), tag(desvCfg('ars').p + '-modo')];
+    out.curvasBonos = document.querySelectorAll('#curvas-ars-bonds .msel-item').length > 0;
+    out.sinChipsCurvas = !document.querySelector('[id^="curvas-ars-chip-"]');
+    return out;
+  });
+  check(gr.seriesSel.every(t => t === 'SELECT') && gr.sinChips && gr.curvasSel.every(t => t === 'SELECT') && gr.curvasBonos && gr.sinChipsCurvas,
+        'los filtros de Series y Curvas son desplegables', JSON.stringify({ s: gr.seriesSel, c: gr.curvasSel, b: gr.curvasBonos }));
+  check(gr.abre && gr.casilla && gr.cierra, 'la lista de bonos se abre, una casilla saca su línea sin cerrarla, y Escape la cierra',
+        JSON.stringify({ abre: gr.abre, casilla: gr.casilla, cierra: gr.cierra }));
+  if (!gr.mezcla) omitir('bonos de otros tipos en Series', 'sin CER con historia en el rango');
+  else {
+    check(gr.mezcla.cerOk && gr.mezcla.gdOk && gr.mezcla.tf > 0 && /cada bono/.test(gr.mezcla.ejeY) && gr.mezcla.guardado === 2,
+          'se superponen bonos de otros tipos —un CER y un Global sobre las LECAP—, cada uno en su unidad, y quedan guardados',
+          JSON.stringify(gr.mezcla));
+    check(gr.limpia, 'sacar los de otros tipos vuelve al gráfico de un solo tipo');
   }
 
   // Desvío histórico contra la curva, en pesos y en dólares.
