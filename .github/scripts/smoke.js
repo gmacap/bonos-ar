@@ -345,7 +345,10 @@ const omitir = (label, motivo) =>
     });
     if (!bond) return { sinDatos: true };
     const row = EQUIV_DATA.find(e => e.ticker === bond.ticker);
-    const ayer = fmtDate(restarHabiles(TODAY, 1));
+    // El día anterior al de la Argentina, no al del navegador: entre las 21 y la
+    // medianoche el runner de CI, en UTC, ya está en el día siguiente, y "ayer"
+    // caía en el hoy de la app, que lo descarta a propósito.
+    const ayer = fmtDate(restarHabiles(parseDate(hoyAR()), 1));
     const sin = (...syms) => { const m = { ...base, map: { ...base.map } }; syms.forEach(x => delete m.map[x]); return m; };
     const histCon = (sym, mapa) => async x => x === sym ? mapa : realHist(x);
     const sec = GLO_BONDS.includes(bond) ? 'GLO' : 'BON';
