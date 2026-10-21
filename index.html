@@ -384,7 +384,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab active" id="nav-breakeven" onclick="switchTab('breakeven')">Resumen</button>
   <button class="nav-tab" id="nav-forwards" onclick="switchTab('forwards')">Forwards</button>
   <button class="nav-tab" id="nav-retornos" onclick="switchTab('retornos')">Retornos</button>
-  <button class="nav-tab nav-dev" id="nav-cartera" onclick="switchTab('cartera')" style="display:none">Cartera</button>
+  <button class="nav-tab" id="nav-cartera" onclick="switchTab('cartera')">Cartera</button>
   <button class="nav-tab" id="nav-lecap" onclick="switchTab('lecap')">Tasa Fija</button>
   <button class="nav-tab" id="nav-cer" onclick="switchTab('cer')">CER</button>
   <button class="nav-tab" id="nav-tamar" onclick="switchTab('tamar')">TAMAR</button>
@@ -403,7 +403,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <button class="nav-tab active" id="nav-usd-resumen"     onclick="switchUsdTab('usd-resumen')">Resumen</button>
   <button class="nav-tab"        id="nav-usd-forwards"    onclick="switchUsdTab('usd-forwards')">Forwards</button>
   <button class="nav-tab"        id="nav-usd-retornos"    onclick="switchUsdTab('usd-retornos')">Retornos</button>
-  <button class="nav-tab nav-dev" id="nav-usd-cartera"     onclick="switchUsdTab('usd-cartera')" style="display:none">Cartera</button>
+  <button class="nav-tab" id="nav-usd-cartera"     onclick="switchUsdTab('usd-cartera')">Cartera</button>
   <button class="nav-tab"        id="nav-usd-spreadleg"   onclick="switchUsdTab('usd-spreadleg')">Spread Leg.</button>
   <button class="nav-tab"        id="nav-usd-bonares"     onclick="switchUsdTab('usd-bonares')">Bonares</button>
   <button class="nav-tab"        id="nav-usd-globales"    onclick="switchUsdTab('usd-globales')">Globales</button>
@@ -2772,8 +2772,8 @@ function authUpdateAdminUI(){
 // solapas sin sesión y tiene que poder seguir probándolas.
 //
 // Para liberar una, se le saca la clase nav-dev al botón y se la quita de acá.
-const TABS_DESARROLLO=['escenarios','comentario','cartera'];
-const USD_TABS_DESARROLLO=['usd-comentario','usd-cartera'];
+const TABS_DESARROLLO=['escenarios','comentario'];
+const USD_TABS_DESARROLLO=['usd-comentario'];
 
 // Un admin que cierra sesión parado en una solapa en desarrollo se quedaría
 // mirando una pantalla cuyo botón acaba de desaparecer. Se lo lleva al Resumen.
@@ -17557,7 +17557,7 @@ function cartVista(sec,m){cartLeer().vista[sec]=m;cartGuardar();}
 function cartAgregar(sec){
   const p=CART_SEC[sec].p;
   const inst=(document.getElementById(p+'-inst')||{}).value;
-  const cant=parseFloat((document.getElementById(p+'-cant')||{}).value);
+  const cant=cartParseVn((document.getElementById(p+'-cant')||{}).value);
   const modo=(document.getElementById(p+'-modo')||{}).value||'vn';
   const msg=document.getElementById(p+'-msg');
   if(!inst||!(cant>0)){if(msg)msg.textContent='Elegí un instrumento y una cantidad mayor que cero';return;}
@@ -18143,6 +18143,32 @@ function cartTsRender(sec){
 var cartFmt=(v,mon)=>v==null||!isFinite(v)?'—':(v<0?'−':'')+(mon==='USD'?'US$ ':'$ ')+Math.round(Math.abs(v)).toLocaleString('es-AR');
 var cartN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
 
+// Nominales y montos con separador de miles, como se escriben acá: punto para
+// los miles y coma para los decimales. Mientras se tipea se reformatea, y el
+// cursor queda detrás del mismo dígito.
+function cartVnTxt(v){
+  if(v==null||!isFinite(v))return'';
+  return(+v).toLocaleString('es-AR',{maximumFractionDigits:2});
+}
+function cartParseVn(t){
+  const n=parseFloat(String(t==null?'':t).trim().replace(/\./g,'').replace(',','.'));
+  return isFinite(n)?n:NaN;
+}
+function cartVnTipear(el){
+  const v=el.value,pos=el.selectionStart==null?v.length:el.selectionStart;
+  const antes=v.slice(0,pos).replace(/[^\d,]/g,'').length;
+  const limpio=v.replace(/[^\d,]/g,'');
+  const c=limpio.indexOf(',');
+  const ent=(c>=0?limpio.slice(0,c):limpio).replace(/^0+(?=\d)/,'');
+  const dec=c>=0?limpio.slice(c+1).replace(/,/g,'').slice(0,2):null;
+  const txt=ent.replace(/\B(?=(\d{3})+(?!\d))/g,'.')+(dec!=null?','+dec:'');
+  if(txt===v)return;
+  el.value=txt;
+  let k=0,i=0;
+  while(i<txt.length&&k<antes){if(/[\d,]/.test(txt[i]))k++;i++;}
+  try{el.setSelectionRange(i,i);}catch(e){}
+}
+
 function cartPaginaHTML(sec){
   const p=CART_SEC[sec].p;
   const sel='background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:3px 6px;font-size:11px;font-family:var(--mono);color:var(--text);outline:none';
@@ -18166,7 +18192,7 @@ function cartPaginaHTML(sec){
       <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Tipo de instrumento</span><select id="${p}-tipo" style="${sel}" onchange="cartTipo('${sec}')">
         <option value="">Todos</option>${Object.entries(CART_FAMS).map(([k,F])=>`<option value="${k}">${F.l}</option>`).join('')}</select></label>
       <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Instrumento</span><select id="${p}-inst" style="${sel};min-width:220px"></select></label>
-      <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Cantidad</span><input type="number" id="${p}-cant" min="0" step="any" style="${sel};width:130px" onkeydown="if(event.key==='Enter')cartAgregar('${sec}')"></label>
+      <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Cantidad</span><input type="text" inputmode="decimal" id="${p}-cant" style="${sel};width:140px;text-align:right" oninput="cartVnTipear(this)" onkeydown="if(event.key==='Enter')cartAgregar('${sec}')"></label>
       <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">En</span><select id="${p}-modo" style="${sel}">
         <option value="vn">Nominales (VN)</option><option value="monto">Monto, en la moneda del bono</option></select></label>
       <button class="btn primary" style="padding:4px 12px;font-size:11px" onclick="cartAgregar('${sec}')">Agregar</button>
@@ -18261,6 +18287,10 @@ async function cartRender(sec){
   const res=cartCalcular(c,vista,mep||1,liq);
   if(!(mep>0)&&res.ok.some(x=>x.moneda!==vista))res.sinMep=true;
   cartPedirUsd(c);
+  // Si estás escribiendo nominales o un nodo, no se repinta debajo tuyo: el
+  // cambio se aplica al salir del campo, y ahí se repinta.
+  const act=document.activeElement;
+  if(act&&act.closest&&act.closest(`#${p}-tbody,#${p}-ts-in`))return;
   // Sólo se repinta si algo cambió. Un refresco de precios llama varias veces
   // seguidas —pesos, dólares, cierres—, y repintar igual borraba y redibujaba
   // tarjetas, tabla, gráfico y VaR: parecía que la página se recargaba.
@@ -18303,7 +18333,7 @@ function cartPintar(sec,res){
   }else tb.innerHTML=res.pos.map(x=>{
     const F=x.F||{l:'?',c:'var(--text3)'};
     const ini=`<td style="${td};text-align:left;color:${F.c};font-weight:600">${x.ticker}</td><td style="${td};text-align:left;color:var(--text3)">${F.l}</td>
-      <td style="${td}"><input type="number" value="${+(+x.vn).toFixed(2)}" step="any" min="0" style="width:110px;text-align:right;background:transparent;border:1px solid var(--border2);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:11px;padding:1px 4px" onchange="cartSetVn('${x.inst}',this.value)"></td>`;
+      <td style="${td}"><input type="text" inputmode="decimal" value="${cartVnTxt(x.vn)}" oninput="cartVnTipear(this)" onkeydown="if(event.key==='Enter')this.blur()" style="width:125px;text-align:right;background:transparent;border:1px solid var(--border2);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:11px;padding:1px 4px" onchange="cartSetVn('${x.inst}',cartParseVn(this.value))"></td>`;
     const quitar=`<td style="${td}"><button onclick="cartQuitar('${x.inst}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px" title="Quitar">✕</button></td>`;
     if(x.error)return`<tr>${ini}<td colspan="7" style="${td};text-align:left;color:var(--text3)">${betrEsc(x.error)}</td>${quitar}</tr>`;
     const u={TIR:'',real:' real',margen:' mgn',USD:' USD'}[x.propia&&x.propia.u]||'';

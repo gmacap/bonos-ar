@@ -4536,6 +4536,35 @@ const omitir = (label, motivo) =>
   });
   check(foco.mismo === 0 && foco.otro === 1, 'volver a la pestaña con el mismo usuario no recarga los datos; otro usuario sí', JSON.stringify(foco));
 
+  // Nominales con separador de miles, y se leen igual.
+  const vnFmt = await page.evaluate(async () => {
+    const out = {};
+    out.txt = cartVnTxt(1234567.5) === '1.234.567,5' && cartVnTxt(1000000) === '1.000.000';
+    out.parse = cartParseVn('1.234.567,5') === 1234567.5 && cartParseVn('1000000') === 1e6 && isNaN(cartParseVn(''));
+    const el = document.createElement('input'); document.body.appendChild(el);
+    el.value = '1234567'; el.setSelectionRange(7, 7); cartVnTipear(el);
+    const a = el.value, cur = el.selectionStart;
+    el.value = '1.234.5678,256'; cartVnTipear(el);
+    out.tipea = a === '1.234.567' && cur === 9 && el.value === '12.345.678,25';
+    el.remove();
+    const tf = LECAPS.find(b => b.precio > 0 && b.vcto && b.vcto > hoyAR());
+    if (!tf) return out;
+    const previo = JSON.stringify(cartLeer());
+    try {
+      switchSection('pesos'); switchTab('cartera');
+      await new Promise(r => setTimeout(r, 500));
+      cartNueva(); cartActiva().pos = [{ inst: 'TF|' + tf.ticker, vn: 2500000 }]; cartGuardar();
+      await new Promise(r => setTimeout(r, 1200));
+      const inp = document.querySelector('#cart-tbody input');
+      out.tabla = inp && inp.value === '2.500.000';
+      inp.value = '3.000.000'; inp.dispatchEvent(new Event('change'));
+      out.guarda = cartActiva().pos[0].vn === 3000000;
+    } finally { CART = JSON.parse(previo); cartGuardar(); }
+    return out;
+  });
+  check(vnFmt.txt && vnFmt.parse && vnFmt.tipea, 'los nominales llevan punto de miles y coma decimal, también mientras se escriben', JSON.stringify(vnFmt));
+  if (vnFmt.tabla != null) check(vnFmt.tabla && vnFmt.guarda, 'la tabla muestra los nominales con separador y los guarda bien', JSON.stringify(vnFmt));
+
   if (cartEst.sinPrecios) omitir('precios estables en la Cartera', 'sin precios de tasa fija o de Bonares');
   else {
     check(cartEst.estable && cartEst.sinPrecio, 'mientras se busca el cierre, la Cartera se queda con el último precio; sin cierre, sin precio', JSON.stringify(cartEst));
@@ -5034,7 +5063,7 @@ const omitir = (label, motivo) =>
   console.log('\nSolapas en desarrollo: sólo para admins');
   const dev = await page.evaluate(() => {
     const vis = id => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; };
-    const ids = ['nav-escenarios', 'nav-comentario', 'nav-usd-comentario', 'nav-cartera', 'nav-usd-cartera'];
+    const ids = ['nav-escenarios', 'nav-comentario', 'nav-usd-comentario'];
     const sinSesion = ids.map(vis);
     // Admin simulado, sincrónico y restaurado en la misma llamada: nada escribe
     // localStorage en el medio, así que la sincronización con Supabase no se entera.
@@ -5053,10 +5082,10 @@ const omitir = (label, motivo) =>
     devSacarSiNoAdmin();
     const trasUsd = currentUsdTab;
     switchSection('pesos');
-    const otros = ['nav-breakeven', 'nav-proyecciones', 'nav-series-ars', 'nav-usd-series'].map(vis);
+    const otros = ['nav-breakeven', 'nav-proyecciones', 'nav-series-ars', 'nav-usd-series', 'nav-cartera', 'nav-usd-cartera'].map(vis);
     return { sinSesion, conAdmin, restaurado, trasPesos, trasUsd, otros, admin: !!isAdmin() };
   });
-  check(dev.sinSesion.every(v => !v), 'sin sesión no se ven Escenarios, Comentario ni Cartera', JSON.stringify(dev.sinSesion));
+  check(dev.sinSesion.every(v => !v), 'sin sesión no se ven Escenarios ni Comentario; la Cartera sí', JSON.stringify(dev.sinSesion));
   check(dev.conAdmin.every(v => v), 'el admin sí las ve', JSON.stringify(dev.conAdmin));
   check(dev.restaurado.every(v => !v) && !dev.admin, 'al dejar de ser admin se vuelven a ocultar', JSON.stringify(dev.restaurado));
   check(dev.trasPesos === 'breakeven' && dev.trasUsd === 'usd-resumen',
