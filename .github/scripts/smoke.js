@@ -4520,6 +4520,22 @@ const omitir = (label, motivo) =>
     }
     return out;
   });
+  // Volver a la pestaña del navegador: Supabase repite SIGNED_IN con el mismo
+  // usuario, y eso no tiene que recargar los datos ni borrar los precios.
+  const foco = await page.evaluate(async () => {
+    const real = authSetUser, previo = SUPA_USER;
+    let cargas = 0;
+    authSetUser = async u => { cargas++; SUPA_USER = u; };
+    try {
+      SUPA_USER = { id: 'u-prueba', email: 'x@x' };
+      await authOnCambio('SIGNED_IN', { user: { id: 'u-prueba', email: 'x@x' } });
+      const mismo = cargas;
+      await authOnCambio('SIGNED_IN', { user: { id: 'otro', email: 'y@y' } });
+      return { mismo, otro: cargas - mismo };
+    } finally { authSetUser = real; SUPA_USER = previo; }
+  });
+  check(foco.mismo === 0 && foco.otro === 1, 'volver a la pestaña con el mismo usuario no recarga los datos; otro usuario sí', JSON.stringify(foco));
+
   if (cartEst.sinPrecios) omitir('precios estables en la Cartera', 'sin precios de tasa fija o de Bonares');
   else {
     check(cartEst.estable && cartEst.sinPrecio, 'mientras se busca el cierre, la Cartera se queda con el último precio; sin cierre, sin precio', JSON.stringify(cartEst));

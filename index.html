@@ -2690,16 +2690,25 @@ async function authInit(){
   }
 
   // Listen for auth changes
-  supa.auth.onAuthStateChange(async(event,session)=>{
-    if(event==='SIGNED_IN'&&session){
-      await authSetUser(session.user);
-    } else if(event==='SIGNED_OUT'){
-      SUPA_USER=null;
-      authUpdateUI(null);
-      authUpdateAdminUI();
-      devSacarSiNoAdmin();
-    }
-  });
+  supa.auth.onAuthStateChange(authOnCambio);
+}
+
+// Supabase vuelve a avisar SIGNED_IN cada vez que la pestaña del navegador
+// recupera el foco, al renovar la sesión. Con el mismo usuario no hay nada que
+// cargar: recargar todo pisaba los bonos en memoria con las definiciones
+// guardadas, sin precio —la Cartera y todas las tablas pasaban a "Sin precio"—,
+// volvía a pedir todos los precios y redibujaba todo. Sólo un usuario distinto
+// carga sus datos.
+async function authOnCambio(event,session){
+  if(event==='SIGNED_IN'&&session){
+    if(SUPA_USER&&SUPA_USER.id===session.user.id){SUPA_USER=session.user;return;}
+    await authSetUser(session.user);
+  } else if(event==='SIGNED_OUT'){
+    SUPA_USER=null;
+    authUpdateUI(null);
+    authUpdateAdminUI();
+    devSacarSiNoAdmin();
+  }
 }
 
 const ADMIN_EMAIL='santosechezarreta5@gmail.com'; // reemplazá con tu email real
