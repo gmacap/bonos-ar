@@ -18041,6 +18041,317 @@ async function cartVaR(res){
   return v;
 }
 
+// ── Escenarios de tasas ──────────────────────────────────────────────────────
+// Reprecio instantáneo: cuántos pb se mueve cada plazo de la curva, y cada
+// posición se revalúa con sus flujos, sin aproximar por duración. Es la otra
+// mitad del escenario a una fecha: acá no pasa el tiempo, sólo se mueve la curva.
+//
+// Diez nodos, de 3 meses a 20 años. Un pago entre dos nodos toma el shock
+// interpolado linealmente; antes del primero, el del primero, y después del
+// último, el del último. Cada grupo se mueve con su propia curva, en su unidad:
+//   tasa fija       la TIR del pago final, en pesos
+//   CER             la TIR real
+//   TAMAR           la TIR en pesos, y la TAMAR proyectada acompaña: la de lo que
+//                   falta publicar se corre en TEA lo mismo que la tasa del plazo
+//                   del pago. Lo devengado queda fijo, así que la duración es la
+//                   efectiva, mucho más corta que la de un bono a tasa fija.
+//   duales          como TAMAR en la rama TAMAR; la otra no cambia, y gana la
+//                   que corresponda después del shock
+//   dollar linked   la TIR en dólares, con el A3500 quieto
+//   hard dollar     la TIR de cada bono: Bonares, Globales y Bopreales juntos
+// La inflación y el dólar no se mueven: el cambio de precio es en la moneda de
+// cada bono, y el impacto se pasa a la vista con el MEP de hoy.
+//
+// Los escenarios armados reparten una magnitud en pb en escala logarítmica de
+// plazo, del nodo más corto (0) al más largo (1); las mariposas, de las puntas
+// (+1) a la panza en 2,5 años (−1). El paralelo lleva el signo; los demás, el
+// valor absoluto. Tocar un nodo pasa a personalizado.
+//
+// Lineal: la suma de key rate durations por shock; la diferencia con el impacto
+// es la convexidad. Las key rate durations salen de repreciar con ±1 pb en cada
+// nodo, así las de TAMAR y duales son las efectivas. Bullet: un cupón cero por
+// grupo con el mismo valor, la misma duración y la misma TIR que esos bonos, con
+// el mismo escenario; si la cartera le gana, la forma del escenario la favorece.
+var CART_TS_NODOS=[0.25,0.5,1,2,3,5,7,10,15,20];
+var CART_TS_NODOS_L=['3m','6m','1a','2a','3a','5a','7a','10a','15a','20a'];
+var CART_TS_GRUPOS=[
+  {g:'TF',l:'Tasa fija',fams:['TF'],c:'#fbbf24'},
+  {g:'CER',l:'CER',fams:['CER'],c:'#4ade80'},
+  {g:'TAMAR',l:'TAMAR',fams:['TAMAR'],c:'#38bdf8'},
+  {g:'DUAL',l:'Duales',fams:['DUAL'],c:'#22d3ee'},
+  {g:'DLK',l:'Dollar linked',fams:['DLK'],c:'#a855f7'},
+  {g:'USD',l:'Hard dollar',fams:['BON','GLO','BOP'],c:'#d4a843'},
+];
+var CART_TS_ESC=[
+  ['par','Parallel shift (todas las tasas igual)'],
+  ['bullst','Bull steepening (bajan, más los cortos)'],
+  ['bearst','Bear steepening (suben, más los largos)'],
+  ['bullfl','Bull flattening (bajan, más los largos)'],
+  ['bearfl','Bear flattening (suben, más los cortos)'],
+  ['pbfly','Butterfly positiva (puntas suben, panza baja)'],
+  ['nbfly','Butterfly negativa (puntas bajan, panza sube)'],
+  ['custom','Personalizado'],
+];
+var CART_TS_CHART={ars:null,usd:null};
+
+function cartTsGrupoDe(fam){const x=CART_TS_GRUPOS.find(q=>q.fams.includes(fam));return x?x.g:null;}
+function cartTsCero(){return CART_TS_NODOS.map(()=>0);}
+function cartTs(c){
+  c.tasas=c.tasas||{};
+  const t=c.tasas;
+  if(!CART_TS_ESC.some(e=>e[0]===t.sc))t.sc='par';
+  if(!isFinite(t.m))t.m=100;
+  if(t.a!=='all'&&!CART_TS_GRUPOS.some(q=>q.g===t.a))t.a='all';
+  if(t.shk&&(typeof t.shk!=='object'||Object.values(t.shk).some(a=>!Array.isArray(a)||a.length!==CART_TS_NODOS.length)))t.shk=null;
+  if(t.sc==='custom'&&!t.shk)t.sc='par';
+  return t;
+}
+// La forma de un escenario en el plazo t (años), para una magnitud m en pb.
+function cartTsForma(k,m,t){
+  const N=CART_TS_NODOS,a=Math.abs(m);
+  const w=Math.max(0,Math.min(1,Math.log(t/N[0])/Math.log(N[N.length-1]/N[0])));
+  const b=Math.max(-1,Math.min(1,2*Math.abs(Math.log(t/2.5))/Math.log(8)-1));
+  switch(k){
+    case'par':return m;
+    case'bullst':return -a*(1-w);
+    case'bearst':return a*w;
+    case'bullfl':return -a*w;
+    case'bearfl':return a*(1-w);
+    case'pbfly':return a*b;
+    case'nbfly':return -a*b;
+  }
+  return 0;
+}
+// pb por nodo para cada grupo.
+function cartTsShocks(t){
+  const out={};
+  CART_TS_GRUPOS.forEach(({g})=>{
+    out[g]=t.sc==='custom'&&t.shk
+      ?(t.shk[g]||cartTsCero()).map(v=>+v||0)
+      :CART_TS_NODOS.map(n=>t.a==='all'||t.a===g?Math.round(cartTsForma(t.sc,+t.m||0,n)):0);
+  });
+  return out;
+}
+// El shock en el plazo t (años), en decimal.
+function cartTsEn(arr,t){
+  const N=CART_TS_NODOS;
+  if(t<=N[0])return arr[0]/1e4;
+  if(t>=N[N.length-1])return arr[N.length-1]/1e4;
+  for(let i=0;i<N.length-1;i++)if(t<=N[i+1]){
+    const a=(N[i+1]-t)/(N[i+1]-N[i]);
+    return(a*arr[i]+(1-a)*arr[i+1])/1e4;
+  }
+  return 0;
+}
+// Lo que se corre la TNA de la TAMAR proyectada, en pb, para que su TEA se
+// mueva sh (decimal).
+function cartTsTamarDT(b,sh){
+  if(!sh)return 0;
+  const e=tamarEnrich({...b,precio:b.precio>0?b.precio:100*(b.tcInicial||1)});
+  const d=e&&e._debug;
+  if(!d)return 0;
+  const tna=dualTnaDeMensual(d.TAMAR_MARGEN_PROY_F/100,b.margen||0);
+  const tea1=Math.pow(1+tna/100*32/365,365/32)-1+sh;
+  if(!(tea1>-1))return 0;
+  return((Math.pow(1+tea1,32/365)-1)*365/32*100-tna)*100;
+}
+// Una posición lista para repreciar: devuelve una función que da el cambio de
+// precio relativo con unos pb por nodo, o null si no se puede.
+function cartTsPrecio(ev,liq){
+  if(!ev||ev.error||ev.y==null||!isFinite(ev.y))return null;
+  const y=ev.y/100,l=parseDate(liq);
+  if(ev.fam==='TAMAR'||ev.fam==='DUAL'){
+    const b=ev.b,f=ev.flujos&&ev.flujos[0];
+    if(!b||!f)return null;
+    const T=diasACT(l,parseDate(f.fecha))/365;
+    if(!(T>0))return null;
+    let A=0;
+    if(ev.fam==='DUAL'){const d=dualCalcular(b);if(d.error)return null;A=d.ramaA>0?d.ramaA:0;}
+    const pago=B=>B>0?(A>0?Math.max(A,B):B):null;
+    const p0=pago(cartTamarVPV(b,0));
+    if(!(p0>0))return null;
+    const base=p0/Math.pow(1+y,T);
+    return arr=>{
+      const sh=cartTsEn(arr,T);
+      if(!(1+y+sh>0))return null;
+      const p1=pago(sh?cartTamarVPV(b,cartTsTamarDT(b,sh)):cartTamarVPV(b,0));
+      return p1>0?p1/Math.pow(1+y+sh,T)/base-1:null;
+    };
+  }
+  const fl=(ev.flujos||[]).map(f=>({t:diasACT(l,parseDate(f.fecha))/365,f:+f.flujo})).filter(x=>x.t>0&&x.f>0);
+  if(!fl.length)return null;
+  const base=fl.reduce((s,x)=>s+x.f/Math.pow(1+y,x.t),0);
+  if(!(base>0))return null;
+  return arr=>{
+    let p=0;
+    for(const x of fl){const r=1+y+cartTsEn(arr,x.t);if(!(r>0))return null;p+=x.f/Math.pow(r,x.t);}
+    return p/base-1;
+  };
+}
+// Key rate durations: ±1 pb en cada nodo, con el mismo reprecio.
+function cartTsKRD(precio){
+  if(!precio)return null;
+  const kr=CART_TS_NODOS.map((_,i)=>{
+    const u=CART_TS_NODOS.map((__,j)=>j===i?1:0);
+    const ru=precio(u),rd=precio(u.map(v=>-v));
+    return ru==null||rd==null?null:-(ru-rd)/2e-4;
+  });
+  return kr.some(v=>v==null||!isFinite(v))?null:kr;
+}
+// Todo el escenario, sin DOM. res: el de cartCalcular.
+function cartTsCalcular(res,c){
+  const t=cartTs(c),SH=cartTsShocks(t);
+  const filas=[];
+  for(const ev of res.ok){
+    const g=cartTsGrupoDe(ev.fam);
+    if(!g)continue;
+    const precio=cartTsPrecio(ev,res.liq);
+    const r=precio?precio(SH[g]):null;
+    filas.push({ev,g,r,d:r!=null&&isFinite(r)?r*ev.valorVista:null,kr:cartTsKRD(precio),valor:ev.valorVista});
+  }
+  const ok=filas.filter(f=>f.d!=null);
+  const tot=ok.reduce((s,f)=>s+f.d,0),valor=ok.reduce((s,f)=>s+f.valor,0);
+  const conKr=ok.filter(f=>f.kr);
+  const lin=conKr.reduce((s,f)=>s-f.kr.reduce((a,k,i)=>a+k*SH[f.g][i]/1e4,0)*f.valor,0);
+  const nodos=CART_TS_NODOS.map((_,i)=>conKr.reduce((s,f)=>s-f.kr[i]*SH[f.g][i]/1e4*f.valor,0));
+  const porGrupo={};
+  ok.forEach(f=>{const q=porGrupo[f.g]=porGrupo[f.g]||{d:0,v:0};q.d+=f.d;q.v+=f.valor;});
+  const grupos=CART_TS_GRUPOS.filter(q=>filas.some(f=>f.g===q.g));
+  let bullet=0;
+  grupos.forEach(({g})=>{
+    const xs=conKr.filter(f=>f.g===g);
+    const v=xs.reduce((s,f)=>s+f.valor,0);
+    if(!(v>0))return;
+    const m=xs.reduce((s,f)=>s+f.kr.reduce((a,k)=>a+k,0)*f.valor,0)/v;
+    const y=xs.reduce((s,f)=>s+f.ev.y/100*f.valor,0)/v;
+    const T=m*(1+y),sh=cartTsEn(SH[g],T);
+    if(T>0&&1+y+sh>0)bullet+=v*(Math.pow((1+y)/(1+y+sh),T)-1);
+  });
+  const mayor=Object.entries(porGrupo).sort((a,b)=>Math.abs(b[1].d)-Math.abs(a[1].d))[0]||null;
+  return{t,SH,filas,ok,tot,valor,lin,nodos,bullet,porGrupo,mayor,grupos,
+    faltan:res.pos.length-ok.length};
+}
+
+// ── Escenarios de tasas: controles ───────────────────────────────────────────
+// Se guarda con la cartera y se repinta sólo este bloque: mover un nodo no
+// tiene por qué recalcular el VaR.
+function cartTsGuardar(){
+  try{localStorage.setItem(CART_LS,JSON.stringify(CART));}catch(e){}
+  ['ars','usd'].forEach(s=>{try{cartTsRender(s);}catch(e){console.warn('[cartera] tasas:',e.message);}});
+}
+function cartTsSet(sec,k,v){
+  const c=cartActiva(),t=cartTs(c);
+  if(k==='reset'){t.sc='par';t.m=100;t.a='all';t.shk=null;}
+  else if(k==='sc'){
+    // Pasar a personalizado arranca desde lo que se está viendo.
+    if(v==='custom'&&!t.shk)t.shk=cartTsShocks(t);
+    t.sc=v;
+    if(v!=='custom')t.shk=null;
+  }
+  else if(k==='m'){t.m=parseFloat(String(v).replace(',','.'))||0;if(t.sc!=='custom')t.shk=null;}
+  else if(k==='a'){t.a=v;if(t.sc!=='custom')t.shk=null;}
+  cartTsGuardar();
+}
+function cartTsNodo(sec,g,i,v){
+  const c=cartActiva(),t=cartTs(c);
+  const sh=cartTsShocks(t);
+  sh[g][i]=parseFloat(String(v).replace(',','.'))||0;
+  t.shk=sh;t.sc='custom';
+  cartTsGuardar();
+}
+
+function cartTsRender(sec){
+  const p=CART_SEC[sec].p,res=CART_ESC_RES[sec];
+  const tiles=document.getElementById(p+'-ts-tiles');
+  if(!tiles||!res)return;
+  const c=cartActiva(),mon=res.vista;
+  const R=cartTsCalcular(res,c),t=R.t;
+  const $=id=>document.getElementById(p+id);
+  const libre=el=>el&&document.activeElement!==el;
+  if(libre($('-ts-esc')))$('-ts-esc').value=t.sc;
+  if(libre($('-ts-m'))){$('-ts-m').value=t.m;}
+  if($('-ts-m'))$('-ts-m').disabled=t.sc==='custom';
+  const aSel=$('-ts-a');
+  if(libre(aSel)){
+    aSel.innerHTML='<option value="all">Todas las curvas</option>'+R.grupos.map(q=>`<option value="${q.g}">Sólo ${q.l}</option>`).join('');
+    aSel.value=R.grupos.some(q=>q.g===t.a)?t.a:'all';
+  }
+  if(aSel)aSel.disabled=t.sc==='custom';
+  const vacio=msg=>{
+    tiles.innerHTML=`<div style="color:var(--text3);font-size:11px;padding:8px 0">${msg}</div>`;
+    ['-ts-in-h','-ts-in','-ts-pos-h','-ts-pos','-ts-pos-f'].forEach(id=>{if($(id))$(id).innerHTML='';});
+    if(CART_TS_CHART[sec]){CART_TS_CHART[sec].destroy();CART_TS_CHART[sec]=null;}
+    if($('-ts-nota'))$('-ts-nota').textContent='';
+  };
+  if(!R.filas.length)return vacio('Cargá posiciones para simular escenarios de tasas.');
+  const col=v=>v>0?'var(--accent2)':v<0?'var(--danger)':'var(--text3)';
+  const sg=(v,d)=>v==null||!isFinite(v)?'—':(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(d==null?2:d);
+  const mon$=v=>`<span style="color:${col(v)}">${v>0?'+':''}${cartFmt(v,mon)}</span>`;
+  const tile=(tt,v,sb)=>`<div style="border:1px solid var(--border);border-radius:4px;padding:8px 10px;background:var(--surface)">
+    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">${tt}</div>
+    <div style="font-family:var(--mono);font-size:16px;margin:2px 0">${v}</div>
+    <div style="font-size:10px;color:var(--text3);line-height:1.4">${sb}</div></div>`;
+  const pctV=R.valor>0?R.tot/R.valor*100:null;
+  const dif=R.tot-R.bullet;
+  const gm=R.mayor&&CART_TS_GRUPOS.find(q=>q.g===R.mayor[0]);
+  tiles.innerHTML=
+    tile('Impacto en la cartera',mon$(R.tot),`${sg(pctV)}% del valor · queda en ${cartFmt(R.valor+R.tot,mon)}`)
+    +tile('Con duración (lineal)',mon$(R.lin),`key rate durations × shock; la diferencia, ${cartFmt(R.tot-R.lin,mon)}, es la convexidad`)
+    +tile('Bullet de igual duración',mon$(R.bullet),`tu cartera le ${dif>=0?'gana':'pierde'} por ${cartFmt(Math.abs(dif),mon)} a un cupón cero por grupo con tu misma duración`)
+    +tile('Grupo más afectado',gm?`<span style="color:${gm.c}">${gm.l}</span>`:'—',gm?`${cartFmt(R.mayor[1].d,mon)} · ${sg(R.mayor[1].v>0?R.mayor[1].d/R.mayor[1].v*100:null)}% del grupo`:'');
+
+  // Los nodos, editables, una columna por grupo de la cartera.
+  const th='padding:5px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+  const td='padding:3px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+  $('-ts-in-h').innerHTML=`<tr><th style="${th};text-align:left">Nodo</th>${R.grupos.map(q=>`<th style="${th}"><span style="color:${q.c}">●</span> ${q.l} (pb)</th>`).join('')}</tr>`;
+  const tdN=td.replace('padding:3px 8px','padding:1px 6px');
+  $('-ts-in').innerHTML=CART_TS_NODOS_L.map((nl,i)=>`<tr><td style="${tdN};text-align:left;color:var(--text2)">${nl}</td>${R.grupos.map(q=>{
+    const v=R.SH[q.g][i];
+    return`<td style="${tdN}"><input type="number" step="any" value="${+v.toFixed(2)}" data-g="${q.g}" data-n="${i}" onchange="cartTsNodo('${sec}','${q.g}',${i},this.value)" style="width:62px;text-align:right;background:transparent;border:1px solid var(--border2);border-radius:3px;color:${v?col(-v):'var(--text2)'};font-family:var(--mono);font-size:11px;padding:1px 4px"></td>`;
+  }).join('')}</tr>`).join('');
+
+  // Qué plazo explica el resultado.
+  const cv=$('-ts-chart');
+  if(cv&&typeof Chart!=='undefined'){
+    if(CART_TS_CHART[sec])CART_TS_CHART[sec].destroy();
+    const gris=colGris();
+    CART_TS_CHART[sec]=new Chart(cv,{type:'bar',
+      data:{labels:CART_TS_NODOS_L,datasets:[{label:'Aporte de cada nodo',data:R.nodos,
+        backgroundColor:R.nodos.map(v=>v>=0?'rgba(74,222,128,.7)':'rgba(248,113,113,.7)'),borderRadius:3,maxBarThickness:40}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label:x=>'Aporte: '+cartFmt(x.raw,mon)}}},
+        scales:{x:{ticks:{color:gris,font:{size:10,family:'DM Mono, monospace'}},grid:{display:false},
+            title:{display:true,text:'Qué plazo explica el resultado (key rate duration × shock)',color:gris,font:{size:10,family:'DM Mono, monospace'}}},
+          y:{ticks:{color:gris,font:{size:10,family:'DM Mono, monospace'},callback:v=>cartFmt(v,mon)},grid:{color:'rgba(255,255,255,0.05)'}}}}});
+  }
+
+  // Bono por bono, del que más pierde al que más gana.
+  $('-ts-pos-h').innerHTML=`<tr><th style="${th};text-align:left">Instrumento</th><th style="${th};text-align:left">Grupo</th><th style="${th}">Valor hoy</th>
+    <th style="${th}" title="Cambio de precio en la moneda del bono">Cambio de precio</th><th style="${th}">Impacto</th><th style="${th}">% del impacto</th>
+    <th style="${th}" title="Suma de las key rate durations: la sensibilidad a la TIR efectiva anual de cada bono, que es la que mueve el escenario. Con TAMAR y duales, la efectiva. En hard dollar sale un poco más baja que la MD de Posiciones, que va con la convención de su cupón (semestral).">Duración</th></tr>`;
+  const filas=R.filas.slice().sort((a,b)=>(a.d==null)-(b.d==null)||(a.d||0)-(b.d||0));
+  $('-ts-pos').innerHTML=filas.map(f=>{
+    const q=CART_TS_GRUPOS.find(x=>x.g===f.g);
+    const dur=f.kr?f.kr.reduce((a,k)=>a+k,0):null;
+    return`<tr><td style="${td};text-align:left;color:${f.ev.F.c};font-weight:600">${f.ev.ticker}</td>
+      <td style="${td};text-align:left;color:var(--text3)">${q.l}</td>
+      <td style="${td}">${cartFmt(f.valor,mon)}</td>
+      <td style="${td};color:${col(f.r)}">${f.r==null?'n/d':sg(f.r*100)+'%'}</td>
+      <td style="${td};color:${col(f.d)}">${f.d==null?'—':(f.d>0?'+':'')+cartFmt(f.d,mon)}</td>
+      <td style="${td}">${f.d!=null&&R.tot?cartN(f.d/R.tot*100,1)+'%':'—'}</td>
+      <td style="${td};color:var(--text2)">${cartN(dur)}</td></tr>`;
+  }).join('');
+  $('-ts-pos-f').innerHTML=`<tr><td style="${td};text-align:left;font-weight:600" colspan="2">Total</td><td style="${td}">${cartFmt(R.valor,mon)}</td>
+    <td style="${td};color:${col(R.tot)}">${sg(pctV)}%</td><td style="${td};color:${col(R.tot)};font-weight:600">${R.tot>0?'+':''}${cartFmt(R.tot,mon)}</td><td style="${td}">100%</td><td style="${td}"></td></tr>`;
+  $('-ts-nota').textContent='Cada bono se revalúa descontando sus flujos a su TIR más el shock del plazo de cada pago, interpolado entre nodos. '
+    +'Cada grupo se mueve con su propia curva: tasa fija, TAMAR y duales en TIR en pesos, CER en TIR real, dollar linked y hard dollar en TIR en dólares. '
+    +'En TAMAR y duales la TAMAR que falta publicar se mueve en TEA lo mismo que la tasa de su plazo: lo devengado queda fijo, así que su duración es la efectiva; en los duales gana la rama que corresponda después del shock. '
+    +'La inflación y el dólar no cambian, y el impacto se pasa a la vista con el MEP de hoy. '
+    +'Lineal: la suma de key rate durations por shock; la diferencia con el impacto es la convexidad. '
+    +'Bullet: un cupón cero por grupo con el mismo valor, la misma duración y la misma TIR que tus bonos de ese grupo, con el mismo escenario.'
+    +(R.faltan?` ${R.faltan} posición${R.faltan>1?'es':''} sin precio o sin flujos no entra${R.faltan>1?'n':''} en la cuenta.`:'');
+}
+
 // ── Pantalla ─────────────────────────────────────────────────────────────────
 var cartFmt=(v,mon)=>v==null||!isFinite(v)?'—':(v<0?'−':'')+(mon==='USD'?'US$ ':'$ ')+Math.round(Math.abs(v)).toLocaleString('es-AR');
 var cartN=(v,d)=>v==null||!isFinite(v)?'—':(+v).toFixed(d==null?2:d);
@@ -18084,6 +18395,27 @@ function cartPaginaHTML(sec){
         <div id="${p}-fact"></div>
       </section>
     </div>
+    <section>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap"><span style="${tit}">Escenarios de tasas</span>
+        <span style="${sub}">reprecio instantáneo: cuántos pb se mueve cada plazo de la curva, y cada bono se revalúa con sus flujos, sin aproximar por duración</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:10px">
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Escenario</span>
+          <select id="${p}-ts-esc" style="${sel}" onchange="cartTsSet('${sec}','sc',this.value)">${CART_TS_ESC.map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></label>
+        <label style="display:flex;flex-direction:column;gap:3px" title="En el paralelo manda el signo: negativo es una baja. En los demás, cuánto se mueve el nodo que más se mueve."><span style="${lbl}">Magnitud (pb)</span>
+          <input type="number" id="${p}-ts-m" step="25" style="${sel};width:100px" onchange="cartTsSet('${sec}','m',this.value)"></label>
+        <label style="display:flex;flex-direction:column;gap:3px"><span style="${lbl}">Aplicar a</span>
+          <select id="${p}-ts-a" style="${sel}" onchange="cartTsSet('${sec}','a',this.value)"></select></label>
+        <button class="btn" style="padding:3px 9px;font-size:10px" onclick="cartTsSet('${sec}','reset')">Restablecer</button>
+      </div>
+      <div id="${p}-ts-tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start">
+        <div style="flex:0 1 auto;max-width:100%;overflow-x:auto"><table style="border-collapse:collapse;font-family:var(--mono);font-size:12px"><thead id="${p}-ts-in-h"></thead><tbody id="${p}-ts-in"></tbody></table></div>
+        <div style="flex:1 1 420px;min-width:0;height:300px;position:relative"><canvas id="${p}-ts-chart"></canvas></div>
+      </div>
+      <div style="overflow-x:auto;margin-top:12px"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px">
+        <thead id="${p}-ts-pos-h"></thead><tbody id="${p}-ts-pos"></tbody><tfoot id="${p}-ts-pos-f"></tfoot></table></div>
+      <div id="${p}-ts-nota" style="font-size:10px;color:var(--text3);line-height:1.6;margin-top:8px;max-width:1100px"></div>
+    </section>
     <section>
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap"><span style="${tit}">Escenario a una fecha</span>
         <span style="${sub}">cada palanca es el movimiento de un factor hasta el corte; en cero, todo queda como hoy y cada bono sólo devenga a su TIR</span></div>
@@ -18218,6 +18550,7 @@ function cartPintar(sec,res){
   }).join(''):'<div style="color:var(--text3);font-size:11px">—</div>';
   CART_ESC_RES[sec]=res;
   cartEscRender(sec);
+  try{cartTsRender(sec);}catch(e){console.warn('[cartera] tasas:',e.message);}
 }
 
 function cartPintarVaR(sec,res,v){

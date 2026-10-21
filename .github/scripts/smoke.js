@@ -4389,6 +4389,93 @@ const omitir = (label, motivo) =>
     check(ca.desdeUsd && ca.botones && ca.sync, 'la misma cartera se ve desde las dos secciones y viaja por usuario', JSON.stringify(ca));
   }
 
+  // Escenarios de tasas: reprecio instantáneo con un shock por nodo.
+  console.log('\nCartera: escenarios de tasas');
+  const ts = await page.evaluate(async () => {
+    const out = {};
+    const N = CART_TS_NODOS, a = 100, cerca = (x, y, tol = 1e-9) => Math.abs(x - y) < tol;
+    const f = k => N.map(n => cartTsForma(k, a, n));
+    const pb = f('pbfly');
+    out.formas = f('par').every(v => v === a) && cerca(f('par').length, 10)
+      && cerca(f('bullst')[0], -a) && cerca(f('bullst')[9], 0) && cerca(f('bearst')[0], 0) && cerca(f('bearst')[9], a)
+      && cerca(f('bullfl')[0], 0) && cerca(f('bullfl')[9], -a) && cerca(f('bearfl')[0], a) && cerca(f('bearfl')[9], 0)
+      && cerca(pb[0], a) && cerca(pb[9], a) && Math.min(...pb) < -0.7 * a && f('nbfly').every((v, i) => cerca(v, -pb[i]))
+      && cartTsForma('par', -50, 3) === -50;
+    const arr = N.map((_, i) => i * 10);
+    out.interpola = cerca(cartTsEn(arr, 1), 20 / 1e4) && cerca(cartTsEn(arr, 1.5), 25 / 1e4) && cerca(cartTsEn(arr, 0.1), 0) && cerca(cartTsEn(arr, 30), 90 / 1e4);
+
+    const previo = JSON.stringify(cartLeer());
+    switchSection('pesos'); switchTab('cartera');
+    await new Promise(r => setTimeout(r, 800));
+    cartNueva();
+    const c = cartActiva();
+    const liq = bopFmtDate(G_LIQ || addHabiles(TODAY, 1));
+    const tf = LECAPS.filter(b => b.precio > 0 && parseDate(b.vcto) > new Date(parseDate(liq).getTime() + 60 * 86400000)).pop();
+    const usd = BON_BONDS.find(b => b.lastPrecio > 0);
+    const tam = TAMAR_BONDS.find(b => b.precio > 0 && !dualTipo(b) && parseDate(b.vcto) > new Date(parseDate(liq).getTime() + 120 * 86400000));
+    if (!tf || !usd) { CART = JSON.parse(previo); cartGuardar(); return { ...out, sinPrecios: true }; }
+    c.pos = [{ inst: 'TF|' + tf.ticker, vn: 1000000 }, { inst: 'BON|' + usd.ticker, vn: 10000 }].concat(tam ? [{ inst: 'TAMAR|' + tam.ticker, vn: 1000000 }] : []);
+    c.tasas = { sc: 'par', m: 0, a: 'all' };
+    cartGuardar();
+    await new Promise(r => setTimeout(r, 1500));
+    const res = CART_ESC_RES.ars;
+    // En cero no cambia nada.
+    let R = cartTsCalcular(res, c);
+    out.cero = R.filas.length === res.ok.length && R.filas.length >= 2 && R.filas.every(x => x.r != null && Math.abs(x.r) < 1e-12);
+    // La suma de las key rate durations de un bono de flujos fijos es su duración
+    // modificada a la TIR efectiva.
+    const mdEf = ev => {
+      const l = parseDate(liq), y = ev.y / 100; let pv = 0, t = 0;
+      ev.flujos.forEach(q => { const a = diasACT(l, parseDate(q.fecha)) / 365; if (a <= 0) return; const v = q.flujo / Math.pow(1 + y, a); pv += v; t += a * v; });
+      return t / pv / (1 + y);
+    };
+    out.krd = R.filas.filter(x => x.g !== 'TAMAR').map(x => ({ t: x.ev.ticker, suma: x.kr.reduce((s, k) => s + k, 0), md: mdEf(x.ev) }));
+    out.krdOk = out.krd.every(x => Math.abs(x.suma - x.md) < 1e-4);
+    const tamF = R.filas.find(x => x.g === 'TAMAR');
+    out.tamar = tamF ? { efectiva: tamF.kr.reduce((s, k) => s + k, 0), md: tamF.ev.md } : null;
+    // +100 pb en paralelo: con flujos fijos la pérdida es menor que la lineal
+    // (convexidad), y un solo cupón cero es su propio bullet.
+    c.tasas = { sc: 'par', m: 100, a: 'all' };
+    R = cartTsCalcular(res, c);
+    out.convexo = R.tot < 0 && R.tot > R.lin && Math.abs(R.tot - R.lin) < Math.abs(R.lin) * 0.05;
+    out.nodos = Math.abs(R.nodos.reduce((s, v) => s + v, 0) - R.lin) < 1e-6 * Math.max(1, Math.abs(R.lin));
+    const soloTF = { pos: [c.pos[0]], tasas: { sc: 'par', m: 100, a: 'all' } };
+    const resTF = cartCalcular(soloTF, 'ARS', res.mep, liq), RT = cartTsCalcular(resTF, soloTF);
+    out.bullet = RT.tot !== 0 && Math.abs(RT.tot - RT.bullet) < Math.abs(RT.tot) * 1e-6;
+    // Aplicar sólo al hard dollar: la tasa fija no se mueve.
+    c.tasas = { sc: 'par', m: 100, a: 'USD' };
+    R = cartTsCalcular(res, c);
+    out.soloUsd = R.filas.find(x => x.g === 'TF').r === 0 && R.filas.find(x => x.g === 'USD').r < 0;
+    // La pantalla: tocar un nodo pasa a personalizado y mueve sólo ese nodo.
+    c.tasas = { sc: 'par', m: 100, a: 'all' };
+    cartTsGuardar();
+    await new Promise(r => setTimeout(r, 300));
+    out.dom = { tiles: document.querySelectorAll('#cart-ts-tiles > div').length,
+      inputs: document.querySelectorAll('#cart-ts-in input').length, grupos: R.grupos.length,
+      filas: document.querySelectorAll('#cart-ts-pos tr').length, chart: !!CART_TS_CHART.ars };
+    cartTsNodo('ars', 'TF', 2, 250);
+    const t = cartTs(cartActiva());
+    out.custom = t.sc === 'custom' && t.shk.TF[2] === 250 && t.shk.TF[1] === 100 && t.shk.USD[2] === 100
+      && document.getElementById('cart-ts-esc').value === 'custom' && document.getElementById('cart-ts-m').disabled;
+    cartTsSet('ars', 'reset');
+    out.reset = cartTs(cartActiva()).sc === 'par' && !cartTs(cartActiva()).shk;
+    CART = JSON.parse(previo); cartGuardar();
+    return out;
+  });
+  check(ts.formas && ts.interpola, 'los escenarios armados tienen su forma y el shock se interpola entre nodos');
+  if (ts.sinPrecios) omitir('escenarios de tasas en vivo', 'sin precios de tasa fija o de Bonares');
+  else {
+    check(ts.cero, 'sin shock no cambia ningún precio');
+    check(ts.krdOk, 'las key rate durations de un bono de flujos fijos suman su duración modificada', JSON.stringify(ts.krd));
+    if (ts.tamar) check(ts.tamar.efectiva < ts.tamar.md, 'en TAMAR la TAMAR proyectada acompaña: la duración efectiva es menor que la del bono a tasa fija', JSON.stringify(ts.tamar));
+    check(ts.convexo && ts.nodos, '+100 pb: la pérdida es menor que la lineal (convexidad) y los nodos suman la lineal');
+    check(ts.bullet, 'un solo cupón cero es su propio bullet');
+    check(ts.soloUsd, 'aplicado sólo al hard dollar, la tasa fija no se mueve');
+    check(ts.dom.tiles === 4 && ts.dom.inputs === 10 * ts.dom.grupos && ts.dom.filas === ts.dom.grupos && ts.dom.chart,
+          'la pantalla muestra las cuatro tarjetas, un nodo por grupo, el gráfico y una fila por bono', JSON.stringify(ts.dom));
+    check(ts.custom && ts.reset, 'tocar un nodo pasa a personalizado y mueve sólo ese nodo; restablecer vuelve al paralelo');
+  }
+
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
   console.log('\nSerie histórica del BE de inflación');
