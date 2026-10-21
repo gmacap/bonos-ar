@@ -429,6 +429,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-tamar" onclick="switchTab('tamar')">TAMAR</button>
       <button class="nav-tab" role="menuitem" id="nav-dlk" onclick="switchTab('dlk')">DLK</button>
       <button class="nav-tab" role="menuitem" id="nav-sintetico" onclick="switchTab('sintetico')">Sintético ARS</button>
+      <button class="nav-tab" role="menuitem" id="nav-sintusd" onclick="switchTab('sintusd')">Sintético USD</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -467,6 +468,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-usd-globales" onclick="switchUsdTab('usd-globales')">Globales</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-bopreales" onclick="switchUsdTab('usd-bopreales')">Bopreales</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-equiv" onclick="switchUsdTab('usd-equiv')">Equivalencias</button>
+      <button class="nav-tab" role="menuitem" id="nav-usd-sintusd" onclick="switchUsdTab('usd-sintusd')">Sintético USD</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -1303,6 +1305,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div>
 </div>
 
+<div id="page-sintusd" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
+
 <!-- SINT MODAL -->
 <div class="modal-backdrop" id="sint-modal" onclick="if(event.target===this)sintCloseModal()" style="display:none">
   <div class="modal" style="width:360px;">
@@ -2089,6 +2093,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-usd-retornos" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-cartera" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-licitaciones" class="pg" style="overflow-y:auto"></div>
+<div id="page-usd-sintusd" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-spreadleg" class="pg">
   <div style="display:flex;flex-direction:column;height:100%">
     <div style="display:flex;align-items:center;gap:8px;padding:0 1rem;height:40px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
@@ -5002,13 +5007,13 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-curvas','usd-series','usd-comentario'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-comentario','page-dual','page-retornos','page-cartera','page-licitaciones'];
+    'page-comentario','page-dual','page-retornos','page-cartera','page-licitaciones','page-sintusd'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -5092,6 +5097,7 @@ function switchUsdTab(tab){
   if(tab==='usd-licitaciones') licInit('usd');
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
+  if(tab==='usd-sintusd') susInit('usd');
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();desvMontar('usd');}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
   if(tab==='usd-comentario') comInit('usd');
@@ -5161,6 +5167,9 @@ function switchTab(tab){
   } else if(tab==='licitaciones'){
     document.getElementById('page-licitaciones').style.display='block';
     licInit('ars');
+  } else if(tab==='sintusd'){
+    document.getElementById('page-sintusd').style.display='block';
+    susInit('ars');
   } else if(tab==='retornos'){
     document.getElementById('page-retornos').style.display='block';
     retInit('ars');
@@ -9789,6 +9798,7 @@ function beRefreshIfVisible(){
   if(currentTab==='retornos'){try{retRender('ars');}catch(e){console.warn('[retornos]',e.message);}return;}
   if(currentTab==='cartera'){try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}return;}
   if(currentTab==='licitaciones'){licRefrescar();return;}
+  if(currentTab==='sintusd'){susRefrescar();return;}
   if(currentTab!=='breakeven')return;
   beRecalc();
   beTamarRecalc();
@@ -14629,6 +14639,263 @@ function sintConfirmAdd(){
   sintCloseModal();
 }
 
+// ══════════════════════════════════════════════════════════ SINTÉTICO USD
+// El dólar sintético: comprar una LECAP y comprar futuro de dólar por el mismo
+// monto. Al vencimiento la LECAP paga pesos y el futuro los pasa a dólares
+// oficiales: queda una tasa en dólares, que se compara con la del dollar linked
+// del mismo plazo, que es la alternativa directa.
+//   USD hoy            precio de la LECAP / A3500 de hoy
+//   USD al vencimiento pago de la LECAP / futuro a la fecha de pago
+//   TEA en USD         (USD al venc. / USD hoy)^(365/días) − 1
+// El futuro a una fecha sale de la curva del MAE: el A3500 de hoy y cada
+// contrato a su vencimiento, el último hábil del mes, en línea recta. Una LECAP
+// que vence antes de fin de mes usa el futuro interpolado a su fecha: el
+// contrato se desarma ese día y queda riesgo de base (va marcado con *).
+//
+// Contra qué se compara: si hay un dollar linked que vence a una semana o menos,
+// contra ese bono; si no, contra la curva de dollar linked al mismo plazo, sin
+// extrapolar. Las dos tasas en dólares se miden con el mismo A3500. Los duales
+// TAMAR/dólar linked quedan afuera: su opción a TAMAR no es una tasa en dólares.
+//
+// Una sola página para las dos secciones, como Licitaciones.
+var SUS_SEC={ars:{pagina:'page-sintusd',p:'sus'},usd:{pagina:'page-usd-sintusd',p:'usus'}};
+var SUS_CHARTS={ars:{},usd:{}};
+var SUS_REAL=7;      // días: un dollar linked que vence a una semana o menos es la comparación directa
+var SUS_MIN=21;      // días: más corto, la TEA anualiza cualquier diferencia chica; va sólo en la tabla
+var SUS_DIAS_MIN=7;  // días: más corto ni siquiera entra
+var SUS_MONTO_MIN=1e8; // $100 M operados en la rueda para que un dollar linked sea referencia
+var SUS_COL={lec:'#fbbf24',dl:'#a855f7',fut:'#38bdf8',rem:'#94a3b8'};
+
+// La curva de futuros: hoy al A3500 y cada contrato a su vencimiento.
+function susCurvaFuturos(){
+  const spot=dlkTCHoy(),hoy=parseDate(hoyAR());
+  if(!(spot>0))return null;
+  const pts=[{t:hoy.getTime(),F:spot,ticker:'A3500 hoy'}];
+  (MAE_FUTUROS||[]).forEach(f=>{
+    const v=sintLastBizDay(f.anio,f.mes-1);
+    if(v>hoy&&f.precio>0)pts.push({t:v.getTime(),F:f.precio,ticker:f.ticker,vto:fmtDate(v),hora:f.hora});
+  });
+  pts.sort((a,b)=>a.t-b.t);
+  return pts.length>1?{pts,spot,hoy}:null;
+}
+// El futuro a una fecha. Más allá del último contrato no se extrapola.
+function susFuturo(C,fecha){
+  const t=fecha.getTime(),p=C.pts;
+  if(t<=p[0].t)return p[0].F;
+  for(let i=1;i<p.length;i++)if(t<=p[i].t)return p[i-1].F+(p[i].F-p[i-1].F)*(t-p[i-1].t)/(p[i].t-p[i-1].t);
+  return t-p[p.length-1].t<=3*86400000?p[p.length-1].F:null;
+}
+// El contrato del mes de una fecha, y si hay que interpolarlo.
+function susContrato(C,fecha){
+  const f=C.pts.find(x=>x.vto&&x.vto.slice(0,7)===fmtDate(fecha).slice(0,7));
+  return f?{ticker:f.ticker,interp:Math.abs(f.t-fecha.getTime())>86400000}:null;
+}
+
+function susDatos(){
+  const C=susCurvaFuturos();
+  if(!C)return null;
+  const enTamar=new Set((TAMAR_BONDS||[]).map(b=>b.ticker));
+  // Las LECAP y BONCAP con precio.
+  const lec=(LECAPS||[]).filter(b=>b.precio>0&&b.vcto).map(b=>{
+    try{const e=enrich(b);return isFinite(e.tir)&&e.dias>=SUS_DIAS_MIN?{b,e,d:e.dias,vto:parseDate(b.vcto)}:null;}catch(x){return null;}
+  }).filter(Boolean).sort((a,b)=>a.d-b.d);
+  // Los dollar linked, sin los duales, con su tasa en dólares.
+  const dls=(DLK_BONDS||[]).filter(b=>b.precio>0&&b.vcto&&!enTamar.has(b.ticker)).map(b=>{
+    try{const e=dlkEnrich(b);return e.tir!=null&&isFinite(e.tir)&&e.dias>=SUS_DIAS_MIN?{b,e,d:e.dias,vto:parseDate(b.vcto),tea:e.tir}:null;}catch(x){return null;}
+  }).filter(Boolean).sort((a,b)=>a.d-b.d);
+  // Las curvas, con los mismos puntos en la tabla y en el gráfico: sin los de
+  // menos de tres semanas, que la TEA distorsiona.
+  const ajuste=(L,y)=>{
+    let pts=L.filter(o=>o.d>=SUS_MIN);
+    if(pts.length<3)pts=L;
+    if(pts.length<3)return null;
+    const aj=curvaAjustar(pts.map(o=>({x:o.d,y:y(o)})));
+    return aj?{aj,x0:pts[0].d,x1:pts[pts.length-1].d}:null;
+  };
+  const enCurva=(R,d)=>R&&d>=R.x0-3&&d<=R.x1+3?R.aj.f(Math.min(R.x1,Math.max(R.x0,d))):null;
+  // Un dollar linked que casi no operó no es referencia: su último precio puede
+  // ser una operación suelta a una punta. Con menos de tres que hayan operado
+  // —a la mañana, antes de que arranque la rueda— se usan todos.
+  // Y sólo los que vencen dentro de la curva de futuros: un dollar linked de
+  // 2028 no dice nada de la tasa a seis meses y le tuerce la curva.
+  const horizonte=C.pts[C.pts.length-1].t+20*86400000;
+  dls.forEach(o=>{o.operado=o.b.monto>=SUS_MONTO_MIN;o.enHorizonte=o.vto.getTime()<=horizonte;});
+  const enH=dls.filter(o=>o.enHorizonte);
+  const refs=enH.filter(o=>o.operado).length>=3?enH.filter(o=>o.operado):enH;
+  const DR=ajuste(refs,o=>o.tea),LR=ajuste(lec,o=>o.e.tir);
+  const cercano=(L,d)=>{let m=null;L.forEach(o=>{if(!m||Math.abs(o.d-d)<Math.abs(m.d-d))m=o;});return m;};
+  const ult=C.pts[C.pts.length-1].t;
+  const filas=lec.filter(o=>o.vto.getTime()<=ult+3*86400000).map(o=>{
+    const F=susFuturo(C,o.vto);
+    const pago=o.e.vf,P=o.b.precio;
+    const u0=P/C.spot,u1=F?pago/F:null;
+    const u=u1?(Math.pow(u1/u0,365/o.d)-1)*100:null;
+    const dlc=enCurva(DR,o.d);
+    const n=cercano(refs,o.d);
+    const ref=n&&Math.abs(n.d-o.d)<=SUS_REAL?{v:n.tea,k:n.b.ticker}:dlc!=null?{v:dlc,k:null}:null;
+    return{k:o.b.ticker,P,pago,F,u0,u1,u,tem:u!=null?(Math.pow(1+u/100,30/365)-1)*100:null,d:o.d,vto:o.b.vcto,
+      ct:susContrato(C,o.vto),dlc,dc:u!=null&&dlc!=null?(u-dlc)*100:null,
+      n:n?{k:n.b.ticker,v:n.tea,g:n.d-o.d}:null,ref,dif:u!=null&&ref?(u-ref.v)*100:null,cierre:!!o.b.precioCierre};
+  }).filter(r=>r.u!=null);
+  // El A3500 al vencimiento con el que cada dollar linked empata a la curva de
+  // LECAP: sólo los cero cupón, donde la cuenta es exacta.
+  const be=dls.filter(o=>!(+o.b.cupon>0)).map(o=>{
+    const lf=enCurva(LR,o.d);
+    return lf==null?null:{k:o.b.ticker,d:o.d,vto:o.b.vcto,v:o.b.precio*Math.pow(1+lf/100,o.d/365)/100};
+  }).filter(Boolean);
+  return{C,lec,dls,refs,DR,LR,filas,be,liq:fmtDate(G_LIQ||addHabiles(TODAY,1))};
+}
+
+function susInit(sec){
+  const S=SUS_SEC[sec],pg=document.getElementById(S.pagina);
+  if(!pg)return;
+  if(!pg.innerHTML.trim())pg.innerHTML=susPaginaHTML(sec);
+  // Sin futuros en memoria (se abrió la app con la rueda cerrada), se piden.
+  if(!(MAE_FUTUROS||[]).length){
+    maeFetchFuturos().then(c=>{maeAplicarFuturos(c);susRender(sec);}).catch(e=>console.warn('[sintético USD] futuros:',e));
+  }
+  susRender(sec);
+}
+function susRefrescar(){
+  ['ars','usd'].forEach(sec=>{
+    const pg=document.getElementById(SUS_SEC[sec].pagina);
+    if(pg&&pg.style.display!=='none'&&pg.innerHTML.trim())try{susRender(sec);}catch(e){console.warn('[sintético USD]',e);}
+  });
+}
+
+function susPaginaHTML(sec){
+  const p=SUS_SEC[sec].p;
+  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+  const sub='font-size:10px;color:var(--text3);font-family:var(--mono)';
+  const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px';
+  const graf=(id,alto,titulo,bajada)=>`<div style="min-width:0"><div style="font-family:var(--mono);font-size:12px;color:var(--text);margin-bottom:2px">${titulo}</div>
+    <div style="${sub};margin-bottom:4px">${bajada}</div><div style="height:${alto}px;position:relative"><canvas id="${p}-${id}"></canvas></div>
+    <div id="${p}-${id}-vacio" style="${sub}"></div></div>`;
+  return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:baseline">
+      <span style="${tit};font-size:17px">Sintético USD</span>
+      <span style="${sub}">LECAP + compra de futuro de dólar, contra el dollar linked del mismo plazo</span>
+      <button class="btn" style="padding:3px 9px;font-size:10px;margin-left:auto" onclick="maeRefreshFuturos()" title="Actualizar los futuros de dólar del MAE (rueda 10 a 15)">↻ Futuros MAE</button>
+    </div>
+    <div id="${p}-fuente" style="${sub}"></div>
+    <section style="${caja}">${graf('g-tasas',360,'Tasa en dólares oficiales por plazo','TEA en USD: cada LECAP con el futuro de su vencimiento, contra los dollar linked y su curva')}</section>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">
+      <section style="${caja}">${graf('g-dif',280,'Sintético menos dollar linked del mismo plazo','en pb; verde: rinde más el sintético')}</section>
+      <section style="${caja}">${graf('g-tc',280,'Tipo de cambio esperado','futuros del MAE, el A3500 que iguala cada dollar linked con la curva de LECAP, y el REM')}</section>
+    </div>
+    <section style="${caja}">
+      <div style="${tit};margin-bottom:8px">Cada LECAP con el futuro de su vencimiento</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:1180px">
+        <thead id="${p}-thead"></thead><tbody id="${p}-tbody"></tbody></table></div>
+    </section>
+    <section style="${caja};font-size:11px;color:var(--text2);line-height:1.6">
+      <div style="${tit};margin-bottom:6px">Cómo se lee</div>
+      <ul style="margin:0;padding-left:18px">
+        <li><b>La estrategia</b>: comprás la LECAP y comprás futuro de dólar por el mismo monto. Al vencimiento cobrás pesos y con el futuro los pasás a dólares oficiales: queda una tasa en dólares.</li>
+        <li><b>USD hoy</b> = precio / A3500 de hoy. <b>USD al vencimiento</b> = pago de la LECAP / futuro a su vencimiento. TEA = (USD al venc. / USD hoy)<sup>365/días</sup> − 1; TEM = (1 + TEA)<sup>30/365</sup> − 1.</li>
+        <li><b>Contra qué se compara</b>: si hay un dollar linked que vence a una semana o menos, contra ese bono; si no, contra la curva de dollar linked ajustada al mismo plazo, sin extrapolarla. <b>Dif.</b> y <b>Conviene</b> usan esa comparación; <b>Dif. curva</b> es siempre contra la curva.</li>
+        <li><b>Liquidez</b>: un dollar linked que operó menos de $100 M en la rueda no se usa como referencia —su último precio puede ser una operación suelta— y va hueco en el gráfico. Si todavía no operaron al menos tres, se usan todos. Y entran sólo los que vencen dentro de la curva de futuros: uno de 2028 no dice nada de la tasa a seis meses.</li>
+        <li><b>Contrato</b>: el futuro del mes en que vence la LECAP. Con <b>*</b>, la LECAP vence antes de fin de mes: el futuro se interpola a su fecha entre los contratos vecinos y, como el contrato se desarma ese día, queda riesgo de base.</li>
+        <li><b>Qué entra</b>: LECAP y BONCAP con precio que venzan dentro de la curva de futuros. Las de menos de tres semanas van sólo en la tabla: a tan pocos días la TEA anualiza cualquier diferencia chica. Los duales TAMAR/dólar linked no entran en la curva de dollar linked.</li>
+      </ul>
+    </section>
+  </div>`;
+}
+
+function susRender(sec){
+  const p=SUS_SEC[sec].p,tb=document.getElementById(p+'-tbody');
+  if(!tb)return;
+  const D=susDatos();
+  const fuente=document.getElementById(p+'-fuente');
+  if(!D){
+    if(fuente)fuente.textContent='Faltan el A3500 o los futuros del MAE: con la rueda cerrada, ↻ Futuros MAE trae el último cierre.';
+    tb.innerHTML='';
+    Object.values(SUS_CHARTS[sec]).forEach(c=>c.destroy());SUS_CHARTS[sec]={};
+    return;
+  }
+  const hora=D.C.pts.find(x=>x.hora)?D.C.pts.find(x=>x.hora).hora:null;
+  if(fuente)fuente.textContent=`A3500 $ ${licN(D.C.spot)} · futuros del MAE${hora?' (último operado '+hora+')':''} · ${D.C.pts.length-1} contratos · liquidación ${betrF(D.liq)} · ${D.filas.length} LECAP dentro de la curva de futuros`;
+  susTabla(sec,D);
+  try{susGraficos(sec,D);}catch(e){console.warn('[sintético USD] gráficos',e);}
+}
+
+function susTabla(sec,D){
+  const p=SUS_SEC[sec].p;
+  const th='padding:5px 7px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.05em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+  const td='padding:4px 7px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+  const mu='color:var(--text3)';
+  const cols=['LECAP','Precio','Pago','Contrato','Futuro al venc.','Vence','Días','USD hoy','USD al venc.','TEA en USD','TEM','Dollar linked (curva)','Dif. curva','Dollar linked más cercano','Dif.','Conviene'];
+  document.getElementById(p+'-thead').innerHTML=`<tr>${cols.map((c,i)=>`<th style="${th}${i===0||i===13||i===15?';text-align:left':''}${c==='TEA en USD'?';color:var(--accent)':''}">${c}${/^Dif/.test(c)?' (pb)':''}</th>`).join('')}</tr>`;
+  const pb=v=>v==null||!isFinite(v)?`<span style="${mu}">—</span>`:`<span style="color:${v>0?'#4ade80':v<0?'var(--danger)':'var(--text2)'}">${v>0?'+':''}${Math.round(v)}</span>`;
+  const pct=v=>v==null||!isFinite(v)?`<span style="${mu}">—</span>`:licN(v)+'%';
+  if(!D.filas.length){document.getElementById(p+'-tbody').innerHTML=`<tr><td colspan="16" style="${td};text-align:center;${mu}">No hay LECAP con precio dentro de la curva de futuros.</td></tr>`;return;}
+  document.getElementById(p+'-tbody').innerHTML=D.filas.map(r=>{
+    const corto=r.d<SUS_MIN;
+    const ct=r.ct?`${r.ct.ticker}${r.ct.interp?` <span style="${mu}" title="La LECAP vence antes de fin de mes: el futuro se interpola a su fecha y el contrato se desarma ese día. Queda riesgo de base.">*</span>`:''}`:`<span style="${mu}">—</span>`;
+    const n=r.n&&Math.abs(r.n.g)<=60?`${r.n.k} · ${licN(r.n.v)}%${Math.abs(r.n.g)>3?` <span style="${mu}">(${r.n.g>0?'+':'−'}${Math.abs(r.n.g)} d)</span>`:''}`:`<span style="${mu}">—</span>`;
+    const conv=r.dif==null?`<span style="${mu}">—</span>`:`${r.dif>0?'Sintético':'Dollar linked'}${r.ref&&r.ref.k?` <span style="${mu}">vs ${r.ref.k}</span>`:` <span style="${mu}">vs curva</span>`}`;
+    return`<tr style="${corto?'opacity:.7':''}" title="${corto?'Menos de tres semanas: fuera de los gráficos, la TEA anualiza cualquier diferencia chica':''}">
+      <td style="${td};text-align:left;color:var(--accent)">${r.k}${r.cierre?` <span style="${mu};font-size:9px">cierre</span>`:''}</td>
+      <td style="${td}">${licN(r.P)}</td><td style="${td}">${licN(r.pago)}</td><td style="${td}">${ct}</td><td style="${td}">${licN(r.F,1)}</td>
+      <td style="${td}">${betrF(r.vto)}</td><td style="${td}">${r.d}</td><td style="${td}">${licN(r.u0,4)}</td><td style="${td}">${licN(r.u1,4)}</td>
+      <td style="${td};color:var(--accent);font-weight:600">${pct(r.u)}</td><td style="${td}">${pct(r.tem)}</td>
+      <td style="${td}">${r.dlc==null?`<span style="${mu}">fuera de la curva</span>`:pct(r.dlc)}</td><td style="${td}">${pb(r.dc)}</td>
+      <td style="${td};text-align:left">${n}</td><td style="${td};font-weight:600">${pb(r.dif)}</td><td style="${td};text-align:left">${conv}</td></tr>`;
+  }).join('');
+}
+
+function susChart(sec,id,cfg){
+  const cv=document.getElementById(id);
+  if(!cv)return null;
+  if(SUS_CHARTS[sec][id]){SUS_CHARTS[sec][id].destroy();delete SUS_CHARTS[sec][id];}
+  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
+  return SUS_CHARTS[sec][id]=new Chart(cv,cfg);
+}
+function susGraficos(sec,D){
+  const p=SUS_SEC[sec].p,col=licColores();
+  const hoy=D.C.hoy.getTime(),diasA=v=>Math.round((parseDate(v).getTime()-hoy)/86400000);
+  const fechaDe=x=>betrF(fmtDate(new Date(hoy+x*86400000)));
+  const lbl=c=>({display:true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].k||'',color:c,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2});
+  const ejeX={type:'linear',title:{display:true,text:'Días al vencimiento',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10}}};
+  // 1) Las tasas en dólares
+  const up=D.filas.filter(r=>r.d>=SUS_MIN).map(r=>({x:r.d,y:+r.u.toFixed(3),k:r.k}));
+  const esRef=new Set(D.refs.map(o=>o.b.ticker));
+  const dp=D.dls.filter(o=>o.d>=SUS_MIN&&o.enHorizonte).map(o=>({x:o.d,y:+o.tea.toFixed(3),k:o.b.ticker,ref:esRef.has(o.b.ticker)}));
+  const ds=[];
+  const fu=up.length>=3?curvaAjustar(up.map(q=>({x:q.x,y:q.y}))):null;
+  if(fu){const c=curvaDatasets(fu,up.map(q=>q.x),{color:SUS_COL.lec,ancho:2,label:'_sint',banda:false});if(c.linea.data.length)ds.push(c.linea);}
+  if(D.DR&&dp.length){const c=curvaDatasets(D.DR.aj,dp.map(q=>q.x).filter(x=>x>=D.DR.x0&&x<=D.DR.x1),{color:SUS_COL.dl,ancho:1.6,guion:[5,4],label:'_dl',banda:false});if(c.linea.data.length)ds.push(c.linea);}
+  ds.push({label:'LECAP + compra de futuro',data:up,showLine:false,pointRadius:5,pointBackgroundColor:SUS_COL.lec,pointBorderColor:SUS_COL.lec,datalabels:lbl(SUS_COL.lec)});
+  ds.push({label:'Dollar linked',data:dp,showLine:false,pointRadius:6,pointStyle:'rectRot',pointBorderWidth:1.5,
+    pointBackgroundColor:dp.map(q=>q.ref?SUS_COL.dl:'transparent'),pointBorderColor:SUS_COL.dl,datalabels:lbl(SUS_COL.dl)});
+  document.getElementById(p+'-g-tasas-vacio').textContent=up.length?'':'Sin LECAP de más de tres semanas dentro de la curva de futuros.';
+  susChart(sec,p+'-g-tasas',{type:'scatter',data:{datasets:ds},options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},
+    plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12,filter:i=>!i.text.startsWith('_')}},datalabels:{display:false},
+      tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{label:i=>`${i.raw.k} — ${licN(i.parsed.y)}% TEA en USD · vence ${fechaDe(i.parsed.x)} (${i.parsed.x} d)${i.raw.ref===false?' · operó menos de $100 M: no es referencia':''}`}}},
+    scales:{x:ejeX,y:{title:{display:true,text:'TEA en USD (%)',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>(+v).toFixed(1)+'%'}}}}});
+  // 2) La diferencia, en pb
+  const barras=D.filas.filter(r=>r.d>=SUS_MIN&&r.dif!=null);
+  document.getElementById(p+'-g-dif-vacio').textContent=barras.length?'':'Sin dollar linked del mismo plazo para comparar.';
+  susChart(sec,p+'-g-dif',{type:'bar',data:{labels:barras.map(r=>r.k),datasets:[{label:'Dif.',data:barras.map(r=>Math.round(r.dif)),
+      backgroundColor:barras.map(r=>r.dif>=0?'#4ade80cc':'#f87171cc'),borderRadius:3,datalabels:{display:false}}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},plugins:{legend:{display:false},datalabels:{display:false},
+      tooltip:{callbacks:{label:i=>{const r=barras[i.dataIndex];return`Sintético ${licN(r.u)}% · ${r.ref.k||'curva de dollar linked'} ${licN(r.ref.v)}% · ${i.parsed.y>0?'+':''}${i.parsed.y} pb`;}}}},
+      scales:{x:{grid:{display:false},ticks:{color:col.texto,font:{size:9},maxRotation:60}},y:{title:{display:true,text:'pb',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>(v>0?'+':'')+v}}}}});
+  // 3) El tipo de cambio esperado
+  const fpts=D.C.pts.map(q=>({x:Math.round((q.t-hoy)/86400000),y:q.F,k:q.ticker}));
+  const xmax=fpts[fpts.length-1].x+20;
+  const rem=((REM_DATA&&REM_DATA.tcn)||[]).map(q=>({x:diasA(q.mes+'-15'),y:+q.v,k:'REM '+q.mes})).filter(q=>q.x>0&&q.x<=xmax);
+  const bes=D.be.filter(q=>diasA(q.vto)<=xmax).map(q=>({x:diasA(q.vto),y:+q.v.toFixed(1),k:q.k}));
+  const ds3=[{label:'Futuros del MAE',type:'line',data:fpts,borderColor:SUS_COL.fut,backgroundColor:SUS_COL.fut,pointRadius:3,borderWidth:2,tension:0,datalabels:{display:false}},
+    {label:'Breakeven dollar linked vs. LECAP',data:bes,showLine:false,pointRadius:6,pointStyle:'rectRot',pointBackgroundColor:'#fbbf24',pointBorderColor:'#fbbf24',datalabels:lbl('#fbbf24')}];
+  if(rem.length)ds3.push({label:'REM (promedio del mes)',type:'line',data:rem,borderColor:SUS_COL.rem,borderDash:[5,4],borderWidth:1.6,pointRadius:2,backgroundColor:SUS_COL.rem,datalabels:{display:false}});
+  susChart(sec,p+'-g-tc',{type:'scatter',data:{datasets:ds3},options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},
+    plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12}},datalabels:{display:false},
+      tooltip:{callbacks:{label:i=>`${i.raw.k} — $ ${licN(i.parsed.y,1)} · ${fechaDe(i.parsed.x)}`}}},
+    scales:{x:{...ejeX,title:{display:true,text:'Días desde hoy',color:col.texto,font:{size:10}},max:xmax},
+      y:{title:{display:true,text:'$ por dólar',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>Math.round(v)}}}}});
+}
+
 // ═══ CHART COLLAPSE WHEN PANEL OPENS ══════════════════════════════════════════
 (function(){
   const MAP={
@@ -14750,6 +15017,8 @@ function maeAplicarFuturos(curva){
     // queda abierta todo el día.
     beRefreshIfVisible();
   }
+  // El sintético en dólares usa toda la curva, no sólo los contratos de la lista.
+  try{susRefrescar();}catch(e){console.warn('[sintético USD]',e);}
   return actualizados;
 }
 
@@ -15374,6 +15643,7 @@ async function usdRefreshPrices(){
       if(currentSection==='usd'&&currentUsdTab==='usd-cartera')try{cartRender('usd');}catch(e){console.warn('[cartera]',e.message);}
       if(currentSection==='pesos'&&currentTab==='cartera')try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}
       if(currentSection==='usd'&&currentUsdTab==='usd-licitaciones')licRefrescar();
+      if(currentSection==='usd'&&currentUsdTab==='usd-sintusd')susRefrescar();
       if(document.getElementById('ures-sleg-list'))usdResRefresh();
     };
 

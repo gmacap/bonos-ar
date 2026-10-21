@@ -4376,6 +4376,44 @@ const omitir = (label, motivo) =>
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
 
+  // Sintético USD: LECAP + compra de futuro, contra el dollar linked.
+  console.log('\nSintético USD');
+  const sus = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    switchSection('pesos'); switchTab('sintusd');
+    for (let k = 0; k < 40 && !(MAE_FUTUROS || []).length; k++) await espera(250);
+    await espera(800);
+    const D = susDatos();
+    if (!D) return { sinDatos: true, fut: (MAE_FUTUROS || []).length, tc: dlkTCHoy() };
+    const out = { filas: document.querySelectorAll('#sus-tbody tr').length, esperadas: D.filas.length, graficos: Object.keys(SUS_CHARTS.ars).length };
+    // La cuenta, a mano: USD al vencimiento sobre USD hoy, anualizado.
+    out.formula = D.filas.every(r => Math.abs(r.u - (Math.pow((r.pago / r.F) / (r.P / D.C.spot), 365 / r.d) - 1) * 100) < 1e-9);
+    out.pago = D.filas.every(r => { const b = LECAPS.find(x => x.ticker === r.k); return b && Math.abs(r.pago - enrich(b).vf) < 1e-9; });
+    // Una LECAP que vence el día del contrato usa su precio; otra, el interpolado y la marca.
+    const fin = D.filas.find(r => r.ct && !r.ct.interp), mitad = D.filas.find(r => r.ct && r.ct.interp);
+    out.contrato = !fin || Math.abs(fin.F - MAE_FUTUROS.find(f => f.ticker === fin.ct.ticker).precio) < 1e-9;
+    out.interp = !mitad || document.getElementById('sus-tbody').innerHTML.includes('riesgo de base');
+    // La diferencia es contra el dollar linked de la referencia, en pb.
+    out.dif = D.filas.filter(r => r.dif != null).every(r => Math.abs(r.dif - (r.u - r.ref.v) * 100) < 1e-9);
+    out.conRef = D.filas.filter(r => r.dif != null).length;
+    out.refsOk = D.refs.every(o => o.enHorizonte);
+    switchSection('usd'); switchUsdTab('usd-sintusd');
+    await espera(800);
+    out.usd = document.getElementById('page-usd-sintusd').style.display !== 'none' && document.querySelectorAll('#usus-tbody tr').length === out.esperadas;
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  if (sus.sinDatos) omitir('Sintético USD', `sin futuros del MAE o sin A3500 (${sus.fut} contratos, A3500 ${sus.tc})`);
+  else {
+    check(sus.filas === sus.esperadas && sus.esperadas > 0 && sus.graficos === 3,
+          'una fila por LECAP dentro de la curva de futuros, y los tres gráficos', JSON.stringify(sus));
+    check(sus.formula && sus.pago, 'TEA en USD = (pago / futuro) / (precio / A3500), anualizada, con el pago de la LECAP');
+    check(sus.contrato && sus.interp, 'al vencimiento del contrato, su precio; antes de fin de mes, interpolado y marcado');
+    check(sus.dif && sus.conRef > 0 && sus.refsOk, 'la diferencia es contra el dollar linked de referencia, dentro del horizonte de futuros',
+          JSON.stringify({ con: sus.conRef }));
+    check(sus.usd, 'la misma calculadora desde la sección de dólares');
+  }
+
   // Desvío histórico contra la curva, en pesos y en dólares.
   console.log('\nDesvío histórico contra la curva');
   const dv = await page.evaluate(async () => {
@@ -5196,9 +5234,9 @@ const omitir = (label, motivo) =>
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
-        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv',
+        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
         'cada lista desplegable tiene sus solapas', nav.menus.join(' · '));
   check(nav.abre && nav.navega && nav.escape && nav.afuera,
