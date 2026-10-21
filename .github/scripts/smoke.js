@@ -4376,6 +4376,37 @@ const omitir = (label, motivo) =>
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
 
+  // Sintético ARS: el gráfico de los sintéticos contra la curva de LECAP. Con
+  // sintéticos de prueba que no se guardan: la lista del usuario no se toca.
+  console.log('\nSintético ARS contra la tasa fija');
+  const sar = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    switchSection('pesos'); switchTab('sintetico');
+    for (let k = 0; k < 40 && !(MAE_FUTUROS || []).length; k++) await espera(250);
+    await espera(500);
+    const out = { lecap: sintChart ? (sintChart.data.datasets.find(d => d.label === 'LECAP y BONCAP') || { data: [] }).data.length : 0 };
+    const previo = SINT_BONDS.slice(), guardado = localStorage.getItem(SINT_BONDS_LS);
+    const dls = DLK_BONDS.filter(b => b.precio > 0 && (MAE_FUTUROS || []).some(f => f.ticker === maeTickerFromVcto(b.vcto))).slice(0, 3);
+    if (dls.length) {
+      SINT_BONDS = dls.map(b => ({ ticker: b.ticker, precioFuturo: MAE_FUTUROS.find(f => f.ticker === maeTickerFromVcto(b.vcto)).precio }));
+      SINT_DATA = SINT_BONDS.map(sintEnrich);
+      sintRenderTable();
+      const ds = sintChart && sintChart.data.datasets.find(d => /^Sintético/.test(d.label));
+      out.sint = ds ? ds.data.length : 0;
+      out.esperados = SINT_DATA.filter(r => r.tea != null && r.diasFechaFixing > 0).length;
+      // El mismo número que la columna TIR, a los días del fixing, como en el Resumen.
+      out.mismos = !!ds && ds.data.every(p => SINT_DATA.some(r => sintNameFromVcto(r.dlkBond.vcto) === p.t && Math.abs(p.y - r.tea * 100) < 1e-9 && p.x === r.diasFechaFixing));
+      out.selector = !!document.querySelector('[data-curva-sel="sint"] select');
+    }
+    SINT_BONDS = previo; SINT_DATA = SINT_BONDS.map(sintEnrich); sintRenderTable();
+    out.noGuarda = localStorage.getItem(SINT_BONDS_LS) === guardado;
+    switchTab('breakeven');
+    return out;
+  });
+  if (sar.sint == null) omitir('Sintético ARS contra la tasa fija', 'sin dollar linked con futuro del MAE');
+  else check(sar.lecap > 0 && sar.sint === sar.esperados && sar.sint > 0 && sar.mismos && sar.selector && sar.noGuarda,
+             'el gráfico pone cada sintético, con la TIR de la tabla, contra la curva de LECAP', JSON.stringify(sar));
+
   // Sintético USD: LECAP + compra de futuro, contra el dollar linked.
   console.log('\nSintético USD');
   const sus = await page.evaluate(async () => {
@@ -4385,7 +4416,8 @@ const omitir = (label, motivo) =>
     await espera(800);
     const D = susDatos();
     if (!D) return { sinDatos: true, fut: (MAE_FUTUROS || []).length, tc: dlkTCHoy() };
-    const out = { filas: document.querySelectorAll('#sus-tbody tr').length, esperadas: D.filas.length, graficos: Object.keys(SUS_CHARTS.ars).length };
+    const out = { filas: document.querySelectorAll('#sus-tbody tr').length, esperadas: D.filas.length, graficos: Object.keys(SUS_CHARTS.ars).length,
+      sinDif: !document.getElementById('sus-g-dif'), sinNotas: !document.getElementById('page-sintusd').textContent.includes('Cómo se lee') };
     // La cuenta, a mano: USD al vencimiento sobre USD hoy, anualizado.
     out.formula = D.filas.every(r => Math.abs(r.u - (Math.pow((r.pago / r.F) / (r.P / D.C.spot), 365 / r.d) - 1) * 100) < 1e-9);
     out.pago = D.filas.every(r => { const b = LECAPS.find(x => x.ticker === r.k); return b && Math.abs(r.pago - enrich(b).vf) < 1e-9; });
@@ -4405,8 +4437,9 @@ const omitir = (label, motivo) =>
   });
   if (sus.sinDatos) omitir('Sintético USD', `sin futuros del MAE o sin A3500 (${sus.fut} contratos, A3500 ${sus.tc})`);
   else {
-    check(sus.filas === sus.esperadas && sus.esperadas > 0 && sus.graficos === 3,
-          'una fila por LECAP dentro de la curva de futuros, y los tres gráficos', JSON.stringify(sus));
+    check(sus.filas === sus.esperadas && sus.esperadas > 0 && sus.graficos === 2 && sus.sinDif && sus.sinNotas,
+          'una fila por LECAP dentro de la curva de futuros, las tasas y el tipo de cambio esperado, sin el gráfico de diferencia ni Cómo se lee',
+          JSON.stringify(sus));
     check(sus.formula && sus.pago, 'TEA en USD = (pago / futuro) / (precio / A3500), anualizada, con el pago de la LECAP');
     check(sus.contrato && sus.interp, 'al vencimiento del contrato, su precio; antes de fin de mes, interpolado y marcado');
     check(sus.dif && sus.conRef > 0 && sus.refsOk, 'la diferencia es contra el dollar linked de referencia, dentro del horizonte de futuros',

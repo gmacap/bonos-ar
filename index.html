@@ -1303,6 +1303,18 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     </div>
 
   </div>
+
+  <!-- SINT CHART -->
+  <div id="sint-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
+    <div class="chart-resize-handle" id="sint-chart-resize-handle"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em">Sintético vs tasa fija · TIR %</span><span data-curva-sel="sint" style="margin-left:10px"></span>
+      <span id="sint-chart-msg" style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-left:auto"></span>
+    </div>
+    <div style="flex:1;min-height:0;padding:.2rem .5rem;">
+      <canvas id="sint-chart" style="width:100%;height:100%"></canvas>
+    </div>
+  </div>
 </div>
 
 <div id="page-sintusd" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
@@ -3685,6 +3697,7 @@ function curvaRepintar(){
    ()=>{if(document.getElementById('ures-chart'))usdResChartRenderIndep();},
    ()=>{if(document.getElementById('curvas-ars-chart'))_curvasArsDraw();},
    ()=>{if(document.getElementById('curvas-usd-chart'))_curvasUsdDraw();},
+   ()=>{if(typeof currentTab!=='undefined'&&currentTab==='sintetico')sintRenderChart();},
    ()=>{desvSiActivo('ars');desvSiActivo('usd');},
   ].forEach(g=>{try{g();}catch(e){console.warn('[curva] repintar:',e.message);}});
 }
@@ -5001,6 +5014,18 @@ function renderChart(){
   handle.addEventListener('mousedown',e=>{dragging=true;startY=e.clientY;startH=area.offsetHeight;document.body.style.cursor='ns-resize';document.body.style.userSelect='none';e.preventDefault();});
   document.addEventListener('mousemove',e=>{if(!dragging)return;const newH=Math.min(MAX_H,Math.max(MIN_H,startH+(startY-e.clientY)));area.style.height=newH+'px';if(dlkTabChart)dlkTabChart.resize();});
   document.addEventListener('mouseup',()=>{if(!dragging)return;dragging=false;document.body.style.cursor='';document.body.style.userSelect='';if(dlkTabChart)dlkTabChart.resize();});
+}());
+
+// Sintético chart resize
+(function(){
+  const handle=document.getElementById('sint-chart-resize-handle');
+  const area=document.getElementById('sint-chart-area');
+  if(!handle||!area)return;
+  const MIN_H=100,MAX_H=600;
+  let dragging=false,startY=0,startH=0;
+  handle.addEventListener('mousedown',e=>{dragging=true;startY=e.clientY;startH=area.offsetHeight;document.body.style.cursor='ns-resize';document.body.style.userSelect='none';e.preventDefault();});
+  document.addEventListener('mousemove',e=>{if(!dragging)return;const newH=Math.min(MAX_H,Math.max(MIN_H,startH+(startY-e.clientY)));area.style.height=newH+'px';if(sintChart)sintChart.resize();});
+  document.addEventListener('mouseup',()=>{if(!dragging)return;dragging=false;document.body.style.cursor='';document.body.style.userSelect='';if(sintChart)sintChart.resize();});
 }());
 
 // ══════════════════════════════════════════════════════════════ TAB SWITCHER
@@ -9799,6 +9824,7 @@ function beRefreshIfVisible(){
   if(currentTab==='cartera'){try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}return;}
   if(currentTab==='licitaciones'){licRefrescar();return;}
   if(currentTab==='sintusd'){susRefrescar();return;}
+  if(currentTab==='sintetico'){try{sintRenderChart();}catch(e){console.warn('[sintético]',e.message);}return;}
   if(currentTab!=='breakeven')return;
   beRecalc();
   beTamarRecalc();
@@ -14272,6 +14298,7 @@ let SINT_DATA=[];
 let SINT_TASA_DESC=null; // en %, e.g. 35.0
 let sintSelectedTicker=null;
 let sintEditingCell=null;
+let sintChart=null;
 
 function sintLoadBonds(){try{SINT_BONDS=JSON.parse(localStorage.getItem(SINT_BONDS_LS)||'[]');}catch(e){SINT_BONDS=[];}}
 function sintSaveBonds(){localStorage.setItem(SINT_BONDS_LS,JSON.stringify(SINT_BONDS));}
@@ -14437,6 +14464,7 @@ function sintEnrich(sb){
 function sintRenderTable(){
   const tbody=document.getElementById('sint-table-body');
   if(!tbody)return;
+  sintRenderChart();
   if(!SINT_DATA.length){
     tbody.innerHTML=`<tr><td colspan="12" style="padding:12px;color:var(--text3);font-size:12px;text-align:center">Sin sintéticos. Usá + Agregar para comenzar.</td></tr>`;
     return;
@@ -14478,6 +14506,60 @@ function sintRenderTable(){
       <td><button onclick="sintRemove(event,'${r.ticker}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px" title="Eliminar">✕</button></td>
     </tr>`;
   }).join('');
+}
+
+// ── Sintético contra la tasa fija ────────────────────────────────────────────
+// Los sintéticos de la lista sobre la curva de LECAP, en TIR: lo que compara la
+// columna Spread, a la vista. Cada sintético va a los días de su fixing, como en
+// el gráfico del Resumen; las LECAP, a los de su pago. Las LECAP se muestran
+// hasta un poco más allá del sintético más largo: más lejos no se comparan.
+function sintRenderChart(){
+  const canvas=document.getElementById('sint-chart');
+  const pg=document.getElementById('page-sintetico');
+  if(!canvas||!pg||pg.style.display==='none')return;
+  curvaPintarSelectores();
+  const msg=document.getElementById('sint-chart-msg');
+  const sint=(SINT_DATA||[]).filter(r=>r.tea!=null&&isFinite(r.tea)&&r.diasFechaFixing>0).map(r=>({
+    x:r.diasFechaFixing,y:r.tea*100,t:r.dlkBond&&r.dlkBond.vcto?sintNameFromVcto(r.dlkBond.vcto):r.ticker,
+    fix:r.fechaFixing,tf:r.teaTF,tfT:r.teaTFTicker}));
+  const tope=sint.length?Math.max(400,Math.max(...sint.map(p=>p.x))*1.25+60):Infinity;
+  const lec=(LECAPS||[]).map(b=>{const c=calcLecap(b);return c&&isFinite(c.tir)&&c.dias>0?{x:c.dias,y:c.tir,t:b.ticker}:null;})
+    .filter(p=>p&&p.x<=tope).sort((a,b)=>a.x-b.x);
+  if(sintChart){sintChart.destroy();sintChart=null;}
+  if(msg)msg.textContent=sint.length?`${sint.length} sintético${sint.length===1?'':'s'} · ${lec.length} LECAP`:'Agregá sintéticos con + Agregar para verlos contra la curva';
+  if(!lec.length&&!sint.length)return;
+  const ds=[];
+  const cTF=curvaDatasets(curvaAjustar(lec.map(p=>({x:p.x,y:p.y}))),lec.map(p=>p.x).concat(sint.map(p=>p.x)),
+    {color:'rgba(251,191,36,0.55)',relleno:'rgba(251,191,36,0.08)',label:'_curva_tf',clave:'sint',orden:3});
+  if(cTF.linea.data.length)ds.push(...cTF.lista);
+  if(sint.length>=3){
+    const cS=curvaDatasets(curvaAjustar(sint.map(p=>({x:p.x,y:p.y}))),sint.map(p=>p.x),
+      {color:'rgba(168,85,247,0.6)',ancho:1.5,guion:[5,4],label:'_curva_sint',banda:false,orden:3});
+    if(cS.linea.data.length)ds.push(cS.linea);
+  }
+  const lbl=c=>({display:true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].t||'',color:c,
+    font:{size:9,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2,clamp:true});
+  ds.push({label:'LECAP y BONCAP',data:lec,showLine:false,pointRadius:4,pointHoverRadius:6,backgroundColor:'#fbbf24',borderColor:'#d97706',order:2,datalabels:lbl('#fbbf24')});
+  ds.push({label:'Sintético: DLK + venta de futuro',data:sint,showLine:false,pointRadius:6,pointHoverRadius:8,pointStyle:'rectRot',
+    backgroundColor:'#a855f7',borderColor:'#7e22ce',order:1,datalabels:lbl('#c084fc')});
+  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
+  const g=colGris();
+  sintChart=new Chart(canvas,{type:'scatter',data:{datasets:ds},options:{
+    responsive:true,maintainAspectRatio:false,animation:{duration:0},
+    plugins:{
+      legend:{display:true,labels:{color:g,font:{size:10},boxWidth:12,padding:12,filter:i=>!i.text.startsWith('_')}},
+      datalabels:{display:false},
+      tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{
+        title:c=>c[0]?.raw.t||'',
+        label:c=>{
+          const r=c.raw,l=[`TIR ${r.y.toFixed(2)}%  ·  ${Math.round(r.x)} días`];
+          if(r.fix)l.push(`hasta el fixing del ${betrF(r.fix)}`);
+          if(r.tf!=null&&r.tfT)l.push(`${r.tfT} ${r.tf.toFixed(2)}% · spread ${r.y-r.tf>=0?'+':''}${(r.y-r.tf).toFixed(2)} pp`);
+          return l;
+        }}}},
+    scales:{
+      x:{type:'linear',grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:g,font:{size:9}},title:{display:true,text:'Días',color:g,font:{size:9}}},
+      y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:g,font:{size:9},callback:v=>v.toFixed(1)+'%'},title:{display:true,text:'TIR (%)',color:g,font:{size:9}}}}}});
 }
 
 function sintRowClick(e,ticker){
@@ -14779,25 +14861,11 @@ function susPaginaHTML(sec){
     </div>
     <div id="${p}-fuente" style="${sub}"></div>
     <section style="${caja}">${graf('g-tasas',360,'Tasa en dólares oficiales por plazo','TEA en USD: cada LECAP con el futuro de su vencimiento, contra los dollar linked y su curva')}</section>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">
-      <section style="${caja}">${graf('g-dif',280,'Sintético menos dollar linked del mismo plazo','en pb; verde: rinde más el sintético')}</section>
-      <section style="${caja}">${graf('g-tc',280,'Tipo de cambio esperado','futuros del MAE, el A3500 que iguala cada dollar linked con la curva de LECAP, y el REM')}</section>
-    </div>
+    <section style="${caja}">${graf('g-tc',300,'Tipo de cambio esperado','futuros del MAE, el A3500 que iguala cada dollar linked con la curva de LECAP, y el REM')}</section>
     <section style="${caja}">
       <div style="${tit};margin-bottom:8px">Cada LECAP con el futuro de su vencimiento</div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:1180px">
         <thead id="${p}-thead"></thead><tbody id="${p}-tbody"></tbody></table></div>
-    </section>
-    <section style="${caja};font-size:11px;color:var(--text2);line-height:1.6">
-      <div style="${tit};margin-bottom:6px">Cómo se lee</div>
-      <ul style="margin:0;padding-left:18px">
-        <li><b>La estrategia</b>: comprás la LECAP y comprás futuro de dólar por el mismo monto. Al vencimiento cobrás pesos y con el futuro los pasás a dólares oficiales: queda una tasa en dólares.</li>
-        <li><b>USD hoy</b> = precio / A3500 de hoy. <b>USD al vencimiento</b> = pago de la LECAP / futuro a su vencimiento. TEA = (USD al venc. / USD hoy)<sup>365/días</sup> − 1; TEM = (1 + TEA)<sup>30/365</sup> − 1.</li>
-        <li><b>Contra qué se compara</b>: si hay un dollar linked que vence a una semana o menos, contra ese bono; si no, contra la curva de dollar linked ajustada al mismo plazo, sin extrapolarla. <b>Dif.</b> y <b>Conviene</b> usan esa comparación; <b>Dif. curva</b> es siempre contra la curva.</li>
-        <li><b>Liquidez</b>: un dollar linked que operó menos de $100 M en la rueda no se usa como referencia —su último precio puede ser una operación suelta— y va hueco en el gráfico. Si todavía no operaron al menos tres, se usan todos. Y entran sólo los que vencen dentro de la curva de futuros: uno de 2028 no dice nada de la tasa a seis meses.</li>
-        <li><b>Contrato</b>: el futuro del mes en que vence la LECAP. Con <b>*</b>, la LECAP vence antes de fin de mes: el futuro se interpola a su fecha entre los contratos vecinos y, como el contrato se desarma ese día, queda riesgo de base.</li>
-        <li><b>Qué entra</b>: LECAP y BONCAP con precio que venzan dentro de la curva de futuros. Las de menos de tres semanas van sólo en la tabla: a tan pocos días la TEA anualiza cualquier diferencia chica. Los duales TAMAR/dólar linked no entran en la curva de dollar linked.</li>
-      </ul>
     </section>
   </div>`;
 }
@@ -14873,15 +14941,7 @@ function susGraficos(sec,D){
     plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12,filter:i=>!i.text.startsWith('_')}},datalabels:{display:false},
       tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{label:i=>`${i.raw.k} — ${licN(i.parsed.y)}% TEA en USD · vence ${fechaDe(i.parsed.x)} (${i.parsed.x} d)${i.raw.ref===false?' · operó menos de $100 M: no es referencia':''}`}}},
     scales:{x:ejeX,y:{title:{display:true,text:'TEA en USD (%)',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>(+v).toFixed(1)+'%'}}}}});
-  // 2) La diferencia, en pb
-  const barras=D.filas.filter(r=>r.d>=SUS_MIN&&r.dif!=null);
-  document.getElementById(p+'-g-dif-vacio').textContent=barras.length?'':'Sin dollar linked del mismo plazo para comparar.';
-  susChart(sec,p+'-g-dif',{type:'bar',data:{labels:barras.map(r=>r.k),datasets:[{label:'Dif.',data:barras.map(r=>Math.round(r.dif)),
-      backgroundColor:barras.map(r=>r.dif>=0?'#4ade80cc':'#f87171cc'),borderRadius:3,datalabels:{display:false}}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},plugins:{legend:{display:false},datalabels:{display:false},
-      tooltip:{callbacks:{label:i=>{const r=barras[i.dataIndex];return`Sintético ${licN(r.u)}% · ${r.ref.k||'curva de dollar linked'} ${licN(r.ref.v)}% · ${i.parsed.y>0?'+':''}${i.parsed.y} pb`;}}}},
-      scales:{x:{grid:{display:false},ticks:{color:col.texto,font:{size:9},maxRotation:60}},y:{title:{display:true,text:'pb',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>(v>0?'+':'')+v}}}}});
-  // 3) El tipo de cambio esperado
+  // 2) El tipo de cambio esperado
   const fpts=D.C.pts.map(q=>({x:Math.round((q.t-hoy)/86400000),y:q.F,k:q.ticker}));
   const xmax=fpts[fpts.length-1].x+20;
   const rem=((REM_DATA&&REM_DATA.tcn)||[]).map(q=>({x:diasA(q.mes+'-15'),y:+q.v,k:'REM '+q.mes})).filter(q=>q.x>0&&q.x<=xmax);
@@ -14903,6 +14963,7 @@ function susGraficos(sec,D){
     'cer-right-panel':  {chart:'cer-chart-area',   getChart:()=>cerTabChart},
     'tamar-right-panel':{chart:'tamar-chart-area', getChart:()=>tamarTabChart},
     'dlk-right-panel':  {chart:'dlk-chart-area',   getChart:()=>dlkTabChart},
+    'sint-right-panel': {chart:'sint-chart-area',  getChart:()=>sintChart},
   };
   Object.entries(MAP).forEach(([panelId,{chart,getChart}])=>{
     const panel=document.getElementById(panelId);
