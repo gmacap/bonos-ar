@@ -590,7 +590,7 @@ const omitir = (label, motivo) =>
     const msg = document.getElementById('curvas-usd-msg');
     const pares = _curvasSpreadCache.pares || [];
     return {
-      chipSLEG: !!document.querySelector('#curvas-usd-sector option[value="SLEG"]'),
+      chipSLEG: !!document.querySelector('#curvas-usd-tipo .msel-item[data-v="SLEG"]'),
       pares: pares.length,
       conDato: pares.filter(p => p.s1 != null || p.s2 != null).length,
       etiquetas: pares.slice(0, 3).map(p => p.label),
@@ -973,7 +973,7 @@ const omitir = (label, motivo) =>
       const bar = document.getElementById(`series-${s}-fwdbar`);
       const selC = document.getElementById(`series-${s}-fwd-corto`);
       const selL = document.getElementById(`series-${s}-fwd-largo`);
-      const sleg = document.querySelector(`#series-${s}-sector option[value="SLEG"]`);
+      const sleg = document.querySelector(`#series-${s}-tipo .msel-item[data-v="SLEG"] input`);
       const tod = document.getElementById(`series-${s}-todos`);
       return {
         modo: st.modo, sector: st.sector,
@@ -1273,7 +1273,7 @@ const omitir = (label, motivo) =>
                     bonos: st.cache.porBono.size, ruedas: st.cache.fechas.length };
       // Los tipos que no son un bono quedan bloqueados en el desplegable.
       out.bloqueados = SERIES_CFG[s].sectores.filter(o => {
-        const el = document.querySelector(`#series-${s}-sector option[value="${o.v}"]`);
+        const el = document.querySelector(`#series-${s}-tipo .msel-item[data-v="${o.v}"] input`);
         return el && el.disabled;
       }).map(o => o.v);
       out.sinPrecio = SERIES_CFG[s].sectores.filter(o => o.precio === false).map(o => o.v);
@@ -4189,9 +4189,9 @@ const omitir = (label, motivo) =>
     check(Array.isArray(sl.historia) && sl.historia.every(n => n >= 20), 'cada par tiene historia en el rango por defecto', JSON.stringify(sl.historia));
   }
 
-  // Gráficos: los filtros son desplegables, y en Series se pueden superponer
-  // bonos de otros tipos, cada uno en su unidad.
-  console.log('\nGráficos: filtros en desplegables y bonos de otros tipos');
+  // Gráficos: los filtros son desplegables. Tipo admite varios a la vez, Bonos va
+  // al lado y lista sólo los de los tipos elegidos, cada uno en su unidad.
+  console.log('\nGráficos: filtros en desplegables y varios tipos a la vez');
   const gr = await page.evaluate(async () => {
     const out = {};
     const tag = id => (document.getElementById(id) || {}).tagName || null;
@@ -4199,8 +4199,11 @@ const omitir = (label, motivo) =>
     switchSection('pesos'); switchTab('series-ars');
     await espera(2500);
     if (seriesEstado.ars.modo !== 'tasas') { seriesSetModo('ars', 'tasas'); await espera(2500); }
-    if (seriesEstado.ars.sector !== 'TF') { seriesSetSector('ars', 'TF'); await espera(2500); }
-    out.seriesSel = ['series-ars-vista', 'series-ars-sector', 'series-ars-mon'].map(tag);
+    if (seriesEstado.ars.tipos.join() !== 'TF') { seriesSetSector('ars', 'TF'); await espera(2500); }
+    out.seriesSel = ['series-ars-vista', 'series-ars-mon'].map(tag);
+    out.tipoMsel = !!document.querySelector('#series-ars-tipo .msel-btn');
+    const tipoCaja = document.getElementById('series-ars-sectores');
+    out.alLado = !!tipoCaja && !!tipoCaja.nextElementSibling && tipoCaja.nextElementSibling.id === 'series-ars-bonos';
     out.sinChips = !document.querySelector('[id^="series-ars-chip-"]') && !document.getElementById('series-ars-chips');
     const st = seriesEstado.ars, caja = document.getElementById('series-ars-bonos');
     const lineas = () => st.chart ? st.chart.data.datasets.filter(d => d.type !== 'bar').length : 0;
@@ -4213,49 +4216,68 @@ const omitir = (label, motivo) =>
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     out.cierra = !caja.classList.contains('abierto');
     seriesTodos('ars', true);
-    // Un CER con historia y un Global sobre la tasa fija.
-    const d1 = document.getElementById('series-ars-d1').value, d2 = document.getElementById('series-ars-d2').value;
-    let cerT = null;
-    try {
-      const cd = await seriesTraerTipo('tasas', 'CER', d1, d2);
-      const e = [...cd.porBono.entries()].sort((a, b) => b[1].size - a[1].size)[0];
-      cerT = e ? e[0] : null;
-    } catch (e) {}
-    const previo = (st.extra || []).slice();
-    if (cerT) {
-      st.extra = [];
-      seriesExtra('ars', 'CER', cerT); await espera(3500);
-      seriesExtra('ars', 'GLO', 'GD30'); await espera(3500);
-      const ds = st.chart ? st.chart.data.datasets.filter(d => d.type !== 'bar') : [];
-      const dc = ds.find(d => d._k === cerT), dg = ds.find(d => d._k === 'GD30');
-      const g = JSON.parse(localStorage.getItem(SERIES_FWD_LS) || '{}');
-      out.mezcla = { cer: cerT, cerOk: !!dc && /TIR real/.test(dc.label) && dc.data.some(v => v != null),
-        gdOk: !!dg && /TIR USD/.test(dg.label) && dg.data.some(v => v != null),
-        tf: ds.filter(d => / · TNA$/.test(d.label)).length,
-        ejeY: st.chart ? st.chart.options.scales.y.title.text : '',
-        resumen: caja.querySelector('.msel-btn').textContent,
-        guardado: g.extra && g.extra.ars ? g.extra.ars.length : 0 };
-      seriesExtraLimpiar('ars'); await espera(2500);
-      out.limpia = !!st.chart && st.chart.data.datasets.every(d => !/ · /.test(d.label));
-      st.extra = previo; seriesFwdSave();
-    }
+    // CER y Globales desde el desplegable de Tipo, con una LECAP destildada:
+    // sumar tipos no la vuelve a prender.
+    const tildar = (p, v) => document.querySelector(`#${p}-tipo .msel-item[data-v="${v}"] input`).click();
+    const tfK = [...st.cache.porBono.keys()][0];
+    if (tfK) seriesToggle('ars', tfK);
+    tildar('series-ars', 'CER'); await espera(4000);
+    tildar('series-ars', 'GLO'); await espera(4000);
+    const ds = st.chart ? st.chart.data.datasets.filter(d => d.type !== 'bar') : [];
+    const tipos = [...(st.cache.tipoDe || new Map()).values()];
+    const g = JSON.parse(localStorage.getItem(SERIES_FWD_LS) || '{}');
+    out.mezcla = { tipos: st.tipos.join(),
+      cer: tipos.filter(t => t === 'CER').length, glo: tipos.filter(t => t === 'GLO').length,
+      cerOk: ds.some(d => / · TIR real$/.test(d.label) && d.data.some(v => v != null)),
+      gloOk: ds.some(d => / · TIR USD$/.test(d.label) && d.data.some(v => v != null)),
+      tfOk: ds.some(d => / · TNA$/.test(d.label)),
+      tfApagado: !!tfK && !!st.filtro && !st.filtro.has(tfK),
+      ejeY: st.chart ? st.chart.options.scales.y.title.text : '',
+      grupos: [...caja.querySelectorAll('.msel-grupo')].map(e => e.textContent),
+      casillas: caja.querySelectorAll('.msel-item').length, bonos: st.cache.porBono.size,
+      boton: document.querySelector('#series-ars-tipo .msel-btn').textContent,
+      guardado: g.tipos && g.tipos.ars ? g.tipos.ars.join() : '' };
+    // Una serie que no es un bono va sola, y el último tipo no se puede destildar.
+    tildar('series-ars', 'DINERO'); await espera(3500);
+    out.dinero = st.tipos.join() === 'DINERO' && !st.cache.tipoDe;
+    tildar('series-ars', 'DINERO'); await espera(300);
+    out.ultimo = st.tipos.join() === 'DINERO';
+    seriesSetSector('ars', 'TF'); await espera(2500);
+    out.vuelve = st.tipos.join() === 'TF' && !!st.chart && st.chart.data.datasets.every(d => !/ · /.test(d.label));
+    // Curvas: lo mismo, con los tipos de la sección.
     switchTab('curvas-ars'); await espera(3000);
-    out.curvasSel = [tag('curvas-ars-sector'), tag(desvCfg('ars').p + '-modo')];
-    out.curvasBonos = document.querySelectorAll('#curvas-ars-bonds .msel-item').length > 0;
+    out.curvasSel = [tag(desvCfg('ars').p + '-modo')];
+    out.curvasTipo = !!document.querySelector('#curvas-ars-tipo .msel-btn');
+    const ct = document.getElementById('curvas-ars-tipo');
+    out.curvasAlLado = !!ct && !!ct.nextElementSibling && ct.nextElementSibling.id === 'curvas-ars-bonds';
     out.sinChipsCurvas = !document.querySelector('[id^="curvas-ars-chip-"]');
+    tildar('curvas-ars', 'CER'); await espera(4000);
+    const cds = curvasArsChart ? curvasArsChart.data.datasets.filter(d => !d.label.startsWith('_')).map(d => d.label) : [];
+    out.curvas = { tipos: curvasArsTipos.join(), tf: cds.filter(l => /^Tasa Fija /.test(l)).length,
+      cer: cds.filter(l => /^CER /.test(l)).length,
+      grupos: [...document.querySelectorAll('#curvas-ars-bonds .msel-grupo')].map(e => e.textContent),
+      ejeY: curvasArsChart ? curvasArsChart.options.scales.y.title.text : '' };
+    curvasArsSetSector('TF'); await espera(2500);
+    out.curvasVuelve = curvasArsTipos.join() === 'TF' && curvasArsSector === 'TF';
     return out;
   });
-  check(gr.seriesSel.every(t => t === 'SELECT') && gr.sinChips && gr.curvasSel.every(t => t === 'SELECT') && gr.curvasBonos && gr.sinChipsCurvas,
-        'los filtros de Series y Curvas son desplegables', JSON.stringify({ s: gr.seriesSel, c: gr.curvasSel, b: gr.curvasBonos }));
+  check(gr.seriesSel.every(t => t === 'SELECT') && gr.tipoMsel && gr.alLado && gr.sinChips
+        && gr.curvasSel.every(t => t === 'SELECT') && gr.curvasTipo && gr.curvasAlLado && gr.sinChipsCurvas,
+        'los filtros son desplegables, y Bonos va al lado de Tipo en Series y en Curvas',
+        JSON.stringify({ s: gr.seriesSel, t: gr.tipoMsel, l: gr.alLado, c: gr.curvasSel, ct: gr.curvasTipo, cl: gr.curvasAlLado }));
   check(gr.abre && gr.casilla && gr.cierra, 'la lista de bonos se abre, una casilla saca su línea sin cerrarla, y Escape la cierra',
         JSON.stringify({ abre: gr.abre, casilla: gr.casilla, cierra: gr.cierra }));
-  if (!gr.mezcla) omitir('bonos de otros tipos en Series', 'sin CER con historia en el rango');
-  else {
-    check(gr.mezcla.cerOk && gr.mezcla.gdOk && gr.mezcla.tf > 0 && /cada bono/.test(gr.mezcla.ejeY) && gr.mezcla.guardado === 2,
-          'se superponen bonos de otros tipos —un CER y un Global sobre las LECAP—, cada uno en su unidad, y quedan guardados',
-          JSON.stringify(gr.mezcla));
-    check(gr.limpia, 'sacar los de otros tipos vuelve al gráfico de un solo tipo');
-  }
+  const mz = gr.mezcla;
+  check(mz.tipos === 'TF,CER,GLO' && mz.cer > 0 && mz.glo > 0 && mz.cerOk && mz.gloOk && mz.tfOk
+        && /cada bono/.test(mz.ejeY) && mz.grupos.length === 3 && mz.casillas === mz.bonos && mz.guardado === 'TF,CER,GLO',
+        'Tipo suma CER y Globales a la tasa fija: Bonos los lista por tipo y cada línea va en su unidad', JSON.stringify(mz));
+  check(mz.tfApagado, 'sumar tipos no vuelve a prender un bono destildado');
+  check(gr.dinero && gr.ultimo, 'una serie que no es bono va sola, y siempre queda un tipo elegido',
+        JSON.stringify({ dinero: gr.dinero, ultimo: gr.ultimo }));
+  check(gr.vuelve, 'volver a un solo tipo deja el gráfico de un tipo');
+  check(gr.curvas.tipos === 'TF,CER' && gr.curvas.tf > 0 && gr.curvas.cer > 0 && gr.curvas.grupos.length === 2
+        && /cada tipo/.test(gr.curvas.ejeY) && gr.curvasVuelve,
+        'en Curvas, CER sobre la tasa fija: una curva por tipo y los bonos agrupados', JSON.stringify(gr.curvas));
 
   // Desvío histórico contra la curva, en pesos y en dólares.
   console.log('\nDesvío histórico contra la curva');

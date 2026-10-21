@@ -129,7 +129,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 .msel{position:relative;display:inline-flex;}
 .msel-btn{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:3px 8px;color:var(--text);cursor:pointer;white-space:nowrap;}
 .msel-btn:hover{border-color:var(--text3);}
-.msel-panel{display:none;position:fixed;z-index:520;min-width:230px;max-width:340px;max-height:65vh;overflow:auto;padding:6px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;box-shadow:0 10px 26px rgba(0,0,0,.35);font-family:var(--mono);font-size:11px;}
+.msel-panel{display:none;position:fixed;z-index:520;min-width:230px;max-width:340px;max-height:65vh;overflow:auto;padding:6px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;box-shadow:0 10px 26px rgba(0,0,0,.35);font-family:var(--mono);font-size:11px;text-transform:none;letter-spacing:normal;}
 .msel.abierto .msel-panel{display:block;}
 .msel-acc{display:flex;flex-wrap:wrap;gap:4px;padding:2px 2px 6px;margin-bottom:4px;border-bottom:1px solid var(--border);}
 .msel-acc button{font-family:var(--mono);font-size:10px;padding:2px 8px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);color:var(--text2);cursor:pointer;}
@@ -137,6 +137,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 .msel-item{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:3px;cursor:pointer;color:var(--text2);white-space:nowrap;}
 .msel-item:hover{background:var(--surface2);}
 .msel-item input{margin:0;accent-color:var(--accent);}
+.msel-item.msel-dis{opacity:.45;cursor:not-allowed;}
 .msel-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
 .msel-nota{color:var(--text3);font-size:10px;margin-left:auto;padding-left:8px;}
 .msel details>summary{cursor:pointer;list-style:none;}
@@ -16501,6 +16502,8 @@ function desvAplicarModo(sec){
   ocultar.forEach(el=>{if(el)el.style.display=des?'none':'';});
   const dv=document.getElementById(c.p+'-desvio');
   if(dv)dv.style.display=des?'block':'none';
+  // En el desvío el Tipo es de a uno: el de la familia que se mide.
+  if(document.getElementById(c.p+'-tipo'))curvasTiposPintar(sec);
   if(des)desvRender(sec);
 }
 function desvSiActivo(sec){
@@ -18502,6 +18505,9 @@ let curvasArsChart=null;
 let curvasUsdChart=null;
 let curvasArsSector='TF';
 let curvasUsdSector='GLO';
+// Los tipos elegidos; el sector es el primero, y es el que usa el desvío.
+var curvasArsTipos=['TF'];
+var curvasUsdTipos=['GLO'];
 let curvasArsFilter=null; // null=todos; Set<ticker>=selección
 let curvasUsdFilter=null;
 let _curvasArsCache={snap1:[],snap2:[],d1:'',d2:'',sector:''};
@@ -18916,12 +18922,10 @@ function curvasArsInit(){
   const today=curvasTodayStr();
   const d1=curvasDateMinus7(today);
   const d2=today;
-  const nombres={TF:'Tasa Fija',CER:'CER',TAMAR:'TAMAR',DLK:'Dollar Linked'};
-  const opciones=['TF','CER','TAMAR','DLK'].map(x=>`<option value="${x}"${x===curvasArsSector?' selected':''}>${nombres[x]}</option>`).join('');
   pg.innerHTML=`
   <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;background:var(--surface)">
     <span style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)">Curvas · Pesos</span>
-    <label class="gsel-lbl">Tipo<select id="curvas-ars-sector" class="gsel" onchange="curvasArsSetSector(this.value)">${opciones}</select></label>
+    <div class="gsel-lbl">Tipo<div id="curvas-ars-tipo"></div><div id="curvas-ars-bonds"></div></div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:8px">
       <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">F1</span>
       <input type="date" id="curvas-ars-d1" value="${d1}" onchange="curvasArsRender()" style="font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;color:var(--text)">
@@ -18929,25 +18933,66 @@ function curvasArsInit(){
       <input type="date" id="curvas-ars-d2" value="${d2}" onchange="curvasArsRender()" style="font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;color:var(--text)">
       <button class="btn primary" style="padding:3px 10px;font-size:10px" onclick="curvasArsRender()">Ver</button>
     </div>
-    <div id="curvas-ars-bonds"></div>
     <span data-curva-sel="curvas-ars" style="margin-left:10px"></span>
     <div id="curvas-ars-msg" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:auto"></div>
   </div>
   <div style="flex:1;min-height:0;position:relative;padding:8px">
     <canvas id="curvas-ars-chart"></canvas>
   </div>`;
+  curvasTiposPintar('ars');
   curvasArsRender();
 }
 
-function curvasArsSetSector(sec){
-  curvasArsSector=sec;
-  desvSiActivo('ars');
-  const sel=document.getElementById('curvas-ars-sector');
-  if(sel)sel.value=sec;
-  curvasArsRender();
+// ── Tipo en Curvas: uno o varios ────────────────────────────────────────────
+// Los tipos de una sección comparten el eje —días en pesos, duration en
+// dólares—, así que se superponen, cada uno con su color y su curva, y la
+// lista de Bonos muestra los de los tipos elegidos. El spread de legislación
+// no es una curva de bonos: va solo. El desvío es por familia, así que ahí el
+// Tipo vuelve a ser de a uno.
+var CURVAS_TIPOS={ars:['TF','CER','TAMAR','DLK'],usd:['GLO','BON','BOP']};
+function curvasTiposDe(sec){return sec==='ars'?curvasArsTipos:curvasUsdTipos;}
+function curvasEnDesvio(sec){return !!(DESV_ESTADO[sec]&&DESV_ESTADO[sec].modo==='desvio');}
+function curvasTiposPintar(sec){
+  const tipos=curvasTiposDe(sec);
+  const sel=curvasEnDesvio(sec)?tipos.slice(0,1):tipos;
+  const nom=v=>v==='SLEG'?'Spread Leg.':SERIES_TIPOS[v].l;
+  const it=(v,c)=>({l:nom(v),v,on:sel.includes(v),c,fn:`curvasTipoToggle('${sec}','${v}')`});
+  const grupos=[{l:'',items:CURVAS_TIPOS[sec].map(v=>it(v,SERIES_TIPOS[v].c))}];
+  if(sec==='usd')grupos.push({l:'Otras · de a una',items:[it('SLEG','#c9807a')]});
+  const n=sel.map(nom);
+  mselPintar(`curvas-${sec}-tipo`,{titulo:n.length<=2?n.join(' + '):`${n.length} tipos`,grupos});
+}
+function curvasTipoToggle(sec,v){
+  const antes=curvasTiposDe(sec);
+  let t=v==='SLEG'||curvasEnDesvio(sec)?[v]
+    :antes.includes(v)?antes.filter(x=>x!==v)
+    :antes.filter(x=>x!=='SLEG').concat(v);
+  t=CURVAS_TIPOS[sec].concat('SLEG').filter(x=>t.includes(x));
+  if(!t.length||t.join()===antes.join()){curvasTiposPintar(sec);return;}
+  curvasTiposSet(sec,t,true);
+}
+function curvasTiposSet(sec,t,mantener){
+  if(sec==='ars'){curvasArsTipos=t;curvasArsSector=t[0];}
+  else{curvasUsdTipos=t;curvasUsdSector=t[0];}
+  desvSiActivo(sec);
+  curvasTiposPintar(sec);
+  (sec==='ars'?curvasArsRender:curvasUsdRender)(mantener);
+}
+function curvasArsSetSector(sec){curvasTiposSet('ars',[sec]);}
+// Las claves del filtro son tipo:ticker —un dual está en CER y en TAMAR—. Al
+// sumar o sacar un tipo se conserva lo destildado, y los bonos nuevos entran
+// tildados.
+function curvasFiltroAjustar(filtro,previas,ahora,mantener){
+  if(!mantener||!filtro)return null;
+  const f=new Set(ahora.filter(k=>filtro.has(k)||!previas.has(k)));
+  return f.size===ahora.length?null:f;
+}
+function curvasClaves(cache,toT){
+  const tipos=cache.tipos||[cache.sector];
+  return[...new Set(tipos.flatMap(s=>[...toT(cache.snap1,s),...toT(cache.snap2,s)].map(t=>s+':'+t)))];
 }
 
-async function curvasArsRender(){
+async function curvasArsRender(mantener){
   const msg=document.getElementById('curvas-ars-msg');
   const canvas=document.getElementById('curvas-ars-chart');
   if(!canvas)return;
@@ -18956,19 +19001,18 @@ async function curvasArsRender(){
   if(!d1El||!d2El)return;
   const d1=d1El.value,d2=d2El.value;
   if(msg)msg.textContent='Cargando...';
-  const [snap1,snap2]=await Promise.all([
-    curvasFetchSnapshot(d1,curvasArsSector),
-    curvasFetchSnapshot(d2,curvasArsSector),
-  ]);
-  _curvasArsCache={snap1,snap2,d1,d2,sector:curvasArsSector};
-  curvasArsFilter=null; // reset: todos seleccionados
+  const tipos=curvasArsTipos.slice();
+  const traer=d=>Promise.all(tipos.map(s=>curvasFetchSnapshot(d,s))).then(x=>x.flat());
+  const [snap1,snap2]=await Promise.all([traer(d1),traer(d2)]);
+  const previas=new Set(curvasClaves(_curvasArsCache,curvasArsT));
+  _curvasArsCache={snap1,snap2,d1,d2,sector:tipos[0],tipos};
+  curvasArsFilter=curvasFiltroAjustar(curvasArsFilter,previas,curvasClaves(_curvasArsCache,curvasArsT),mantener);
   _curvasArsDraw();
 }
+function curvasArsT(rows,sec){return rows.filter(r=>r.sector===sec&&r.tir!=null&&r.dias>0).map(r=>r.ticker);}
 
 function curvasArsToggleBond(ticker){
-  const {snap1,snap2,sector}=_curvasArsCache;
-  const toT=rows=>rows.filter(r=>r.sector===sector&&r.tir!=null&&r.dias>0).map(r=>r.ticker);
-  const all=[...new Set([...toT(snap1),...toT(snap2)])];
+  const all=curvasClaves(_curvasArsCache,curvasArsT);
   if(!curvasArsFilter) curvasArsFilter=new Set(all);
   if(curvasArsFilter.has(ticker)) curvasArsFilter.delete(ticker);
   else curvasArsFilter.add(ticker);
@@ -18980,59 +19024,72 @@ function curvasArsTodos(activar){curvasArsFilter=activar?null:new Set();_curvasA
 
 function _curvasArsDraw(){
   curvaPintarSelectores();
-  const {snap1,snap2,d1,d2,sector}=_curvasArsCache;
+  const {snap1,snap2,d1,d2}=_curvasArsCache;
+  const tipos=_curvasArsCache.tipos||[_curvasArsCache.sector];
+  const varios=tipos.length>1;
   const msg=document.getElementById('curvas-ars-msg');
   const canvas=document.getElementById('curvas-ars-chart');
   const bondsDiv=document.getElementById('curvas-ars-bonds');
-  const SEC_COLORS={TF:'#fbbf24',CER:'#4ade80',TAMAR:'#38bdf8',DLK:'#a855f7'};
-  const col=SEC_COLORS[sector]||'#a8d5a2';
+  const enc=k=>!curvasArsFilter||curvasArsFilter.has(k);
 
-  const toAll=rows=>rows.filter(r=>r.sector===sector&&r.dias>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.dias,y:r.tir,ticker:r.ticker,precio:r.price})).sort((a,b)=>a.x-b.x);
-  const allPts1=toAll(snap1), allPts2=toAll(snap2);
-  const diasMap=new Map([...allPts1,...allPts2].map(p=>[p.ticker,p.x]));
-  const allTickers=ordenarPorVencimiento([...new Set([...allPts1.map(p=>p.ticker),...allPts2.map(p=>p.ticker)])],t=>diasMap.get(t));
+  const toAll=(rows,sec)=>rows.filter(r=>r.sector===sec&&r.dias>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.dias,y:r.tir,ticker:r.ticker,precio:r.price,k:sec+':'+r.ticker})).sort((a,b)=>a.x-b.x);
+  const grupos=tipos.map(sec=>{
+    const p1=toAll(snap1,sec),p2=toAll(snap2,sec);
+    const dias=new Map([...p1,...p2].map(p=>[p.ticker,p.x]));
+    return{sec,p1,p2,tickers:ordenarPorVencimiento([...dias.keys()],t=>dias.get(t))};
+  });
+  const claves=grupos.flatMap(g=>g.tickers.map(t=>g.sec+':'+t));
 
-  // Chips de bonos
+  // Los bonos, agrupados por tipo cuando hay más de uno.
   if(bondsDiv){
-    const enc=t=>!curvasArsFilter||curvasArsFilter.has(t);
-    mselPintar('curvas-ars-bonds',{titulo:'Bonos',resumen:`${allTickers.filter(enc).length}/${allTickers.length}`,
+    mselPintar('curvas-ars-bonds',{titulo:'Bonos',resumen:`${claves.filter(enc).length}/${claves.length}`,
       acciones:[{l:'Todos',fn:'curvasArsTodos(true)'},{l:'Ninguno',fn:'curvasArsTodos(false)'}],
-      grupos:[{l:'',items:allTickers.map(t=>({l:t,on:enc(t),c:col,fn:`curvasArsToggleBond('${t}')`}))}],
+      grupos:grupos.map(g=>({l:varios?SERIES_TIPOS[g.sec].l+' · '+SERIES_TIPOS[g.sec].u:'',
+        items:g.tickers.map(t=>({l:t,on:enc(g.sec+':'+t),c:SERIES_TIPOS[g.sec].c,fn:`curvasArsToggleBond('${g.sec}:${t}')`}))})),
       vacio:'Sin bonos en esas fechas'});
   }
 
-  const pts1=allPts1.filter(p=>!curvasArsFilter||curvasArsFilter.has(p.ticker));
-  const pts2=allPts2.filter(p=>!curvasArsFilter||curvasArsFilter.has(p.ticker));
+  const datasets=[];
+  let n1=0,n2=0;
+  grupos.forEach((g,i)=>{
+    const col=SERIES_TIPOS[g.sec].c,col2=col+'88',u=SERIES_TIPOS[g.sec].u;
+    const pts1=g.p1.filter(p=>enc(p.k)),pts2=g.p2.filter(p=>enc(p.k));
+    n1+=pts1.length;n2+=pts2.length;
+    const nom=f=>varios?`${SERIES_TIPOS[g.sec].l} ${curvasFmtDate(f)}`:curvasFmtDate(f);
+    const suf=varios?'_'+g.sec:'';
+    if(pts1.length){
+      const t1=pts1.map(p=>p.ticker);
+      datasets.push({label:nom(d1),_u:u,data:pts1.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
+      // La de la fecha 1 va sin banda: dos bandas superpuestas no se leen.
+      const c1=curvaDatasets(curvaAjustar(pts1),pts1.map(p=>p.x),{color:col2,ancho:1.5,guion:[4,3],label:'_t1'+suf,banda:false});
+      if(c1.linea.data.length)datasets.push(c1.linea);
+    }
+    if(pts2.length){
+      const t2=pts2.map(p=>p.ticker);
+      datasets.push({label:nom(d2),_u:u,data:pts2.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
+      // El texto del ajuste, junto al selector de curva, es el del primer tipo.
+      const c2=curvaDatasets(curvaAjustar(pts2),pts2.map(p=>p.x),{color:col,relleno:col+'1a',ancho:2,label:'_t2'+suf,sufijo:'_2'+suf,...(i===0?{clave:'curvas-ars'}:{})});
+      if(c2.linea.data.length)datasets.push(...c2.lista);
+    }
+  });
 
-  if(!pts1.length&&!pts2.length){
-    if(msg)msg.textContent=allTickers.length?'Todos los bonos desactivados':'Sin datos para esas fechas';
+  if(!n1&&!n2){
+    if(msg)msg.textContent=claves.length?'Todos los bonos desactivados':'Sin datos para esas fechas';
     if(curvasArsChart){curvasArsChart.destroy();curvasArsChart=null;}
     return;
   }
-  if(msg)msg.textContent=`${curvasFmtDate(d1)}: ${pts1.length} · ${curvasFmtDate(d2)}: ${pts2.length}`;
-
-  const col2=col+'88';
-  const datasets=[];
-  if(pts1.length){
-    const t1=pts1.map(p=>p.ticker);
-    datasets.push({label:curvasFmtDate(d1),data:pts1.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
-    // La de la fecha 1 va sin banda: dos bandas superpuestas no se leen.
-    const c1=curvaDatasets(curvaAjustar(pts1),pts1.map(p=>p.x),{color:col2,ancho:1.5,guion:[4,3],label:'_t1',banda:false});
-    if(c1.linea.data.length)datasets.push(c1.linea);
-  }
-  if(pts2.length){
-    const t2=pts2.map(p=>p.ticker);
-    datasets.push({label:curvasFmtDate(d2),data:pts2.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
-    const c2=curvaDatasets(curvaAjustar(pts2),pts2.map(p=>p.x),{color:col,relleno:col+'1a',ancho:2,label:'_t2',sufijo:'_2',clave:'curvas-ars'});
-    if(c2.linea.data.length)datasets.push(...c2.lista);
-  }
+  if(msg)msg.textContent=`${curvasFmtDate(d1)}: ${n1} · ${curvasFmtDate(d2)}: ${n2}`;
 
   if(curvasArsChart){curvasArsChart.destroy();curvasArsChart=null;}
   if(window.ChartDataLabels)Chart.register(ChartDataLabels);
-  const yLabel={TF:'TNA (%)',CER:'TIR real (%)',TAMAR:'Margen TNA (%)',DLK:'TNA (%)'}[sector]||'Tasa (%)';
+  // Con tipos de distinta unidad, el eje no promete una sola y el globo dice
+  // la de cada punto.
+  const mixto=new Set(tipos.map(t=>SERIES_TIPOS[t].u)).size>1;
+  const yLabel=mixto?'Tasa (%) · cada tipo en su unidad'
+    :({TF:'TNA (%)',CER:'TIR real (%)',TAMAR:'Margen TNA (%)',DLK:'TNA (%)'}[tipos[0]]||'Tasa (%)');
   const textColor=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#e0e0e0';
   const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a302a';
-  curvasArsChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — ${i.parsed.x}d, ${i.parsed.y.toFixed(2)}%`+curvasPxTip(i.raw,'$')}}},scales:{x:{type:'linear',title:{display:true,text:'Días al vencimiento',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:yLabel,color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
+  curvasArsChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — ${i.parsed.x}d, ${i.parsed.y.toFixed(2)}%${mixto&&i.dataset._u?' '+i.dataset._u:''}`+curvasPxTip(i.raw,'$')}}},scales:{x:{type:'linear',title:{display:true,text:'Días al vencimiento',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:yLabel,color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
 }
 
 // ── Desplegable de selección múltiple ────────────────────────────────────────
@@ -19041,7 +19098,9 @@ function _curvasArsDraw(){
 // de la barra de solapas, y se repinta sin cerrarse: el contenedor queda y sólo
 // cambian el botón y el panel.
 //   cfg = {titulo, resumen, acciones:[{l,fn}], vacio,
-//          grupos:[{l, plegable, abierto, items:[{l, on, fn, c, nota, quitar}]}]}
+//          grupos:[{l, plegable, abierto, items:[{l, on, fn, c, nota, quitar, v, dis, title}]}]}
+// v va como data-v, para encontrar la casilla; dis la deja a la vista pero
+// sin poder elegirla, con el motivo en title.
 // fn es el código del onclick/onchange, como en el resto de la app.
 var MSEL_ABIERTO=null;
 function mselPintar(id,cfg){
@@ -19055,7 +19114,7 @@ function mselPintar(id,cfg){
   const dot=c=>c?`<span class="msel-dot" style="background:${c}"></span>`:'';
   const item=it=>it.quitar
     ?`<div class="msel-item" title="Sacar del gráfico" onclick="${e(it.fn)}">${dot(it.c)}<span>${e(it.l)}</span><span class="msel-nota">✕</span></div>`
-    :`<label class="msel-item"><input type="checkbox" ${it.on?'checked':''} onchange="${e(it.fn)}">${dot(it.c)}<span>${e(it.l)}</span>${it.nota?`<span class="msel-nota">${e(it.nota)}</span>`:''}</label>`;
+    :`<label class="msel-item${it.dis?' msel-dis':''}"${it.v?` data-v="${e(it.v)}"`:''}${it.title?` title="${e(it.title)}"`:''}><input type="checkbox" ${it.on?'checked':''}${it.dis?' disabled':''} onchange="${e(it.fn)}">${dot(it.c)}<span>${e(it.l)}</span>${it.nota?`<span class="msel-nota">${e(it.nota)}</span>`:''}</label>`;
   el._abiertos=el._abiertos||new Set();
   const grupo=g=>{
     const cuerpo=g.items.map(item).join('');
@@ -19135,13 +19194,14 @@ const SERIES_CFG={
   },
 };
 
-// Estado por sección. El filtro en null significa "todos".
+// Estado por sección. El filtro en null significa "todos". tipos son los tipos
+// elegidos y sector el primero de ellos: el que manda en Forwards y en el eje.
 // chart2 es el panel de abajo: sólo lo usan las monedas, que mezclan niveles
 // de tipo de cambio con porcentajes y no se pueden leer sobre la misma regla.
 let seriesVolumen=true;   // barras de monto operado bajo la tasa
 const seriesEstado={
-  ars:{sector:'TF',  modo:'tasas', moneda:'ARS', filtro:null, extra:[], chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
-  usd:{sector:'BON', modo:'tasas', moneda:'USD', filtro:null, extra:[], chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
+  ars:{sector:'TF',  tipos:['TF'],  modo:'tasas', moneda:'ARS', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
+  usd:{sector:'BON', tipos:['BON'], modo:'tasas', moneda:'USD', filtro:null, chart:null, chart2:null, cache:{fechas:[],porBono:new Map()}, cacheFwd:{fechas:[],porBono:new Map()}},
 };
 
 // ── Forwards históricos ─────────────────────────────────────────────────────
@@ -19163,16 +19223,24 @@ function seriesFwdLoad(){
     seriesFwdPares={ars:(o.pares&&o.pares.ars)||{},usd:(o.pares&&o.pares.usd)||{}};
     seriesFwdModo={ars:(o.modo&&o.modo.ars)||'tasas',usd:(o.modo&&o.modo.usd)||'tasas'};
     seriesFwdMoneda={ars:(o.moneda&&o.moneda.ars)||'ARS',usd:(o.moneda&&o.moneda.usd)||'USD'};
+    // Los tipos, sólo para la sección que se está armando: la otra ya tiene los
+    // suyos en pantalla.
     ['ars','usd'].forEach(k=>{
-      const x=o.extra&&o.extra[k];
-      seriesEstado[k].extra=Array.isArray(x)?x.filter(q=>q&&SERIES_TIPOS[q.s]&&typeof q.t==='string'):[];
+      const pg=document.getElementById(SERIES_CFG[k].pagina);
+      if(pg&&pg.innerHTML.trim())return;
+      const x=o.tipos&&o.tipos[k];
+      let t=Array.isArray(x)?seriesTiposOrden(k,x):[];
+      // Lo que no es un bono va solo.
+      const solo=t.find(v=>!SERIES_TIPOS[v]);
+      if(solo)t=[solo];
+      if(t.length){seriesEstado[k].tipos=t;seriesEstado[k].sector=t[0];}
     });
   }catch(e){seriesFwdPares={ars:{},usd:{}};seriesFwdModo={ars:'tasas',usd:'tasas'};
            seriesFwdMoneda={ars:'ARS',usd:'USD'};}
 }
 function seriesFwdSave(){
   try{localStorage.setItem(SERIES_FWD_LS,JSON.stringify({pares:seriesFwdPares,modo:seriesFwdModo,moneda:seriesFwdMoneda,
-    extra:{ars:seriesEstado.ars.extra||[],usd:seriesEstado.usd.extra||[]}}));}catch(e){}
+    tipos:{ars:seriesEstado.ars.tipos,usd:seriesEstado.usd.tipos}}));}catch(e){}
 }
 function seriesFwdLista(sec,sector){
   if(!seriesFwdPares[sec])seriesFwdPares[sec]={};
@@ -19285,29 +19353,90 @@ function seriesSetMoneda(sec,m){
   seriesCargar(sec);
 }
 
-// No todo sector sirve para todo modo: el spread de legislación no tiene
-// duración para un forward, y ni él ni el dinero ni los breakeven son un bono
-// con precio. El chip que no sirve queda deshabilitado con el motivo a la
-// vista y, si estaba elegido, se cae al primero que sí sirva.
+// ── Tipo: uno o varios ──────────────────────────────────────────────────────
+// Los bonos se mezclan en un mismo gráfico —una LECAP con un CER, un Global con
+// un Bonar—, también los de la otra sección, y la lista de Bonos muestra los de
+// los tipos elegidos. Las series que no son bonos (el dinero, los breakeven, el
+// spread, las monedas) van de a una: cada una trae su propio eje.
+function seriesOpt(v){
+  return SERIES_CFG.ars.sectores.find(o=>o.v===v)||SERIES_CFG.usd.sectores.find(o=>o.v===v)||null;
+}
+// El orden del desplegable: los bonos de la sección, los de la otra, y lo demás.
+function seriesTiposMenu(sec){
+  const otra=sec==='ars'?'usd':'ars';
+  const bonos=k=>SERIES_CFG[k].sectores.filter(o=>SERIES_TIPOS[o.v]);
+  const nom={ars:'Bonos en pesos',usd:'Bonos en dólares'};
+  return[{l:nom[sec],items:bonos(sec)},{l:nom[otra],items:bonos(otra)},
+         {l:'Otras series · de a una',items:SERIES_CFG[sec].sectores.filter(o=>!SERIES_TIPOS[o.v])}];
+}
+function seriesTiposOrden(sec,tipos){
+  const orden=seriesTiposMenu(sec).flatMap(g=>g.items.map(o=>o.v));
+  return orden.filter(v=>tipos.includes(v));
+}
+// No todo tipo sirve para todo modo: un forward se arma entre bonos de un mismo
+// tipo de la sección, con duración —el spread no la tiene—, y ni el spread ni
+// el dinero ni los breakeven son un bono con precio. El que no sirve queda a la
+// vista, deshabilitado y con el motivo.
+function seriesTipoSirve(sec,v){
+  const st=seriesEstado[sec],o=seriesOpt(v);
+  if(!o)return false;
+  if(st.modo==='fwd')return o.fwd!==false&&SERIES_CFG[sec].sectores.includes(o);
+  if(st.modo==='precios')return o.precio!==false;
+  return true;
+}
+function seriesTipoPorQue(sec,v){
+  const st=seriesEstado[sec],o=seriesOpt(v);
+  if(st.modo!=='fwd')return`${o.l} no es un bono: no tiene precio`;
+  return o.fwd===false?`${o.l} no es una tasa con duración: no se puede armar un forward`
+    :'Los forwards se arman entre bonos de un mismo tipo de esta sección';
+}
+function seriesTipoPintar(sec){
+  const st=seriesEstado[sec];
+  // En Forwards se ve uno solo: el de los pares.
+  const sel=st.modo==='fwd'?[st.sector]:st.tipos;
+  const nombres=sel.map(v=>(seriesOpt(v)||{l:v}).l);
+  mselPintar(`series-${sec}-tipo`,{titulo:nombres.length<=2?nombres.join(' + '):`${nombres.length} tipos`,
+    grupos:seriesTiposMenu(sec).map(g=>({l:g.l,items:g.items.map(o=>{
+      const sirve=seriesTipoSirve(sec,o.v);
+      return{l:o.l,v:o.v,on:sel.includes(o.v),c:o.c,dis:!sirve,title:sirve?'':seriesTipoPorQue(sec,o.v),
+        fn:`seriesTipoToggle('${sec}','${o.v}')`};
+    })}))});
+}
+// Tildar un bono lo suma a los elegidos; uno que no es bono los reemplaza. El
+// último no se puede destildar: siempre queda un tipo.
+function seriesTipoToggle(sec,v){
+  const st=seriesEstado[sec];
+  if(!seriesTipoSirve(sec,v)){seriesTipoPintar(sec);return;}
+  if(st.modo==='fwd'){if(v!==st.sector)seriesSetSector(sec,v);else seriesTipoPintar(sec);return;}
+  const antes=st.tipos;
+  let t=!SERIES_TIPOS[v]?[v]
+    :antes.includes(v)?antes.filter(x=>x!==v)
+    :antes.filter(x=>SERIES_TIPOS[x]).concat(v);
+  t=seriesTiposOrden(sec,t);
+  if(!t.length||t.join()===antes.join()){seriesTipoPintar(sec);return;}
+  // Entre bonos se conserva lo que se destildó en la lista; pasar a o desde
+  // una serie que no es bono arranca de cero.
+  const entreBonos=antes.every(x=>SERIES_TIPOS[x])&&t.every(x=>SERIES_TIPOS[x]);
+  st.tipos=t;st.sector=t[0];
+  if(!entreBonos)st.filtro=null;
+  seriesFwdSave();
+  seriesTipoPintar(sec);
+  seriesCargar(sec,entreBonos);
+}
+// Al cambiar de modo: en Forwards, el primero de los elegidos que sirva; en el
+// resto, se caen los que el modo no admite y, si no queda ninguno, el primero
+// que sí. Los elegidos se conservan para volver de Forwards.
 function seriesFwdAjustarSector(sec){
   const cfg=SERIES_CFG[sec],st=seriesEstado[sec];
-  const sirve=o=>st.modo==='fwd'?o.fwd!==false:st.modo==='precios'?o.precio!==false:true;
-  const porQue=o=>st.modo==='fwd'
-    ?`${o.l} no es una tasa con duración: no se puede armar un forward`
-    :`${o.l} no es un bono: no tiene precio`;
-  const selS=document.getElementById(`series-${sec}-sector`);
-  cfg.sectores.forEach(o=>{
-    const op=selS&&selS.querySelector(`option[value="${o.v}"]`);
-    if(!op)return;
-    const bloqueado=!sirve(o);
-    op.disabled=bloqueado;
-    op.title=bloqueado?porQue(o):'';
-  });
-  const act=cfg.sectores.find(o=>o.v===st.sector);
-  if(act&&!sirve(act)){
-    const alt=cfg.sectores.find(sirve);
-    if(alt)seriesPintarSector(sec,alt.v);
+  const primero=()=>(cfg.sectores.find(o=>seriesTipoSirve(sec,o.v))||cfg.sectores[0]).v;
+  if(st.modo==='fwd'){
+    if(!seriesTipoSirve(sec,st.sector)){st.sector=st.tipos.find(v=>seriesTipoSirve(sec,v))||primero();st.filtro=null;}
+  }else{
+    const ok=st.tipos.filter(v=>seriesTipoSirve(sec,v));
+    if(ok.length!==st.tipos.length){st.tipos=ok.length?ok:[primero()];st.filtro=null;}
+    st.sector=st.tipos[0];
   }
+  seriesTipoPintar(sec);
 }
 
 // Los desplegables se arman con los bonos que tienen datos en el rango, así que
@@ -19433,14 +19562,14 @@ async function seriesInit(sec){
   st.modo=modo;
   const moneda=seriesFwdMoneda[sec]||(sec==='usd'?'USD':'ARS');
   st.moneda=moneda;
-  const opcSect=cfg.sectores.map(o=>`<option value="${o.v}">${o.l}</option>`).join('');
   const inp='font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;color:var(--text)';
   pg.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
   <div style="display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;background:var(--surface)">
     <span style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)">${cfg.titulo}</span>
     <label class="gsel-lbl">Vista<select id="series-${sec}-vista" class="gsel" onchange="seriesSetModo('${sec}',this.value)">
       <option value="tasas">Tasas</option><option value="precios">Precios</option><option value="fwd">Forwards</option><option value="ab">A/B</option></select></label>
-    <label class="gsel-lbl" id="series-${sec}-sectores" style="display:${modo==='ab'?'none':'flex'}">Tipo<select id="series-${sec}-sector" class="gsel" onchange="seriesSetSector('${sec}',this.value)">${opcSect}</select></label>
+    <div class="gsel-lbl" id="series-${sec}-sectores" style="display:${modo==='ab'?'none':'flex'}">Tipo<div id="series-${sec}-tipo"></div></div>
+    <div id="series-${sec}-bonos" style="display:${modo==='ab'?'none':'inline-flex'}"></div>
     <label class="gsel-lbl" id="series-${sec}-moneda" style="display:${modo==='precios'?'flex':'none'}">Moneda<select id="series-${sec}-mon" class="gsel" onchange="seriesSetMoneda('${sec}',this.value)">
       <option value="ARS">Pesos</option><option value="USD">Dólares al MEP</option></select></label>
     <div style="display:flex;align-items:center;gap:6px">
@@ -19450,7 +19579,6 @@ async function seriesInit(sec){
       <input type="date" id="series-${sec}-d2" value="${hasta}" onchange="seriesCargar('${sec}')" style="${inp}">
       <button class="btn primary" style="padding:3px 10px;font-size:10px" onclick="seriesCargar('${sec}')">Ver</button>
     </div>
-    <div id="series-${sec}-bonos" style="display:${modo==='ab'?'none':'inline-flex'}"></div>
     <label class="gsel-lbl" id="series-${sec}-todos" style="display:${modo==='fwd'||modo==='ab'?'none':'flex'};cursor:pointer"
       title="Monto operado como barras, bajo la serie. Se dibuja cuando queda un solo bono elegido."><input type="checkbox" id="series-${sec}-vol" onchange="seriesToggleVolumen()" style="margin:0;accent-color:var(--accent)">Volumen</label>
     <div id="series-${sec}-msg" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:auto"></div>
@@ -19483,7 +19611,6 @@ async function seriesInit(sec){
   </div>
   </div>`;
   document.getElementById(`series-${sec}-vista`).value=modo;
-  document.getElementById(`series-${sec}-sector`).value=st.sector;
   document.getElementById(`series-${sec}-mon`).value=moneda;
   seriesFwdAjustarSector(sec);
   seriesPintarVolumen(sec);
@@ -19491,21 +19618,19 @@ async function seriesInit(sec){
   seriesCargar(sec);
 }
 
+// Un tipo solo, en lugar de los elegidos.
 function seriesPintarSector(sec,v){
-  const cfg=SERIES_CFG[sec], st=seriesEstado[sec];
-  st.sector=v;
-  const sel=document.getElementById(`series-${sec}-sector`);
-  if(sel&&cfg.sectores.some(o=>o.v===v))sel.value=v;
-  st.filtro=null;
+  const st=seriesEstado[sec];
+  st.sector=v;st.tipos=[v];st.filtro=null;
+  seriesTipoPintar(sec);
 }
 
 function seriesSetSector(sec,v){
-  const st=seriesEstado[sec];
-  // Un sector que el modo no admite no es elegible: el spread no tiene
-  // duración para un forward, el dinero no tiene precio.
-  const o=SERIES_CFG[sec].sectores.find(x=>x.v===v);
-  if(o&&((st.modo==='fwd'&&o.fwd===false)||(st.modo==='precios'&&o.precio===false)))return;
+  // Un tipo que el modo no admite no es elegible: el spread no tiene duración
+  // para un forward, el dinero no tiene precio.
+  if(!seriesTipoSirve(sec,v))return;
   seriesPintarSector(sec,v);
+  seriesFwdSave();
   seriesCargar(sec);
 }
 
@@ -19519,24 +19644,23 @@ async function seriesCargar(sec,mantenerFiltro){
   if(desde>hasta){if(msg)msg.textContent='La fecha inicial es posterior a la final';return;}
   if(st.modo==='ab')return abCargar(sec,desde,hasta);
   if(msg)msg.textContent='Cargando...';
+  const previas=new Set(st.cache.porBono.keys());
   try{
     if(st.modo==='fwd'){
       st.cacheFwd=await seriesTraerFwd(st.sector,desde,hasta);
       seriesFwdRenderControles(sec);
       st.cache=seriesFwdDerivar(sec);
     }else if(st.modo==='precios'){
-      st.cache=await seriesTraerTipo('precios',st.sector,desde,hasta,st.moneda);
-      if(!mantenerFiltro)st.filtro=null;
-      await seriesSumarExtras(sec,desde,hasta);
+      st.cache=await seriesTraerTipos(sec,desde,hasta);
+      seriesFiltroAjustar(st,previas,mantenerFiltro);
     }else{
       st.cache=st.sector==='SLEG'   ? await seriesTraerSpread(desde,hasta)
              : st.sector==='FX'     ? await seriesTraerFX(desde,hasta)
              : st.sector==='DINERO' ? await seriesTraerDinero(desde,hasta)
              : st.sector==='BEINF'  ? await seriesTraerBEInfla(desde,hasta)
              : st.sector==='TAMARREAL' ? await seriesTraerTamarReal(desde,hasta)
-             : await seriesTraerTipo('tasas',st.sector,desde,hasta);
-      if(!mantenerFiltro)st.filtro=null;   // al cambiar el rango, arrancan todos seleccionados
-      await seriesSumarExtras(sec,desde,hasta);
+             : await seriesTraerTipos(sec,desde,hasta);
+      seriesFiltroAjustar(st,previas,mantenerFiltro);
     }
     seriesDibujar(sec);
   }catch(e){
@@ -19593,11 +19717,12 @@ async function seriesTraerSector(sector,desde,hasta){
   return{fechas,porBono,montos,precios};
 }
 
-// ── Bonos de otros tipos en el mismo gráfico ────────────────────────────────
-// En Tasas y Precios se pueden sumar bonos de cualquier otro tipo —un CER contra
-// una LECAP, un TAMAR contra un dollar linked, un Global contra un Bonar—, en
-// pesos y en dólares. En Tasas cada uno va en su propia unidad, la que guarda el
-// snapshot, y la línea lo dice; en Precios, todos en la moneda elegida.
+// ── Varios tipos en el mismo gráfico ────────────────────────────────────────
+// En Tasas y Precios se juntan los bonos de todos los tipos elegidos —un CER
+// contra una LECAP, un TAMAR contra un dollar linked, un Global contra un
+// Bonar—, en pesos y en dólares. En Tasas cada uno va en su propia unidad, la
+// que guarda el snapshot, y si hay más de una la línea dice la suya; en
+// Precios, todos en la moneda elegida.
 var SERIES_TIPOS={
   TF:   {l:'Tasa Fija',     c:'#fbbf24', u:'TNA'},
   CER:  {l:'CER',           c:'#4ade80', u:'TIR real'},
@@ -19607,17 +19732,8 @@ var SERIES_TIPOS={
   GLO:  {l:'Globales',      c:'#6baed6', u:'TIR USD'},
   BOP:  {l:'Bopreales',     c:'#74c4a0', u:'TIR USD'},
 };
-// Los bonos de un tipo, por vencimiento, para elegir.
-function seriesTipoBonos(s){
-  const lista={TF:LECAPS,CER:CER_BONDS,TAMAR:TAMAR_BONDS,DLK:DLK_BONDS,
-    BON:typeof BON_BONDS!=='undefined'?BON_BONDS:[],GLO:typeof GLO_BONDS!=='undefined'?GLO_BONDS:[],
-    BOP:typeof BOP_BONDS!=='undefined'?BOP_BONDS:[]}[s]||[];
-  return lista.filter(b=>b&&b.ticker).map(b=>({t:b.ticker,v:String(b.vcto||b.vencimiento||'')}))
-    .sort((a,b)=>a.v.localeCompare(b.v));
-}
-// Lo que se trae de un tipo se guarda dos minutos: sumar o sacar un bono de otro
-// tipo no vuelve a pedir el que ya estaba. Devuelve una copia, porque los de
-// otros tipos se suman sobre ella.
+// Lo que se trae de un tipo se guarda dos minutos: sumar o sacar otro tipo no
+// vuelve a pedir los que ya estaban.
 var SERIES_TIPO_CACHE=new Map();
 async function seriesTraerTipo(modo,s,desde,hasta,moneda){
   const k=[modo,s,desde,hasta,modo==='precios'?moneda:''].join('|');
@@ -19628,50 +19744,48 @@ async function seriesTraerTipo(modo,s,desde,hasta,moneda){
     d=modo==='precios'?await seriesTraerPrecios(s,desde,hasta,moneda):await seriesTraerSector(s,desde,hasta);
     SERIES_TIPO_CACHE.set(k,{ts:Date.now(),d});
   }
-  const cp=m=>m instanceof Map?new Map(m):m;
-  return{...d,fechas:[...d.fechas],porBono:cp(d.porBono),montos:cp(d.montos),precios:cp(d.precios),tasas:cp(d.tasas)};
+  return d;
 }
-// Suma al gráfico los bonos de otros tipos elegidos. La clave es el ticker, o
-// el ticker con el tipo si ya está en el gráfico —un dual es CER y TAMAR—.
-async function seriesSumarExtras(sec,desde,hasta){
-  const st=seriesEstado[sec],base=st.cache;
-  base.tipoDe=new Map([...base.porBono.keys()].map(k=>[k,st.sector]));
-  base.extras=new Set();
-  base.extraKey=new Map();
-  if(!SERIES_TIPOS[st.sector]||(st.modo!=='tasas'&&st.modo!=='precios'))return;
-  const otros=(st.extra||[]).filter(x=>x.s!==st.sector&&SERIES_TIPOS[x.s]);
-  if(!otros.length)return;
-  const sectores=[...new Set(otros.map(x=>x.s))];
-  const datos=new Map(await Promise.all(sectores.map(async t=>{
+// Los bonos de todos los tipos elegidos en una sola serie. La clave es el
+// ticker, o el ticker con el tipo si ya está —un dual es CER y TAMAR—. Si un
+// tipo no responde se dibujan los otros y el pie lo dice; si no responde
+// ninguno, es un error.
+async function seriesTraerTipos(sec,desde,hasta){
+  const st=seriesEstado[sec];
+  let error=null;
+  const datos=await Promise.all(st.tipos.filter(t=>SERIES_TIPOS[t]).map(async t=>{
     try{return[t,await seriesTraerTipo(st.modo,t,desde,hasta,st.moneda)];}
-    catch(e){console.warn('[series] '+t+':',e.message);return[t,null];}
-  })));
-  const fechas=new Set(base.fechas);
-  for(const x of otros){
-    const d=datos.get(x.s),serie=d&&d.porBono.get(x.t);
-    if(!serie)continue;
-    const k=base.porBono.has(x.t)?`${x.t} (${SERIES_TIPOS[x.s].l})`:x.t;
-    base.porBono.set(k,serie);base.tipoDe.set(k,x.s);base.extras.add(k);base.extraKey.set(x.s+'|'+x.t,k);
-    for(const f of serie.keys())fechas.add(f);
-    for(const campo of['montos','precios','tasas']){
-      const m=d[campo]&&d[campo].get(x.t);
-      if(m){base[campo]=base[campo]||new Map();base[campo].set(k,m);}
+    catch(e){console.warn('[series] '+t+':',e.message);error=error||e;return[t,null];}
+  }));
+  if(error&&datos.every(([,d])=>!d))throw error;
+  const out={fechas:[],porBono:new Map(),montos:new Map(),precios:new Map(),tasas:new Map(),
+             tipoDe:new Map(),tickerDe:new Map()};
+  const fechas=new Set(),avisos=[],fallan=[];
+  for(const[t,d]of datos){
+    if(!d){fallan.push(SERIES_TIPOS[t].l);continue;}
+    d.fechas.forEach(f=>fechas.add(f));
+    if(d.aviso)avisos.push(d.aviso);
+    for(const[tk,serie]of d.porBono){
+      const k=out.porBono.has(tk)?`${tk} (${SERIES_TIPOS[t].l})`:tk;
+      out.porBono.set(k,serie);out.tipoDe.set(k,t);out.tickerDe.set(k,tk);
+      for(const campo of['montos','precios','tasas']){
+        const m=d[campo]&&d[campo].get(tk);
+        if(m)out[campo].set(k,m);
+      }
     }
   }
-  base.fechas=[...fechas].sort();
+  out.fechas=[...fechas].sort();
+  if(fallan.length)avisos.push('sin respuesta: '+fallan.join(', '));
+  if(avisos.length)out.aviso=[...new Set(avisos)].join(' · ');
+  return out;
 }
-function seriesExtra(sec,tipo,ticker){
-  const st=seriesEstado[sec];
-  st.extra=st.extra||[];
-  const i=st.extra.findIndex(x=>x.s===tipo&&x.t===ticker);
-  if(i>=0)st.extra.splice(i,1);else st.extra.push({s:tipo,t:ticker});
-  seriesFwdSave();
-  seriesCargar(sec,true);
-}
-function seriesExtraLimpiar(sec){
-  seriesEstado[sec].extra=[];
-  seriesFwdSave();
-  seriesCargar(sec,true);
+// Lo destildado en la lista sobrevive a sumar o sacar un tipo: los bonos que
+// llegan nuevos entran tildados y los que se fueron salen del filtro.
+function seriesFiltroAjustar(st,previas,mantener){
+  if(!mantener||!st.filtro){st.filtro=null;return;}
+  const ahora=[...st.cache.porBono.keys()];
+  const f=new Set(ahora.filter(k=>st.filtro.has(k)||!previas.has(k)));
+  st.filtro=f.size===ahora.length?null:f;
 }
 
 // ── Serie de precios ────────────────────────────────────────────────────────
@@ -20383,7 +20497,7 @@ function seriesTodos(sec,activar){
 
 function seriesDibujar(sec,error){
   const st=seriesEstado[sec], cfg=SERIES_CFG[sec];
-  const opt=cfg.sectores.find(o=>o.v===st.sector)||cfg.sectores[0];
+  const opt=seriesOpt(st.sector)||cfg.sectores[0];
   const msg=document.getElementById(`series-${sec}-msg`);
   const canvas=document.getElementById(`series-${sec}-chart`);
   const{fechas,porBono}=st.cache;
@@ -20396,14 +20510,14 @@ function seriesDibujar(sec,error){
   // que un par sin datos en el rango también se pueda quitar.
   const esFwd=st.modo==='fwd';
   const esPrecio=st.modo==='precios';
-  // Bonos de otros tipos: van después de los del tipo elegido y siempre se ven;
-  // cada uno se saca desde la lista. Si alguno tiene otra unidad, cada línea
+  // Con varios tipos, los bonos van agrupados por tipo y, dentro de cada uno,
+  // por vencimiento. Si los que se ven tienen unidades distintas, cada línea
   // dice la suya y el eje no promete una sola.
-  const extras=!esFwd&&st.cache.extras?st.cache.extras:new Set();
-  const tipoDe=k=>(st.cache.tipoDe&&st.cache.tipoDe.get(k))||st.sector;
+  const porTipo=!esFwd&&st.cache.tipoDe?st.cache.tipoDe:null;
+  const tipoDe=k=>(porTipo&&porTipo.get(k))||st.sector;
+  const tickerDe=k=>(st.cache.tickerDe&&st.cache.tickerDe.get(k))||k;
   const unidadDe=k=>(SERIES_TIPOS[tipoDe(k)]||{}).u||'';
-  const mixto=!esPrecio&&[...extras].some(k=>unidadDe(k)!==((SERIES_TIPOS[st.sector]||{}).u||''));
-  const etq=k=>mixto?`${k} · ${unidadDe(k)}`:k;
+  const tiposEn=porTipo?seriesTiposOrden(sec,[...new Set(porTipo.values())]):[];
   // Las monedas traen su propio orden, sus colores y su unidad: no son bonos,
   // no tienen vencimiento por el cual ordenarlas y no todas se miden en %.
   const orden=!esFwd&&st.cache.orden&&st.cache.orden.length?st.cache.orden:null;
@@ -20418,17 +20532,23 @@ function seriesDibujar(sec,error){
   const precios=!esFwd&&!esPrecio&&st.cache.precios?st.cache.precios:null;
   // Y al revés en modo precios: debajo del precio, la tasa de esa misma rueda.
   const tasas=esPrecio&&st.cache.tasas?st.cache.tasas:null;
-  const etqTasa=String(opt.y||'Tasa').replace(/\s*\(%\)\s*$/,'');
+  const etqTasaDe=k=>String((seriesOpt(tipoDe(k))||opt).y||'Tasa').replace(/\s*\(%\)\s*$/,'');
   // En precios manda la moneda elegida; en tasas, la del dato guardado.
-  const simbPrecio=esPrecio?(st.moneda==='USD'?'US$':'$')
-    :((st.sector==='BON'||st.sector==='GLO'||st.sector==='BOP')?'US$':'$');
+  const simbPrecio=st.moneda==='USD'?'US$':'$';
   const simbDe=k=>esPrecio?simbPrecio:(SERIES_SEC_USD.has(tipoDe(k))?'US$':'$');
+  const delTipo=t=>{
+    const m=new Map([...porBono.keys()].filter(k=>tipoDe(k)===t).map(k=>[tickerDe(k),k]));
+    return ordenarPorVencimiento([...m.keys()]).map(x=>m.get(x));
+  };
   const tickers=esFwd?[...porBono.keys()]
     :orden?orden.filter(t=>porBono.has(t))
-    :ordenarPorVencimiento([...porBono.keys()].filter(t=>!extras.has(t))).concat([...extras].filter(t=>porBono.has(t)));
+    :porTipo?tiposEn.flatMap(delTipo)
+    :ordenarPorVencimiento([...porBono.keys()]);
   // Los colores se reparten entre los bonos que se ven, no entre todos los del
-  // sector: los chips apagados no usan color.
-  const vis=esFwd?tickers:tickers.filter(t=>extras.has(t)||!st.filtro||st.filtro.has(t));
+  // sector: los apagados en la lista no usan color.
+  const vis=esFwd?tickers:tickers.filter(t=>!st.filtro||st.filtro.has(t));
+  const mixto=!esPrecio&&!esFwd&&new Set(vis.map(unidadDe)).size>1;
+  const etq=k=>mixto?`${k} · ${unidadDe(k)}`:k;
   const asignados=seriesAsignarColores(st,vis);
   const colDe=t=>(paleta&&paleta.get(t))||asignados.get(t)||'#8a9489';
   // Un hex no admite el truco de hsl→hsla para el fondo translúcido.
@@ -20446,29 +20566,15 @@ function seriesDibujar(sec,error){
       })}],
       vacio:'Elegí dos bonos arriba y apretá Agregar'});
   }else{
-    const prim=tickers.filter(t=>!extras.has(t));
-    const grupos=[{l:unidades?'':opt.l,items:prim.map(t=>({l:t,on:!st.filtro||st.filtro.has(t),c:colDe(t),
-      fn:`seriesToggle('${sec}','${t}')`}))}];
-    let nExtra=0;
-    if(SERIES_TIPOS[st.sector]&&!unidades){
-      const d1v=(document.getElementById(`series-${sec}-d1`)||{}).value||'';
-      Object.keys(SERIES_TIPOS).filter(t=>t!==st.sector).forEach(t=>{
-        const T=SERIES_TIPOS[t];
-        const items=seriesTipoBonos(t).filter(x=>!x.v||x.v>=d1v).map(x=>{
-          const on=(st.extra||[]).some(e=>e.s===t&&e.t===x.t);
-          const k=st.cache.extraKey&&st.cache.extraKey.get(t+'|'+x.t);
-          const hay=!!(k&&porBono.has(k));
-          if(on)nExtra++;
-          return{l:x.t,on,c:on&&hay?colDe(k):T.c,nota:on&&!hay?'sin datos':'',fn:`seriesExtra('${sec}','${t}','${x.t}')`};
-        });
-        grupos.push({l:'Sumar '+T.l+(esPrecio?'':' · '+T.u),plegable:true,abierto:items.some(i=>i.on),items});
-      });
-    }
-    const visPrim=prim.filter(t=>!st.filtro||st.filtro.has(t)).length;
-    mselPintar(idBonos,{titulo:unidades?'Series':'Bonos',
-      resumen:`${visPrim}/${prim.length}`+(nExtra?` + ${nExtra} de otros tipos`:''),
-      acciones:[{l:'Todos',fn:`seriesTodos('${sec}',true)`},{l:'Ninguno',fn:`seriesTodos('${sec}',false)`}]
-        .concat(nExtra?[{l:'Sacar otros tipos',fn:`seriesExtraLimpiar('${sec}')`}]:[]),
+    // Un grupo por tipo elegido, con el nombre del tipo y, en Tasas y con más de
+    // uno, su unidad.
+    const item=t=>({l:tickerDe(t),on:!st.filtro||st.filtro.has(t),c:colDe(t),fn:`seriesToggle('${sec}','${t}')`});
+    const grupos=porTipo
+      ?tiposEn.map(t=>({l:SERIES_TIPOS[t].l+(tiposEn.length>1&&!esPrecio?' · '+SERIES_TIPOS[t].u:''),
+          items:tickers.filter(k=>tipoDe(k)===t).map(item)}))
+      :[{l:unidades?'':opt.l,items:tickers.map(item)}];
+    mselPintar(idBonos,{titulo:unidades?'Series':'Bonos',resumen:`${vis.length}/${tickers.length}`,
+      acciones:[{l:'Todos',fn:`seriesTodos('${sec}',true)`},{l:'Ninguno',fn:`seriesTodos('${sec}',false)`}],
       grupos,vacio:'Sin bonos con datos en el rango'});
   }
 
@@ -20565,7 +20671,8 @@ function seriesDibujar(sec,error){
             const serieO=otraM&&otraM.get(i.dataset._k||i.dataset.label);
             const vo=serieO&&f?serieO.get(f):null;
             if(vo==null)return txt;
-            return[txt,esPrecio?`${etqTasa} ${vo.toFixed(2)}%`:`Precio ${fmtPrecio(vo,simbDe(i.dataset._k||i.dataset.label))}`];
+            const k=i.dataset._k||i.dataset.label;
+            return[txt,esPrecio?`${etqTasaDe(k)} ${vo.toFixed(2)}%`:`Precio ${fmtPrecio(vo,simbDe(k))}`];
           }}},
       },
       scales:{
@@ -20649,17 +20756,10 @@ function curvasUsdInit(){
   const today=curvasTodayStr();
   const d1=curvasDateMinus7(today);
   const d2=today;
-  const secOpts=[
-    {v:'GLO',l:'Globales'},
-    {v:'BON',l:'Bonares'},
-    {v:'BOP',l:'Bopreales'},
-    {v:'SLEG',l:'Spread Leg.'},
-  ];
-  const opciones=secOpts.map(o=>`<option value="${o.v}"${o.v===curvasUsdSector?' selected':''}>${o.l}</option>`).join('');
   pg.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
   <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;background:var(--surface)">
     <span style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)">Curvas · USD</span>
-    <label class="gsel-lbl">Tipo<select id="curvas-usd-sector" class="gsel" onchange="curvasUsdSetSector(this.value)">${opciones}</select></label>
+    <div class="gsel-lbl">Tipo<div id="curvas-usd-tipo"></div><div id="curvas-usd-bonds"></div></div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:8px">
       <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">F1</span>
       <input type="date" id="curvas-usd-d1" value="${d1}" onchange="curvasUsdRender()" style="font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;color:var(--text)">
@@ -20667,7 +20767,6 @@ function curvasUsdInit(){
       <input type="date" id="curvas-usd-d2" value="${d2}" onchange="curvasUsdRender()" style="font-family:var(--mono);font-size:11px;background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;color:var(--text)">
       <button class="btn primary" style="padding:3px 10px;font-size:10px" onclick="curvasUsdRender()">Ver</button>
     </div>
-    <div id="curvas-usd-bonds"></div>
     <span data-curva-sel style="margin-left:10px"></span>
     <div id="curvas-usd-msg" style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-left:auto"></div>
   </div>
@@ -20675,16 +20774,11 @@ function curvasUsdInit(){
     <canvas id="curvas-usd-chart"></canvas>
   </div>
   </div>`;
+  curvasTiposPintar('usd');
   curvasUsdRender();
 }
 
-function curvasUsdSetSector(sec){
-  curvasUsdSector=sec;
-  desvSiActivo('usd');
-  const sel=document.getElementById('curvas-usd-sector');
-  if(sel)sel.value=sec;
-  curvasUsdRender();
-}
+function curvasUsdSetSector(sec){curvasTiposSet('usd',[sec]);}
 
 // ══════════════════════════════════════════════════════════════ RETORNOS
 // Lo que rinde cada bono hasta una fecha de corte según la TIR a la que se lo
@@ -21478,7 +21572,7 @@ function _curvasSpreadDraw(){
   }});
 }
 
-async function curvasUsdRender(){
+async function curvasUsdRender(mantener){
   if(curvasUsdSector==='SLEG')return curvasSpreadRender();
   const msg=document.getElementById('curvas-usd-msg');
   const canvas=document.getElementById('curvas-usd-chart');
@@ -21488,21 +21582,18 @@ async function curvasUsdRender(){
   if(!d1El||!d2El)return;
   const d1=d1El.value,d2=d2El.value;
   if(msg)msg.textContent='Cargando...';
-  const secFilter=curvasUsdSector;
-  const [snap1,snap2]=await Promise.all([
-    curvasFetchSnapshot(d1,secFilter),
-    curvasFetchSnapshot(d2,secFilter),
-  ]);
-  _curvasUsdCache={snap1,snap2,d1,d2,sector:curvasUsdSector};
-  curvasUsdFilter=null;
+  const tipos=curvasUsdTipos.slice();
+  const traer=d=>Promise.all(tipos.map(s=>curvasFetchSnapshot(d,s))).then(x=>x.flat());
+  const [snap1,snap2]=await Promise.all([traer(d1),traer(d2)]);
+  const previas=new Set(curvasClaves(_curvasUsdCache,curvasUsdT));
+  _curvasUsdCache={snap1,snap2,d1,d2,sector:tipos[0],tipos};
+  curvasUsdFilter=curvasFiltroAjustar(curvasUsdFilter,previas,curvasClaves(_curvasUsdCache,curvasUsdT),mantener);
   _curvasUsdDraw();
 }
+function curvasUsdT(rows,sec){return rows.filter(r=>r.sector===sec&&r.md>0&&r.tir!=null).map(r=>r.ticker);}
 
 function curvasUsdToggleBond(ticker){
-  const {snap1,snap2,sector}=_curvasUsdCache;
-  const USD_SECS=[sector];
-  const toT=rows=>rows.filter(r=>USD_SECS.includes(r.sector)&&r.md>0&&r.tir!=null).map(r=>r.ticker);
-  const all=[...new Set([...toT(snap1),...toT(snap2)])];
+  const all=curvasClaves(_curvasUsdCache,curvasUsdT);
   if(!curvasUsdFilter) curvasUsdFilter=new Set(all);
   if(curvasUsdFilter.has(ticker)) curvasUsdFilter.delete(ticker);
   else curvasUsdFilter.add(ticker);
@@ -21514,25 +21605,25 @@ function curvasUsdTodos(activar){curvasUsdFilter=activar?null:new Set();_curvasU
 
 function _curvasUsdDraw(){
   curvaPintarSelectores();
-  const {snap1,snap2,d1,d2,sector}=_curvasUsdCache;
+  const {snap1,snap2,d1,d2}=_curvasUsdCache;
+  const USD_SECS=_curvasUsdCache.tipos||[_curvasUsdCache.sector];
   const msg=document.getElementById('curvas-usd-msg');
   const canvas=document.getElementById('curvas-usd-chart');
   const bondsDiv=document.getElementById('curvas-usd-bonds');
-  const USD_SECS=[sector];
   const secColors={GLO:'#6baed6',BON:'#d4a843',BOP:'#74c4a0'};
+  const enc=k=>!curvasUsdFilter||curvasUsdFilter.has(k);
 
-  const toAll=(rows,sec)=>rows.filter(r=>r.sector===sec&&r.md!=null&&r.md>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.md,y:r.tir,ticker:r.ticker,precio:r.price})).sort((a,b)=>a.x-b.x);
+  const toAll=(rows,sec)=>rows.filter(r=>r.sector===sec&&r.md!=null&&r.md>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.md,y:r.tir,ticker:r.ticker,precio:r.price,k:sec+':'+r.ticker})).sort((a,b)=>a.x-b.x);
   const allPtsFlat=USD_SECS.flatMap(sec=>[...toAll(snap1,sec),...toAll(snap2,sec)]);
   const mdMap=new Map(allPtsFlat.map(p=>[p.ticker,p.x]));
-  const allTickers=ordenarPorVencimiento([...new Set(allPtsFlat.map(p=>p.ticker))],t=>mdMap.get(t));
+  const claves=[...new Set(allPtsFlat.map(p=>p.k))];
 
-  // Chips de bonos (agrupados por sector con mini-cabecera)
+  // Los bonos, agrupados por tipo cuando hay más de uno.
   if(bondsDiv){
-    const enc=t=>!curvasUsdFilter||curvasUsdFilter.has(t);
-    mselPintar('curvas-usd-bonds',{titulo:'Bonos',resumen:`${allTickers.filter(enc).length}/${allTickers.length}`,
+    mselPintar('curvas-usd-bonds',{titulo:'Bonos',resumen:`${claves.filter(enc).length}/${claves.length}`,
       acciones:[{l:'Todos',fn:'curvasUsdTodos(true)'},{l:'Ninguno',fn:'curvasUsdTodos(false)'}],
-      grupos:USD_SECS.map(sec=>({l:'',items:ordenarPorVencimiento([...new Set([...toAll(snap1,sec),...toAll(snap2,sec)].map(p=>p.ticker))],t=>mdMap.get(t))
-        .map(t=>({l:t,on:enc(t),c:secColors[sec],fn:`curvasUsdToggleBond('${t}')`}))})),
+      grupos:USD_SECS.map(sec=>({l:USD_SECS.length>1?SERIES_TIPOS[sec].l:'',items:ordenarPorVencimiento([...new Set([...toAll(snap1,sec),...toAll(snap2,sec)].map(p=>p.ticker))],t=>mdMap.get(t))
+        .map(t=>({l:t,on:enc(sec+':'+t),c:secColors[sec],fn:`curvasUsdToggleBond('${sec}:${t}')`}))})),
       vacio:'Sin bonos en esas fechas'});
   }
 
@@ -21541,8 +21632,8 @@ function _curvasUsdDraw(){
   USD_SECS.forEach(sec=>{
     const col=secColors[sec];
     const col2=col+'77';
-    const pts1=toAll(snap1,sec).filter(p=>!curvasUsdFilter||curvasUsdFilter.has(p.ticker));
-    const pts2=toAll(snap2,sec).filter(p=>!curvasUsdFilter||curvasUsdFilter.has(p.ticker));
+    const pts1=toAll(snap1,sec).filter(p=>enc(p.k));
+    const pts2=toAll(snap2,sec).filter(p=>enc(p.k));
     totalPts+=pts1.length+pts2.length;
     if(pts1.length){
       const t1=pts1.map(p=>p.ticker);
@@ -21559,12 +21650,12 @@ function _curvasUsdDraw(){
   });
 
   if(!totalPts){
-    if(msg)msg.textContent=allTickers.length?'Todos los bonos desactivados':'Sin datos para esas fechas';
+    if(msg)msg.textContent=claves.length?'Todos los bonos desactivados':'Sin datos para esas fechas';
     if(curvasUsdChart){curvasUsdChart.destroy();curvasUsdChart=null;}
     return;
   }
-  const cnt1=snap1.filter(r=>USD_SECS.includes(r.sector)&&(!curvasUsdFilter||curvasUsdFilter.has(r.ticker))).length;
-  const cnt2=snap2.filter(r=>USD_SECS.includes(r.sector)&&(!curvasUsdFilter||curvasUsdFilter.has(r.ticker))).length;
+  const cnt1=snap1.filter(r=>USD_SECS.includes(r.sector)&&enc(r.sector+':'+r.ticker)).length;
+  const cnt2=snap2.filter(r=>USD_SECS.includes(r.sector)&&enc(r.sector+':'+r.ticker)).length;
   if(msg)msg.textContent=`${curvasFmtDate(d1)}: ${cnt1} · ${curvasFmtDate(d2)}: ${cnt2}`;
 
   if(curvasUsdChart){curvasUsdChart.destroy();curvasUsdChart=null;}
