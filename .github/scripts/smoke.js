@@ -4407,44 +4407,79 @@ const omitir = (label, motivo) =>
   else check(sar.lecap > 0 && sar.sint === sar.esperados && sar.sint > 0 && sar.mismos && sar.selector && sar.noGuarda,
              'el gráfico pone cada sintético, con la TIR de la tabla, contra la curva de LECAP', JSON.stringify(sar));
 
-  // Sintético USD: LECAP + compra de futuro, contra el dollar linked.
+  // Sintético USD: LECAP + compra de futuro, contra el dollar linked. Con el
+  // formato del Sintético ARS: precios editables, la calculadora al costado y
+  // el gráfico abajo.
   console.log('\nSintético USD');
   const sus = await page.evaluate(async () => {
     const espera = ms => new Promise(r => setTimeout(r, ms));
     switchSection('pesos'); switchTab('sintusd');
-    for (let k = 0; k < 40 && !(MAE_FUTUROS || []).length; k++) await espera(250);
-    await espera(800);
+    for (let k = 0; k < 60 && !(susDatos() && susDatos().filas.length); k++) await espera(250);
+    susRender('ars');
+    await espera(300);
     const D = susDatos();
-    if (!D) return { sinDatos: true, fut: (MAE_FUTUROS || []).length, tc: dlkTCHoy() };
-    const out = { filas: document.querySelectorAll('#sus-tbody tr').length, esperadas: D.filas.length, graficos: Object.keys(SUS_CHARTS.ars).length,
+    if (!D || !D.filas.length) return { sinDatos: true, fut: (MAE_FUTUROS || []).length, tc: dlkTCHoy() };
+    const guardado = localStorage.getItem(SUS_LS);
+    const out = { filas: document.querySelectorAll('#sus-tbody tr').length, esperadas: D.filas.length,
+      grafico: !!SUS_CHARTS.ars, arrastre: !!document.getElementById('sus-chart-resize-handle'),
+      editables: document.querySelectorAll('#sus-tbody .cv.editable').length,
       sinDif: !document.getElementById('sus-g-dif'), sinNotas: !document.getElementById('page-sintusd').textContent.includes('Cómo se lee') };
     // La cuenta, a mano: USD al vencimiento sobre USD hoy, anualizado.
     out.formula = D.filas.every(r => Math.abs(r.u - (Math.pow((r.pago / r.F) / (r.P / D.C.spot), 365 / r.d) - 1) * 100) < 1e-9);
     out.pago = D.filas.every(r => { const b = LECAPS.find(x => x.ticker === r.k); return b && Math.abs(r.pago - enrich(b).vf) < 1e-9; });
     // Una LECAP que vence el día del contrato usa su precio; otra, el interpolado y la marca.
     const fin = D.filas.find(r => r.ct && !r.ct.interp), mitad = D.filas.find(r => r.ct && r.ct.interp);
-    out.contrato = !fin || Math.abs(fin.F - MAE_FUTUROS.find(f => f.ticker === fin.ct.ticker).precio) < 1e-9;
+    out.contrato = !fin || Math.abs(fin.Fm - MAE_FUTUROS.find(f => f.ticker === fin.ct.ticker).precio) < 1e-9;
     out.interp = !mitad || document.getElementById('sus-tbody').innerHTML.includes('riesgo de base');
-    // La diferencia es contra el dollar linked de la referencia, en pb.
     out.dif = D.filas.filter(r => r.dif != null).every(r => Math.abs(r.dif - (r.u - r.ref.v) * 100) < 1e-9);
-    out.conRef = D.filas.filter(r => r.dif != null).length;
     out.refsOk = D.refs.every(o => o.enHorizonte);
+    // Jugar con los precios: la TEA sale de lo escrito, la LECAP no cambia en
+    // el resto de la app, y lo mismo que el de mercado vuelve al de mercado.
+    const r0 = D.filas[0], b0 = LECAPS.find(x => x.ticker === r0.k), pxApp = b0.precio;
+    susAplicar(r0.k, 'px', String(r0.Pm * 0.99)); susAplicar(r0.k, 'fut', String(r0.Fm * 1.01));
+    susRender('ars');
+    const r1 = susDatos().filas.find(r => r.k === r0.k);
+    out.juega = r1.pxMan && r1.futMan && Math.abs(r1.P - r0.Pm * 0.99) < 1e-9 && Math.abs(r1.F - r0.Fm * 1.01) < 1e-9
+      && Math.abs(r1.u - (Math.pow((r1.pago / r1.F) / (r1.P / D.C.spot), 365 / r1.d) - 1) * 100) < 1e-9
+      && b0.precio === pxApp && !!JSON.parse(localStorage.getItem(SUS_LS) || '{}')[r0.k]
+      && document.querySelectorAll('#sus-tbody .cv.c-green').length === 2;
+    susAplicar(r0.k, 'px', String(r0.Pm));
+    out.vuelve = !susDatos().filas.find(r => r.k === r0.k).pxMan;
+    // La calculadora: se abre al costado, pliega el gráfico y muestra la cuenta.
+    susAbrirPanel('ars', r0.k);
+    out.panel = document.getElementById('sus-right-panel').classList.contains('open')
+      && document.getElementById('sus-chart-area').style.height === '0px'
+      && !!document.getElementById('sus-pp-px') && !!document.getElementById('sus-pp-fut')
+      && document.getElementById('sus-pp-res').textContent.includes('USD al vencimiento');
+    susPanelInput('ars', 'px', String(r0.Pm * 0.98));
+    out.panelEdita = Math.abs(susDatos().filas.find(r => r.k === r0.k).P - r0.Pm * 0.98) < 1e-9;
+    susCerrarPanel('ars');
+    out.cierra = !document.getElementById('sus-right-panel').classList.contains('open') && document.getElementById('sus-chart-area').style.height !== '0px';
+    susRestablecer();
+    out.restablece = !localStorage.getItem(SUS_LS) && !susDatos().filas.some(r => r.pxMan || r.futMan);
+    if (guardado) { localStorage.setItem(SUS_LS, guardado); SUS_MAN = null; }
+    // El gráfico de tipo de cambio sigue, en el selector.
+    susVista('ars', 'tc');
+    out.tc = !!SUS_CHARTS.ars && SUS_CHARTS.ars.data.datasets.some(d => d.label === 'Futuros del MAE');
+    susVista('ars', 'tasas');
     switchSection('usd'); switchUsdTab('usd-sintusd');
     await espera(800);
-    out.usd = document.getElementById('page-usd-sintusd').style.display !== 'none' && document.querySelectorAll('#usus-tbody tr').length === out.esperadas;
+    out.usd = document.getElementById('page-usd-sintusd').style.display === 'flex' && document.querySelectorAll('#usus-tbody tr').length === out.esperadas;
     switchSection('pesos'); switchTab('breakeven');
     return out;
   });
   if (sus.sinDatos) omitir('Sintético USD', `sin futuros del MAE o sin A3500 (${sus.fut} contratos, A3500 ${sus.tc})`);
   else {
-    check(sus.filas === sus.esperadas && sus.esperadas > 0 && sus.graficos === 2 && sus.sinDif && sus.sinNotas,
-          'una fila por LECAP dentro de la curva de futuros, las tasas y el tipo de cambio esperado, sin el gráfico de diferencia ni Cómo se lee',
-          JSON.stringify(sus));
+    check(sus.filas === sus.esperadas && sus.esperadas > 0 && sus.editables === 2 * sus.esperadas && sus.grafico && sus.arrastre && sus.sinDif && sus.sinNotas,
+          'una fila por LECAP con su precio y su futuro editables, y el gráfico abajo con el borde para el alto', JSON.stringify(sus));
     check(sus.formula && sus.pago, 'TEA en USD = (pago / futuro) / (precio / A3500), anualizada, con el pago de la LECAP');
     check(sus.contrato && sus.interp, 'al vencimiento del contrato, su precio; antes de fin de mes, interpolado y marcado');
-    check(sus.dif && sus.conRef > 0 && sus.refsOk, 'la diferencia es contra el dollar linked de referencia, dentro del horizonte de futuros',
-          JSON.stringify({ con: sus.conRef }));
-    check(sus.usd, 'la misma calculadora desde la sección de dólares');
+    check(sus.dif && sus.refsOk, 'la diferencia es contra el dollar linked de referencia, dentro del horizonte de futuros');
+    check(sus.juega && sus.vuelve, 'los precios escritos mueven la TEA sin tocar la LECAP en el resto de la app, y el de mercado vuelve a ser de mercado');
+    check(sus.panel && sus.panelEdita && sus.cierra && sus.restablece,
+          'la calculadora se abre al costado y pliega el gráfico, se edita desde ahí, y Restablecer borra lo escrito',
+          JSON.stringify({ panel: sus.panel, edita: sus.panelEdita, cierra: sus.cierra, restablece: sus.restablece }));
+    check(sus.tc && sus.usd, 'el tipo de cambio esperado sigue en el selector del gráfico, y la misma calculadora desde dólares');
   }
 
   // Desvío histórico contra la curva, en pesos y en dólares.

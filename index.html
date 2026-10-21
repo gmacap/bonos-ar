@@ -1317,7 +1317,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   </div>
 </div>
 
-<div id="page-sintusd" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
+<div id="page-sintusd" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;"></div>
 
 <!-- SINT MODAL -->
 <div class="modal-backdrop" id="sint-modal" onclick="if(event.target===this)sintCloseModal()" style="display:none">
@@ -2105,7 +2105,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-usd-retornos" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-cartera" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-licitaciones" class="pg" style="overflow-y:auto"></div>
-<div id="page-usd-sintusd" class="pg" style="overflow-y:auto"></div>
+<div id="page-usd-sintusd" class="pg" style="flex-direction:column"></div>
 <div id="page-usd-spreadleg" class="pg">
   <div style="display:flex;flex-direction:column;height:100%">
     <div style="display:flex;align-items:center;gap:8px;padding:0 1rem;height:40px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
@@ -3698,6 +3698,7 @@ function curvaRepintar(){
    ()=>{if(document.getElementById('curvas-ars-chart'))_curvasArsDraw();},
    ()=>{if(document.getElementById('curvas-usd-chart'))_curvasUsdDraw();},
    ()=>{if(typeof currentTab!=='undefined'&&currentTab==='sintetico')sintRenderChart();},
+   ()=>susRefrescar(),
    ()=>{desvSiActivo('ars');desvSiActivo('usd');},
   ].forEach(g=>{try{g();}catch(e){console.warn('[curva] repintar:',e.message);}});
 }
@@ -5122,7 +5123,7 @@ function switchUsdTab(tab){
   if(tab==='usd-licitaciones') licInit('usd');
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
-  if(tab==='usd-sintusd') susInit('usd');
+  if(tab==='usd-sintusd'){document.getElementById('page-usd-sintusd').style.display='flex';susInit('usd');}
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();desvMontar('usd');}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
   if(tab==='usd-comentario') comInit('usd');
@@ -5193,7 +5194,7 @@ function switchTab(tab){
     document.getElementById('page-licitaciones').style.display='block';
     licInit('ars');
   } else if(tab==='sintusd'){
-    document.getElementById('page-sintusd').style.display='block';
+    document.getElementById('page-sintusd').style.display='flex';
     susInit('ars');
   } else if(tab==='retornos'){
     document.getElementById('page-retornos').style.display='block';
@@ -14739,14 +14740,40 @@ function sintConfirmAdd(){
 // extrapolar. Las dos tasas en dólares se miden con el mismo A3500. Los duales
 // TAMAR/dólar linked quedan afuera: su opción a TAMAR no es una tasa en dólares.
 //
+// Con el formato del Sintético ARS: la tabla con los precios editables, la
+// calculadora de cada LECAP al costado y el gráfico abajo. Los precios que se
+// escriben son para jugar con el sintético: no cambian la LECAP en el resto de
+// la app, quedan guardados en el navegador y Restablecer los borra.
+//
 // Una sola página para las dos secciones, como Licitaciones.
-var SUS_SEC={ars:{pagina:'page-sintusd',p:'sus'},usd:{pagina:'page-usd-sintusd',p:'usus'}};
-var SUS_CHARTS={ars:{},usd:{}};
+var SUS_SEC={ars:{pagina:'page-sintusd',p:'sus',alto:'--alto-barras'},usd:{pagina:'page-usd-sintusd',p:'usus',alto:'--alto-barras-usd'}};
+var SUS_CHARTS={ars:null,usd:null};
 var SUS_REAL=7;      // días: un dollar linked que vence a una semana o menos es la comparación directa
 var SUS_MIN=21;      // días: más corto, la TEA anualiza cualquier diferencia chica; va sólo en la tabla
 var SUS_DIAS_MIN=7;  // días: más corto ni siquiera entra
 var SUS_MONTO_MIN=1e8; // $100 M operados en la rueda para que un dollar linked sea referencia
 var SUS_COL={lec:'#fbbf24',dl:'#a855f7',fut:'#38bdf8',rem:'#94a3b8'};
+var SUS_LS='bonosAR_sintusd_v1';   // {ticker:{px,fut}}: los precios escritos a mano
+var SUS_MAN=null;
+var SUS_SEL={ars:null,usd:null};   // la LECAP con la calculadora abierta
+var SUS_EDIT=null;                 // {sec,k,campo}: la celda que se está editando
+var SUS_VISTA={ars:'tasas',usd:'tasas'};
+
+function susManual(){
+  if(!SUS_MAN){try{SUS_MAN=JSON.parse(localStorage.getItem(SUS_LS)||'{}')||{};}catch(e){SUS_MAN={};}}
+  return SUS_MAN;
+}
+function susGuardar(){
+  const m=susManual();
+  Object.keys(m).forEach(k=>{if(!(m[k]&&(m[k].px>0||m[k].fut>0)))delete m[k];});
+  try{if(Object.keys(m).length)localStorage.setItem(SUS_LS,JSON.stringify(m));else localStorage.removeItem(SUS_LS);}catch(e){}
+}
+function susSetManual(k,campo,v){
+  const m=susManual();
+  m[k]=m[k]||{};
+  m[k][campo]=v>0?v:null;
+  susGuardar();
+}
 
 // La curva de futuros: hoy al A3500 y cada contrato a su vencimiento.
 function susCurvaFuturos(){
@@ -14770,16 +14797,19 @@ function susFuturo(C,fecha){
 // El contrato del mes de una fecha, y si hay que interpolarlo.
 function susContrato(C,fecha){
   const f=C.pts.find(x=>x.vto&&x.vto.slice(0,7)===fmtDate(fecha).slice(0,7));
-  return f?{ticker:f.ticker,interp:Math.abs(f.t-fecha.getTime())>86400000}:null;
+  return f?{ticker:f.ticker,vto:f.vto,interp:Math.abs(f.t-fecha.getTime())>86400000}:null;
 }
 
 function susDatos(){
   const C=susCurvaFuturos();
   if(!C)return null;
+  const man=susManual();
   const enTamar=new Set((TAMAR_BONDS||[]).map(b=>b.ticker));
-  // Las LECAP y BONCAP con precio.
-  const lec=(LECAPS||[]).filter(b=>b.precio>0&&b.vcto).map(b=>{
-    try{const e=enrich(b);return isFinite(e.tir)&&e.dias>=SUS_DIAS_MIN?{b,e,d:e.dias,vto:parseDate(b.vcto)}:null;}catch(x){return null;}
+  // Las LECAP y BONCAP con precio, de mercado o escrito a mano.
+  const lec=(LECAPS||[]).filter(b=>b.vcto).map(b=>{
+    const m=man[b.ticker]||{},P=m.px>0?m.px:b.precio;
+    if(!(P>0))return null;
+    try{const e=enrich(b);return e.dias>=SUS_DIAS_MIN&&e.vf>0?{b,e,P,pxMan:m.px>0,d:e.dias,vto:parseDate(b.vcto)}:null;}catch(x){return null;}
   }).filter(Boolean).sort((a,b)=>a.d-b.d);
   // Los dollar linked, sin los duales, con su tasa en dólares.
   const dls=(DLK_BONDS||[]).filter(b=>b.precio>0&&b.vcto&&!enTamar.has(b.ticker)).map(b=>{
@@ -14804,20 +14834,27 @@ function susDatos(){
   dls.forEach(o=>{o.operado=o.b.monto>=SUS_MONTO_MIN;o.enHorizonte=o.vto.getTime()<=horizonte;});
   const enH=dls.filter(o=>o.enHorizonte);
   const refs=enH.filter(o=>o.operado).length>=3?enH.filter(o=>o.operado):enH;
-  const DR=ajuste(refs,o=>o.tea),LR=ajuste(lec,o=>o.e.tir);
+  const DR=ajuste(refs,o=>o.tea);
+  const LR=ajuste(lec.filter(o=>isFinite(o.e.tir)),o=>o.e.tir);
   const cercano=(L,d)=>{let m=null;L.forEach(o=>{if(!m||Math.abs(o.d-d)<Math.abs(m.d-d))m=o;});return m;};
   const ult=C.pts[C.pts.length-1].t;
   const filas=lec.filter(o=>o.vto.getTime()<=ult+3*86400000).map(o=>{
-    const F=susFuturo(C,o.vto);
-    const pago=o.e.vf,P=o.b.precio;
+    const m=man[o.b.ticker]||{};
+    const Fm=susFuturo(C,o.vto),F=m.fut>0?m.fut:Fm;
+    const pago=o.e.vf,P=o.P;
     const u0=P/C.spot,u1=F?pago/F:null;
-    const u=u1?(Math.pow(u1/u0,365/o.d)-1)*100:null;
+    const dir=u1?u1/u0-1:null;
+    const u=dir!=null?(Math.pow(1+dir,365/o.d)-1)*100:null;
     const dlc=enCurva(DR,o.d);
     const n=cercano(refs,o.d);
-    const ref=n&&Math.abs(n.d-o.d)<=SUS_REAL?{v:n.tea,k:n.b.ticker}:dlc!=null?{v:dlc,k:null}:null;
-    return{k:o.b.ticker,P,pago,F,u0,u1,u,tem:u!=null?(Math.pow(1+u/100,30/365)-1)*100:null,d:o.d,vto:o.b.vcto,
+    const ref=n&&Math.abs(n.d-o.d)<=SUS_REAL?{v:n.tea,k:n.b.ticker,g:n.d-o.d}:dlc!=null?{v:dlc,k:null}:null;
+    return{k:o.b.ticker,P,Pm:o.b.precio,pxMan:o.pxMan,pago,F,Fm,futMan:m.fut>0,u0,u1,dir,u,
+      tna:dir!=null?dir*365/o.d*100:null,tem:u!=null?(Math.pow(1+u/100,30/365)-1)*100:null,d:o.d,vto:o.b.vcto,
       ct:susContrato(C,o.vto),dlc,dc:u!=null&&dlc!=null?(u-dlc)*100:null,
-      n:n?{k:n.b.ticker,v:n.tea,g:n.d-o.d}:null,ref,dif:u!=null&&ref?(u-ref.v)*100:null,cierre:!!o.b.precioCierre};
+      n:n?{k:n.b.ticker,v:n.tea,g:n.d-o.d}:null,ref,dif:u!=null&&ref?(u-ref.v)*100:null,
+      // El futuro con el que el sintético empata al dollar linked de referencia.
+      Fi:ref?pago/(u0*Math.pow(1+ref.v/100,o.d/365)):null,
+      cierre:!!o.b.precioCierre};
   }).filter(r=>r.u!=null);
   // El A3500 al vencimiento con el que cada dollar linked empata a la curva de
   // LECAP: sólo los cero cupón, donde la cuenta es exacta.
@@ -14828,17 +14865,21 @@ function susDatos(){
   return{C,lec,dls,refs,DR,LR,filas,be,liq:fmtDate(G_LIQ||addHabiles(TODAY,1))};
 }
 
+// ── Página ───────────────────────────────────────────────────────────────────
 function susInit(sec){
   const S=SUS_SEC[sec],pg=document.getElementById(S.pagina);
   if(!pg)return;
-  if(!pg.innerHTML.trim())pg.innerHTML=susPaginaHTML(sec);
+  if(!pg.innerHTML.trim()){pg.innerHTML=susPaginaHTML(sec);susArrastre(sec);}
   // Sin futuros en memoria (se abrió la app con la rueda cerrada), se piden.
   if(!(MAE_FUTUROS||[]).length){
     maeFetchFuturos().then(c=>{maeAplicarFuturos(c);susRender(sec);}).catch(e=>console.warn('[sintético USD] futuros:',e));
   }
   susRender(sec);
 }
+// Con precios o futuros nuevos. Mientras escribís en una celda no se repinta
+// debajo tuyo: el cambio llega al salir de la celda.
 function susRefrescar(){
+  if(SUS_EDIT)return;
   ['ars','usd'].forEach(sec=>{
     const pg=document.getElementById(SUS_SEC[sec].pagina);
     if(pg&&pg.style.display!=='none'&&pg.innerHTML.trim())try{susRender(sec);}catch(e){console.warn('[sintético USD]',e);}
@@ -14846,114 +14887,373 @@ function susRefrescar(){
 }
 
 function susPaginaHTML(sec){
-  const p=SUS_SEC[sec].p;
-  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
-  const sub='font-size:10px;color:var(--text3);font-family:var(--mono)';
-  const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px';
-  const graf=(id,alto,titulo,bajada)=>`<div style="min-width:0"><div style="font-family:var(--mono);font-size:12px;color:var(--text);margin-bottom:2px">${titulo}</div>
-    <div style="${sub};margin-bottom:4px">${bajada}</div><div style="height:${alto}px;position:relative"><canvas id="${p}-${id}"></canvas></div>
-    <div id="${p}-${id}-vacio" style="${sub}"></div></div>`;
-  return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
-    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:baseline">
-      <span style="${tit};font-size:17px">Sintético USD</span>
-      <span style="${sub}">LECAP + compra de futuro de dólar, contra el dollar linked del mismo plazo</span>
-      <button class="btn" style="padding:3px 9px;font-size:10px;margin-left:auto" onclick="maeRefreshFuturos()" title="Actualizar los futuros de dólar del MAE (rueda 10 a 15)">↻ Futuros MAE</button>
+  const S=SUS_SEC[sec],p=S.p;
+  return`<div style="display:flex;flex:1;min-height:0;overflow:hidden;">
+    <div class="left-pane" id="${p}-left-pane">
+      <div class="pane-toolbar">
+        <span class="pane-title">Sintético LECAP + Futuros</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto;margin-right:4px">A3500</span>
+        <span id="${p}-a3500" style="font-family:var(--mono);font-size:12px;color:var(--accent)">—</span>
+        <button class="btn" style="margin-left:8px;font-size:10px;padding:2px 6px" onclick="maeRefreshFuturos()" title="Actualizar futuros de dólar desde el MAE (rueda 10:00-15:00)">↻ MAE</button>
+        <button class="btn" onclick="exportTableCSV('sintusd')" title="Exportar tabla a CSV" style="font-size:11px;padding:2px 6px;margin-left:6px">⬇ CSV</button>
+        <button class="btn" id="${p}-reset" onclick="susRestablecer()" title="Volver a los precios de mercado en todas las LECAP" style="font-size:11px;padding:2px 6px;margin-left:6px">Restablecer</button>
+      </div>
+      <div id="${p}-fuente" style="font-size:10px;color:var(--text3);font-family:var(--mono);padding:4px 1.5rem;border-bottom:1px solid var(--border);flex-shrink:0"></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th style="text-align:left">LECAP</th>
+            <th>Px LECAP</th>
+            <th>Vto</th>
+            <th>Días</th>
+            <th style="text-align:left">Contrato</th>
+            <th>Px Futuro</th>
+            <th>TNA</th>
+            <th>TIR</th>
+            <th>TEM</th>
+            <th style="text-align:left">Dollar linked</th>
+            <th>Dif.</th>
+            <th style="text-align:left">Conviene</th>
+          </tr></thead>
+          <tbody id="${p}-tbody"></tbody>
+        </table>
+      </div>
     </div>
-    <div id="${p}-fuente" style="${sub}"></div>
-    <section style="${caja}">${graf('g-tasas',360,'Tasa en dólares oficiales por plazo','TEA en USD: cada LECAP con el futuro de su vencimiento, contra los dollar linked y su curva')}</section>
-    <section style="${caja}">${graf('g-tc',300,'Tipo de cambio esperado','futuros del MAE, el A3500 que iguala cada dollar linked con la curva de LECAP, y el REM')}</section>
-    <section style="${caja}">
-      <div style="${tit};margin-bottom:8px">Cada LECAP con el futuro de su vencimiento</div>
-      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:1180px">
-        <thead id="${p}-thead"></thead><tbody id="${p}-tbody"></tbody></table></div>
-    </section>
+    <div class="right-panel" id="${p}-right-panel">
+      <div class="panel-header">
+        <div style="min-width:0">
+          <div class="panel-ticker" id="${p}-p-ticker">—</div>
+          <div class="panel-meta" id="${p}-p-meta"></div>
+        </div>
+        <button class="panel-close" onclick="susCerrarPanel('${sec}')">cerrar ✕</button>
+      </div>
+      <div class="panel-body" id="${p}-panel-body">
+        <div style="color:var(--text3);font-size:12px">Seleccioná una LECAP para ver la calculadora.</div>
+      </div>
+    </div>
+  </div>
+  <div id="${p}-chart-area" style="height:calc((100vh - var(${S.alto})) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
+    <div class="chart-resize-handle" id="${p}-chart-resize-handle"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <select id="${p}-vista" class="gsel" onchange="susVista('${sec}',this.value)">
+        <option value="tasas">Tasa en dólares oficiales por plazo · TEA %</option>
+        <option value="tc">Tipo de cambio esperado · $ por dólar</option>
+      </select>
+      <span data-curva-sel="sintusd" style="margin-left:6px"></span>
+      <span id="${p}-chart-msg" style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-left:auto"></span>
+    </div>
+    <div style="flex:1;min-height:0;padding:.2rem .5rem;">
+      <canvas id="${p}-chart" style="width:100%;height:100%"></canvas>
+    </div>
   </div>`;
 }
 
-function susRender(sec){
-  const p=SUS_SEC[sec].p,tb=document.getElementById(p+'-tbody');
-  if(!tb)return;
-  const D=susDatos();
-  const fuente=document.getElementById(p+'-fuente');
-  if(!D){
-    if(fuente)fuente.textContent='Faltan el A3500 o los futuros del MAE: con la rueda cerrada, ↻ Futuros MAE trae el último cierre.';
-    tb.innerHTML='';
-    Object.values(SUS_CHARTS[sec]).forEach(c=>c.destroy());SUS_CHARTS[sec]={};
-    return;
-  }
-  const hora=D.C.pts.find(x=>x.hora)?D.C.pts.find(x=>x.hora).hora:null;
-  if(fuente)fuente.textContent=`A3500 $ ${licN(D.C.spot)} · futuros del MAE${hora?' (último operado '+hora+')':''} · ${D.C.pts.length-1} contratos · liquidación ${betrF(D.liq)} · ${D.filas.length} LECAP dentro de la curva de futuros`;
-  susTabla(sec,D);
-  try{susGraficos(sec,D);}catch(e){console.warn('[sintético USD] gráficos',e);}
+// El alto del gráfico se arrastra desde el borde, como en las calculadoras.
+function susArrastre(sec){
+  const p=SUS_SEC[sec].p;
+  const handle=document.getElementById(p+'-chart-resize-handle'),area=document.getElementById(p+'-chart-area');
+  if(!handle||!area)return;
+  const MIN_H=100,MAX_H=600;
+  let dragging=false,startY=0,startH=0;
+  handle.addEventListener('mousedown',e=>{dragging=true;startY=e.clientY;startH=area.offsetHeight;document.body.style.cursor='ns-resize';document.body.style.userSelect='none';e.preventDefault();});
+  document.addEventListener('mousemove',e=>{if(!dragging)return;area.style.height=Math.min(MAX_H,Math.max(MIN_H,startH+(startY-e.clientY)))+'px';if(SUS_CHARTS[sec])SUS_CHARTS[sec].resize();});
+  document.addEventListener('mouseup',()=>{if(!dragging)return;dragging=false;document.body.style.cursor='';document.body.style.userSelect='';if(SUS_CHARTS[sec])SUS_CHARTS[sec].resize();});
 }
 
-function susTabla(sec,D){
-  const p=SUS_SEC[sec].p;
-  const th='padding:5px 7px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.05em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
-  const td='padding:4px 7px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+function susRender(sec){
+  const S=SUS_SEC[sec],p=S.p;
+  const tb=document.getElementById(p+'-tbody');
+  if(!tb)return;
+  const D=susDatos();
+  const a=document.getElementById(p+'-a3500');
+  if(a){const tc=dlkTCHoy();a.textContent=tc!=null?'$'+tc.toFixed(4):'—';}
+  const reset=document.getElementById(p+'-reset');
+  if(reset)reset.disabled=!Object.keys(susManual()).length;
+  const fuente=document.getElementById(p+'-fuente');
+  if(!D){
+    if(fuente)fuente.textContent='Faltan el A3500 o los futuros del MAE: con la rueda cerrada, ↻ MAE trae el último cierre.';
+    tb.innerHTML=`<tr><td colspan="12" style="padding:12px;color:var(--text3);font-size:12px;text-align:center">Sin futuros de dólar para armar el sintético.</td></tr>`;
+    if(SUS_CHARTS[sec]){SUS_CHARTS[sec].destroy();SUS_CHARTS[sec]=null;}
+    return;
+  }
+  const hora=(D.C.pts.find(x=>x.hora)||{}).hora;
+  if(fuente)fuente.textContent=`Futuros del MAE${hora?' (último operado '+hora+')':''} · ${D.C.pts.length-1} contratos · liquidación ${betrF(D.liq)} · ${D.filas.length} LECAP dentro de la curva de futuros · clic en un precio para cambiarlo, en la fila para ver la cuenta`;
+  susRenderTabla(sec,D);
+  susRenderPanel(sec,D);
+  try{susRenderGrafico(sec,D);}catch(e){console.warn('[sintético USD] gráfico',e);}
+}
+
+function susRenderTabla(sec,D){
+  const p=SUS_SEC[sec].p,tb=document.getElementById(p+'-tbody');
+  if(!D.filas.length){tb.innerHTML=`<tr><td colspan="12" style="padding:12px;color:var(--text3);font-size:12px;text-align:center">No hay LECAP con precio dentro de la curva de futuros.</td></tr>`;return;}
+  const pct=v=>v==null||!isFinite(v)?'—':v.toFixed(2)+'%';
   const mu='color:var(--text3)';
-  const cols=['LECAP','Precio','Pago','Contrato','Futuro al venc.','Vence','Días','USD hoy','USD al venc.','TEA en USD','TEM','Dollar linked (curva)','Dif. curva','Dollar linked más cercano','Dif.','Conviene'];
-  document.getElementById(p+'-thead').innerHTML=`<tr>${cols.map((c,i)=>`<th style="${th}${i===0||i===13||i===15?';text-align:left':''}${c==='TEA en USD'?';color:var(--accent)':''}">${c}${/^Dif/.test(c)?' (pb)':''}</th>`).join('')}</tr>`;
-  const pb=v=>v==null||!isFinite(v)?`<span style="${mu}">—</span>`:`<span style="color:${v>0?'#4ade80':v<0?'var(--danger)':'var(--text2)'}">${v>0?'+':''}${Math.round(v)}</span>`;
-  const pct=v=>v==null||!isFinite(v)?`<span style="${mu}">—</span>`:licN(v)+'%';
-  if(!D.filas.length){document.getElementById(p+'-tbody').innerHTML=`<tr><td colspan="16" style="${td};text-align:center;${mu}">No hay LECAP con precio dentro de la curva de futuros.</td></tr>`;return;}
-  document.getElementById(p+'-tbody').innerHTML=D.filas.map(r=>{
-    const corto=r.d<SUS_MIN;
+  const pb=v=>v==null||!isFinite(v)?`<span style="${mu}">—</span>`:`<span style="color:${v>0?'var(--accent2)':v<0?'var(--danger)':'var(--text2)'}">${v>0?'+':''}${Math.round(v)} pb</span>`;
+  tb.innerHTML=D.filas.map(r=>{
+    const ed=c=>SUS_EDIT&&SUS_EDIT.sec===sec&&SUS_EDIT.k===r.k&&SUS_EDIT.campo===c;
+    const celda=(campo,val,man,dec,step,tit)=>ed(campo)
+      ?`<input class="cell-input" id="${p}-ci" type="number" step="${step}" value="${val!=null?+val.toFixed(dec):''}" onblur="susCommit()" onkeydown="susCellKey(event)">`
+      :`<div class="cv editable ${man?'c-green':''}" onclick="susStartCell(event,'${sec}','${r.k}','${campo}')" title="${man?tit+' manual — borrá para volver al de mercado':tit+' de mercado — clic para editar'}">${val!=null?(campo==='fut'?'$':'')+val.toFixed(dec):'—'}${man?'<span style="color:var(--text3);font-size:9px;margin-left:2px">✎</span>':''}</div>`;
+    const sel=SUS_SEL[sec]===r.k;
     const ct=r.ct?`${r.ct.ticker}${r.ct.interp?` <span style="${mu}" title="La LECAP vence antes de fin de mes: el futuro se interpola a su fecha y el contrato se desarma ese día. Queda riesgo de base.">*</span>`:''}`:`<span style="${mu}">—</span>`;
-    const n=r.n&&Math.abs(r.n.g)<=60?`${r.n.k} · ${licN(r.n.v)}%${Math.abs(r.n.g)>3?` <span style="${mu}">(${r.n.g>0?'+':'−'}${Math.abs(r.n.g)} d)</span>`:''}`:`<span style="${mu}">—</span>`;
-    const conv=r.dif==null?`<span style="${mu}">—</span>`:`${r.dif>0?'Sintético':'Dollar linked'}${r.ref&&r.ref.k?` <span style="${mu}">vs ${r.ref.k}</span>`:` <span style="${mu}">vs curva</span>`}`;
-    return`<tr style="${corto?'opacity:.7':''}" title="${corto?'Menos de tres semanas: fuera de los gráficos, la TEA anualiza cualquier diferencia chica':''}">
-      <td style="${td};text-align:left;color:var(--accent)">${r.k}${r.cierre?` <span style="${mu};font-size:9px">cierre</span>`:''}</td>
-      <td style="${td}">${licN(r.P)}</td><td style="${td}">${licN(r.pago)}</td><td style="${td}">${ct}</td><td style="${td}">${licN(r.F,1)}</td>
-      <td style="${td}">${betrF(r.vto)}</td><td style="${td}">${r.d}</td><td style="${td}">${licN(r.u0,4)}</td><td style="${td}">${licN(r.u1,4)}</td>
-      <td style="${td};color:var(--accent);font-weight:600">${pct(r.u)}</td><td style="${td}">${pct(r.tem)}</td>
-      <td style="${td}">${r.dlc==null?`<span style="${mu}">fuera de la curva</span>`:pct(r.dlc)}</td><td style="${td}">${pb(r.dc)}</td>
-      <td style="${td};text-align:left">${n}</td><td style="${td};font-weight:600">${pb(r.dif)}</td><td style="${td};text-align:left">${conv}</td></tr>`;
+    const ref=r.ref?(r.ref.k?`${r.ref.k} <span style="${mu}">${pct(r.ref.v)}</span>`:`curva <span style="${mu}">${pct(r.ref.v)}</span>`):`<span style="${mu}">—</span>`;
+    const conv=r.dif==null?`<span style="${mu}">—</span>`:(r.dif>0?'Sintético':'Dollar linked');
+    const corto=r.d<SUS_MIN;
+    const T='padding:0 10px;white-space:nowrap;';
+    return`<tr style="${sel?'background:var(--surface)':''}${corto?';opacity:.75':''}" onclick="susRowClick(event,'${sec}','${r.k}')" title="${corto?'Menos de tres semanas: fuera del gráfico, la TEA anualiza cualquier diferencia chica':''}">
+      <td style="${T}text-align:left;font-weight:500;color:var(--accent)">${r.k}${r.cierre&&!r.pxMan?` <span style="${mu};font-size:9px">cierre</span>`:''}</td>
+      <td style="white-space:nowrap;font-family:var(--mono);font-size:11px;color:${r.pxMan?'var(--warn)':'var(--text2)'}">${celda('px',r.P,r.pxMan,3,'0.001','Precio')}</td>
+      <td style="${T}font-family:var(--mono);font-size:11px">${betrF(r.vto)}</td>
+      <td style="${T}font-family:var(--mono);font-size:11px;color:var(--text2)">${r.d}</td>
+      <td style="${T}text-align:left;font-family:var(--mono);font-size:11px;color:var(--text2)">${ct}</td>
+      <td style="white-space:nowrap;font-family:var(--mono);font-size:11px;color:${r.futMan?'var(--warn)':'inherit'}">${celda('fut',r.F,r.futMan,2,'0.5','Futuro')}</td>
+      <td style="${T}color:var(--warn);font-weight:600">${pct(r.tna)}</td>
+      <td style="${T}color:var(--accent2)">${pct(r.u)}</td>
+      <td style="${T}color:var(--text2)">${pct(r.tem)}</td>
+      <td style="${T}text-align:left;font-family:var(--mono);font-size:11px">${ref}</td>
+      <td style="${T}font-weight:600">${pb(r.dif)}</td>
+      <td style="${T}text-align:left;font-size:11px">${conv}</td>
+    </tr>`;
   }).join('');
 }
 
-function susChart(sec,id,cfg){
-  const cv=document.getElementById(id);
-  if(!cv)return null;
-  if(SUS_CHARTS[sec][id]){SUS_CHARTS[sec][id].destroy();delete SUS_CHARTS[sec][id];}
-  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
-  return SUS_CHARTS[sec][id]=new Chart(cv,cfg);
+// ── Edición en la tabla ──────────────────────────────────────────────────────
+function susStartCell(e,sec,k,campo){
+  e.stopPropagation();
+  SUS_EDIT={sec,k,campo};
+  susRender(sec);
+  setTimeout(()=>{const i=document.getElementById(SUS_SEC[sec].p+'-ci');if(i){i.focus();i.select();}},10);
 }
-function susGraficos(sec,D){
-  const p=SUS_SEC[sec].p,col=licColores();
+function susCellKey(e){
+  if(e.key==='Enter')susCommit();
+  if(e.key==='Escape'){const s=SUS_EDIT&&SUS_EDIT.sec;SUS_EDIT=null;if(s)susRender(s);}
+}
+// Vacío, o el mismo número que el de mercado, vuelve al de mercado.
+function susCommit(){
+  if(!SUS_EDIT)return;
+  const{sec,k,campo}=SUS_EDIT;
+  SUS_EDIT=null;
+  const i=document.getElementById(SUS_SEC[sec].p+'-ci');
+  susAplicar(k,campo,i?i.value:'');
+  susRefrescar();
+}
+function susAplicar(k,campo,texto){
+  const v=parseFloat(texto);
+  const D=susDatos(),r=D&&D.filas.find(x=>x.k===k);
+  const mercado=r?(campo==='px'?r.Pm:r.Fm):null;
+  susSetManual(k,campo,isFinite(v)&&v>0&&!(mercado!=null&&Math.abs(v-mercado)<1e-9)?v:null);
+}
+function susRestablecer(){
+  SUS_MAN={};susGuardar();
+  susRefrescar();
+}
+
+// ── La calculadora de una LECAP ──────────────────────────────────────────────
+function susRowClick(e,sec,k){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON')return;
+  if(SUS_EDIT){susCommit();return;}
+  susAbrirPanel(sec,k);
+}
+// Con la calculadora abierta el gráfico se pliega, como en el Sintético ARS.
+function susPlegar(sec,plegar){
+  const p=SUS_SEC[sec].p,area=document.getElementById(p+'-chart-area');
+  if(!area)return;
+  if(plegar){
+    if(area.dataset.ph===undefined)area.dataset.ph=area.style.height||'';
+    area.style.height='0';area.style.overflow='hidden';
+  }else if(area.dataset.ph!==undefined){
+    area.style.height=area.dataset.ph;area.style.overflow='';
+    delete area.dataset.ph;
+    setTimeout(()=>{if(SUS_CHARTS[sec])SUS_CHARTS[sec].resize();},120);
+  }
+}
+function susAbrirPanel(sec,k){
+  SUS_SEL[sec]=k;
+  const p=SUS_SEC[sec].p;
+  const panel=document.getElementById(p+'-right-panel');
+  if(panel)panel.classList.add('open');
+  const body=document.getElementById(p+'-panel-body');
+  if(body)delete body.dataset.k;   // los campos se arman de nuevo para esta LECAP
+  susPlegar(sec,true);
+  susRender(sec);
+}
+function susCerrarPanel(sec){
+  SUS_SEL[sec]=null;
+  const p=SUS_SEC[sec].p;
+  const panel=document.getElementById(p+'-right-panel');
+  if(panel)panel.classList.remove('open');
+  susPlegar(sec,false);
+  susRender(sec);
+}
+// Lo que se escribe en la calculadora se aplica al instante.
+function susPanelInput(sec,campo,texto){
+  const k=SUS_SEL[sec];
+  if(!k)return;
+  susAplicar(k,campo,texto);
+  susRender(sec);
+}
+function susPanelMercado(sec){
+  const k=SUS_SEL[sec],m=susManual();
+  if(!k)return;
+  delete m[k];susGuardar();
+  const body=document.getElementById(SUS_SEC[sec].p+'-panel-body');
+  if(body)delete body.dataset.k;
+  susRender(sec);
+}
+
+function susRenderPanel(sec,D){
+  const p=SUS_SEC[sec].p,k=SUS_SEL[sec];
+  const body=document.getElementById(p+'-panel-body');
+  if(!body||!k)return;
+  const r=D.filas.find(x=>x.k===k);
+  const tk=document.getElementById(p+'-p-ticker'),meta=document.getElementById(p+'-p-meta');
+  if(tk)tk.textContent=k;
+  if(!r){
+    body.dataset.k='';
+    body.innerHTML=`<div style="color:var(--text3);font-size:12px">${k} ya no está dentro de la curva de futuros.</div>`;
+    return;
+  }
+  if(meta)meta.textContent=`Vto: ${betrF(r.vto)} · Futuro: ${r.ct?r.ct.ticker+(r.ct.interp?' (interpolado)':''):'—'}`;
+  const pct=v=>v==null||!isFinite(v)?'—':v.toFixed(2)+'%';
+  const lbl='display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px;';
+  const inp='width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:5px 8px;font-family:var(--mono);font-size:14px;outline:none;box-sizing:border-box;';
+  // Los campos se arman una vez por LECAP: repintarlos mientras escribís te
+  // sacaría el cursor.
+  if(body.dataset.k!==k){
+    body.dataset.k=k;
+    body.innerHTML=`
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
+        <div><label style="${lbl}">Precio LECAP (c/100 VN)</label>
+          <input type="number" id="${p}-pp-px" step="0.001" oninput="susPanelInput('${sec}','px',this.value)" style="${inp}"></div>
+        <div><label style="${lbl}">Futuro al venc. ($ / USD)</label>
+          <input type="number" id="${p}-pp-fut" step="0.5" oninput="susPanelInput('${sec}','fut',this.value)" style="${inp}"></div>
+      </div>
+      <button class="btn" id="${p}-pp-mercado" style="font-size:10px;padding:2px 8px;margin-bottom:14px" onclick="susPanelMercado('${sec}')">Volver a los precios de mercado</button>
+      <div id="${p}-pp-res"></div>`;
+  }
+  const act=document.activeElement;
+  [['px',r.P,r.pxMan,3],['fut',r.F,r.futMan,2]].forEach(([c,v,man,dec])=>{
+    const el=document.getElementById(`${p}-pp-${c}`);
+    if(!el)return;
+    if(el!==act)el.value=v!=null?+v.toFixed(dec):'';
+    el.placeholder=c==='px'?(r.Pm!=null?r.Pm.toFixed(3):''):(r.Fm!=null?r.Fm.toFixed(2):'');
+    el.style.color=man?'var(--warn)':'var(--text)';
+  });
+  const bm=document.getElementById(p+'-pp-mercado');
+  if(bm)bm.disabled=!r.pxMan&&!r.futMan;
+  const res=document.getElementById(p+'-pp-res');
+  if(!res)return;
+  const mk=(man,mkt,fmt)=>man?` <span style="font-size:10px;color:var(--text3)">(manual · mercado ${fmt(mkt)})</span>`:'';
+  const refTxt=r.ref?(r.ref.k?`${r.ref.k}${Math.abs(r.ref.g)>0?` (${r.ref.g>0?'+':'−'}${Math.abs(r.ref.g)} d)`:''}`:'curva de dollar linked'):'—';
+  const difCol=v=>v==null?'var(--text3)':v>=0?'var(--accent2)':'var(--danger)';
+  res.innerHTML=`
+    <div class="section-label">Parámetros</div>
+    <table class="res-table" style="margin-bottom:12px">
+      <tr class="mu"><td>A3500 (spot)</td><td>$${D.C.spot.toFixed(4)}</td></tr>
+      <tr class="mu"><td>Precio LECAP (c/100 VN)</td><td style="color:${r.pxMan?'var(--warn)':'inherit'}">${r.P.toFixed(3)}${mk(r.pxMan,r.Pm,v=>v!=null?v.toFixed(3):'—')}</td></tr>
+      <tr class="mu"><td>Pago al vencimiento (VF)</td><td>${r.pago.toFixed(4)}</td></tr>
+      <tr class="mu"><td>Futuro al vencimiento</td><td style="color:${r.futMan?'var(--warn)':'inherit'}">$${r.F.toFixed(2)}${mk(r.futMan,r.Fm,v=>v!=null?'$'+v.toFixed(2):'—')}</td></tr>
+    </table>
+    <div class="section-label">Fechas</div>
+    <table class="res-table" style="margin-bottom:12px">
+      <tr class="mu"><td>Liquidación</td><td>${betrF(D.liq)}</td></tr>
+      <tr class="bl"><td>Vencimiento LECAP</td><td>${betrF(r.vto)}</td></tr>
+      <tr class="mu"><td>Vto. contrato ${r.ct?r.ct.ticker:''}</td><td>${r.ct?betrF(r.ct.vto)+(r.ct.interp?' <span style="font-size:10px;color:var(--text3)">· interpolado</span>':''):'—'}</td></tr>
+      <tr class="mu"><td>Días</td><td>${r.d}</td></tr>
+    </table>
+    <div class="section-label">Cálculo</div>
+    <table class="res-table" style="margin-bottom:12px">
+      <tr class="mu"><td>USD hoy (precio / A3500)</td><td>${r.u0.toFixed(6)}</td></tr>
+      <tr class="mu"><td>USD al vencimiento (pago / futuro)</td><td>${r.u1.toFixed(6)}</td></tr>
+      <tr class="bl"><td>Tasa directa</td><td>${pct(r.dir*100)}</td></tr>
+    </table>
+    <div class="section-label">Rendimiento sintético en dólares</div>
+    <table class="res-table" style="margin-bottom:12px">
+      <tr class="wa"><td style="font-weight:600">TNA</td><td style="color:var(--warn);font-size:15px;font-weight:700">${pct(r.tna)}</td></tr>
+      <tr class="bl"><td style="font-weight:600">TIR</td><td style="color:var(--accent2);font-size:14px;font-weight:700">${pct(r.u)}</td></tr>
+      <tr class="mu"><td style="font-weight:600">TEM</td><td style="color:var(--text2);font-size:13px;font-weight:600">${pct(r.tem)}</td></tr>
+    </table>
+    <div class="section-label">Comparación dollar linked</div>
+    <table class="res-table">
+      <tr class="mu"><td>Referencia</td><td style="color:var(--accent)">${refTxt}</td></tr>
+      <tr class="mu"><td>TIR dollar linked</td><td>${r.ref?pct(r.ref.v):'—'}</td></tr>
+      ${r.dif!=null?`<tr class="bl"><td>Spread (Sint. − DL)</td><td style="color:${difCol(r.dif)};font-weight:600">${r.dif>0?'+':''}${Math.round(r.dif)} pb · conviene ${r.dif>0?'el sintético':'el dollar linked'}</td></tr>`:''}
+      ${r.dc!=null&&!(r.ref&&!r.ref.k)?`<tr class="mu"><td>Contra la curva de dollar linked</td><td style="color:${difCol(r.dc)}">${r.dc>0?'+':''}${Math.round(r.dc)} pb</td></tr>`:''}
+      ${r.Fi!=null?`<tr class="mu"><td>Futuro de indiferencia</td><td title="El futuro con el que el sintético rinde lo mismo que el dollar linked de referencia">$${r.Fi.toFixed(2)}</td></tr>`:''}
+    </table>`;
+}
+
+// ── El gráfico ───────────────────────────────────────────────────────────────
+function susVista(sec,v){SUS_VISTA[sec]=v;const D=susDatos();if(D)susRenderGrafico(sec,D);}
+function susRenderGrafico(sec,D){
+  const p=SUS_SEC[sec].p,canvas=document.getElementById(p+'-chart');
+  const pg=document.getElementById(SUS_SEC[sec].pagina);
+  if(!canvas||!pg||pg.style.display==='none')return;
+  curvaPintarSelectores();
+  const vista=SUS_VISTA[sec]||'tasas';
+  const sel=document.getElementById(p+'-vista');
+  if(sel&&sel.value!==vista)sel.value=vista;
+  const msg=document.getElementById(p+'-chart-msg');
+  const g=colGris();
   const hoy=D.C.hoy.getTime(),diasA=v=>Math.round((parseDate(v).getTime()-hoy)/86400000);
   const fechaDe=x=>betrF(fmtDate(new Date(hoy+x*86400000)));
-  const lbl=c=>({display:true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].k||'',color:c,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2});
-  const ejeX={type:'linear',title:{display:true,text:'Días al vencimiento',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10}}};
-  // 1) Las tasas en dólares
-  const up=D.filas.filter(r=>r.d>=SUS_MIN).map(r=>({x:r.d,y:+r.u.toFixed(3),k:r.k}));
+  const lbl=c=>({display:true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].k||'',color:c,font:{size:9,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2,clamp:true});
+  const ejeX=t=>({type:'linear',grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:g,font:{size:9}},title:{display:true,text:t,color:g,font:{size:9}}});
+  const ejeY=(t,fmt)=>({grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:g,font:{size:9},callback:fmt},title:{display:true,text:t,color:g,font:{size:9}}});
+  if(SUS_CHARTS[sec]){SUS_CHARTS[sec].destroy();SUS_CHARTS[sec]=null;}
+  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
+  const base={responsive:true,maintainAspectRatio:false,animation:{duration:0}};
+  if(vista==='tc'){
+    const fpts=D.C.pts.map(q=>({x:Math.round((q.t-hoy)/86400000),y:q.F,k:q.ticker}));
+    const xmax=fpts[fpts.length-1].x+20;
+    const rem=((REM_DATA&&REM_DATA.tcn)||[]).map(q=>({x:diasA(q.mes+'-15'),y:+q.v,k:'REM '+q.mes})).filter(q=>q.x>0&&q.x<=xmax);
+    const bes=D.be.filter(q=>diasA(q.vto)<=xmax).map(q=>({x:diasA(q.vto),y:+q.v.toFixed(1),k:q.k}));
+    const ds=[{label:'Futuros del MAE',type:'line',data:fpts,borderColor:SUS_COL.fut,backgroundColor:SUS_COL.fut,pointRadius:3,borderWidth:2,tension:0,datalabels:{display:false}},
+      {label:'Breakeven dollar linked vs. LECAP',data:bes,showLine:false,pointRadius:6,pointStyle:'rectRot',backgroundColor:'#fbbf24',borderColor:'#d97706',datalabels:lbl('#fbbf24')}];
+    if(rem.length)ds.push({label:'REM (promedio del mes)',type:'line',data:rem,borderColor:SUS_COL.rem,borderDash:[5,4],borderWidth:1.6,pointRadius:2,backgroundColor:SUS_COL.rem,datalabels:{display:false}});
+    if(msg)msg.textContent=`${D.C.pts.length-1} contratos · ${bes.length} breakeven${rem.length?' · REM '+(REM_DATA.relevamiento||''):''}`;
+    SUS_CHARTS[sec]=new Chart(canvas,{type:'scatter',data:{datasets:ds},options:{...base,
+      plugins:{legend:{display:true,labels:{color:g,font:{size:10},boxWidth:12,padding:12}},datalabels:{display:false},
+        tooltip:{callbacks:{label:i=>`${i.raw.k} — $ ${i.parsed.y.toFixed(1)} · ${fechaDe(i.parsed.x)}`}}},
+      scales:{x:{...ejeX('Días desde hoy'),max:xmax},y:ejeY('$ por dólar',v=>Math.round(v))}}});
+    return;
+  }
+  // Las tasas en dólares: cada LECAP con su futuro (con los precios que hayas
+  // escrito) contra los dollar linked y sus curvas.
+  const up=D.filas.filter(r=>r.d>=SUS_MIN).map(r=>({x:r.d,y:+r.u.toFixed(4),k:r.k,man:r.pxMan||r.futMan}));
   const esRef=new Set(D.refs.map(o=>o.b.ticker));
-  const dp=D.dls.filter(o=>o.d>=SUS_MIN&&o.enHorizonte).map(o=>({x:o.d,y:+o.tea.toFixed(3),k:o.b.ticker,ref:esRef.has(o.b.ticker)}));
+  let dp=D.dls.filter(o=>o.d>=SUS_MIN&&o.enHorizonte).map(o=>({x:o.d,y:+o.tea.toFixed(4),k:o.b.ticker,ref:esRef.has(o.b.ticker)}));
+  const ys=up.map(q=>q.y).concat(dp.filter(q=>q.ref).map(q=>q.y));
+  const lejos=[];
+  if(ys.length){
+    const lo=Math.min(...ys)-3,hi=Math.max(...ys)+3;
+    dp=dp.filter(q=>{if(q.ref||(q.y>=lo&&q.y<=hi))return true;lejos.push(`${q.k} ${q.y.toFixed(1)}%`);return false;});
+  }
   const ds=[];
-  const fu=up.length>=3?curvaAjustar(up.map(q=>({x:q.x,y:q.y}))):null;
-  if(fu){const c=curvaDatasets(fu,up.map(q=>q.x),{color:SUS_COL.lec,ancho:2,label:'_sint',banda:false});if(c.linea.data.length)ds.push(c.linea);}
-  if(D.DR&&dp.length){const c=curvaDatasets(D.DR.aj,dp.map(q=>q.x).filter(x=>x>=D.DR.x0&&x<=D.DR.x1),{color:SUS_COL.dl,ancho:1.6,guion:[5,4],label:'_dl',banda:false});if(c.linea.data.length)ds.push(c.linea);}
-  ds.push({label:'LECAP + compra de futuro',data:up,showLine:false,pointRadius:5,pointBackgroundColor:SUS_COL.lec,pointBorderColor:SUS_COL.lec,datalabels:lbl(SUS_COL.lec)});
-  ds.push({label:'Dollar linked',data:dp,showLine:false,pointRadius:6,pointStyle:'rectRot',pointBorderWidth:1.5,
-    pointBackgroundColor:dp.map(q=>q.ref?SUS_COL.dl:'transparent'),pointBorderColor:SUS_COL.dl,datalabels:lbl(SUS_COL.dl)});
-  document.getElementById(p+'-g-tasas-vacio').textContent=up.length?'':'Sin LECAP de más de tres semanas dentro de la curva de futuros.';
-  susChart(sec,p+'-g-tasas',{type:'scatter',data:{datasets:ds},options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},
-    plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12,filter:i=>!i.text.startsWith('_')}},datalabels:{display:false},
-      tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{label:i=>`${i.raw.k} — ${licN(i.parsed.y)}% TEA en USD · vence ${fechaDe(i.parsed.x)} (${i.parsed.x} d)${i.raw.ref===false?' · operó menos de $100 M: no es referencia':''}`}}},
-    scales:{x:ejeX,y:{title:{display:true,text:'TEA en USD (%)',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>(+v).toFixed(1)+'%'}}}}});
-  // 2) El tipo de cambio esperado
-  const fpts=D.C.pts.map(q=>({x:Math.round((q.t-hoy)/86400000),y:q.F,k:q.ticker}));
-  const xmax=fpts[fpts.length-1].x+20;
-  const rem=((REM_DATA&&REM_DATA.tcn)||[]).map(q=>({x:diasA(q.mes+'-15'),y:+q.v,k:'REM '+q.mes})).filter(q=>q.x>0&&q.x<=xmax);
-  const bes=D.be.filter(q=>diasA(q.vto)<=xmax).map(q=>({x:diasA(q.vto),y:+q.v.toFixed(1),k:q.k}));
-  const ds3=[{label:'Futuros del MAE',type:'line',data:fpts,borderColor:SUS_COL.fut,backgroundColor:SUS_COL.fut,pointRadius:3,borderWidth:2,tension:0,datalabels:{display:false}},
-    {label:'Breakeven dollar linked vs. LECAP',data:bes,showLine:false,pointRadius:6,pointStyle:'rectRot',pointBackgroundColor:'#fbbf24',pointBorderColor:'#fbbf24',datalabels:lbl('#fbbf24')}];
-  if(rem.length)ds3.push({label:'REM (promedio del mes)',type:'line',data:rem,borderColor:SUS_COL.rem,borderDash:[5,4],borderWidth:1.6,pointRadius:2,backgroundColor:SUS_COL.rem,datalabels:{display:false}});
-  susChart(sec,p+'-g-tc',{type:'scatter',data:{datasets:ds3},options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},
-    plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12}},datalabels:{display:false},
-      tooltip:{callbacks:{label:i=>`${i.raw.k} — $ ${licN(i.parsed.y,1)} · ${fechaDe(i.parsed.x)}`}}},
-    scales:{x:{...ejeX,title:{display:true,text:'Días desde hoy',color:col.texto,font:{size:10}},max:xmax},
-      y:{title:{display:true,text:'$ por dólar',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>Math.round(v)}}}}});
+  if(up.length>=3){
+    const c=curvaDatasets(curvaAjustar(up.map(q=>({x:q.x,y:q.y}))),up.map(q=>q.x),{color:'rgba(251,191,36,0.55)',relleno:'rgba(251,191,36,0.08)',label:'_sint',clave:'sintusd',orden:3});
+    if(c.linea.data.length)ds.push(...c.lista);
+  }
+  if(D.DR&&dp.length){
+    const c=curvaDatasets(D.DR.aj,dp.map(q=>q.x).filter(x=>x>=D.DR.x0&&x<=D.DR.x1),{color:'rgba(168,85,247,0.6)',ancho:1.5,guion:[5,4],label:'_dl',banda:false,orden:3});
+    if(c.linea.data.length)ds.push(c.linea);
+  }
+  const elegido=SUS_SEL[sec];
+  ds.push({label:'LECAP + compra de futuro',data:up,showLine:false,order:2,
+    pointRadius:up.map(q=>q.k===elegido?8:5),pointHoverRadius:8,pointBorderWidth:up.map(q=>q.k===elegido?2.5:1),
+    backgroundColor:up.map(q=>q.man?'#f59e0b':'#fbbf24'),borderColor:up.map(q=>q.k===elegido?'#fff7e0':'#d97706'),datalabels:lbl('#fbbf24')});
+  ds.push({label:'Dollar linked',data:dp,showLine:false,order:1,pointRadius:6,pointHoverRadius:8,pointStyle:'rectRot',pointBorderWidth:1.5,
+    backgroundColor:dp.map(q=>q.ref?'#a855f7':'transparent'),borderColor:'#a855f7',datalabels:lbl('#c084fc')});
+  const man=D.filas.filter(r=>r.pxMan||r.futMan).length;
+  if(msg)msg.textContent=up.length?`${up.length} LECAP · ${dp.length} dollar linked${man?` · ${man} con precios manuales`:''}${lejos.length?` · fuera de escala, sin ser referencia: ${lejos.join(', ')}`:''}`:'Sin LECAP de más de tres semanas dentro de la curva de futuros';
+  SUS_CHARTS[sec]=new Chart(canvas,{type:'scatter',data:{datasets:ds},options:{...base,
+    plugins:{legend:{display:true,labels:{color:g,font:{size:10},boxWidth:12,padding:12,filter:i=>!i.text.startsWith('_')}},datalabels:{display:false},
+      tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{title:c=>c[0]?.raw.k||'',
+        label:i=>{const r=i.raw,l=[`TEA en USD ${r.y.toFixed(2)}%  ·  ${Math.round(r.x)} días · vence ${fechaDe(r.x)}`];
+          if(r.man)l.push('con precios escritos a mano');
+          if(r.ref===false)l.push('operó menos de $100 M: no es referencia');
+          return l;}}}},
+    scales:{x:ejeX('Días'),y:ejeY('TEA en USD (%)',v=>v.toFixed(1)+'%')}}});
 }
 
 // ═══ CHART COLLAPSE WHEN PANEL OPENS ══════════════════════════════════════════
@@ -15172,6 +15472,12 @@ function exportTableCSV(type){
         r.tem!=null?(r.tem*100).toFixed(4):'',sp];
     });
     filename=`Sinteticos_${today}.csv`;
+  }else if(type==='sintusd'){
+    const D=susDatos();
+    headers=['LECAP','Px LECAP','Precio manual','Vto','Días','Contrato','Px Futuro','Futuro manual','TNA USD%','TIR USD%','TEM%','Dollar linked','TIR DL%','Dif pb'];
+    rows=(D?D.filas:[]).map(r=>[r.k,f(r.P,3),r.pxMan?'sí':'',fD(r.vto),r.d,r.ct?r.ct.ticker+(r.ct.interp?'*':''):'',f(r.F,2),r.futMan?'sí':'',
+      f(r.tna),f(r.u),f(r.tem),r.ref?(r.ref.k||'curva'):'',r.ref?f(r.ref.v):'',r.dif!=null?Math.round(r.dif):'']);
+    filename=`SinteticoUSD_${today}.csv`;
   }else{return;}
 
   if(!rows||!rows.length){alert('Sin datos para exportar.');return;}
@@ -15197,6 +15503,8 @@ document.addEventListener('keydown',e=>{
     if(tamarSelectedTicker) tamarClosePanel();
     if(dlkSelectedTicker) dlkClosePanel();
     if(sintSelectedTicker) sintClosePanel();
+    if(SUS_SEL.ars) susCerrarPanel('ars');
+    if(SUS_SEL.usd) susCerrarPanel('usd');
     return;
   }
 
@@ -19983,28 +20291,40 @@ async function seriesCargar(sec,mantenerFiltro){
   if(!d1||!d2)return;
   const desde=d1.value, hasta=d2.value;
   if(desde>hasta){if(msg)msg.textContent='La fecha inicial es posterior a la final';return;}
+  // Sólo dibuja la última carga pedida. Cambiar de vista o de tipo mientras
+  // llegaba la anterior la dejaba pintar encima: una serie de precios lenta
+  // tapaba la de tasas que se acababa de pedir.
+  const turno=st.turno=(st.turno||0)+1;
+  const vigente=()=>turno===st.turno;
   if(st.modo==='ab')return abCargar(sec,desde,hasta);
   if(msg)msg.textContent='Cargando...';
   const previas=new Set(st.cache.porBono.keys());
   try{
     if(st.modo==='fwd'){
-      st.cacheFwd=await seriesTraerFwd(st.sector,desde,hasta);
+      const f=await seriesTraerFwd(st.sector,desde,hasta);
+      if(!vigente())return;
+      st.cacheFwd=f;
       seriesFwdRenderControles(sec);
       st.cache=seriesFwdDerivar(sec);
     }else if(st.modo==='precios'){
-      st.cache=await seriesTraerTipos(sec,desde,hasta);
+      const c=await seriesTraerTipos(sec,desde,hasta);
+      if(!vigente())return;
+      st.cache=c;
       seriesFiltroAjustar(st,previas,mantenerFiltro);
     }else{
-      st.cache=st.sector==='SLEG'   ? await seriesTraerSpread(desde,hasta)
+      const c=st.sector==='SLEG'   ? await seriesTraerSpread(desde,hasta)
              : st.sector==='FX'     ? await seriesTraerFX(desde,hasta)
              : st.sector==='DINERO' ? await seriesTraerDinero(desde,hasta)
              : st.sector==='BEINF'  ? await seriesTraerBEInfla(desde,hasta)
              : st.sector==='TAMARREAL' ? await seriesTraerTamarReal(desde,hasta)
              : await seriesTraerTipos(sec,desde,hasta);
+      if(!vigente())return;
+      st.cache=c;
       seriesFiltroAjustar(st,previas,mantenerFiltro);
     }
     seriesDibujar(sec);
   }catch(e){
+    if(!vigente())return;
     if(msg)msg.textContent='';
     st.cache={fechas:[],porBono:new Map()};
     st.cacheFwd={fechas:[],porBono:new Map()};
