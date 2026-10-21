@@ -1,0 +1,58 @@
+name: Actualizar licitaciones
+
+# Finanzas publica el llamado dos días hábiles antes de la licitación, y el
+# resultado la tarde del mismo día, entre las 17 y las 19 de Buenos Aires. Tres
+# pasadas por día hábil alcanzan: a la mañana por el llamado y a la tarde, dos
+# veces, por el resultado.
+on:
+  schedule:
+    - cron: '0 13 * * 1-5'    # 10:00 ART
+    - cron: '30 21 * * 1-5'   # 18:30 ART
+    - cron: '30 23 * * 1-5'   # 20:30 ART
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: 'Rearmar el historial desde (YYYY-MM-DD); vacío = sólo lo reciente'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  licitaciones:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Sólo biblioteca estándar: no hay nada que instalar.
+      - name: Leer cronograma, resultados y llamado
+        env:
+          DESDE: ${{ github.event.inputs.desde }}
+        run: |
+          if [ -n "$DESDE" ]; then
+            python .github/scripts/licitaciones.py --desde "$DESDE"
+          else
+            python .github/scripts/licitaciones.py
+          fi
+
+      # El script no reescribe el archivo cuando sólo cambiaría el sello de
+      # tiempo: "sin cambios" acá es que no hubo llamado ni resultado nuevo.
+      - name: Commitear si cambió
+        run: |
+          if git diff --quiet -- licitaciones.json; then
+            echo "Sin novedades."
+            exit 0
+          fi
+          ultima=$(python -c "import json;d=json.load(open('licitaciones.json',encoding='utf-8'));print(d['licitaciones'][-1]['fecha'] if d['licitaciones'] else '')")
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add licitaciones.json
+          git commit -m "data(licitaciones): al ${ultima}"
+          git push

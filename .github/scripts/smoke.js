@@ -15,6 +15,8 @@ const { chromium } = require('playwright');
 
 const USD_LABEL = { bop: 'Bopreales', bon: 'Bonares', glo: 'Globales' };
 const { appUrl } = require('./app-url');
+// Más que esto, en pb, en la última licitación es un cálculo roto y no un premio.
+const LIC_PREMIO_MAX_SMOKE = 800;
 const APP = appUrl();
 
 let ok = 0, bad = 0;
@@ -4279,6 +4281,101 @@ const omitir = (label, motivo) =>
         && /cada tipo/.test(gr.curvas.ejeY) && gr.curvasVuelve,
         'en Curvas, CER sobre la tasa fija: una curva por tipo y los bonos agrupados', JSON.stringify(gr.curvas));
 
+  // Licitaciones del Tesoro: licitaciones.json, la tasa de corte con los motores
+  // del secundario y el premio contra el mismo bono o la curva.
+  console.log('\nLicitaciones del Tesoro');
+  const lic = await page.evaluate(async () => {
+    const out = {};
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    switchSection('pesos'); switchTab('licitaciones');
+    for (let k = 0; k < 40 && !LIC_DATA && !LIC_ERROR; k++) await espera(250);
+    const D = LIC_DATA;
+    out.error = LIC_ERROR;
+    if (!D) return out;
+    out.n = D.licitaciones.length;
+    out.crono = (D.cronograma || []).length;
+    out.forma = D.licitaciones.every(l => /^\d{4}-\d{2}-\d{2}$/.test(l.fecha) && (l.instrumentos || []).length
+      && l.instrumentos.every(i => LIC_CLASES[i.clase] && (i.desierto || i.vnoAdjudicado > 0)));
+    out.ordenadas = D.licitaciones.every((l, k) => !k || D.licitaciones[k - 1].fecha < l.fecha);
+    out.conTotales = D.licitaciones.filter(l => l.fuente === 'Finanzas' && !(l.adjudicadoVE > 0 || l.adjudicadoVEUsd > 0)).map(l => l.fecha);
+    // El motor y la unidad del precio: un precio "por cada VNO 1.000" que es el
+    // de pantalla por diez tiene que dar la misma tasa que la calculadora.
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    const cerca = (a, b) => a != null && b != null && Math.abs(a - b) < 1e-6;
+    const tf = LECAPS.find(b => b.precio > 0 && diasAlPago(liq, parseDate(b.vcto)) > 30);
+    if (tf) {
+      const e = enrich(tf), c = licCorte({ clase: 'fija', ticker: tf.ticker, precio: tf.precio * 10, moneda: 'ARS' }, 'TF', liq, null, e.dias, null);
+      out.tf = { t: tf.ticker, ok: cerca(c && c.v, e.tna) };
+    }
+    const cer = CER_BONDS.find(b => b.precio > 0 && !TAMAR_BONDS.some(x => x.ticker === b.ticker));
+    if (cer) {
+      const e = cerEnrich(cer), c = licCorte({ clase: 'cer', ticker: cer.ticker, precio: cer.precio * 10, moneda: 'ARS' }, 'CER', liq, null, e.dias, null);
+      out.cer = { t: cer.ticker, ok: cerca(c && c.v, e.tir) };
+    }
+    const ta = TAMAR_BONDS.find(b => b.precio > 0 && !CER_BONDS.some(x => x.ticker === b.ticker) && !DLK_BONDS.some(x => x.ticker === b.ticker));
+    if (ta) {
+      const e = tamarEnrich(ta), c = licCorte({ clase: 'tamar', ticker: ta.ticker, precio: ta.precio * 10, moneda: 'ARS' }, 'TAMAR', liq, null, e.dias, null);
+      out.tamar = { t: ta.ticker, ok: cerca(c && c.v, e.margenTNA) };
+    }
+    // Dollar linked: el precio del comunicado está en dólares; pasado a pesos
+    // con el mismo tipo de cambio, la tasa es la de la calculadora.
+    const tc = dlkTCHoy();
+    const dl = DLK_BONDS.find(b => b.precio > 0 && !TAMAR_BONDS.some(x => x.ticker === b.ticker));
+    if (dl && tc) {
+      const e = dlkEnrich(dl), c = licCorte({ clase: 'dl', ticker: dl.ticker, precio: dl.precio / tc * 10, moneda: 'USD' }, 'DLK', liq, tc, e.dias, null);
+      out.dl = { t: dl.ticker, ok: c && e.tna != null && Math.abs(c.v - e.tna) < 1e-4 };
+    }
+    // La página: esperar el secundario de la licitación elegida.
+    for (let k = 0; k < 120 && !LIC_SNAP.size; k++) await espera(250);
+    await espera(1500);
+    const sel = licSeleccion('ars');
+    out.sel = sel && sel.fecha;
+    const r = sel && licCalcular(sel);
+    const vis = r ? r.ins.filter(i => licEnVista(i, 'pesos')) : [];
+    out.filas = document.querySelectorAll('#lic-res-c tbody tr').length;
+    out.esperadas = vis.length;
+    out.tiles = document.querySelectorAll('#lic-res-c > div:nth-of-type(2) > div').length;
+    // El premio es corte menos mercado, en pb, y con el signo a la vista.
+    out.premio = vis.filter(i => i.vs === 'bono').every(i => Math.abs(i.premio - (i.corte.v - i.mercado) * 100) < 1e-6);
+    out.conPremio = vis.filter(i => i.premio != null).length;
+    out.premioMax = Math.max(0, ...vis.filter(i => i.premio != null).map(i => Math.abs(i.premio)));
+    out.secciones = ['prox', 'res', 'col', 'plz', 'pre', 'cro'].filter(k => (document.getElementById('lic-' + k + '-c') || {}).innerHTML).length;
+    out.meses = document.querySelectorAll('#lic-cro-c > div:last-child > div').length;
+    out.graficos = Object.keys(LIC_CHARTS.ars).length;
+    out.proxima = document.getElementById('lic-prox-c').textContent.includes('Licitación');
+    // Dólares: la misma página, arrancando con los Bonares.
+    switchSection('usd'); switchUsdTab('usd-licitaciones');
+    await espera(1500);
+    const pu = document.getElementById('page-usd-licitaciones');
+    out.usd = { visible: pu.style.display !== 'none', ver: LIC_ESTADO.usd.ver,
+      soloUsd: [...document.querySelectorAll('#ulic-res-c tbody tr td:first-child')].every(td => /Bonares/.test(td.textContent)),
+      filas: document.querySelectorAll('#ulic-res-c tbody tr').length };
+    licVer('usd', 'todos');
+    out.todos = document.querySelectorAll('#ulic-res-c tbody tr').length;
+    licVer('usd', 'usd');
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  if (lic.error || !lic.n) check(false, 'se leen las licitaciones', lic.error || 'sin datos');
+  else {
+    check(lic.n >= 40 && lic.crono >= 40 && lic.forma && lic.ordenadas,
+          'licitaciones.json trae el historial desde 2025, el cronograma y cada instrumento con su tipo y su monto',
+          JSON.stringify({ n: lic.n, crono: lic.crono, forma: lic.forma, ordenadas: lic.ordenadas }));
+    check(!lic.conTotales.length, 'cada licitación de Finanzas trae el total adjudicado', lic.conTotales.join(', '));
+    const motores = ['tf', 'cer', 'tamar', 'dl'].filter(k => lic[k]);
+    check(motores.length >= 3 && motores.every(k => lic[k].ok),
+          'la tasa de corte sale del mismo motor que la calculadora, con el precio por cada VNO 1.000',
+          JSON.stringify(motores.map(k => [k, lic[k].t, lic[k].ok])));
+    check(lic.filas === lic.esperadas && lic.esperadas > 0 && lic.tiles >= 5,
+          'el resultado muestra una fila por instrumento y los cinco indicadores', `${lic.sel}: ${lic.filas}/${lic.esperadas} filas, ${lic.tiles} tarjetas`);
+    check(lic.premio && lic.conPremio > 0 && lic.premioMax < LIC_PREMIO_MAX_SMOKE,
+          'el premio es corte menos mercado, en pb, y queda en un rango creíble', JSON.stringify({ con: lic.conPremio, max: Math.round(lic.premioMax) }));
+    check(lic.secciones === 6 && lic.meses === 12 && lic.graficos >= 3 && lic.proxima,
+          'próxima licitación, resultado, colocación, plazos, premios y cronograma', JSON.stringify({ s: lic.secciones, m: lic.meses, g: lic.graficos }));
+    check(lic.usd.visible && lic.usd.ver === 'usd' && lic.usd.soloUsd && lic.todos >= lic.usd.filas,
+          'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
+  }
+
   // Desvío histórico contra la curva, en pesos y en dólares.
   console.log('\nDesvío histórico contra la curva');
   const dv = await page.evaluate(async () => {
@@ -5099,9 +5196,9 @@ const omitir = (label, motivo) =>
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
-        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv',
+        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
         'cada lista desplegable tiene sus solapas', nav.menus.join(' · '));
   check(nav.abre && nav.navega && nav.escape && nav.afuera,
