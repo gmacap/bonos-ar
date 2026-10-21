@@ -402,6 +402,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       style="display:none;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;
              padding:3px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;
              border:1px solid var(--warn);color:var(--warn)"></span>
+    <span id="sesion-aviso" onclick="authAction()" title="Sin sesión, tus carteras, el Resumen y tus proyecciones no se guardan: se pierden al recargar la página. Iniciá sesión para guardarlos en tu cuenta."
+      style="display:none;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;
+             padding:3px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;
+             border:1px solid var(--warn);color:var(--warn)">Sin sesión: no se guardan tus cambios</span>
     <button class="auth-btn" id="auth-btn" onclick="authAction()">
       <span id="auth-btn-label">Iniciar sesión</span>
     </button>
@@ -2705,6 +2709,8 @@ async function authInit(){
   if(session){
     await authSetUser(session.user);
   } else {
+    SESION_ESTADO='anonimo';
+    sesionPintar();
     authUpdateAdminUI();
   }
 
@@ -2724,6 +2730,8 @@ async function authOnCambio(event,session){
     await authSetUser(session.user);
   } else if(event==='SIGNED_OUT'){
     SUPA_USER=null;
+    SESION_ESTADO='anonimo';
+    sesionPintar();
     authUpdateUI(null);
     authUpdateAdminUI();
     devSacarSiNoAdmin();
@@ -2823,11 +2831,30 @@ function authUpdateUI(user){
 }
 
 async function authSetUser(user){
+  // Si lo que hay en este navegador es de otra cuenta, se borra antes de traer
+  // lo de ésta: dos usuarios no se mezclan.
+  const otro=sesionPreparar(user.id);
   SUPA_USER=user;
+  SESION_ESTADO='usuario';
+  sesionPintar();
   authUpdateUI(user);
   authUpdateAdminUI();
   await authCargarPermisos();
-  await supaLoadUserData();
+  const cuenta=await supaLoadUserData();
+  if(cuenta){
+    // Lo que este navegador tenía y la cuenta no —la primera vez que entrás, o
+    // una preferencia que recién empieza a guardarse en la cuenta— se sube.
+    if(!otro)await Promise.all(SUPA_USER_KEYS.filter(k=>!cuenta.claves.has(k)&&_origGetItem(k)!=null).map(supaSaveUserKey));
+    try{_origSetItem(SESION_DUENO_LS,user.id);}catch(e){}
+    // Si la cuenta trajo algo distinto de lo que la página ya había cargado
+    // —otra computadora, otro usuario—, se recarga una vez: así cada solapa
+    // arranca de lo de la cuenta y no de lo que había antes en memoria.
+    if(cuenta.cambio||otro){
+      let ya=false;try{ya=sessionStorage.getItem(SESION_RECARGA)===user.id;}catch(e){}
+      if(!ya){try{sessionStorage.setItem(SESION_RECARGA,user.id);}catch(e){}location.reload();return;}
+    }
+    try{sessionStorage.removeItem(SESION_RECARGA);}catch(e){}
+  }
   await supaLoadSharedData();
   // Admin: push USD bond data to Supabase in case it predates sync setup
   if(isAdmin()){
@@ -2840,7 +2867,12 @@ async function authSetUser(user){
 async function authAction(){
   if(SUPA_USER){
     if(confirm(`Cerrar sesión de ${SUPA_USER.email}?`)){
+      // Lo pendiente sale antes de cortar la sesión. Lo guardado queda en el
+      // navegador; lo que se cambie después, sin sesión, ya no se guarda.
+      supaFlushPendientes();
       SUPA_USER=null;
+      SESION_ESTADO='anonimo';
+      sesionPintar();
       authUpdateUI(null);
       authUpdateAdminUI();
       await supa.auth.signOut();
@@ -2861,20 +2893,38 @@ async function authAction(){
 // en shared_data exige ser admin: para cualquier otra persona el ajuste se
 // guardaba en localStorage y la hidratación siguiente lo pisaba con la copia
 // compartida. Había que volver a cargarlo en cada recarga de la página.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1'];
+//
+// Desde el 21/10/2026 entran también las que quedaban sólo en el navegador
+// aunque hubiera sesión: los TAMAR excluidos y el ancho de columnas del
+// Resumen, el Resumen de dólares, la fuente de cada proyección, los dos
+// sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
+// pantalla, no de la persona.
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
+// Trae lo de la cuenta al navegador. Devuelve qué claves tiene la cuenta y si
+// alguna difiere de lo que había, o null si no se pudo leer.
 async function supaLoadUserData(){
-  if(!SUPA_USER)return;
+  if(!SUPA_USER)return null;
   try{
     const{data,error}=await supa.from('user_data').select('key,value').eq('user_id',SUPA_USER.id);
     if(error)throw error;
+    const claves=new Set();let cambio=false;
+    // Postgres devuelve el JSON con las claves en otro orden: se compara el
+    // contenido, no el texto, o cada apertura parecería un cambio.
+    const canon=v=>JSON.stringify(v,(k,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.keys(x).sort().reduce((o,kk)=>(o[kk]=x[kk],o),{}):x);
+    const leer=raw=>{try{return canon(JSON.parse(raw));}catch(e){return raw;}};
     data.forEach(row=>{
       if(!SUPA_USER_KEYS.includes(row.key))return;
-      try{_origSetItem(row.key,JSON.stringify(row.value));}catch(e){}
+      claves.add(row.key);
+      const nuevo=JSON.stringify(row.value),antes=_origGetItem(row.key);
+      if(antes==null||leer(antes)!==canon(row.value))cambio=true;
+      try{_origSetItem(row.key,nuevo);}catch(e){}
     });
-  }catch(e){console.warn('supaLoadUserData:',e);}
+    return{claves,cambio};
+  }catch(e){console.warn('supaLoadUserData:',e);return null;}
 }
 
 async function supaLoadSharedData(){
@@ -2937,7 +2987,11 @@ async function supaSaveUserKey(key){
   if(!SUPA_USER)return;
   try{
     const raw=localStorage.getItem(key);
-    if(raw==null)return;
+    // Borrado en el navegador —Restablecer, por ejemplo—: también en la cuenta.
+    if(raw==null){
+      await supa.from('user_data').delete().eq('user_id',SUPA_USER.id).eq('key',key);
+      return;
+    }
     const value=JSON.parse(raw);
     await supa.from('user_data').upsert({user_id:SUPA_USER.id,key,value,updated_at:new Date().toISOString()},{onConflict:'user_id,key'});
   }catch(e){console.warn('supaSaveUserKey:',key,e);}
@@ -2996,12 +3050,56 @@ function supaFlushPendientes(){
   _syncPendientes.clear();
 }
 
+// ── Sesión: qué se guarda y dónde ─────────────────────────────────────────────
+// Lo personal (SUPA_USER_KEYS) se guarda sólo con sesión iniciada, en el
+// navegador y en la cuenta. Sin sesión la app se usa igual, pero lo personal
+// vive en memoria y se pierde al recargar (decisión del 21/10/2026). Al cerrar
+// sesión lo guardado queda en el navegador; lo que se cambie después, no.
+//
+// Mientras Supabase confirma la sesión al abrir la página, lo que se escribe
+// también queda en memoria: si hay usuario se descarta —manda la cuenta— y si
+// no lo hay, sigue en memoria como todo lo demás.
+//
+// El navegador anota de quién es lo guardado. Si después entra otra cuenta, se
+// borra antes de traer la suya.
+var SESION_ESTADO='pendiente';               // 'pendiente' | 'usuario' | 'anonimo'
+const SESION_DUENO_LS='bonosAR_sesion_dueno';
+const SESION_RECARGA='bonosAR_sesion_recarga';
+const _personal=new Map();                   // clave -> valor en memoria; null: borrado
+
 const _origSetItem=localStorage.setItem.bind(localStorage);
+const _origGetItem=localStorage.getItem.bind(localStorage);
+const _origRemoveItem=localStorage.removeItem.bind(localStorage);
 localStorage.setItem=function(key,val){
+  if(SUPA_USER_KEYS.includes(key)&&!SUPA_USER){_personal.set(key,String(val));return;}
+  _personal.delete(key);
   _origSetItem(key,val);
   if(SUPA_USER_KEYS.includes(key)) _syncDiferido(key,supaSaveUserKey);
   else if(SUPA_SHARED_KEYS.includes(key)) _syncDiferido(key,supaSaveSharedKey);
 };
+localStorage.getItem=function(key){
+  return _personal.has(key)?_personal.get(key):_origGetItem(key);
+};
+localStorage.removeItem=function(key){
+  if(SUPA_USER_KEYS.includes(key)&&!SUPA_USER){_personal.set(key,null);return;}
+  _personal.delete(key);
+  _origRemoveItem(key);
+  if(SUPA_USER_KEYS.includes(key)) _syncDiferido(key,supaSaveUserKey);
+};
+
+// Antes de cargar una cuenta: lo escrito sin sesión no cuenta, y lo guardado
+// por otra cuenta se borra. Devuelve si había datos de otra cuenta.
+function sesionPreparar(userId){
+  _personal.clear();
+  let dueno=null;try{dueno=_origGetItem(SESION_DUENO_LS);}catch(e){}
+  const otro=!!dueno&&dueno!==userId;
+  if(otro)SUPA_USER_KEYS.forEach(k=>{try{_origRemoveItem(k);}catch(e){}});
+  return otro;
+}
+function sesionPintar(){
+  const el=document.getElementById('sesion-aviso');
+  if(el)el.style.display=SESION_ESTADO==='anonimo'?'inline-flex':'none';
+}
 
 // ── GLOBAL STATE (declared first to avoid TDZ issues with let/const) ──────────
 // USD price fetch: declaradas acá y no junto a usdFetchPriceMap porque

@@ -5346,6 +5346,10 @@ const omitir = (label, motivo) =>
 
   console.log('\nProyecciones: los ajustes manuales sobreviven a la recarga');
   const puesto = await page.evaluate(async () => {
+    // Con sesión, como un usuario que guarda: sin sesión no se guarda nada
+    // personal. La escritura a la cuenta se anula; el smoke no toca Supabase.
+    supaSaveUserKey = async () => {};
+    SUPA_USER = { id: 'smoke-sesion', email: 'smoke@bonosar.test' };
     const mes = proyMesAdd(proyMesHoy(), 3);
     switchSection('pesos'); switchTab('proyecciones');
     proySubtabGo('tamar'); proySetValor('tamar', mes, '77.7');
@@ -5370,6 +5374,7 @@ const omitir = (label, motivo) =>
                 ...TAMAR_BONDS.filter(vivo).slice(0, 2).map(b => ({ ticker: b.ticker, tipo: 'tamar' })),
                 ...DLK_BONDS.filter(vivo).slice(0, 2).map(b => ({ ticker: b.ticker, tipo: 'dlk' }))];
     localStorage.setItem(LS_CP, JSON.stringify(cp));
+    SUPA_USER = null;
     return cp.length;
   });
 
@@ -5400,6 +5405,40 @@ const omitir = (label, motivo) =>
         'con una lista guardada en el Resumen la app carga entera',
         `${cpGuardada} guardados, ${entero.filas} filas · sin definir: ${entero.finales.join(', ')}`);
   await page.evaluate(() => { CP_BONDS = []; beCPSaveLs(); });
+
+  // Sesión: sin sesión lo personal se usa pero no se guarda, y lo guardado por
+  // otra cuenta no se mezcla con la que entra.
+  console.log('\nSesión: qué se guarda y dónde');
+  const ses = await page.evaluate(async mes => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    for (let k = 0; k < 40 && SESION_ESTADO === 'pendiente'; k++) await espera(250);
+    const out = { estado: SESION_ESTADO, aviso: getComputedStyle(document.getElementById('sesion-aviso')).display !== 'none' };
+    // Un cambio sin sesión se ve en la app pero no queda en el navegador.
+    const k = 'bonosAR_proy_tamar_v1', antes = _origGetItem(k);
+    proySetValor('tamar', mes, '55.5');
+    await espera(300);
+    out.enApp = (PROJ_TAMAR.find(o => o.mes === mes) || {}).v === 55.5;
+    out.noGuarda = _origGetItem(k) === antes && /77\.7/.test(antes || '');
+    out.seLee = /55\.5/.test(localStorage.getItem(k) || '');
+    // Lo que no es personal —el tema— se sigue guardando.
+    const tema = _origGetItem('bonosAR_theme');
+    localStorage.setItem('bonosAR_theme', 'claro-smoke');
+    out.tema = _origGetItem('bonosAR_theme') === 'claro-smoke';
+    if (tema == null) _origRemoveItem('bonosAR_theme'); else _origSetItem('bonosAR_theme', tema);
+    // Otra cuenta en el mismo navegador: lo guardado por la anterior se borra.
+    _origSetItem(SESION_DUENO_LS, 'cuenta-a');
+    _origSetItem('bonosAR_tablero_v1', JSON.stringify({ smoke: 1 }));
+    out.mismaCuenta = sesionPreparar('cuenta-a') === false && _origGetItem('bonosAR_tablero_v1') != null && !_personal.size;
+    out.otraCuenta = sesionPreparar('cuenta-b') === true && SUPA_USER_KEYS.every(c => _origGetItem(c) == null);
+    _origRemoveItem(SESION_DUENO_LS);
+    return out;
+  }, puesto.mes);
+  check(ses.estado === 'anonimo' && ses.aviso, 'sin sesión, el aviso de que no se guarda está a la vista', JSON.stringify(ses));
+  check(ses.enApp && ses.noGuarda && ses.seLee, 'sin sesión, un cambio se usa en la app pero no queda guardado en el navegador',
+        JSON.stringify({ enApp: ses.enApp, noGuarda: ses.noGuarda, seLee: ses.seLee }));
+  check(ses.tema, 'lo que no es personal, como el tema, se sigue guardando');
+  check(ses.mismaCuenta && ses.otraCuenta, 'la misma cuenta conserva lo suyo; otra cuenta en el navegador no ve lo de la anterior',
+        JSON.stringify({ misma: ses.mismaCuenta, otra: ses.otraCuenta }));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
