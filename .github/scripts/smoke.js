@@ -4972,98 +4972,57 @@ const omitir = (label, motivo) =>
           `${sec}: una serie sin precio guardado muestra sólo la tasa`, JSON.stringify(r.vacio));
   }
 
-  console.log('\nEscenarios');
-  const esc = await page.evaluate(() => {
-    switchSection('pesos'); switchTab('escenarios');
-    const mk = () => escNormalizar({ horizonte: 12 });
-    const con = (k, v, modo) => { const e = mk(); e.palancas[k].tramos[0].v = v; if (modo) e.palancas[k].modo = modo; return e; };
-
-    // El invariante que hace seguro todo el panel: un escenario no puede dejar
-    // rastro en los senderos que usa el resto de la app.
-    const foto = () => JSON.stringify([PROJ_INFLACION, PROJ_TAMAR, PROJ_TCN, PROJ_FUENTE,
-      CER_PROJ.size, [...CER_PROJ.values()].slice(0, 5)]);
-    const antes = foto();
-    const base = escCalcular(mk());
-    escCalcular(con('infl', 90));
-    escCalcular(con('tamar', 70));
-    escCalcular(con('tcn', 85));
-    const despues = foto();
-
-    // Cada palanca mueve lo suyo y nada más.
-    const tea = (r, t) => { const i = r && r.items.find(x => x.ticker === t); return i ? i.tea : null; };
-    const unTf = (LECAPS.find(b => b.precio > 0) || {}).ticker;
-    const inflAlta = escCalcular(con('infl', 90));
-    const rollAlto = escCalcular(con('tamar', 60)).roll;
-    const rollBajo = escCalcular(con('tamar', 10)).roll;
-
-    // TAMAR real: poner la nominal que implica tiene que dar el mismo real.
-    const eR = con('tamar', 5, 'real'); eR.palancas.infl.tramos[0].v = 25;
-    const real = escCalcular(eR);
-    const eN = escNormalizar(JSON.parse(JSON.stringify(eR)));
-    eN.palancas.tamar.modo = 'nominal'; eN.palancas.tamar.tramos[0].v = real.tnaH;
-    const nominal = escCalcular(eN);
-
-    // Un tramo es el caso degenerado de N tramos.
-    const uno = mk(); uno.palancas.tamar.tramos = [{ hasta: null, v: 30 }];
-    const dos = mk(); dos.palancas.tamar.tramos = [{ hasta: 6, v: 30 }, { hasta: null, v: 30 }];
-    const baja = mk(); baja.palancas.tamar.tramos = [{ hasta: 6, v: 30 }, { hasta: null, v: 15 }];
-
-    // Guardar con nombre y recuperarlo.
-    ESCENARIOS = []; ESC = escNuevo('');
-    ESC.palancas.tamar.tramos[0].v = 33; ESC.palancas.tamar.modo = 'real'; ESC.horizonte = 18;
-    document.getElementById('esc-nombre').value = 'Smoke';
-    escGuardar();
-    const id = ESC.id;
-    escCargar(''); const vacio = ESC.palancas.tamar.tramos[0].v;
-    escCargar(id);
-
-    return {
-      nBonos: base ? base.items.length : 0,
-      filas: document.querySelectorAll('#esc-tbody tr').length,
-      intacto: antes === despues,
-      roll: base ? base.roll : null,
-      inflSube: base && inflAlta && inflAlta.infl > base.infl,
-      rollAlto, rollBajo,
-      tfIgual: unTf && base ? Math.abs(tea(inflAlta, unTf) - tea(base, unTf)) < 1e-6 : null,
-      realLeido: real.tamarRealH, realIdaVuelta: nominal.tamarRealH,
-      unoRoll: escCalcular(uno).roll, dosRoll: escCalcular(dos).roll, bajaRoll: escCalcular(baja).roll,
-      guardados: ESCENARIOS.length, nombre: (ESCENARIOS[0] || {}).nombre,
-      vacio, vuelto: ESC.palancas.tamar.tramos[0].v, modo: ESC.palancas.tamar.modo, hor: ESC.horizonte,
-      tiles: (document.getElementById('esc-tiles') || {}).textContent || '',
-      grafico: !!escChart,
-    };
+  // La barra de solapas, agrupada: Resumen, Análisis, Calculadoras, Gráficos,
+  // Proyecciones y Comentario en pesos; lo mismo en dólares sin Proyecciones.
+  console.log('\nBarra de solapas agrupada');
+  const nav = await page.evaluate(async () => {
+    const out = {};
+    const nombre = el => el.textContent.replace(/\s+/g, ' ').replace(/ ·.*$/, '').replace(/▾/, '').trim();
+    const tope = id => [...document.querySelectorAll(`#${id} > .nav-tab, #${id} > .nav-grupo > .nav-grupo-btn`)].map(nombre);
+    out.pesos = tope('nav-pesos').join('|');
+    out.usd = tope('nav-usd').join('|');
+    out.menus = [...document.querySelectorAll('.nav-grupo')].map(g => g.closest('nav').id + ':' + nombre(g.querySelector('.nav-grupo-btn')) + '='
+      + [...g.querySelectorAll('.nav-menu .nav-tab')].map(b => b.id.replace('nav-', '')).join(','));
+    switchSection('pesos'); switchTab('breakeven');
+    const g = document.getElementById('nav-retornos').closest('.nav-grupo'), btn = g.querySelector('.nav-grupo-btn');
+    navMenuCerrar(); NAV_MENU_TS = 0;
+    btn.click();
+    const menu = g.querySelector('.nav-menu'), r = menu.getBoundingClientRect();
+    out.abre = g.classList.contains('abierto') && getComputedStyle(menu).position === 'fixed' && r.height > 0 && r.left >= 0 && r.right <= innerWidth;
+    document.getElementById('nav-retornos').click();
+    await new Promise(res => setTimeout(res, 300));
+    out.navega = currentTab === 'retornos' && !g.classList.contains('abierto') && btn.classList.contains('active') && /Retornos/i.test(btn.textContent);
+    btn.click(); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    out.escape = !g.classList.contains('abierto');
+    NAV_MENU_TS = 0; btn.click(); document.body.click();
+    out.afuera = !g.classList.contains('abierto');
+    switchTab('lecap');
+    const gCalc = document.getElementById('nav-lecap').closest('.nav-grupo').querySelector('.nav-grupo-btn');
+    out.cambia = !btn.classList.contains('active') && !/Retornos/i.test(btn.textContent) && gCalc.classList.contains('active');
+    switchSection('usd'); switchUsdTab('usd-curvas');
+    const gUsd = document.getElementById('nav-usd-curvas').closest('.nav-grupo').querySelector('.nav-grupo-btn');
+    out.usdActivo = gUsd.classList.contains('active') && /Curvas/i.test(gUsd.textContent);
+    switchSection('pesos'); switchTab('breakeven');
+    out.sinEsc = !document.getElementById('nav-escenarios') && !document.getElementById('page-escenarios') && typeof escInit === 'undefined';
+    return out;
   });
-  const escSinPrecios = esc.nBonos === 0;
-  if (escSinPrecios) omitir('valúa la curva al horizonte', 'sin precios en vivo');
-  else check(esc.nBonos > 3 && esc.filas > 3, 'valúa la curva al horizonte',
-             `${esc.nBonos} bonos · ${esc.filas} filas`);
-  check(esc.intacto, 'un escenario no deja rastro en los senderos de la app');
-  check(esc.roll > 0, 'la referencia de renovar a TAMAR sale', String(esc.roll));
-  check(esc.rollAlto > esc.rollBajo, 'la palanca de TAMAR mueve la reinversión',
-        `${esc.rollAlto} vs ${esc.rollBajo}`);
-  check(esc.inflSube === true, 'la palanca de inflación mueve el acumulado');
-  if (escSinPrecios || esc.tfIgual === null)
-    omitir('una tasa fija no se mueve con la inflación', 'sin precios en vivo');
-  else check(esc.tfIgual === true, 'una tasa fija no se mueve con la inflación');
-  check(Math.abs(esc.realLeido - 5) < 0.02, 'TAMAR real 5% se lee como 5% real', String(esc.realLeido));
-  check(Math.abs(esc.realIdaVuelta - esc.realLeido) < 0.02,
-        'real → nominal → real cierra', `${esc.realIdaVuelta} vs ${esc.realLeido}`);
-  check(Math.abs(esc.unoRoll - esc.dosRoll) < 1e-9, 'un tramo es el caso degenerado de dos iguales');
-  check(esc.bajaRoll < esc.unoRoll, 'el segundo tramo cambia el resultado',
-        `${esc.bajaRoll} vs ${esc.unoRoll}`);
-  check(esc.guardados === 1 && esc.nombre === 'Smoke' && esc.vacio === null,
-        'el escenario se guarda con nombre', JSON.stringify([esc.guardados, esc.nombre, esc.vacio]));
-  check(esc.vuelto === 33 && esc.modo === 'real' && esc.hor === 18,
-        'volver a cargarlo recupera palancas, modo y horizonte',
-        JSON.stringify([esc.vuelto, esc.modo, esc.hor]));
-  if (escSinPrecios) omitir('se pintan los tiles y el gráfico', 'sin precios en vivo');
-  else check(esc.tiles.includes('Renovar a TAMAR') && esc.grafico,
-             'se pintan los tiles y el gráfico');
+  check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
+        && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
+        'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico',
+        'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
+        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv',
+        'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
+        'cada lista desplegable tiene sus solapas', nav.menus.join(' · '));
+  check(nav.abre && nav.navega && nav.escape && nav.afuera,
+        'la lista se abre sin que la barra la corte, elegir navega y la cierra, y Escape o un clic afuera también', JSON.stringify(nav));
+  check(nav.cambia && nav.usdActivo, 'el grupo de la solapa abierta queda marcado y dice cuál es, en pesos y en dólares');
+  check(nav.sinEsc, 'la solapa Escenarios ya no está');
 
   console.log('\nSolapas en desarrollo: sólo para admins');
   const dev = await page.evaluate(() => {
     const vis = id => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; };
-    const ids = ['nav-escenarios', 'nav-comentario', 'nav-usd-comentario'];
+    const ids = ['nav-comentario', 'nav-usd-comentario'];
     const sinSesion = ids.map(vis);
     // Admin simulado, sincrónico y restaurado en la misma llamada: nada escribe
     // localStorage en el medio, así que la sincronización con Supabase no se entera.
@@ -5075,7 +5034,7 @@ const omitir = (label, motivo) =>
     authUpdateAdminUI();
     const restaurado = ids.map(vis);
     // Un no-admin parado en una solapa en desarrollo vuelve al Resumen.
-    switchSection('pesos'); switchTab('escenarios');
+    switchSection('pesos'); switchTab('comentario');
     devSacarSiNoAdmin();
     const trasPesos = currentTab;
     switchSection('usd'); switchUsdTab('usd-comentario');
@@ -5085,7 +5044,7 @@ const omitir = (label, motivo) =>
     const otros = ['nav-breakeven', 'nav-proyecciones', 'nav-series-ars', 'nav-usd-series', 'nav-cartera', 'nav-usd-cartera'].map(vis);
     return { sinSesion, conAdmin, restaurado, trasPesos, trasUsd, otros, admin: !!isAdmin() };
   });
-  check(dev.sinSesion.every(v => !v), 'sin sesión no se ven Escenarios ni Comentario; la Cartera sí', JSON.stringify(dev.sinSesion));
+  check(dev.sinSesion.every(v => !v), 'sin sesión no se ve Comentario; la Cartera sí', JSON.stringify(dev.sinSesion));
   check(dev.conAdmin.every(v => v), 'el admin sí las ve', JSON.stringify(dev.conAdmin));
   check(dev.restaurado.every(v => !v) && !dev.admin, 'al dejar de ser admin se vuelven a ocultar', JSON.stringify(dev.restaurado));
   check(dev.trasPesos === 'breakeven' && dev.trasUsd === 'usd-resumen',
