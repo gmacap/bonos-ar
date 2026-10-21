@@ -4326,48 +4326,20 @@ const omitir = (label, motivo) =>
       const dv01 = res.ok.reduce((s, p) => s + p.valorVista * p.md * 1e-4, 0);
       out[vista] = { total: Math.abs(res.total - suma) < 1e-6, dv01: Math.abs(res.dv01 - dv01) < 1e-6 };
     }
-    // El escenario a una fecha, con la tasa fija sola: en cero devenga a su TIR,
-    // y la palanca de referencia la descuenta a TIR + palanca.
-    // Una letra que venza después del corte de tres meses.
-    const tfL = LECAPS.filter(b => b.precio > 0 && parseDate(b.vcto) > new Date(parseDate(liq).getTime() + 120 * 86400000)).pop() || tf;
-    const tfSola = { pos: [{ inst: 'TF|' + tfL.ticker, vn: 1000000 }], esc: { corte: null, reinvertir: false } };
-    const resTF = cartCalcular(tfSola, 'ARS', mep, liq);
-    const evTF = resTF.ok[0], ctx = cartEscContexto(resTF, tfSola);
-    const pago = fmtDate(siguienteHabil(parseDate(tfL.vcto)));
-    if (evTF && pago > ctx.corte) {
-      const cero = { ref: 0, cer: 0, tamar: 0, fx: 0, usd: 0 };
-      const base = cartEscValuar(resTF, ctx, cero, false).r;
-      const conRef = cartEscValuar(resTF, ctx, { ...cero, ref: 100 }, false).r;
-      const vf = evTF.flujos[0].flujo, t = diasACT(parseDate(ctx.corte), parseDate(pago)) / 365;
-      out.escTF = Math.abs(base - (Math.pow(1 + evTF.y / 100, ctx.dias / 365) - 1)) < 1e-9
-        && Math.abs(conRef - (vf / Math.pow(1 + (evTF.y + 1) / 100, t) / evTF.precio - 1)) < 1e-9;
-      tfSola.esc.ref = 100;
-      const esc = cartEscCalcular(resTF, tfSola);
-      out.unaPalanca = Math.abs(esc.interaccion) < 1e-12;
-    }
-    // Con dólares solos vistos en pesos, la devaluación multiplica el valor al corte.
-    const usdSola = { pos: [{ inst: 'BON|' + usd.ticker, vn: 10000 }], esc: { reinvertir: true } };
-    const resU = cartCalcular(usdSola, 'ARS', mep, liq), ctxU = cartEscContexto(resU, usdSola);
-    const v0 = cartEscValuar(resU, ctxU, { ref: 0, cer: 0, tamar: 0, fx: 0, usd: 0 }, true).corte;
-    const v10 = cartEscValuar(resU, ctxU, { ref: 0, cer: 0, tamar: 0, fx: 10, usd: 0 }, true).corte;
-    out.fxEsc = Math.abs(v10 / v0 - 1.1) < 1e-9;
-    // TAMAR y CER: cada palanca mueve su familia para el lado que corresponde.
-    const tam = TAMAR_BONDS.find(b => b.precio > 0 && !dualTipo(b) && parseDate(b.vcto) > parseDate(liq));
-    const cer = CER_BONDS.find(b => b.precio > 0 && !TAMAR_BONDS.some(t => t.ticker === b.ticker) && parseDate(b.vcto) > new Date(parseDate(liq).getTime() + 200 * 86400000));
-    if (tam && cer) {
-      const cc = { pos: [{ inst: 'TAMAR|' + tam.ticker, vn: 1e6 }, { inst: 'CER|' + cer.ticker, vn: 1e6 }], esc: { reinvertir: true } };
-      const rc = cartCalcular(cc, 'ARS', mep, liq), cx = cartEscContexto(rc, cc);
-      const L0 = { ref: 0, cer: 0, tamar: 0, fx: 0, usd: 0 };
-      const val = L => { const v = cartEscValuar(rc, cx, L, true).pos; return v.map(x => x.corte); };
-      const b0 = val(L0), tUp = val({ ...L0, tamar: 500 }), cUp = val({ ...L0, cer: 100 });
-      out.palancas = tUp[0] > b0[0] && Math.abs(tUp[1] - b0[1]) < 1e-9 && cUp[1] < b0[1] && Math.abs(cUp[0] - b0[0]) < 1e-9;
-    }
-    // La pantalla: cinco palancas con su curva, y la descomposición.
-    switchSection('pesos'); switchTab('cartera');
-    await new Promise(r => setTimeout(r, 1500));
-    out.palancasDom = document.querySelectorAll('#cart-e-palancas input[type=range]').length === 5
-      && document.querySelectorAll('#cart-e-palancas canvas').length === 5
-      && document.querySelectorAll('#cart-e-desc tr').length === 8;
+    // El tipo de instrumento filtra la lista.
+    const tipoSel = document.getElementById('cart-tipo'), instSel = document.getElementById('cart-inst');
+    tipoSel.value = 'BON'; cartTipo('ars');
+    out.filtro = instSel.options.length > 0 && [...instSel.options].every(o => o.value.startsWith('BON|'));
+    tipoSel.value = ''; cartTipo('ars');
+    out.todos = [...instSel.options].some(o => o.value.startsWith('TF|')) && [...instSel.options].some(o => o.value.startsWith('GLO|'));
+    // Los dólares van en MEP aunque la sección Dólares mire cable.
+    const pxMep = cartPrecioUsd(usd), monedaAntes = usdCurrency;
+    usdCurrency = 'Cable';
+    const evCable = cartEvaluar({ inst: 'BON|' + usd.ticker, vn: 100 }, liq);
+    usdCurrency = monedaAntes;
+    out.mepSiempre = pxMep > 0 && (usd.lastPrecioMEP > 0 ? evCable.precio === usd.lastPrecioMEP : evCable.error === 'Sin precio');
+    // Sin el escenario a una fecha.
+    out.sinEscFecha = !document.getElementById('cart-e-palancas') && typeof cartEscRender === 'undefined';
     // La misma cartera desde dólares.
     switchSection('usd'); switchUsdTab('usd-cartera');
     await new Promise(r => setTimeout(r, 1500));
@@ -4383,12 +4355,9 @@ const omitir = (label, motivo) =>
     check(ca.monto, 'una posición cargada en monto se pasa a nominales con el precio');
     check(ca.mep && ['ARS', 'USD'].every(v => ca[v].total && ca[v].dv01),
           'en pesos y en dólares: el total suma las posiciones y el DV01 es valor × MD', JSON.stringify({ ARS: ca.ARS, USD: ca.USD }));
-    if (ca.escTF == null) omitir('escenario de tasa fija al corte', 'la letra vence antes del corte');
-    else check(ca.escTF && ca.unaPalanca, 'escenario al corte: en cero la tasa fija devenga a su TIR, la palanca de referencia la descuenta a TIR + palanca, y con una sola palanca no hay interacción');
-    check(ca.fxEsc, 'escenario al corte: con dólares vistos en pesos, la devaluación multiplica el valor');
-    if (ca.palancas == null) omitir('palancas de TAMAR y CER', 'sin TAMAR o CER con precio');
-    else check(ca.palancas, 'escenario al corte: la palanca de TAMAR sube el TAMAR y no toca el CER; la de CER real baja el CER y no toca el TAMAR');
-    check(ca.palancasDom, 'el escenario muestra las cinco palancas con su curva y la descomposición');
+    check(ca.filtro && ca.todos, 'el tipo de instrumento filtra la lista, y en Todos vuelven todos');
+    check(ca.mepSiempre, 'los bonos en dólares van en MEP aunque la sección Dólares mire cable');
+    check(ca.sinEscFecha, 'el escenario a una fecha ya no está');
     check(ca.desdeUsd && ca.botones && ca.sync, 'la misma cartera se ve desde las dos secciones y viaja por usuario', JSON.stringify(ca));
   }
 
@@ -4421,7 +4390,7 @@ const omitir = (label, motivo) =>
     c.tasas = { sc: 'par', m: 0, a: 'all' };
     cartGuardar();
     await new Promise(r => setTimeout(r, 1500));
-    const res = CART_ESC_RES.ars;
+    const res = CART_RES.ars;
     // En cero no cambia nada.
     let R = cartTsCalcular(res, c);
     out.cero = R.filas.length === res.ok.length && R.filas.length >= 2 && R.filas.every(x => x.r != null && Math.abs(x.r) < 1e-12);
@@ -4478,6 +4447,34 @@ const omitir = (label, motivo) =>
           'la pantalla muestra las cuatro tarjetas, un nodo por grupo, el gráfico y una fila por bono', JSON.stringify(ts.dom));
     check(ts.custom && ts.reset, 'tocar un nodo pasa a personalizado y mueve sólo ese nodo; restablecer vuelve al paralelo');
   }
+
+  // Bonos en dólares sin precio en la Cartera de Pesos: se piden solos.
+  const cartUsd = await page.evaluate(async () => {
+    const usd = BON_BONDS.find(b => b.lastPrecioMEP > 0);
+    if (!usd) return { sinPrecios: true };
+    const previo = JSON.stringify(cartLeer());
+    const guardado = { mep: usd.lastPrecioMEP, px: usd.lastPrecio };
+    let pidio = 0;
+    const real = usdRefreshPrices;
+    usdRefreshPrices = async () => { pidio++; usd.lastPrecioMEP = guardado.mep; usd.lastPrecio = guardado.px; };
+    try {
+      switchSection('pesos'); switchTab('cartera');
+      await new Promise(r => setTimeout(r, 500));
+      cartNueva();
+      cartActiva().pos = [{ inst: 'BON|' + usd.ticker, vn: 10000 }];
+      usd.lastPrecioMEP = null; usd.lastPrecio = null;
+      CART_USD_TS = 0;
+      cartGuardar();
+      await new Promise(r => setTimeout(r, 2500));
+      const fila = (document.querySelector('#cart-tbody tr') || {}).textContent || '';
+      return { pidio, conPrecio: !/Sin precio/.test(fila) && /US\$/.test(fila), fila: fila.replace(/\s+/g, ' ').slice(0, 80) };
+    } finally {
+      usdRefreshPrices = real; usd.lastPrecioMEP = guardado.mep; usd.lastPrecio = guardado.px;
+      CART = JSON.parse(previo); cartGuardar();
+    }
+  });
+  if (cartUsd.sinPrecios) omitir('dólares en la Cartera de Pesos', 'sin precios de Bonares');
+  else check(cartUsd.pidio >= 1 && cartUsd.conPrecio, 'en la Cartera de Pesos, un bono en dólares sin precio se pide solo y aparece', JSON.stringify(cartUsd));
 
   // Serie histórica del BE de inflación, reconstruida rueda por rueda. Lo que hay
   // que cuidar es no usar CER que ese día no estaba publicado.
