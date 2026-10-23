@@ -16,7 +16,8 @@ jobs:
   commit:
     name: Codigo del commit
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # El smoke tarda unos 8 minutos; instalar Playwright, de 1 a 6 según el día.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
