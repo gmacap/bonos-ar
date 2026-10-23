@@ -1065,10 +1065,16 @@ const omitir = (label, motivo) =>
     }, sec);
     check(quit.pares === 0 && quit.lineas === 0, `${sec}: quitar saca la línea`, `${quit.pares}`);
 
-    // Volver a tasas para no arrastrar el modo a las verificaciones siguientes
+    // Volver a tasas para no arrastrar el modo a las verificaciones siguientes.
+    // La serie se vuelve a pedir: se espera a que llegue, no un tiempo fijo.
     await page.evaluate(async s => {
       seriesSetModo(s, 'tasas');
-      await new Promise(r => setTimeout(r, 2500));
+      const st = seriesEstado[s];
+      for (let k = 0; k < 40; k++) {
+        await new Promise(r => setTimeout(r, 250));
+        const y = st.chart ? st.chart.options.scales.y.title.text : '';
+        if (st.cache && st.cache.porBono.size && y && !/Forward/.test(y)) break;
+      }
     }, sec);
     const vuelta = await page.evaluate(s => {
       const st = seriesEstado[s];
@@ -4376,6 +4382,75 @@ const omitir = (label, motivo) =>
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
 
+  // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.
+  console.log('\nFuturos de dólar y de caución');
+  const fut = await page.evaluate(async () => {
+    const out = {};
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    switchSection('pesos'); switchTab('futuros');
+    for (let k = 0; k < 40 && !FUT_DATA && !FUT_ERROR; k++) await espera(250);
+    out.error = FUT_ERROR;
+    const D = FUT_DATA;
+    if (!D) return out;
+    await espera(500);
+    const F = Object.keys(D.curvas).sort(), H = D.historia;
+    out.ruedas = F.length; out.hist = H.length; out.desde = H[0][0];
+    out.ultima = D.rueda === F[F.length - 1] && H[H.length - 1][0] === D.rueda;
+    const C = futCurva(D.rueda, 'rueda');
+    out.contratos = C.rows.length; out.cau = C.cau.length;
+    // La TNA es la de A3: con el spot despejado, cada contrato vuelve a dar la suya.
+    out.tna = C.rows.every(o => Math.abs((o.ajuste / C.spot - 1) * 365 / o.dias * 100 - o.tna) < 0.05);
+    // Cada contrato vence el último día hábil de su mes.
+    out.vence = C.rows.filter(o => {
+      const d = new Date(o.vence + 'T12:00:00'), s = new Date(d);
+      do s.setDate(s.getDate() + 1); while (!esHabil(s));
+      return !(esHabil(d) && s.getMonth() !== d.getMonth());
+    }).map(o => o.contrato + ' ' + o.vence);
+    // La historia de la última rueda es la tasa a 90 días de su curva.
+    out.t90 = Math.abs(futTasa90(C.rows) - H[H.length - 1][2]) < 0.01;
+    // Con T+1 los días se cuentan desde la liquidación y el spot se lleva hasta ahí.
+    const T = futCurva(D.rueda, 't1'), dd = futDias(D.rueda, futT1(D.rueda));
+    out.t1 = T.rows.length > 0 && T.spot > C.spot
+      && T.rows.every(o => { const r = C.rows.find(x => x.contrato === o.contrato); return r && o.dias === r.dias - dd; });
+    out.filas = document.querySelectorAll('#fut-tabla tbody tr').length;
+    out.cauFilas = document.querySelectorAll('#fut-cau-c tbody tr').length;
+    out.tiles = document.querySelectorAll('#fut-tiles > div').length;
+    out.graficos = ['curva-ch', 'ia-ch', 'vol-ch', 'fwd-ch', 'his-ch'].filter(k => FUT_CHARTS.ars[k]).length;
+    // Devaluación mensual y la curva de LECAP con el spread; después, como estaba.
+    const pref = { ...FUT_PREF };
+    futSetVista('ars', 'dev'); futSetLecap('ars');
+    await espera(300);
+    const ch = FUT_CHARTS.ars['curva-ch'];
+    out.dev = !!ch && /Devaluación/.test(ch.options.scales.y.title.text);
+    out.spread = document.getElementById('fut-spread').style.display !== 'none'
+      && (!!FUT_CHARTS.ars['spread-ch'] || /LECAP/.test(document.getElementById('fut-spread-n').textContent));
+    futSetVista('ars', 'tna'); futSetLecap('ars');
+    out.vuelve = !FUT_CHARTS.ars['spread-ch'] && document.getElementById('fut-spread').style.display === 'none';
+    FUT_PREF = pref; futPrefGuardar();
+    // Dólares: la misma página.
+    switchSection('usd'); switchUsdTab('usd-futuros');
+    await espera(800);
+    out.usd = document.getElementById('page-usd-futuros').style.display !== 'none'
+      && document.querySelectorAll('#ufut-tabla tbody tr').length === out.contratos && !!FUT_CHARTS.usd['curva-ch'];
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  if (fut.error || !fut.ruedas) check(false, 'se leen los futuros', fut.error || 'sin datos');
+  else {
+    check(fut.ruedas >= 20 && fut.hist >= 1500 && fut.desde < '2020-02-01' && fut.ultima,
+          'futuros.json trae las últimas ruedas completas y la historia desde 2020',
+          JSON.stringify({ ruedas: fut.ruedas, hist: fut.hist, desde: fut.desde, ultima: fut.ultima }));
+    check(fut.contratos >= 8 && fut.tna && !fut.vence.length,
+          'la TNA de cada contrato es la que publica A3, y cada uno vence el último día hábil de su mes',
+          JSON.stringify({ n: fut.contratos, tna: fut.tna, vence: fut.vence }));
+    check(fut.t90 && fut.t1, 'la tasa a 3 meses de la historia sale de la curva, y con T+1 los días se cuentan desde la liquidación');
+    check(fut.filas === fut.contratos && fut.cau > 0 && fut.cauFilas === fut.cau && fut.tiles >= 6 && fut.graficos === 5,
+          'tarjetas, curva, tabla, volumen e interés abierto, forwards, historia y caución',
+          JSON.stringify({ filas: fut.filas, cau: fut.cauFilas, tiles: fut.tiles, g: fut.graficos }));
+    check(fut.dev && fut.spread && fut.vuelve, 'la curva pasa a devaluación mensual, suma las LECAP con el spread y vuelve');
+    check(fut.usd, 'en dólares, la misma solapa');
+  }
+
   // Sintético ARS: el gráfico de los sintéticos contra la curva de LECAP. Con
   // sintéticos de prueba que no se guardan: la lista del usuario no se toca.
   console.log('\nSintético ARS contra la tasa fija');
@@ -5302,9 +5377,9 @@ const omitir = (label, motivo) =>
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones,futuros', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
-        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
+        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
         'cada lista desplegable tiene sus solapas', nav.menus.join(' · '));
   check(nav.abre && nav.navega && nav.escape && nav.afuera,

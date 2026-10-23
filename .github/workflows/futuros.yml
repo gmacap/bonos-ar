@@ -1,0 +1,60 @@
+name: Actualizar futuros
+
+# A3 publica los ajustes de los futuros al cierre, pasadas las 17 de Buenos
+# Aires. GitHub corre los horarios programados con demoras de horas, así que
+# hay dos pasadas a la tarde y una a la mañana siguiente por si las dos fallan.
+# Van a minutos sueltos porque las tareas en punto son las que más se demoran.
+on:
+  schedule:
+    - cron: '23 21 * * 1-5'   # 18:23 ART
+    - cron: '43 23 * * 1-5'   # 20:43 ART
+    - cron: '13 11 * * 1-5'   # 08:13 ART
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: 'Rearmar la historia desde (YYYY-MM-DD); vacío = sólo lo reciente'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  futuros:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Sólo biblioteca estándar: no hay nada que instalar.
+      - name: Leer los cierres de A3
+        env:
+          DESDE: ${{ github.event.inputs.desde }}
+        run: |
+          if [ -n "$DESDE" ]; then
+            python .github/scripts/futuros.py --desde "$DESDE"
+          else
+            python .github/scripts/futuros.py
+          fi
+
+      # El script no reescribe el archivo cuando sólo cambiaría el sello de
+      # tiempo: "sin novedades" acá es que A3 todavía no publicó la rueda.
+      - name: Commitear si cambió
+        run: |
+          if git diff --quiet -- futuros.json; then
+            echo "Sin novedades."
+            exit 0
+          fi
+          rueda=$(python -c "import json;print(json.load(open('futuros.json',encoding='utf-8'))['rueda'])")
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add futuros.json
+          git commit -m "data(futuros): cierre del ${rueda}"
+          # Licitaciones también commitea a main: si llegó antes, se rebasa encima.
+          git pull --rebase
+          git push

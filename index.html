@@ -423,6 +423,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-cartera" onclick="switchTab('cartera')">Cartera</button>
       <button class="nav-tab" role="menuitem" id="nav-dual" onclick="switchTab('dual')">Dual</button>
       <button class="nav-tab" role="menuitem" id="nav-licitaciones" onclick="switchTab('licitaciones')">Licitaciones</button>
+      <button class="nav-tab" role="menuitem" id="nav-futuros" onclick="switchTab('futuros')">Futuros</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -463,6 +464,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-usd-cartera" onclick="switchUsdTab('usd-cartera')">Cartera</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-spreadleg" onclick="switchUsdTab('usd-spreadleg')">Spread Leg.</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-licitaciones" onclick="switchUsdTab('usd-licitaciones')">Licitaciones</button>
+      <button class="nav-tab" role="menuitem" id="nav-usd-futuros" onclick="switchUsdTab('usd-futuros')">Futuros</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -1112,6 +1114,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-retornos" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 <div id="page-cartera" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 <div id="page-licitaciones" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
+<div id="page-futuros" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 
 <!-- ═══════════════════════════════════════════════════════ DUAL PAGE -->
 <div id="page-dual" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
@@ -2109,6 +2112,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-usd-retornos" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-cartera" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-licitaciones" class="pg" style="overflow-y:auto"></div>
+<div id="page-usd-futuros" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-sintusd" class="pg" style="flex-direction:column"></div>
 <div id="page-usd-spreadleg" class="pg">
   <div style="display:flex;flex-direction:column;height:100%">
@@ -2900,7 +2904,7 @@ async function authAction(){
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
-  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1'];
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -3797,6 +3801,7 @@ function curvaRepintar(){
    ()=>{if(document.getElementById('curvas-usd-chart'))_curvasUsdDraw();},
    ()=>{if(typeof currentTab!=='undefined'&&currentTab==='sintetico')sintRenderChart();},
    ()=>susRefrescar(),
+   ()=>futRefrescar(),
    ()=>{desvSiActivo('ars');desvSiActivo('usd');},
   ].forEach(g=>{try{g();}catch(e){console.warn('[curva] repintar:',e.message);}});
 }
@@ -5131,13 +5136,13 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-curvas','usd-series','usd-comentario'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-comentario','page-dual','page-retornos','page-cartera','page-licitaciones','page-sintusd'];
+    'page-comentario','page-dual','page-retornos','page-cartera','page-licitaciones','page-futuros','page-sintusd'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -5219,6 +5224,7 @@ function switchUsdTab(tab){
   if(tab==='usd-retornos') retInit('usd');
   if(tab==='usd-cartera') cartInit('usd');
   if(tab==='usd-licitaciones') licInit('usd');
+  if(tab==='usd-futuros') futInit('usd');
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
   if(tab==='usd-sintusd'){document.getElementById('page-usd-sintusd').style.display='flex';susInit('usd');}
@@ -5291,6 +5297,9 @@ function switchTab(tab){
   } else if(tab==='licitaciones'){
     document.getElementById('page-licitaciones').style.display='block';
     licInit('ars');
+  } else if(tab==='futuros'){
+    document.getElementById('page-futuros').style.display='block';
+    futInit('ars');
   } else if(tab==='sintusd'){
     document.getElementById('page-sintusd').style.display='flex';
     susInit('ars');
@@ -9922,6 +9931,7 @@ function beRefreshIfVisible(){
   if(currentTab==='retornos'){try{retRender('ars');}catch(e){console.warn('[retornos]',e.message);}return;}
   if(currentTab==='cartera'){try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}return;}
   if(currentTab==='licitaciones'){licRefrescar();return;}
+  if(currentTab==='futuros'){futRefrescar();return;}
   if(currentTab==='sintusd'){susRefrescar();return;}
   if(currentTab==='sintetico'){try{sintRenderChart();}catch(e){console.warn('[sintético]',e.message);}return;}
   if(currentTab!=='breakeven')return;
@@ -16110,6 +16120,7 @@ async function usdRefreshPrices(){
       if(currentSection==='usd'&&currentUsdTab==='usd-cartera')try{cartRender('usd');}catch(e){console.warn('[cartera]',e.message);}
       if(currentSection==='pesos'&&currentTab==='cartera')try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}
       if(currentSection==='usd'&&currentUsdTab==='usd-licitaciones')licRefrescar();
+      if(currentSection==='usd'&&currentUsdTab==='usd-futuros')futRefrescar();
       if(currentSection==='usd'&&currentUsdTab==='usd-sintusd')susRefrescar();
       if(document.getElementById('ures-sleg-list'))usdResRefresh();
     };
@@ -23213,6 +23224,490 @@ function licRenderCronograma(sec){
     h+=`<div><div style="font-size:11px;color:var(--text);margin-bottom:4px">${MES[m]}</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">${g}</div></div>`;
   }
   cont.innerHTML=h+'</div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════ FUTUROS
+// Futuros de dólar y de caución de A3: la curva de tasas implícitas, cada
+// contrato con su volumen e interés abierto, las tasas forward, la historia de
+// la tasa a 3 meses y los futuros de caución.
+//
+// Los datos salen de futuros.json, que arma un workflow después de cada cierre
+// con la API pública de estadísticas de A3: son ajustes de cierre, no la rueda
+// en vivo. El spot es el de A3, despejado de la tasa implícita que publica, así
+// que la TNA de la tabla es la de A3. Con F el ajuste y d los días:
+//   TNA = (F / spot − 1) × 365 / d
+//   TEA = (F / spot)^(365/d) − 1
+//   devaluación mensual = (F / spot)^(30/d) − 1
+// Con "días desde la liquidación T+1" el spot se lleva al día hábil siguiente
+// con la tasa del contrato más corto y los días se cuentan desde ahí, como en
+// los sintéticos, que comparan contra LECAP que liquidan en T+1.
+//
+// Los futuros que usan los sintéticos y las proyecciones siguen siendo los del
+// MAE, en vivo: esta solapa es la foto del cierre de A3, que es el mercado con
+// más volumen.
+//
+// Una sola página para las dos secciones.
+var FUT_URL='futuros.json';
+var FUT_DATA=null,FUT_PROMESA=null,FUT_ERROR=null;
+var FUT_SEC={ars:{pagina:'page-futuros',p:'fut'},usd:{pagina:'page-usd-futuros',p:'ufut'}};
+var FUT_LS='bonosAR_futuros_v1';
+var FUT_PREF={vista:'tna',base:'rueda',lecap:false,series:['t90'],ventana:'1a'};
+var FUT_CHARTS={ars:{},usd:{}};
+var FUT_DMIN=5;        // el contrato que vence antes queda fuera del ajuste: a tan pocos días cualquier diferencia lo dispara
+var FUT_LEC_DMIN=21;   // LECAP de menos de 3 semanas: un error chico de precio mueve mucho la tasa
+var FUT_MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+var FUT_SERIES={
+  t90: {l:'Tasa implícita a 3 meses',     c:'#38bdf8',u:'tna'},
+  dev: {l:'Devaluación mensual implícita',c:'#a855f7',u:'dev'},
+  spot:{l:'Dólar spot de A3',             c:'#fbbf24',u:'$'},
+};
+var FUT_VENTANAS=[['1m','1 mes',31,'último mes'],['3m','3 meses',92,'últimos 3 meses'],['6m','6 meses',183,'últimos 6 meses'],
+  ['1a','1 año',366,'último año'],['2a','2 años',731,'últimos 2 años'],['todo','Desde 2020',0,'desde 2020']];
+var FUT_TH='padding:5px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+var FUT_TD='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums';
+
+function futPrefCargar(){
+  try{const r=localStorage.getItem(FUT_LS);if(r){const p=JSON.parse(r);if(p&&typeof p==='object')FUT_PREF={...FUT_PREF,...p};}}catch(e){}
+  if(!Array.isArray(FUT_PREF.series)||!FUT_PREF.series.some(k=>FUT_SERIES[k]))FUT_PREF.series=['t90'];
+}
+function futPrefGuardar(){try{localStorage.setItem(FUT_LS,JSON.stringify(FUT_PREF));}catch(e){}}
+
+// ── Formato y fechas ─────────────────────────────────────────────────────────
+const futN=(v,d)=>v==null||!isFinite(v)?'—':v.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const futP=(v,d=2)=>v==null||!isFinite(v)?'—':futN(v,d)+'%';
+const futSg=(v,d=0)=>v==null||!isFinite(v)?'—':(v>0?'+':v<0?'−':'')+futN(Math.abs(v),d);
+const futMil=v=>v==null||!isFinite(v)?'—':Math.abs(v)>=1e6?futN(v/1e6,2)+' M':Math.abs(v)>=1e4?futN(v/1e3,0)+' mil':futN(v,0);
+const futCol=v=>v>0?'var(--accent2)':v<0?'var(--danger)':'var(--text3)';
+function futD(f){return new Date(f+'T12:00:00');}
+function futDias(a,b){return Math.round((futD(b)-futD(a))/864e5);}
+function futT1(f){const d=futD(f);do d.setDate(d.getDate()+1);while(!esHabil(d));return fmtDate(d);}
+function futFecha(f,anio){const p=String(f||'').split('-');return p.length<3?'—':`${p[2]}/${p[1]}${anio?'/'+p[0].slice(2):''}`;}
+function futNombre(s){
+  let m=/^DLR(\d{2})(\d{4})$/.exec(s);
+  if(m)return`DLR ${FUT_MESES[+m[1]-1]}-${m[2].slice(2)}`;
+  m=/^CAUC\/([A-Z]{3})(\d{2})$/.exec(s);
+  if(m)return`Caución ${m[1].toLowerCase()}-${m[2]}`;
+  return s;
+}
+// La devaluación mensual que corresponde a una TNA a d días.
+function futDevDe(tna,d){return tna==null||!(d>0)?null:(Math.pow(1+tna/100*d/365,30/d)-1)*100;}
+
+// ── Datos ────────────────────────────────────────────────────────────────────
+async function futCargar(force){
+  if(FUT_DATA&&!force)return FUT_DATA;
+  if(FUT_PROMESA)return FUT_PROMESA;
+  FUT_PROMESA=(async()=>{
+    try{
+      const r=await fetch(FUT_URL+(force?'?t='+Date.now():''),{cache:'no-cache'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const d=await r.json();
+      if(!d||!d.curvas||!d.rueda||!d.curvas[d.rueda])throw new Error('futuros.json sin la última rueda');
+      FUT_DATA=d;FUT_ERROR=null;
+    }catch(e){FUT_ERROR=e.message||String(e);}
+    finally{FUT_PROMESA=null;}
+    return FUT_DATA;
+  })();
+  return FUT_PROMESA;
+}
+
+function futFechas(){return FUT_DATA?Object.keys(FUT_DATA.curvas).sort():[];}
+function futAnterior(f){const F=futFechas(),i=F.indexOf(f);return i>0?F[i-1]:null;}
+// La última rueda a 30 días corridos o más.
+function futHaceUnMes(f){
+  const lim=fmtDate(new Date(futD(f).getTime()-30*864e5)),F=futFechas().filter(x=>x<=lim);
+  return F.length?F[F.length-1]:null;
+}
+function futFilas(lista,campos){return(lista||[]).map(a=>{const o={};campos.forEach((k,i)=>{o[k]=a[i];});o.nombre=futNombre(o.contrato);return o;});}
+
+// Los contratos de una rueda con sus tasas. base: 'rueda' o 't1'.
+function futCurva(fecha,base){
+  const c=FUT_DATA&&fecha&&FUT_DATA.curvas[fecha];
+  if(!c)return null;
+  let rows=futFilas(c.dlr,FUT_DATA.campos.dlr),spot=c.spot,desde=fecha;
+  if(base==='t1'&&rows.length){
+    desde=futT1(fecha);
+    spot=c.spot*(1+rows[0].tna/100*futDias(fecha,desde)/365);
+    rows=rows.map(o=>({...o,dias:futDias(desde,o.vence)})).filter(o=>o.dias>0);
+    rows.forEach(o=>{o.tna=(o.ajuste/spot-1)*365/o.dias*100;});
+  }
+  rows.forEach(o=>{
+    o.tea=(Math.pow(o.ajuste/spot,365/o.dias)-1)*100;
+    o.dev=(Math.pow(o.ajuste/spot,30/o.dias)-1)*100;
+  });
+  return{fecha,desde,spot,spotA3:c.spot,rows,cau:futFilas(c.cau,FUT_DATA.campos.cau)};
+}
+// La TNA a 90 días entre los contratos de 30 días o más, como en la historia.
+function futTasa90(rows){
+  const g=(rows||[]).filter(o=>o.dias>=30&&o.tna!=null);
+  for(let i=1;i<g.length;i++)if(g[i-1].dias<=90&&g[i].dias>=90)
+    return g[i-1].tna+(g[i].tna-g[i-1].tna)*(90-g[i-1].dias)/(g[i].dias-g[i-1].dias);
+  return g.length&&g[0].dias>90?g[0].tna:null;
+}
+// La devaluación mensual de cada tramo: del spot al primer contrato y de cada
+// contrato al siguiente. Con ref, los tramos de ref medidos en esta rueda.
+function futTramos(C,ref){
+  const by={};C.rows.forEach(o=>{by[o.contrato]=o;});
+  const seq=(ref||C).rows,out={};
+  seq.forEach((g,i)=>{
+    const f=by[g.contrato],a=i?by[seq[i-1].contrato]:{dias:0,ajuste:C.spot};
+    if(f&&a&&f.dias-a.dias>=5&&a.ajuste>0)out[g.contrato]=(Math.pow(f.ajuste/a.ajuste,30/(f.dias-a.dias))-1)*100;
+  });
+  return out;
+}
+
+// ── Página ───────────────────────────────────────────────────────────────────
+async function futInit(sec){
+  const S=FUT_SEC[sec],pg=document.getElementById(S.pagina);
+  if(!pg)return;
+  futPrefCargar();
+  if(!pg.innerHTML.trim()){pg.innerHTML=futPaginaHTML(sec);futArrastre(sec);}
+  const est=document.getElementById(S.p+'-estado');
+  if(!FUT_DATA&&est)est.textContent='Cargando los futuros…';
+  await futCargar();
+  if(!FUT_DATA){if(est)est.textContent='No se pudieron leer los futuros: '+(FUT_ERROR||'sin datos');return;}
+  futRender(sec);
+}
+
+function futPaginaHTML(sec){
+  const p=FUT_SEC[sec].p;
+  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+  const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px';
+  const secc=(id,titulo,bajada,extra,cuerpo)=>`<section style="${caja}" id="${p}-${id}">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px"><span style="${tit}" id="${p}-${id}-t">${titulo}</span><span style="${LIC_SUB}">${bajada}</span>${extra||''}</div>
+      ${cuerpo||`<div id="${p}-${id}-c"></div>`}</section>`;
+  const cv=(id,alto)=>`<div style="position:relative;height:${alto}px;min-width:0"><canvas id="${p}-${id}"></canvas></div>`;
+  const ctrl=id=>`<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto" id="${p}-${id}"></span>`;
+  return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+      <span style="${tit};font-size:17px">Futuros de dólar y de caución</span>
+      <span id="${p}-estado" style="${LIC_SUB};margin-left:auto"></span>
+    </div>
+    <div id="${p}-tiles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px"></div>
+    ${secc('curva','Curva de futuros','',ctrl('ctrl'),
+      `<div id="${p}-curva-area" style="height:380px;display:flex;flex-direction:column">
+         <div style="flex:1;min-height:0;position:relative"><canvas id="${p}-curva-ch"></canvas></div>
+         <div class="chart-resize-handle" id="${p}-curva-handle" title="Arrastrá para cambiar el alto del gráfico"></div>
+       </div>
+       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px"><span data-curva-sel="futuros"></span><span id="${p}-curva-msg" style="${LIC_SUB};margin-left:auto"></span></div>
+       <div id="${p}-spread" style="display:none;margin-top:14px">${cv('spread-ch',220)}<div id="${p}-spread-n" style="${LIC_SUB};margin-top:6px;line-height:1.5"></div></div>
+       <div id="${p}-tabla" style="margin-top:16px"></div>`)}
+    ${secc('liq','Volumen e interés abierto','contratos, por vencimiento','',
+      `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">${cv('ia-ch',280)}${cv('vol-ch',280)}</div>`)}
+    ${secc('fwd','Tasas forward','la devaluación mensual que descuenta cada tramo: del spot al primer contrato, del primero al segundo, y así; en gris, el mismo tramo hace un mes','',cv('fwd-ch',260))}
+    ${secc('his','Historia de las tasas del dólar futuro','la tasa a 3 meses se interpola entre los contratos de 30 días o más, en cada rueda',ctrl('his-ctrl'),cv('his-ch',300))}
+    ${secc('cau','Futuros de caución','la tasa de caución a 1 día que el mercado espera para el mes de cada contrato')}
+  </div>`;
+}
+
+// El alto de la curva se arrastra desde el borde de abajo.
+function futArrastre(sec){
+  const p=FUT_SEC[sec].p,h=document.getElementById(p+'-curva-handle'),a=document.getElementById(p+'-curva-area');
+  if(!h||!a)return;
+  let on=false,y0=0,h0=0;
+  h.addEventListener('mousedown',e=>{on=true;y0=e.clientY;h0=a.offsetHeight;document.body.style.cursor='ns-resize';document.body.style.userSelect='none';e.preventDefault();});
+  document.addEventListener('mousemove',e=>{if(!on)return;a.style.height=Math.min(900,Math.max(220,h0+e.clientY-y0))+'px';});
+  document.addEventListener('mouseup',()=>{if(!on)return;on=false;document.body.style.cursor='';document.body.style.userSelect='';const c=FUT_CHARTS[sec]['curva-ch'];if(c)c.resize();});
+}
+
+function futChart(sec,id,cfg){
+  const cv=document.getElementById(FUT_SEC[sec].p+'-'+id);
+  if(!cv)return null;
+  futChartFuera(sec,id);
+  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
+  return FUT_CHARTS[sec][id]=new Chart(cv,cfg);
+}
+function futChartFuera(sec,id){if(FUT_CHARTS[sec][id]){FUT_CHARTS[sec][id].destroy();delete FUT_CHARTS[sec][id];}}
+function futEjes(){const g=colGris();return{g,grid:'rgba(128,128,128,0.12)',tick:{color:g,font:{size:9}}};}
+
+function futBotones(sec,ops,activo,fn){
+  return`<div class="mode-row" style="margin-bottom:0;width:auto">${ops.map(([v,l])=>`<button class="mode-btn${v===activo?' active':''}" style="white-space:nowrap;padding:4px 9px" onclick="${fn}('${sec}','${v}')">${l}</button>`).join('')}</div>`;
+}
+function futSet(k,v){
+  FUT_PREF[k]=v;futPrefGuardar();
+  ['ars','usd'].forEach(s=>{const pg=document.getElementById(FUT_SEC[s].pagina);if(pg&&pg.style.display!=='none')futRender(s);});
+}
+function futSetVista(sec,v){futSet('vista',v==='dev'?'dev':'tna');}
+function futSetBase(sec,v){futSet('base',v==='t1'?'t1':'rueda');}
+function futSetLecap(sec){futSet('lecap',!FUT_PREF.lecap);}
+function futSetVentana(sec,v){if(FUT_VENTANAS.some(x=>x[0]===v)){FUT_PREF.ventana=v;futPrefGuardar();futRenderHistoria(sec);}}
+// Dos series como mucho, una por eje: las tres tienen unidades distintas.
+function futSetSerie(sec,k){
+  if(!FUT_SERIES[k])return;
+  let s=FUT_PREF.series.filter(x=>FUT_SERIES[x]);
+  if(s.includes(k)){if(s.length>1)s=s.filter(x=>x!==k);}
+  else{s.push(k);if(s.length>2)s.shift();}
+  FUT_PREF.series=s;futPrefGuardar();futRenderHistoria(sec);
+}
+
+function futRender(sec){
+  if(!FUT_DATA)return;
+  const p=FUT_SEC[sec].p;
+  if(!document.getElementById(p+'-tiles'))return;
+  const C=futCurva(FUT_DATA.rueda,FUT_PREF.base);
+  const est=document.getElementById(p+'-estado');
+  if(est){
+    const g=FUT_DATA.generado?new Date(FUT_DATA.generado):null;
+    est.textContent=`Fuente: A3 Mercados · cierre del ${futFecha(FUT_DATA.rueda,1)}${g?' · actualizado '+g.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})+' '+g.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):''}`;
+  }
+  [futRenderTiles,futRenderCurva,futRenderTabla,futRenderLiquidez,futRenderForwards,futRenderHistoria,futRenderCaucion].forEach(fn=>{
+    try{fn(sec,C);}catch(e){console.warn('[futuros]',fn.name,e);}
+  });
+}
+// Con la curva de LECAP a la vista, los precios de hoy la mueven; y el modelo
+// de curva es el de todos los gráficos.
+function futRefrescar(){
+  ['ars','usd'].forEach(sec=>{
+    const pg=document.getElementById(FUT_SEC[sec].pagina);
+    if(pg&&pg.style.display!=='none'&&FUT_DATA){try{futRenderCurva(sec,futCurva(FUT_DATA.rueda,FUT_PREF.base));}catch(e){console.warn('[futuros]',e);}}
+  });
+}
+
+// ── Tarjetas ─────────────────────────────────────────────────────────────────
+function futTile(n,v,sub,t){
+  return`<div style="border:1px solid var(--border);border-radius:4px;padding:7px 10px;background:var(--surface)"${t?` title="${betrEsc(t)}"`:''}>
+    <div style="font-size:10px;color:var(--text3);letter-spacing:.04em">${n}</div>
+    <div style="font-family:var(--mono);font-size:15px;color:var(--text);font-variant-numeric:tabular-nums">${v}</div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text3);min-height:13px">${sub||''}</div></div>`;
+}
+function futRenderTiles(sec,C){
+  const cont=document.getElementById(FUT_SEC[sec].p+'-tiles');
+  if(!cont||!C)return;
+  const ant=futAnterior(C.fecha),A=ant?futCurva(ant,FUT_PREF.base):null;
+  const sub=(v,u,d=0)=>v==null||!isFinite(v)?'':`<span style="color:${futCol(v)}">${futSg(v,d)}${u}</span> vs ${futFecha(ant)}`;
+  const pb=(a,b)=>a!=null&&b!=null?(a-b)*100:null;
+  const t90=futTasa90(C.rows),t90a=A?futTasa90(A.rows):null;
+  let h=futTile('Dólar spot de A3','$ '+futN(C.spotA3,2),A?sub((C.spotA3/A.spotA3-1)*100,'%',2):'','El spot con el que A3 calcula la tasa implícita que publica')
+    +futTile('Tasa implícita a 3 meses',futP(t90),sub(pb(t90,t90a),' pb'),'TNA interpolada a 90 días entre los contratos de 30 días o más')
+    +futTile('Devaluación mensual implícita',futP(futDevDe(t90,90)),sub(pb(futDevDe(t90,90),futDevDe(t90a,90)),' pb'),'La suba del dólar por mes que descuenta la tasa a 3 meses');
+  C.rows.filter(o=>o.dias>=3).slice(0,3).forEach(o=>{
+    const a=A&&A.rows.find(x=>x.contrato===o.contrato);
+    h+=futTile(`${o.nombre} · ${o.dias} días`,futP(o.tna),sub(pb(o.tna,a&&a.tna),' pb'),`TNA implícita · ajuste $ ${futN(o.ajuste,1)}`);
+  });
+  // El primer futuro de caución al que le quedan diez días o más de mes.
+  const cau=C.cau.find(o=>{const m=/^CAUC\/([A-Z]{3})(\d{2})$/.exec(o.contrato);if(!m)return false;
+    const fin=new Date(2000+(+m[2]),FUT_MESES.indexOf(m[1].toLowerCase())+1,0,12);return(fin-futD(C.fecha))/864e5>=10;});
+  if(cau){
+    const a=A&&A.cau.find(x=>x.contrato===cau.contrato),pa=a?a.ajuste:cau.anterior;
+    h+=futTile(`${cau.nombre} · futuro`,futP(cau.ajuste),pa!=null?sub(cau.ajuste-pa,' pp',2):'','La tasa de caución a 1 día que descuenta el futuro de ese mes');
+  }
+  cont.innerHTML=h;
+}
+
+// ── Curva ────────────────────────────────────────────────────────────────────
+function futRenderCurva(sec,C){
+  const p=FUT_SEC[sec].p;
+  if(!document.getElementById(p+'-curva-ch')||!C)return;
+  const isT=FUT_PREF.vista!=='dev',key=isT?'tna':'dev',uni=isT?'TNA':'Devaluación mensual';
+  const ctrl=document.getElementById(p+'-ctrl');
+  if(ctrl)ctrl.innerHTML=futBotones(sec,[['tna','Tasa implícita (TNA)'],['dev','Devaluación mensual']],FUT_PREF.vista,'futSetVista')
+    +`<span style="${LIC_SUB}">Días desde</span>`+futBotones(sec,[['rueda','Rueda '+futFecha(C.fecha)],['t1','Liquidación T+1 '+futFecha(futT1(C.fecha))]],FUT_PREF.base,'futSetBase')
+    +`<div class="mode-row" style="margin-bottom:0;width:auto"><button class="mode-btn${FUT_PREF.lecap?' active':''}" style="white-space:nowrap;padding:4px 9px" onclick="futSetLecap('${sec}')">${FUT_PREF.lecap?'✓':'+'} Curva de LECAP</button></div>`;
+  curvaPintarSelectores();
+  const corto=o=>o.nombre.replace('DLR ','');
+  const pts=C.rows.filter(o=>o[key]!=null).map(o=>({x:o.dias,y:o[key],t:corto(o),n:o.nombre}));
+  const largos=pts.filter(q=>q.x>=FUT_DMIN),cortos=pts.filter(q=>q.x<FUT_DMIN);
+  const base=largos.length>=3?largos:pts;
+  const ds=[];
+  const cF=curvaDatasets(curvaAjustar(base.map(q=>({x:q.x,y:q.y}))),base.map(q=>q.x),
+    {color:'rgba(56,189,248,0.6)',relleno:'rgba(56,189,248,0.08)',label:'_curva_fut',clave:'futuros',orden:3});
+  if(cF.linea.data.length)ds.push(...cF.lista);
+  // La rueda anterior, contra los mismos vencimientos.
+  const ant=futAnterior(C.fecha),A=ant&&futCurva(ant,FUT_PREF.base);
+  if(A){
+    const pa=A.rows.filter(o=>o[key]!=null).map(o=>({x:futDias(C.desde,o.vence),y:o[key]})).filter(q=>q.x>=FUT_DMIN);
+    const cA=curvaDatasets(curvaAjustar(pa),pa.map(q=>q.x),{color:colGris(),ancho:1.2,guion:[5,4],label:'Cierre del '+futFecha(ant),banda:false,orden:4});
+    if(cA.linea.data.length){cA.linea.pointStyle='line';ds.push(cA.linea);}
+  }
+  // Las LECAP y BONCAP con los precios de hoy, a los días desde su liquidación.
+  let lec=[],ajL=null;
+  if(FUT_PREF.lecap){
+    const tope=Math.max(60,...pts.map(q=>q.x))+30;
+    lec=(LECAPS||[]).map(b=>{const c=calcLecap(b);if(!c||!isFinite(c.tna)||c.dias<FUT_LEC_DMIN||c.dias>tope)return null;
+      return{x:c.dias,y:isT?c.tna:futDevDe(c.tna,c.dias),t:b.ticker,lec:1};}).filter(Boolean).sort((a,b)=>a.x-b.x);
+    if(lec.length>=3){
+      ajL=curvaAjustar(lec.map(q=>({x:q.x,y:q.y})));
+      const cL=curvaDatasets(ajL,lec.map(q=>q.x),{color:'rgba(251,191,36,0.55)',ancho:1.5,label:'_curva_lec',banda:false,orden:3});
+      if(cL.linea.data.length)ds.push(cL.linea);
+    }
+    if(lec.length)ds.push({label:isT?'LECAP y BONCAP (TNA)':'LECAP y BONCAP (tasa mensual)',data:lec,showLine:false,pointRadius:4,pointHoverRadius:6,
+      pointStyle:'rectRot',backgroundColor:'#fbbf24',borderColor:'#d97706',order:2});
+  }
+  const lbl={display:true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].t||'',color:'#7dd3fc',font:{size:9,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2,clamp:true};
+  ds.push({label:'Dólar futuro · cierre del '+futFecha(C.fecha),data:largos.length>=3?largos:pts,showLine:false,pointRadius:5,pointHoverRadius:7,
+    backgroundColor:'#38bdf8',borderColor:'#0284c7',order:1,datalabels:lbl});
+  // El que vence en días va hueco y no estira el eje: si se sale del rango de la
+  // curva, queda clavado en el borde, con su valor en el tooltip.
+  let rango=null;
+  const ys=largos.concat(lec).map(q=>q.y);
+  if(largos.length>=3){const lo=Math.min(...ys),hi=Math.max(...ys),pad=Math.max((hi-lo)*0.08,0.05);rango=[lo-pad,hi+pad];}
+  if(largos.length>=3&&cortos.length){
+    const dc=cortos.map(q=>q.y>rango[1]||q.y<rango[0]?{...q,yv:q.y,y:q.y>rango[1]?rango[1]:rango[0]}:q);
+    ds.push({label:`Vence en menos de ${FUT_DMIN} días (fuera de la curva)`,data:dc,showLine:false,pointRadius:5,pointHoverRadius:7,
+      backgroundColor:'transparent',borderColor:'#38bdf8',borderWidth:2,order:1,datalabels:lbl});
+  }
+  const E=futEjes();
+  futChart(sec,'curva-ch',{type:'scatter',data:{datasets:ds},options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+    plugins:{
+      legend:{display:true,labels:{color:E.g,font:{size:10},boxWidth:12,padding:12,filter:i=>!i.text.startsWith('_')}},
+      datalabels:{display:false},
+      tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{
+        title:c=>{const r=c[0]&&c[0].raw;return r?(r.n||r.t||''):'';},
+        label:c=>{const r=c.raw,v=r.yv!=null?r.yv:r.y;
+          return`${r.lec?(isT?'TNA':'Tasa mensual'):uni} ${futP(v)} · ${Math.round(r.x)} días${r.x<FUT_DMIN&&!r.lec?' · fuera de la curva':''}`;}}}},
+    scales:{
+      x:{type:'linear',min:0,grid:{display:false},ticks:E.tick,title:{display:true,text:'Días al vencimiento',color:E.g,font:{size:9}}},
+      y:{...(rango?{suggestedMin:rango[0],suggestedMax:rango[1]}:{}),grid:{color:E.grid},ticks:{...E.tick,callback:v=>futN(v,isT?1:2)+'%'},
+        title:{display:true,text:isT?'Tasa implícita (TNA %)':'Devaluación mensual implícita (%)',color:E.g,font:{size:9}}}}}});
+  const msg=document.getElementById(p+'-curva-msg');
+  if(msg)msg.textContent=`${C.rows.length} contratos · spot $ ${futN(C.spot,2)}${FUT_PREF.base==='t1'?' llevado al '+futFecha(C.desde):''}${FUT_PREF.lecap?' · LECAP con precios de hoy':''}`;
+  futRenderSpread(sec,isT,largos.length>=3?largos:pts,lec,ajL);
+}
+
+// La curva de LECAP al plazo de cada contrato menos la tasa del futuro, en pb.
+function futRenderSpread(sec,isT,fut,lec,ajL){
+  const p=FUT_SEC[sec].p,box=document.getElementById(p+'-spread'),n=document.getElementById(p+'-spread-n');
+  if(!box)return;
+  box.style.display=FUT_PREF.lecap?'':'none';
+  if(!FUT_PREF.lecap){futChartFuera(sec,'spread-ch');return;}
+  if(!ajL||lec.length<3){
+    futChartFuera(sec,'spread-ch');
+    if(n)n.textContent=(LECAPS||[]).some(b=>b.precio)?'Hacen falta al menos 3 LECAP para armar la curva.':'Cargando los precios de las LECAP…';
+    return;
+  }
+  const x0=lec[0].x,x1=lec[lec.length-1].x;
+  // Antes de la primera LECAP, la tasa de esa LECAP; después de la última, nada.
+  const bars=fut.filter(q=>q.x<=x1+3).map(q=>({t:q.t,d:q.x,v:(ajL.f(Math.min(x1,Math.max(x0,q.x)))-q.y)*100}));
+  const E=futEjes();
+  futChart(sec,'spread-ch',{type:'bar',data:{labels:bars.map(b=>b.t),datasets:[{label:'Spread',data:bars.map(b=>b.v),
+    backgroundColor:bars.map(b=>b.v>=0?'rgba(110,184,104,0.8)':'rgba(212,122,122,0.8)'),borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{legend:{display:false},datalabels:{display:false},
+        title:{display:true,text:`LECAP menos futuros (${isT?'TNA':'tasa mensual'}, pb)`,color:E.g,font:{size:11,weight:'600'}},
+        tooltip:{callbacks:{title:c=>c[0]?`${c[0].label} · ${bars[c[0].dataIndex].d} días`:'',
+          label:c=>`LECAP ${c.parsed.y>=0?'por encima':'por debajo'}: ${futSg(c.parsed.y)} pb`}}},
+      scales:{x:{grid:{display:false},ticks:{...E.tick,maxRotation:0,autoSkip:false}},
+        y:{grid:{color:E.grid},ticks:{...E.tick,callback:v=>futSg(v)},title:{display:true,text:'pb',color:E.g,font:{size:9}}}}}});
+  const av=bars.length?bars.reduce((a,b)=>a+b.v,0)/bars.length:null;
+  if(n)n.innerHTML=`La curva ajustada de LECAP y BONCAP (días desde su liquidación, sin las de menos de 3 semanas) al plazo de cada contrato, menos ${isT?'la tasa implícita del futuro':'la devaluación mensual que descuenta el futuro'}${av!=null?`; en promedio, ${futSg(av)} pb`:''}. `
+    +`<span style="color:var(--accent2)">Positivo</span>: las LECAP pagan más que la devaluación que descuenta el futuro. <span style="color:var(--danger)">Negativo</span>: al revés.`;
+}
+
+// ── Tabla de dólar ───────────────────────────────────────────────────────────
+function futRenderTabla(sec,C){
+  const cont=document.getElementById(FUT_SEC[sec].p+'-tabla');
+  if(!cont||!C)return;
+  const ant=futAnterior(C.fecha),prev={};
+  if(ant)(FUT_DATA.curvas[ant].dlr||[]).forEach(a=>{prev[a[0]]=a[3];});
+  const x1=v=>v==null?'—':futN(v,1);
+  const th=(t,l)=>`<th style="${FUT_TH}${l?';text-align:left':''}">${t}</th>`;
+  let h=`<div style="${LIC_SUB};margin-bottom:6px">Futuros de dólar · cierre del ${futFecha(C.fecha,1)} · spot $ ${futN(C.spotA3,2)}${FUT_PREF.base==='t1'?` · días desde la liquidación del ${futFecha(C.desde,1)}`:''}</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:980px"><thead><tr>
+    ${th('Contrato',1)}${th('Vence')}${th('Días')}${th('Apertura')}${th('Mín.')}${th('Máx.')}${th('Último')}${th('Ajuste')}${th('Var. %')}${th('Volumen')}${th('I.A.')}${th('Var. I.A.')}${th('TNA')}${th('TEA')}${th('Dev. mensual')}</tr></thead><tbody>`;
+  C.rows.forEach(o=>{
+    const pa=prev[o.contrato]!=null?prev[o.contrato]:o.anterior,ch=pa?(o.ajuste/pa-1)*100:null;
+    h+=`<tr><td style="${FUT_TD};text-align:left;color:var(--accent)">${o.nombre}</td><td style="${FUT_TD}">${futFecha(o.vence,1)}</td><td style="${FUT_TD}">${o.dias}</td>
+      <td style="${FUT_TD}">${x1(o.apertura)}</td><td style="${FUT_TD}">${x1(o.minimo)}</td><td style="${FUT_TD}">${x1(o.maximo)}</td><td style="${FUT_TD}">${x1(o.ultimo)}</td>
+      <td style="${FUT_TD};color:var(--text);font-weight:600">${x1(o.ajuste)}</td><td style="${FUT_TD};color:${futCol(ch)}">${ch==null?'—':futSg(ch,2)+'%'}</td>
+      <td style="${FUT_TD}">${futN(o.volumen,0)}</td><td style="${FUT_TD}">${futN(o.ia,0)}</td><td style="${FUT_TD};color:${futCol(o.varIa)}">${futSg(o.varIa)}</td>
+      <td style="${FUT_TD};color:var(--warn);font-weight:600">${futP(o.tna)}</td><td style="${FUT_TD}">${futP(o.tea)}</td><td style="${FUT_TD}">${futP(o.dev)}</td></tr>`;
+  });
+  cont.innerHTML=h+`</tbody></table></div><div style="${LIC_SUB};margin-top:6px">I.A.: interés abierto, en contratos. Las tasas salen del ajuste, no del último operado, que en un contrato sin volumen puede ser viejo.</div>`;
+}
+
+// ── Volumen e interés abierto ────────────────────────────────────────────────
+function futRenderLiquidez(sec,C){
+  if(!C||!C.rows.length)return;
+  const lb=C.rows.map(o=>o.nombre.replace('DLR ','')),ia=C.rows.map(o=>o.ia),dia=C.rows.map(o=>o.varIa),vol=C.rows.map(o=>o.volumen);
+  const tIA=ia.reduce((a,v)=>a+v,0),tV=vol.reduce((a,v)=>a+v,0),top3=[...ia].sort((a,b)=>b-a).slice(0,3).reduce((a,v)=>a+v,0);
+  const E=futEjes();
+  const op=(titulo,sub)=>({responsive:true,maintainAspectRatio:false,animation:{duration:0},interaction:{mode:'index',intersect:false},
+    plugins:{datalabels:{display:false},legend:{labels:{color:E.g,font:{size:10},boxWidth:12}},
+      title:{display:true,text:titulo,color:E.g,font:{size:11,weight:'600'}},subtitle:{display:!!sub,text:sub,color:E.g,font:{size:10},padding:{bottom:6}}},
+    scales:{x:{grid:{display:false},ticks:{...E.tick,maxRotation:0,autoSkip:true}},
+      y:{grid:{color:E.grid},ticks:{...E.tick,callback:futMil},title:{display:true,text:'Contratos',color:E.g,font:{size:9}}}}});
+  const o1=op('Interés abierto por contrato',`los 3 mayores concentran el ${futN(tIA?top3/tIA*100:null,0)}% · ${futMil(tIA)} contratos`);
+  o1.scales.y2={position:'right',grid:{display:false},ticks:{...E.tick,callback:v=>futSg(v)},title:{display:true,text:'Variación del I.A.',color:E.g,font:{size:9}}};
+  o1.plugins.tooltip={callbacks:{label:c=>c.datasetIndex===0?`I.A.: ${futN(c.parsed.y,0)} (${futN(tIA?c.parsed.y/tIA*100:null,1)}% del total)`:`Var. I.A.: ${futSg(c.parsed.y)}`}};
+  const colV=dia.map(v=>v<0?'#d47a7a':'#6eb868');
+  futChart(sec,'ia-ch',{type:'bar',data:{labels:lb,datasets:[
+    {label:'Interés abierto',data:ia,backgroundColor:'rgba(56,189,248,0.7)',borderRadius:3,yAxisID:'y',order:2},
+    {type:'line',label:'Variación del I.A. (eje derecho)',data:dia,showLine:false,pointRadius:5,pointHoverRadius:6,yAxisID:'y2',order:1,
+      backgroundColor:colV,borderColor:colV}]},options:o1});
+  const o2=op('Volumen por contrato',`rueda del ${futFecha(C.fecha,1)} · ${futMil(tV)} contratos`);
+  o2.plugins.legend.display=false;
+  o2.plugins.tooltip={callbacks:{label:c=>`Volumen: ${futN(c.parsed.y,0)} (${futN(tV?c.parsed.y/tV*100:null,1)}% del total)`}};
+  futChart(sec,'vol-ch',{type:'bar',data:{labels:lb,datasets:[{label:'Volumen',data:vol,backgroundColor:'rgba(168,85,247,0.7)',borderRadius:3}]},options:o2});
+}
+
+// ── Tasas forward ────────────────────────────────────────────────────────────
+function futRenderForwards(sec,C){
+  if(!C||!C.rows.length)return;
+  const hm=futHaceUnMes(C.fecha),M=hm&&futCurva(hm,FUT_PREF.base);
+  const hoy=futTramos(C),antes=M?futTramos(M,C):{};
+  const E=futEjes();
+  futChart(sec,'fwd-ch',{type:'bar',data:{labels:C.rows.map(o=>o.nombre.replace('DLR ','')),datasets:[
+    {label:'Cierre del '+futFecha(C.fecha),data:C.rows.map(o=>hoy[o.contrato]!=null?hoy[o.contrato]:null),backgroundColor:'rgba(56,189,248,0.8)',borderRadius:3},
+    {label:hm?'Hace un mes ('+futFecha(hm)+')':'Hace un mes',data:C.rows.map(o=>antes[o.contrato]!=null?antes[o.contrato]:null),backgroundColor:'rgba(150,150,150,0.45)',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},interaction:{mode:'index',intersect:false},
+      plugins:{datalabels:{display:false},legend:{labels:{color:E.g,font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{title:c=>{const i=c[0]?c[0].dataIndex:0;return`${i?C.rows[i-1].nombre:'Spot'} → ${C.rows[i].nombre}`;},label:c=>`${c.dataset.label}: ${futP(c.parsed.y)}`}}},
+      scales:{x:{grid:{display:false},ticks:{...E.tick,maxRotation:0,autoSkip:true}},
+        y:{grid:{color:E.grid},ticks:{...E.tick,callback:v=>futN(v,1)+'%'},title:{display:true,text:'Devaluación mensual (%)',color:E.g,font:{size:9}}}}}});
+}
+
+// ── Historia ─────────────────────────────────────────────────────────────────
+function futRenderHistoria(sec){
+  const p=FUT_SEC[sec].p,ctrl=document.getElementById(p+'-his-ctrl');
+  if(!FUT_DATA||!document.getElementById(p+'-his-ch'))return;
+  const sel=FUT_PREF.series.filter(k=>FUT_SERIES[k]);
+  if(ctrl)ctrl.innerHTML=`<div class="mode-row" style="margin-bottom:0;width:auto">${Object.entries(FUT_SERIES).map(([k,s])=>`<button class="mode-btn${sel.includes(k)?' active':''}" style="white-space:nowrap;padding:4px 9px" onclick="futSetSerie('${sec}','${k}')"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.c};margin-right:5px"></i>${s.l}</button>`).join('')}</div>`
+    +futBotones(sec,FUT_VENTANAS.map(v=>[v[0],v[1]]),FUT_PREF.ventana,'futSetVentana');
+  const H=FUT_DATA.historia||[];
+  const V=FUT_VENTANAS.find(x=>x[0]===FUT_PREF.ventana)||FUT_VENTANAS[3];
+  const ult=H.length?H[H.length-1][0]:null;
+  const lim=V[2]&&ult?fmtDate(new Date(futD(ult).getTime()-V[2]*864e5)):'';
+  const D=H.filter(x=>x[0]>=lim);
+  const val={t90:x=>x[2],dev:x=>futDevDe(x[2],90),spot:x=>x[1]};
+  const u1=FUT_SERIES[sel[0]].u,u2=sel.map(k=>FUT_SERIES[k].u).find(u=>u!==u1)||null;
+  const fmt=u=>u==='$'?(v=>'$ '+futN(v,0)):(v=>futN(v,1)+'%');
+  const tit=u=>u==='$'?'Pesos por dólar':u==='dev'?'Devaluación mensual (%)':'TNA (%)';
+  const E=futEjes();
+  const ds=sel.map(k=>{const s=FUT_SERIES[k],der=!!u2&&s.u!==u1;
+    return{label:s.l+(der?' (eje derecho)':''),data:D.map(val[k]),borderColor:s.c,backgroundColor:s.c,borderWidth:1.6,pointRadius:0,pointHoverRadius:3,
+      tension:0,spanGaps:true,yAxisID:der?'y2':'y',unidad:s.u};});
+  const scales={
+    x:{grid:{display:false},ticks:{...E.tick,maxRotation:0,autoSkip:true,maxTicksLimit:8,callback:function(v){return futFecha(this.getLabelForValue(v),1);}}},
+    y:{position:'left',grid:{color:E.grid},ticks:{...E.tick,callback:fmt(u1)},title:{display:true,text:tit(u1),color:E.g,font:{size:9}}}};
+  if(u2)scales.y2={position:'right',grid:{display:false},ticks:{...E.tick,callback:fmt(u2)},title:{display:true,text:tit(u2),color:E.g,font:{size:9}}};
+  futChart(sec,'his-ch',{type:'line',data:{labels:D.map(x=>x[0]),datasets:ds},options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+    interaction:{mode:'index',intersect:false},
+    plugins:{datalabels:{display:false},legend:{labels:{color:E.g,font:{size:10},boxWidth:12}},
+      tooltip:{callbacks:{title:c=>c[0]?futFecha(c[0].label,1):'',label:c=>`${c.dataset.label}: ${c.dataset.unidad==='$'?'$ '+futN(c.parsed.y,2):futP(c.parsed.y)}`}}},
+    scales}});
+  const t=document.getElementById(p+'-his-t');
+  if(t)t.textContent='Historia de las tasas del dólar futuro · '+V[3];
+}
+
+// ── Caución ──────────────────────────────────────────────────────────────────
+function futRenderCaucion(sec,C){
+  const cont=document.getElementById(FUT_SEC[sec].p+'-cau-c');
+  if(!cont||!C)return;
+  if(!C.cau.length){cont.innerHTML=`<div style="${LIC_SUB}">A3 no publicó futuros de caución en esta rueda.</div>`;return;}
+  const ant=futAnterior(C.fecha),prev={};
+  if(ant)(FUT_DATA.curvas[ant].cau||[]).forEach(a=>{prev[a[0]]=a[1];});
+  const x2=v=>v==null?'—':futN(v,2)+'%';
+  const th=(t,l)=>`<th style="${FUT_TH}${l?';text-align:left':''}">${t}</th>`;
+  let h=`<div style="${LIC_SUB};margin-bottom:6px">cierre del ${futFecha(C.fecha,1)}</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:720px"><thead><tr>
+    ${th('Contrato',1)}${th('Apertura')}${th('Mín.')}${th('Máx.')}${th('Último')}${th('Tasa (ajuste)')}${th('Var.')}${th('Volumen')}${th('I.A.')}${th('Var. I.A.')}</tr></thead><tbody>`;
+  C.cau.forEach(o=>{
+    const pa=prev[o.contrato]!=null?prev[o.contrato]:o.anterior,ch=pa!=null?o.ajuste-pa:null;
+    h+=`<tr><td style="${FUT_TD};text-align:left;color:var(--accent)">${o.nombre}</td><td style="${FUT_TD}">${x2(o.apertura)}</td><td style="${FUT_TD}">${x2(o.minimo)}</td>
+      <td style="${FUT_TD}">${x2(o.maximo)}</td><td style="${FUT_TD}">${x2(o.ultimo)}</td><td style="${FUT_TD};color:var(--warn);font-weight:600">${x2(o.ajuste)}</td>
+      <td style="${FUT_TD};color:${futCol(ch)}">${ch==null?'—':futSg(ch,2)+' pp'}</td><td style="${FUT_TD}">${futN(o.volumen,0)}</td><td style="${FUT_TD}">${futN(o.ia,0)}</td>
+      <td style="${FUT_TD};color:${futCol(o.varIa)}">${futSg(o.varIa)}</td></tr>`;
+  });
+  cont.innerHTML=h+'</tbody></table></div>';
 }
 
 // ══════════════════════════════════════════════════════ FICHA DE MERCADO
