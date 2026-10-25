@@ -4451,6 +4451,66 @@ const omitir = (label, motivo) =>
     check(fut.usd, 'en dólares, la misma solapa');
   }
 
+  // Riesgo país (sólo en dólares): la serie, las fechas clave y la reacción a cada una.
+  console.log('\nRiesgo país');
+  const rps = await page.evaluate(async () => {
+    const out = {};
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    switchSection('usd'); switchUsdTab('usd-riesgo');
+    for (let k = 0; k < 60 && !RPS_DATA && !RPS_ERROR; k++) await espera(250);
+    out.error = RPS_ERROR;
+    if (!RPS_DATA) { switchSection('pesos'); switchTab('breakeven'); return out; }
+    await espera(400);
+    const D = RPS_DATA, n = D.f.length;
+    out.n = n; out.desde = D.f[0]; out.ultima = D.f[n - 1];
+    out.habiles = D.f.every(f => { const d = new Date(f + 'T12:00:00').getDay(); return d !== 0 && d !== 6; });
+    out.ordenada = D.f.every((f, i) => !i || D.f[i - 1] < f);
+    // Las fechas clave: en orden, con un tipo conocido y fechas reales.
+    const E = RPS_EVENTOS;
+    out.eventos = E.length;
+    out.eventosOk = E.every((e, i) => /^\d{4}-\d{2}-\d{2}$/.test(e[0]) && !isNaN(new Date(e[0])) && RPS_TIPOS[e[1]] && e[2] && e[3] && (!i || E[i - 1][0] <= e[0]));
+    out.tipos = Object.keys(RPS_TIPOS).every(t => E.some(e => e[1] === t));
+    // La reacción: contra el cierre anterior a la fecha. Las PASO de 2019 fueron
+    // un domingo: el antes es el viernes y la primera rueda, el lunes.
+    const r = rpsReaccion('2019-08-11'), i = rpsIdx('2019-08-11');
+    out.reaccion = !!r && r.fechaAntes === D.f[i - 1] && r.fechaAntes < '2019-08-11' && D.f[i] > '2019-08-11'
+      && r.d1 === D.v[i] - D.v[i - 1] && r.d5 === D.v[i + 4] - D.v[i - 1] && r.d1 > 300;
+    // La tabla muestra las fechas de la ventana, la más nueva arriba.
+    rpsVentana('todo');
+    await espera(300);
+    const filas = () => document.querySelectorAll('#rps-tabla tbody tr').length;
+    out.filasTodo = filas();
+    out.tiles = document.querySelectorAll('#rps-tiles > div').length;
+    out.grafico = !!RPS_CHART && RPS_CHART.data.labels.length === n && (RPS_CHART.$rpsEventos || []).length === E.length;
+    // Ocultar un tipo lo saca del gráfico y de la tabla.
+    const fed = E.filter(e => e[1] === 'fed').length;
+    rpsTipo('fed');
+    await espera(200);
+    out.ocultaFed = filas() === E.length - fed && RPS_CHART.$rpsEventos.length === E.length - fed;
+    rpsTipo('fed');
+    // Escala logarítmica y el acercamiento a una fecha.
+    rpsLog(); out.log = RPS_CHART.options.scales.y.type === 'logarithmic'; rpsLog();
+    rpsFoco('2019-08-11');
+    await espera(200);
+    out.foco = RPS_CHART.data.labels.length < 100 && RPS_CHART.data.labels[0] >= '2019-06-01' && filas() === out.filasTodo;
+    rpsFoco(null);
+    rpsVentana('2015');
+    out.usd = document.getElementById('page-usd-riesgo').style.display !== 'none' && !document.getElementById('nav-riesgo');
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  if (rps.error || !rps.n) omitir('Riesgo país', 'la fuente no respondió: ' + (rps.error || 'sin datos'));
+  else {
+    check(rps.n > 6000 && rps.desde < '2000-01-01' && rps.habiles && rps.ordenada,
+          'la serie trae el riesgo país diario desde 1999, sólo en días hábiles', JSON.stringify({ n: rps.n, desde: rps.desde, ultima: rps.ultima }));
+    check(rps.eventos >= 60 && rps.eventosOk && rps.tipos, 'las fechas clave están en orden, con fecha y tipo, y hay de todos los tipos', JSON.stringify({ n: rps.eventos }));
+    check(rps.reaccion, 'la reacción se mide contra el cierre anterior: las PASO de 2019, del viernes al lunes');
+    check(rps.filasTodo === rps.eventos && rps.tiles >= 6 && rps.grafico, 'tarjetas, gráfico con las fechas y una fila por fecha',
+          JSON.stringify({ filas: rps.filasTodo, tiles: rps.tiles, grafico: rps.grafico }));
+    check(rps.ocultaFed && rps.log && rps.foco, 'ocultar un tipo, la escala logarítmica y acercarse a una fecha');
+    check(rps.usd, 'está en dólares y no en pesos');
+  }
+
   // Sintético ARS: el gráfico de los sintéticos contra la curva de LECAP. Con
   // sintéticos de prueba que no se guardan: la lista del usuario no se toca.
   console.log('\nSintético ARS contra la tasa fija');
@@ -5379,7 +5439,7 @@ const omitir = (label, motivo) =>
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
   check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones,futuros', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
-        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
+        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
         'cada lista desplegable tiene sus solapas', nav.menus.join(' · '));
   check(nav.abre && nav.navega && nav.escape && nav.afuera,
