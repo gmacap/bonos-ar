@@ -465,6 +465,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-usd-spreadleg" onclick="switchUsdTab('usd-spreadleg')">Spread Leg.</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-licitaciones" onclick="switchUsdTab('usd-licitaciones')">Licitaciones</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-futuros" onclick="switchUsdTab('usd-futuros')">Futuros</button>
+      <button class="nav-tab" role="menuitem" id="nav-usd-riesgo" onclick="switchUsdTab('usd-riesgo')">Riesgo país</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -2111,6 +2112,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-usd-cartera" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-licitaciones" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-futuros" class="pg" style="overflow-y:auto"></div>
+<div id="page-usd-riesgo" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-sintusd" class="pg" style="flex-direction:column"></div>
 <div id="page-usd-spreadleg" class="pg">
   <div style="display:flex;flex-direction:column;height:100%">
@@ -2902,7 +2904,7 @@ async function authAction(){
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
-  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1'];
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -5134,7 +5136,7 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-curvas','usd-series','usd-comentario'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-riesgo','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
@@ -5223,6 +5225,7 @@ function switchUsdTab(tab){
   if(tab==='usd-cartera') cartInit('usd');
   if(tab==='usd-licitaciones') licInit('usd');
   if(tab==='usd-futuros') futInit('usd');
+  if(tab==='usd-riesgo') rpsInit();
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
   if(tab==='usd-sintusd'){document.getElementById('page-usd-sintusd').style.display='flex';susInit('usd');}
@@ -23707,6 +23710,361 @@ function futRenderCaucion(sec,C){
   });
   cont.innerHTML=h+'</tbody></table></div>';
 }
+
+// ══════════════════════════════════════════════════════════════ RIESGO PAÍS
+// El EMBI Argentina de JP Morgan, diario desde 1999, con las fechas que lo
+// movieron: elecciones, cepo y tipo de cambio, deuda y financiamiento, la tasa
+// del BCRA, la de la Fed y los shocks de afuera. Sólo en dólares.
+//
+// La serie es la misma que usa la ficha del comentario (rpTraer, argentinadatos).
+// Trae fines de semana en algunos años: acá se dejan sólo los días hábiles, que
+// son las ruedas con las que se mide la reacción a cada fecha.
+//
+// La reacción se mide contra el cierre anterior a la fecha: una elección de
+// domingo se compara contra el viernes y su primera rueda es el lunes. La fuente
+// a veces publica el dato con un día de corrimiento, por eso la tabla trae
+// también la variación a cinco y a veinte ruedas.
+//
+// RPS_EVENTOS: [fecha, tipo, título, detalle, mayor]. Los mayores llevan el
+// título escrito en el gráfico; el resto, sólo la línea y el tooltip. Las tasas
+// del BCRA salen de su serie de tasa de política monetaria (variable 160) y se
+// fechan el día en que rigen; las de la Fed, el día del anuncio.
+var RPS_DATA=null,RPS_ERROR=null,RPS_CHART=null;
+var RPS_LS='bonosAR_riesgo_v1';
+var RPS_PREF={ventana:'2015',log:false,ocultos:[]};
+var RPS_FOCO=null;     // fecha de la fila elegida: el gráfico se acerca a ±60 días
+var RPS_TIPOS={
+  elec:  {l:'Elecciones',               c:'#a855f7'},
+  cambio:{l:'Cepo y tipo de cambio',    c:'#f59e0b'},
+  deuda: {l:'Deuda y financiamiento',   c:'#22c55e'},
+  bcra:  {l:'Tasa del BCRA',            c:'#ec4899'},
+  fed:   {l:'Tasa de la Fed',           c:'#38bdf8'},
+  shock: {l:'Shocks externos y políticos',c:'#ef4444'},
+};
+var RPS_VENTANAS=[['3m','3 meses',92],['6m','6 meses',183],['1a','1 año',366],['2a','2 años',731],['5a','5 años',1827],['2015','Desde 2015','2015-01-01'],['todo','Desde 1999','1999-01-01']];
+var RPS_EVENTOS=[
+  ['2001-12-23','deuda','Default','El presidente Rodríguez Saá anuncia la cesación de pagos de la deuda.',1],
+  ['2002-01-06','cambio','Fin de la convertibilidad','La Ley de Emergencia Pública termina con el uno a uno.',1],
+  ['2005-02-25','deuda','Canje 2005','Cierra el canje de la deuda en default, con 76% de adhesión.',0],
+  ['2008-09-15','shock','Quiebra de Lehman','Quiebra Lehman Brothers: el pico de la crisis financiera global.',1],
+  ['2008-12-16','fed','Fed: tasa a cero','La Fed baja la tasa a 0–0,25%.',0],
+  ['2011-10-23','elec','Reelección de CFK','Cristina Fernández de Kirchner gana la reelección.',0],
+  ['2011-10-31','cambio','Empieza el cepo','La AFIP tiene que autorizar cada compra de dólares.',1],
+  ['2014-07-30','deuda','Default selectivo','Vence el plazo para pagar los bonos reestructurados: el fallo a favor de los holdouts bloquea el pago.',1],
+  ['2015-11-22','elec','Balotaje: gana Macri','Mauricio Macri gana el balotaje.',1],
+  ['2015-12-16','fed','Fed: primera suba','Primera suba de la Fed desde 2006, a 0,25–0,50%.',0],
+  ['2015-12-17','cambio','Salida del cepo','Unificación cambiaria: se levantan las restricciones a la compra de dólares.',1],
+  ['2016-04-19','deuda','Vuelta a los mercados','Acuerdo con los holdouts y colocación de US$ 16.500 M en bonos internacionales.',1],
+  ['2017-06-19','deuda','Bono a 100 años','Se coloca un bono en dólares a cien años.',0],
+  ['2017-10-22','elec','Legislativas 2017','Cambiemos gana las legislativas.',0],
+  ['2018-05-08','deuda','Pedido al FMI','En plena corrida cambiaria, Macri anuncia que pide asistencia al FMI.',1],
+  ['2018-06-20','deuda','Stand-by del FMI','El FMI aprueba el acuerdo stand-by por US$ 50.000 M.',0],
+  ['2019-07-31','fed','Fed: primer recorte','Primer recorte de la Fed desde 2008, a 2,00–2,25%.',0],
+  ['2019-08-11','elec','PASO 2019','Alberto Fernández le saca más de 15 puntos a Macri en las primarias.',1],
+  ['2019-08-28','deuda','Reperfilamiento','Se posterga el pago de la deuda de corto plazo y se propone reperfilar el resto.',1],
+  ['2019-09-01','cambio','Vuelve el cepo','Un decreto restablece los controles: hasta US$ 10.000 por mes para personas.',1],
+  ['2019-10-27','elec','Generales 2019','Gana Alberto Fernández. Esa noche el cupo de compra baja a US$ 200 por mes.',1],
+  ['2020-03-03','fed','Fed: −50 pb','Recorte de emergencia de la Fed por el COVID-19, a 1,00–1,25%.',0],
+  ['2020-03-11','shock','Pandemia','La OMS declara la pandemia de COVID-19.',1],
+  ['2020-03-15','fed','Fed: tasa a cero','Segundo recorte de emergencia: la Fed vuelve a 0–0,25%.',0],
+  ['2020-08-04','deuda','Acuerdo con bonistas','Acuerdo con los principales grupos de acreedores para reestructurar la deuda.',0],
+  ['2020-09-10','deuda','El índice pasa a los bonos nuevos','JP Morgan incorpora los bonos del canje: el índice cae a la mitad por el cambio de bonos, no porque haya bajado el riesgo.',1],
+  ['2020-09-15','cambio','Cepo reforzado','Percepción del 35% sobre la compra de dólares y más restricciones.',0],
+  ['2021-09-12','elec','PASO 2021','El oficialismo pierde las primarias.',0],
+  ['2021-11-14','elec','Legislativas 2021','El oficialismo pierde la mayoría en el Senado.',0],
+  ['2022-03-16','fed','Fed: primera suba','Empieza el ciclo de suba: +25 pb, a 0,25–0,50%.',0],
+  ['2022-03-25','deuda','Facilidades Extendidas','El FMI aprueba el programa que refinancia el stand-by de 2018.',0],
+  ['2022-05-04','fed','Fed: +50 pb','La Fed sube a 0,75–1,00%.',0],
+  ['2022-06-15','fed','Fed: +75 pb','La mayor suba desde 1994, a 1,50–1,75%.',0],
+  ['2022-07-02','shock','Renuncia Guzmán','Renuncia el ministro de Economía Martín Guzmán.',1],
+  ['2022-07-27','fed','Fed: +75 pb','La Fed sube a 2,25–2,50%.',0],
+  ['2022-07-28','shock','Massa a Economía','Sergio Massa asume como ministro de Economía.',0],
+  ['2022-07-28','bcra','BCRA: 52% → 60%','Suba de la tasa de política monetaria.',0],
+  ['2022-08-11','bcra','BCRA: 60% → 69,5%','Suba de la tasa de política monetaria.',0],
+  ['2022-09-15','bcra','BCRA: 69,5% → 75%','Suba de la tasa de política monetaria.',0],
+  ['2022-09-21','fed','Fed: +75 pb','La Fed sube a 3,00–3,25%.',0],
+  ['2022-11-02','fed','Fed: +75 pb','La Fed sube a 3,75–4,00%.',0],
+  ['2022-12-14','fed','Fed: +50 pb','La Fed sube a 4,25–4,50%.',0],
+  ['2023-02-01','fed','Fed: +25 pb','La Fed sube a 4,50–4,75%.',0],
+  ['2023-03-16','bcra','BCRA: 75% → 78%','Suba de la tasa de política monetaria.',0],
+  ['2023-03-22','fed','Fed: +25 pb','La Fed sube a 4,75–5,00%.',0],
+  ['2023-04-20','bcra','BCRA: 78% → 81%','Suba de la tasa de política monetaria.',0],
+  ['2023-04-27','bcra','BCRA: 81% → 91%','Suba de la tasa de política monetaria.',0],
+  ['2023-05-03','fed','Fed: +25 pb','La Fed sube a 5,00–5,25%.',0],
+  ['2023-05-15','bcra','BCRA: 91% → 97%','Suba de la tasa de política monetaria.',0],
+  ['2023-07-26','fed','Fed: última suba','La Fed sube a 5,25–5,50%, el techo del ciclo.',0],
+  ['2023-08-13','elec','PASO 2023','Javier Milei es el más votado. Al día siguiente el oficial salta 22%, a $350.',1],
+  ['2023-08-14','bcra','BCRA: 97% → 118%','Suba de la tasa de política monetaria, con la devaluación posterior a las PASO.',0],
+  ['2023-10-12','bcra','BCRA: 118% → 133%','Suba de la tasa de política monetaria.',0],
+  ['2023-10-22','elec','Generales 2023','Massa primero y Milei segundo: hay balotaje.',1],
+  ['2023-11-19','elec','Balotaje: gana Milei','Javier Milei gana el balotaje.',1],
+  ['2023-12-13','cambio','Devaluación de Caputo','El oficial pasa de $366 a $800, con un ajuste del 2% mensual. Anunciada el 12.',1],
+  ['2023-12-18','bcra','BCRA: 133% → 100%','Baja de la tasa de política monetaria.',0],
+  ['2024-03-12','bcra','BCRA: 100% → 80%','Baja de la tasa de política monetaria.',0],
+  ['2024-04-11','bcra','BCRA: 80% → 70%','Baja de la tasa de política monetaria.',0],
+  ['2024-04-25','bcra','BCRA: 70% → 60%','Baja de la tasa de política monetaria.',0],
+  ['2024-05-02','bcra','BCRA: 60% → 50%','Baja de la tasa de política monetaria.',0],
+  ['2024-05-14','bcra','BCRA: 50% → 40%','Baja de la tasa de política monetaria.',0],
+  ['2024-09-18','fed','Fed: primer recorte','La Fed baja 50 pb, a 4,75–5,00%.',0],
+  ['2024-11-01','bcra','BCRA: 40% → 35%','Baja de la tasa de política monetaria.',0],
+  ['2024-11-07','fed','Fed: −25 pb','La Fed baja a 4,50–4,75%.',0],
+  ['2024-12-06','bcra','BCRA: 35% → 32%','Baja de la tasa de política monetaria.',0],
+  ['2024-12-18','fed','Fed: −25 pb','La Fed baja a 4,25–4,50%.',0],
+  ['2025-01-31','bcra','BCRA: 32% → 29%','Baja de la tasa de política monetaria.',0],
+  ['2025-04-02','shock','Aranceles de Trump','Estados Unidos anuncia aranceles a casi todas sus importaciones.',0],
+  ['2025-04-14','cambio','Salida del cepo','Bandas cambiarias de $1.000 a $1.400 y fin del cepo para personas. El viernes 11, el FMI aprobó un programa de US$ 20.000 M.',1],
+  ['2025-07-10','bcra','Fin de las LEFI','El BCRA deja de fijar una tasa de política monetaria: la última fue 29%.',0],
+  ['2025-09-07','elec','Elecciones bonaerenses','El oficialismo pierde la provincia de Buenos Aires por más de 13 puntos.',1],
+  ['2025-09-17','fed','Fed: −25 pb','La Fed baja a 4,00–4,25%.',0],
+  ['2025-09-22','deuda','Apoyo del Tesoro de EE.UU.','Bessent dice que están dispuestos a hacer "lo que sea necesario". El mismo día, retenciones cero a los granos.',1],
+  ['2025-10-09','deuda','EE.UU. compra pesos','El Tesoro de EE.UU. compra pesos y confirma el swap por US$ 20.000 M.',0],
+  ['2025-10-14','shock','Reunión Trump–Milei','Trump ata el apoyo al resultado de la elección.',0],
+  ['2025-10-26','elec','Legislativas 2025','La Libertad Avanza gana las legislativas.',1],
+  ['2025-10-29','fed','Fed: −25 pb','La Fed baja a 3,75–4,00%.',0],
+  ['2025-12-10','deuda','Bonar 2029N','Primera colocación en dólares en ocho años: US$ 1.000 M a 9,26%, ley local.',0],
+  ['2025-12-10','fed','Fed: −25 pb','La Fed baja a 3,50–3,75%.',0],
+  ['2025-12-15','cambio','Bandas por inflación','Desde enero las bandas se ajustan por la inflación de dos meses antes, y el BCRA empieza a comprar reservas.',0],
+  ['2026-02-28','shock','Guerra con Irán','Estados Unidos e Israel bombardean Irán: el petróleo pasa los US$ 100.',1],
+  ['2026-05-06','deuda','Fitch: B-','Fitch sube la nota de la deuda en moneda extranjera de CCC+ a B-. Anunciada el 5, con el mercado cerrado.',0],
+  ['2026-06-11','deuda','S&P: B-','S&P sube la nota de CCC+ a B-: el riesgo país baja al nivel más bajo desde 2018. Anunciada el 10, con el mercado cerrado.',1],
+  ['2026-06-23','shock','MSCI: sigue standalone','MSCI no cambia la categoría de la Argentina ni abre una consulta para revisarla.',0],
+  ['2026-09-16','fed','Fed: +25 pb','Primera suba desde 2023, a 3,75–4,00%.',1],
+];
+
+function rpsPrefCargar(){
+  try{const r=localStorage.getItem(RPS_LS);if(r){const p=JSON.parse(r);if(p&&typeof p==='object')RPS_PREF={...RPS_PREF,...p};}}catch(e){}
+  if(!RPS_VENTANAS.some(v=>v[0]===RPS_PREF.ventana))RPS_PREF.ventana='2015';
+  if(!Array.isArray(RPS_PREF.ocultos))RPS_PREF.ocultos=[];
+}
+function rpsPrefGuardar(){try{localStorage.setItem(RPS_LS,JSON.stringify(RPS_PREF));}catch(e){}}
+
+// La serie en días hábiles, ordenada: {f:[fechas], v:[valores]}.
+async function rpsCargar(){
+  const mapa=await rpTraer();
+  if(!mapa||!mapa.size){RPS_ERROR='la fuente no devolvió datos';return null;}
+  const f=[...mapa.keys()].filter(x=>{const d=new Date(x+'T12:00:00').getDay();return d!==0&&d!==6;}).sort();
+  RPS_DATA={f,v:f.map(x=>mapa.get(x))};RPS_ERROR=null;
+  return RPS_DATA;
+}
+// Primer índice con fecha ≥ f (o la longitud, si no hay).
+function rpsIdx(f){
+  const F=RPS_DATA.f;let lo=0,hi=F.length;
+  while(lo<hi){const m=(lo+hi)>>1;if(F[m]<f)lo=m+1;else hi=m;}
+  return lo;
+}
+// Lo que se movió alrededor de una fecha: el cierre anterior y la variación a
+// 1, 5 y 20 ruedas, en pb.
+function rpsReaccion(fecha){
+  const i=rpsIdx(fecha),V=RPS_DATA.v;
+  if(i<1||i>=V.length)return null;
+  const a=V[i-1],d=k=>i+k-1<V.length?V[i+k-1]-a:null;
+  return{antes:a,fechaAntes:RPS_DATA.f[i-1],d1:d(1),d5:d(5),d20:d(20)};
+}
+function rpsTipoVisible(t){return!RPS_PREF.ocultos.includes(t);}
+// El rango de fechas a la vista: la fila elegida o la ventana.
+function rpsRango(){
+  const F=RPS_DATA.f,ult=F[F.length-1];
+  if(RPS_FOCO){
+    const d=futD(RPS_FOCO);
+    return[fmtDate(new Date(d.getTime()-60*864e5)),fmtDate(new Date(d.getTime()+60*864e5))];
+  }
+  const V=RPS_VENTANAS.find(v=>v[0]===RPS_PREF.ventana)||RPS_VENTANAS[5];
+  return[typeof V[2]==='string'?V[2]:fmtDate(new Date(futD(ult).getTime()-V[2]*864e5)),ult];
+}
+function rpsEventosEn(desde,hasta){
+  return RPS_EVENTOS.filter(e=>e[0]>=desde&&e[0]<=hasta&&rpsTipoVisible(e[1]));
+}
+
+// ── Página ───────────────────────────────────────────────────────────────────
+async function rpsInit(){
+  const pg=document.getElementById('page-usd-riesgo');
+  if(!pg)return;
+  rpsPrefCargar();
+  if(!pg.innerHTML.trim()){pg.innerHTML=rpsPaginaHTML();rpsArrastre();}
+  const est=document.getElementById('rps-estado');
+  if(!RPS_DATA&&est)est.textContent='Cargando el riesgo país…';
+  await rpsCargar();
+  if(!RPS_DATA){if(est)est.textContent='No se pudo leer el riesgo país: '+(RPS_ERROR||'sin datos');return;}
+  rpsRender();
+}
+
+function rpsPaginaHTML(){
+  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+  const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px';
+  return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+      <span style="${tit};font-size:17px">Riesgo país</span>
+      <span id="rps-estado" style="${LIC_SUB};margin-left:auto"></span>
+    </div>
+    <div id="rps-tiles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px"></div>
+    <section style="${caja}">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="${tit}">Riesgo país y fechas clave</span>
+        <span style="${LIC_SUB}">EMBI Argentina de JP Morgan, en pb</span>
+        <span id="rps-ctrl" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-left:auto"></span>
+      </div>
+      <div id="rps-tipos" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <div id="rps-area" style="height:440px;display:flex;flex-direction:column">
+        <div style="flex:1;min-height:0;position:relative"><canvas id="rps-ch"></canvas></div>
+        <div class="chart-resize-handle" id="rps-handle" title="Arrastrá para cambiar el alto del gráfico"></div>
+      </div>
+    </section>
+    <section style="${caja}">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="${tit}">Cómo reaccionó a cada fecha</span>
+        <span style="${LIC_SUB}">las fechas a la vista en el gráfico, contra el cierre anterior; tocá una para acercarte</span>
+      </div>
+      <div id="rps-tabla"></div>
+    </section>
+  </div>`;
+}
+
+function rpsArrastre(){
+  const h=document.getElementById('rps-handle'),a=document.getElementById('rps-area');
+  if(!h||!a)return;
+  let on=false,y0=0,h0=0;
+  h.addEventListener('mousedown',e=>{on=true;y0=e.clientY;h0=a.offsetHeight;document.body.style.cursor='ns-resize';document.body.style.userSelect='none';e.preventDefault();});
+  document.addEventListener('mousemove',e=>{if(!on)return;a.style.height=Math.min(900,Math.max(240,h0+e.clientY-y0))+'px';});
+  document.addEventListener('mouseup',()=>{if(!on)return;on=false;document.body.style.cursor='';document.body.style.userSelect='';if(RPS_CHART)RPS_CHART.resize();});
+}
+
+function rpsVentana(v){RPS_PREF.ventana=v;RPS_FOCO=null;rpsPrefGuardar();rpsRender();}
+function rpsLog(){RPS_PREF.log=!RPS_PREF.log;rpsPrefGuardar();rpsRenderGrafico();}
+function rpsTipo(t){
+  if(!RPS_TIPOS[t])return;
+  RPS_PREF.ocultos=rpsTipoVisible(t)?[...RPS_PREF.ocultos,t]:RPS_PREF.ocultos.filter(x=>x!==t);
+  rpsPrefGuardar();rpsRenderGrafico();rpsRenderTabla();
+}
+function rpsFoco(f){RPS_FOCO=RPS_FOCO===f?null:f;rpsRenderGrafico();rpsRenderTabla();}
+
+function rpsRender(){
+  if(!RPS_DATA||!document.getElementById('rps-tiles'))return;
+  const F=RPS_DATA.f;
+  const est=document.getElementById('rps-estado');
+  if(est)est.textContent=`Fuente: EMBI de JP Morgan, vía argentinadatos · último dato ${futFecha(F[F.length-1],1)}`;
+  [rpsRenderTiles,rpsRenderGrafico,rpsRenderTabla].forEach(fn=>{try{fn();}catch(e){console.warn('[riesgo país]',fn.name,e);}});
+}
+
+// ── Tarjetas ─────────────────────────────────────────────────────────────────
+function rpsRenderTiles(){
+  const cont=document.getElementById('rps-tiles');
+  if(!cont)return;
+  const F=RPS_DATA.f,V=RPS_DATA.v,n=V.length,v=V[n-1],ult=F[n-1];
+  const sub=(d,ref)=>d==null?'':`<span style="color:${futCol(-d)}">${futSg(d)} pb</span>${ref?' '+ref:''}`;
+  const hace=dias=>{const i=rpsIdx(fmtDate(new Date(futD(ult).getTime()-dias*864e5)));return i<n?i:null;};
+  const iMes=hace(30),iAnio=rpsIdx(ult.slice(0,4)+'-01-01')-1;
+  // Doce meses: mínimo y máximo con su fecha.
+  const i12=hace(365)||0;let mn=i12,mx=i12;
+  for(let i=i12;i<n;i++){if(V[i]<V[mn])mn=i;if(V[i]>V[mx])mx=i;}
+  // Hasta dónde hay que ir para encontrar un nivel así: la última vez que estuvo
+  // igual o más alto y la última que estuvo igual o más bajo; cuenta la más vieja.
+  let jA=-1,jB=-1;
+  for(let j=n-2;j>=0&&(jA<0||jB<0);j--){if(jA<0&&V[j]>=v)jA=j;if(jB<0&&V[j]<=v)jB=j;}
+  const lado=jA<jB?'alto':'bajo',jj=Math.min(jA,jB);
+  const nivel=jj<0?`el más ${lado} de toda la serie`:futDias(F[jj],ult)>=30?`no estaba tan ${lado} desde el ${futFecha(F[jj],1)}`:'';
+  cont.innerHTML=
+    futTile('Riesgo país',`${futN(v,0)} pb`,sub(v-V[n-2],'vs '+futFecha(F[n-2])),'EMBI Argentina de JP Morgan: el spread de los bonos soberanos en dólares sobre los Treasuries')
+    +futTile('En la semana',sub(v-V[Math.max(0,n-6)]),`desde el ${futFecha(F[Math.max(0,n-6)])}`)
+    +futTile('En el mes',iMes!=null?sub(v-V[iMes]):'—',iMes!=null?`desde el ${futFecha(F[iMes])}`:'')
+    +futTile('En el año',iAnio>=0?sub(v-V[iAnio]):'—',iAnio>=0?`desde el ${futFecha(F[iAnio],1)} (${futN(V[iAnio],0)} pb)`:'')
+    +futTile('Mínimo de 12 meses',`${futN(V[mn],0)} pb`,`el ${futFecha(F[mn],1)}`)
+    +futTile('Máximo de 12 meses',`${futN(V[mx],0)} pb`,`el ${futFecha(F[mx],1)}`)
+    +(nivel?futTile('Nivel',lado==='alto'?'Alto':'Bajo',nivel,`La última vez que estuvo a este nivel o más ${lado}`):'');
+}
+
+// ── Gráfico ──────────────────────────────────────────────────────────────────
+// Las fechas clave se dibujan sobre el gráfico: una línea por fecha, del color
+// de su tipo, y el título escrito en las mayores. Cuando dos títulos se pisarían,
+// se escribe el de la fecha que más movió el riesgo país; la otra queda con la
+// línea y el tooltip.
+var RPS_PLUGIN={id:'rpsEventos',afterDatasetsDraw(ch){
+  const ev=ch.$rpsEventos;if(!ev||!ev.length)return;
+  const{ctx,chartArea:a,scales:{x}}=ch;
+  const dentro=ev.map(e=>({...e,px:x.getPixelForValue(e.i)})).filter(e=>e.px>=a.left-1&&e.px<=a.right+1);
+  ctx.save();
+  dentro.forEach(e=>{
+    ctx.strokeStyle=RPS_TIPOS[e.t].c;ctx.globalAlpha=e.m?0.75:0.4;ctx.lineWidth=1;ctx.setLineDash(e.m?[4,3]:[2,3]);
+    ctx.beginPath();ctx.moveTo(e.px,a.top);ctx.lineTo(e.px,a.bottom);ctx.stroke();
+  });
+  const escritos=[];
+  dentro.filter(e=>e.m).sort((p,q)=>q.peso-p.peso).forEach(e=>{
+    if(escritos.some(px=>Math.abs(px-e.px)<12))return;
+    escritos.push(e.px);
+    // El título, vertical, a la derecha de la línea.
+    ctx.save();
+    ctx.globalAlpha=1;ctx.setLineDash([]);
+    ctx.translate(e.px+2,a.top+4);ctx.rotate(Math.PI/2);
+    ctx.font='600 9px "DM Mono", monospace';ctx.fillStyle=RPS_TIPOS[e.t].c;ctx.textBaseline='bottom';
+    ctx.fillText(e.titulo,0,0);
+    ctx.restore();
+  });
+  ctx.restore();
+}};
+
+function rpsRenderGrafico(){
+  const cv=document.getElementById('rps-ch');
+  if(!cv||!RPS_DATA)return;
+  const ctrl=document.getElementById('rps-ctrl');
+  if(ctrl)ctrl.innerHTML=(RPS_FOCO?`<div class="mode-row" style="margin-bottom:0;width:auto"><button class="mode-btn active" style="white-space:nowrap;padding:4px 9px" onclick="rpsFoco(null)">✕ ${futFecha(RPS_FOCO,1)} ±60 días</button></div>`:'')
+    +`<div class="mode-row" style="margin-bottom:0;width:auto">${RPS_VENTANAS.map(([v,l])=>`<button class="mode-btn${!RPS_FOCO&&v===RPS_PREF.ventana?' active':''}" style="white-space:nowrap;padding:4px 9px" onclick="rpsVentana('${v}')">${l}</button>`).join('')}</div>`
+    +`<div class="mode-row" style="margin-bottom:0;width:auto"><button class="mode-btn${RPS_PREF.log?' active':''}" style="white-space:nowrap;padding:4px 9px" onclick="rpsLog()" title="Con la escala logarítmica, una misma variación porcentual mide lo mismo en 500 que en 5.000 pb">Escala log</button></div>`;
+  const tipos=document.getElementById('rps-tipos');
+  if(tipos)tipos.innerHTML=Object.entries(RPS_TIPOS).map(([k,t])=>{const on=rpsTipoVisible(k);
+    return`<button class="btn" style="padding:2px 8px;font-size:10px;display:inline-flex;align-items:center;gap:5px;${on?'':'opacity:.45'}" onclick="rpsTipo('${k}')" title="${on?'Ocultar':'Mostrar'} estas fechas"><i style="width:9px;height:9px;border-radius:2px;background:${t.c};display:inline-block"></i>${t.l}</button>`;}).join('');
+  const[desde,hasta]=rpsRango();
+  const i0=rpsIdx(desde);let i1=rpsIdx(hasta);
+  if(i1<RPS_DATA.f.length&&RPS_DATA.f[i1]===hasta)i1++;
+  const F=RPS_DATA.f.slice(i0,i1),V=RPS_DATA.v.slice(i0,i1);
+  const ev=rpsEventosEn(desde,hasta).map(e=>{
+    const i=rpsIdx(e[0])-i0,r=rpsReaccion(e[0]),d=r?(r.d5!=null?r.d5:r.d1):null;
+    return{i,f:e[0],t:e[1],titulo:e[2],detalle:e[3],m:e[4],peso:r&&d!=null?Math.abs(d)/r.antes:0};
+  }).filter(e=>e.i>=0&&e.i<F.length);
+  const E=futEjes(),linea=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#e8ede9';
+  // En el tooltip, las fechas clave cerca del punto: a ±0,4% de lo que se ve.
+  const tol=Math.max(0,Math.round(F.length/250));
+  if(RPS_CHART){RPS_CHART.destroy();RPS_CHART=null;}
+  RPS_CHART=new Chart(cv,{type:'line',data:{labels:F,datasets:[{label:'Riesgo país',data:V,borderColor:linea,backgroundColor:linea,borderWidth:1.4,pointRadius:0,pointHoverRadius:3,tension:0}]},
+    plugins:[RPS_PLUGIN],
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},datalabels:{display:false},
+        tooltip:{callbacks:{
+          title:c=>c[0]?futFecha(c[0].label,1):'',
+          label:c=>`Riesgo país: ${futN(c.parsed.y,0)} pb`,
+          afterBody:c=>{const i=c[0]?c[0].dataIndex:-1;
+            return ev.filter(e=>Math.abs(e.i-i)<=tol).map(e=>`● ${RPS_TIPOS[e.t].l} · ${futFecha(e.f,1)}: ${e.titulo}`);}}}},
+      scales:{
+        x:{grid:{display:false},ticks:{...E.tick,maxRotation:0,autoSkip:true,maxTicksLimit:9,callback:function(v){return futFecha(this.getLabelForValue(v),1);}}},
+        y:{type:RPS_PREF.log?'logarithmic':'linear',grid:{color:E.grid},
+          ticks:{...E.tick,callback:v=>{if(!RPS_PREF.log)return futN(v,0);const m=v/Math.pow(10,Math.floor(Math.log10(v)));return[1,2,5].some(k=>Math.abs(m-k)<1e-6)?futN(v,0):'';}},
+          title:{display:true,text:'pb',color:E.g,font:{size:9}}}}}});
+  RPS_CHART.$rpsEventos=ev;
+  RPS_CHART.update();
+}
+
+// ── Tabla ────────────────────────────────────────────────────────────────────
+function rpsRenderTabla(){
+  const cont=document.getElementById('rps-tabla');
+  if(!cont||!RPS_DATA)return;
+  const[desde,hasta]=rpsRangoVentana();
+  const ev=rpsEventosEn(desde,hasta).slice().reverse();
+  if(!ev.length){cont.innerHTML=`<div style="${LIC_SUB}">No hay fechas clave de los tipos elegidos en este período.</div>`;return;}
+  const th=(t,l)=>`<th style="${FUT_TH}${l?';text-align:left':''}">${t}</th>`;
+  const dv=d=>d==null?'—':`<span style="color:${futCol(-d)}">${futSg(d)}</span>`;
+  let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:860px"><thead><tr>
+    ${th('Fecha',1)}${th('Tipo',1)}${th('Qué pasó',1)}${th('Antes')}${th('1 rueda')}${th('5 ruedas')}${th('20 ruedas')}</tr></thead><tbody>`;
+  ev.forEach(e=>{
+    const r=rpsReaccion(e[0]),t=RPS_TIPOS[e[1]],sel=RPS_FOCO===e[0];
+    h+=`<tr style="cursor:pointer${sel?';background:var(--surface2)':''}" onclick="rpsFoco('${e[0]}')" title="Acercar el gráfico a esta fecha">
+      <td style="${FUT_TD};text-align:left">${futFecha(e[0],1)}</td>
+      <td style="${FUT_TD};text-align:left"><span style="display:inline-flex;align-items:center;gap:5px;color:var(--text2)"><i style="width:8px;height:8px;border-radius:2px;background:${t.c};display:inline-block"></i>${t.l}</span></td>
+      <td style="${FUT_TD};text-align:left;white-space:normal;min-width:280px"><span style="color:var(--text)${e[4]?';font-weight:600':''}">${betrEsc(e[2])}</span> <span style="color:var(--text3);font-family:inherit">${betrEsc(e[3])}</span></td>
+      <td style="${FUT_TD}" title="${r?'cierre del '+futFecha(r.fechaAntes,1):''}">${r?futN(r.antes,0):'—'}</td>
+      <td style="${FUT_TD}">${r?dv(r.d1):'—'}</td><td style="${FUT_TD}">${r?dv(r.d5):'—'}</td><td style="${FUT_TD}">${r?dv(r.d20):'—'}</td></tr>`;
+  });
+  cont.innerHTML=h+`</tbody></table></div><div style="${LIC_SUB};margin-top:6px;line-height:1.5">Antes: el cierre anterior a la fecha. Las variaciones, en pb, contra ese cierre: en verde, el riesgo país bajó. La fuente a veces publica el dato con un día de corrimiento; si la reacción no aparece en la primera rueda, aparece en la de cinco.</div>`;
+}
+// La tabla sigue a la ventana aunque el gráfico esté acercado a una fecha.
+function rpsRangoVentana(){const f=RPS_FOCO;RPS_FOCO=null;const r=rpsRango();RPS_FOCO=f;return r;}
 
 // ══════════════════════════════════════════════════════ FICHA DE MERCADO
 // Qué se movió en la curva entre dos ruedas, medido y no opinado. Es el insumo
