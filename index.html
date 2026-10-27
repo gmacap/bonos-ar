@@ -22455,7 +22455,9 @@ function _curvasUsdDraw(){
 // el secundario.
 //
 // Para el próximo llamado, dos precios por instrumento: en la curva de hoy y
-// con el premio que viene pagando el Tesoro en ese tipo de instrumento.
+// con el premio que viene pagando el Tesoro en ese tipo de instrumento. Y un
+// simulador: una oferta en precio o en tasa, con su premio contra la curva y
+// contra el mismo bono.
 //
 // Una sola página para las dos secciones: en pesos arranca con los instrumentos
 // en pesos —dollar linked y duales incluidos, que se pagan en pesos— y en
@@ -22469,6 +22471,8 @@ var LIC_CALC=new Map();       // fecha|versión -> instrumentos con corte, merca
 var LIC_CURVA=new Map();      // fecha|sector|duales -> ajuste de la curva
 var LIC_SEC={ars:{pagina:'page-licitaciones',p:'lic'},usd:{pagina:'page-usd-licitaciones',p:'ulic'}};
 var LIC_ESTADO={ars:{ver:'pesos',sel:null,ovl:''},usd:{ver:'usd',sel:null,ovl:''}};
+// En cada sección, prox guarda la última estimación del llamado ({E,liq,tc}) y
+// sim lo que se escribió en el simulador, por instrumento: sobrevive al repintado.
 var LIC_CHARTS={ars:{},usd:{}};
 var LIC_CLASES={
   fija: {l:'Tasa fija',    c:'#fbbf24', s:'TF',    u:'TNA'},
@@ -22962,33 +22966,38 @@ function licDespejar(f,obj,lo,hi){
   return(lo+hi)/2;
 }
 
-// Lo que se ofrece por una tasa en la unidad de su curva, como en el
-// comunicado: el precio por cada VNO 1.000 —en dólares el dollar linked y los
-// Bonares—, la TEM de una LECAP nueva o el margen de una TAMAR nueva, que se
-// licitan a la par. Con el bono en la app, sale de su motor; si no, una letra o
-// un cero cupón se descuenta entero, que es como da el precio del comunicado.
-// px es el precio de hoy en la unidad del snapshot, para acotar la búsqueda.
+// La tasa, en la unidad de su curva, de un precio por cada VNO 1.000 como el
+// del comunicado —en dólares el dollar linked y los Bonares—. Con el bono en la
+// app, sale de su motor; si no, una letra o un cero cupón se descuenta entero,
+// que es como da el precio del comunicado.
+function licTasaDe(i,sec,p,liq,tc,dias){
+  if(!(p>0))return null;
+  const bono=licBono(sec,i.ticker);
+  if(bono){
+    if(sec==='DLK'&&!tc)return null;
+    const r=licTasaMotor(sec,bono,sec==='DLK'?p/10*tc:p/10,liq,tc);
+    return r?r.v:null;
+  }
+  if(dias&&(sec==='CER'||sec==='DLK')&&/CERO CUP|^LETRA/i.test(i.nombre||'')){
+    const tir=(Math.pow(1000/p,365/dias)-1)*100;
+    return sec==='DLK'?dlkCalcTNA(tir,dias):tir;
+  }
+  return null;
+}
+// Lo que se ofrece por una tasa: el precio que la da, o la TEM de una LECAP
+// nueva o el margen de una TAMAR nueva, que se licitan a la par. px es el precio
+// de hoy en la unidad del snapshot, para acotar la búsqueda.
 function licPrecioPara(i,sec,tasa,liq,tc,dias,px){
   if(tasa==null||!isFinite(tasa))return null;
-  const bono=licBono(sec,i.ticker),usd=sec==='DLK'||sec==='BON';
   if(i.estado==='nuevo'&&i.clase==='fija'&&i.vencimiento&&dias){
     const vto=parseDate(i.vencimiento);
     const tem=licDespejar(t=>calcTNA(100,calcVF(t,liq,vto),dias),tasa,0.01,20);
     return tem==null?null:{tem};
   }
-  if(i.estado==='nuevo'&&i.clase==='tamar'&&!bono)return{margen:tasa};
-  if(sec==='DLK'&&!tc)return null;
-  if(bono){
-    const aSnap=p=>sec==='DLK'?p/10*tc:p/10;
-    const f=p=>{const r=licTasaMotor(sec,bono,aSnap(p),liq,tc);return r?r.v:null;};
-    const p0=px>0?(sec==='DLK'?px*10/tc:px*10):1000;
-    for(const k of[4,2,1.3]){const p=licDespejar(f,tasa,p0/k,p0*k);if(p!=null)return{precio:p,usd};}
-    return null;
-  }
-  if(dias&&(sec==='CER'||sec==='DLK')&&/CERO CUP|^LETRA/i.test(i.nombre||'')){
-    const tir=sec==='DLK'?licDespejar(t=>dlkCalcTNA(t,dias),tasa,-50,300):tasa;
-    return tir==null?null:{precio:1000/Math.pow(1+tir/100,dias/365),usd};
-  }
+  if(i.estado==='nuevo'&&i.clase==='tamar'&&!licBono(sec,i.ticker))return{margen:tasa};
+  const f=p=>licTasaDe(i,sec,p,liq,tc,dias);
+  const p0=px>0&&!(sec==='DLK'&&!tc)?(sec==='DLK'?px*10/tc:px*10):1000;
+  for(const k of[4,2,1.3]){const p=licDespejar(f,tasa,p0/k,p0*k);if(p!=null)return{precio:p,usd:sec==='DLK'||sec==='BON'};}
   return null;
 }
 
@@ -23049,9 +23058,110 @@ function licTablaEstimada(E,liq,hist){
     <div style="${LIC_SUB};margin-top:6px;white-space:normal">Precios por cada VNO 1.000, como en el comunicado, a la liquidación del ${betrF(fmtDate(liq))}; una LECAP nueva se licita por TEM y una TAMAR nueva por margen, a la par. En curva: la tasa de la curva de hoy a su plazo. Con premio: el secundario del mismo bono —o la curva, si es nuevo o no cotiza— más la mediana de los últimos ${LIC_PREMIO_N} premios de su tipo, medidos igual. Se espera premio cuando la mediana pasa +${LIC_PREMIO_UMBRAL} pb y lo dieron al menos dos de cada tres.</div>`;
 }
 
+// ── Simulá una oferta ────────────────────────────────────────────────────────
+// Un precio o una tasa para cada instrumento del llamado, en la unidad en que se
+// licita: precio, salvo la TEM de una LECAP nueva y el margen de una TAMAR
+// nueva. De ahí, la tasa en la unidad de su curva y el premio contra la curva
+// de hoy y contra el mismo bono, con el que se espera al lado.
+function licClave(i){return i.ticker||(i.clase+'|'+(i.vencimiento||''));}
+// Un número como lo escribe cualquiera: 1.020,70, 1020,7 o 1020.70.
+function licLeerNum(t){
+  let s=String(t==null?'':t).replace(/[^\d,.\-]/g,'');
+  if(!s)return null;
+  if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');
+  const n=parseFloat(s);
+  return isFinite(n)?n:null;
+}
+function licSimModos(o){
+  const i=o.i;
+  if(i.estado==='nuevo'&&i.clase==='fija')return[['tem','TEM'],['tasa','TNA']];
+  if(i.estado==='nuevo'&&i.clase==='tamar'&&!licBono(o.sec,i.ticker))return[['tasa','margen']];
+  return[['precio',o.sec==='DLK'||o.sec==='BON'?'precio US$':'precio $'],['tasa',o.C.u]];
+}
+function licSimModo(sec,o){
+  const m=licSimModos(o),s=(LIC_ESTADO[sec].sim||{})[licClave(o.i)];
+  return s&&m.some(x=>x[0]===s.modo)?s.modo:m[0][0];
+}
+// Lo que se ve en el campo vacío: el corte con premio, o el de curva, en ese modo.
+function licSimEjemplo(o,modo){
+  const pr=o.pPremio||o.pCurva,t=o.conPremio!=null?o.conPremio:o.curva;
+  if(modo==='precio')return pr&&pr.precio?licN(pr.precio):'';
+  if(modo==='tem')return pr&&pr.tem!=null?licN(pr.tem):'';
+  return t!=null?licN(t):'';
+}
+function licSimCalc(sec,k){
+  const P=LIC_ESTADO[sec].prox,o=P&&P.E[k];
+  if(!o)return null;
+  const s=(LIC_ESTADO[sec].sim||{})[licClave(o.i)];
+  if(!s||!String(s.valor||'').trim())return null;
+  const v=licLeerNum(s.valor),modo=licSimModo(sec,o);
+  if(v==null)return{o,modo,error:'no es un número'};
+  let tasa=null,eq=null;
+  if(modo==='tasa'){tasa=v;eq=licPrecioPara(o.i,o.sec,v,P.liq,P.tc,o.dias,o.yo&&+o.yo.price);}
+  else if(modo==='tem')tasa=o.dias?calcTNA(100,calcVF(v,P.liq,parseDate(o.i.vencimiento)),o.dias):null;
+  else tasa=licTasaDe(o.i,o.sec,v,P.liq,P.tc,o.dias);
+  if(tasa==null||!isFinite(tasa))return{o,modo,error:modo==='precio'?'sin el bono en la app no se pasa a tasa':'no se pudo calcular'};
+  return{o,modo,tasa,eq,vsCurva:o.curva!=null?(tasa-o.curva)*100:null,vsBono:o.mercado!=null?(tasa-o.mercado)*100:null};
+}
+function licSimHTML(sec,E){
+  const p=LIC_SEC[sec].p,st=LIC_ESTADO[sec].sim||{},th=LIC_TH,td=LIC_TD,chico=LIC_CHICO;
+  const filas=E.map((o,k)=>{
+    const i=o.i,modos=licSimModos(o),modo=licSimModo(sec,o),s=st[licClave(i)]||{},nom=betrEsc(licNombre(i));
+    const sel=modos.length>1?`<select id="${p}-sim-m${k}" class="gsel" aria-label="Qué escribís para ${nom}" onchange="licSimInput('${sec}',${k})">${modos.map(([v,l])=>`<option value="${v}"${v===modo?' selected':''}>${l}</option>`).join('')}</select>`
+      :`<span style="font-size:10px;color:var(--text3)">${modos[0][1]}</span>`;
+    return`<tr><td style="${td};text-align:left">${nom}<span style="${chico}">${o.C.l} · ${i.estado||''}</span></td>
+      <td style="${td}"><div style="display:flex;gap:5px;justify-content:flex-end;align-items:center"><input id="${p}-sim-v${k}" class="gsel" style="cursor:text;width:96px;text-align:right" type="text" inputmode="decimal" autocomplete="off" aria-label="Oferta para ${nom}" value="${betrEsc(s.valor||'')}" placeholder="${licSimEjemplo(o,modo)}" oninput="licSimInput('${sec}',${k})">${sel}</div></td>
+      <td style="${td}" id="${p}-sim-e${k}"></td><td style="${td}" id="${p}-sim-c${k}"></td><td style="${td}" id="${p}-sim-b${k}"></td></tr>`;
+  }).join('');
+  return`<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:18px 0 6px"><span style="font-family:var(--mono);font-size:12px;color:var(--text)">Simulá una oferta</span><span style="${LIC_SUB}">escribí un precio o una tasa y mirá el premio contra la curva y contra el mismo bono</span></div>
+  <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:660px">
+    <thead><tr><th style="${th};text-align:left">Instrumento</th><th style="${th}">Tu oferta</th><th style="${th}">Equivale a</th><th style="${th}">Premio vs la curva</th><th style="${th}">Premio vs el bono</th></tr></thead>
+    <tbody>${filas}</tbody></table></div>
+  <div style="${LIC_SUB};margin-top:6px;white-space:normal">El premio es la tasa de tu oferta menos la de la curva de hoy o la del mismo bono, en pb: positivo es más tasa que el mercado, o sea un precio más bajo. El precio va por cada VNO 1.000, a la liquidación de la licitación, como en el comunicado. Abajo de cada premio, el que se espera según el historial.</div>`;
+}
+// Repinta la fila k del simulador y la cruz de su gráfico.
+function licSimPintar(sec,k,grafico){
+  const p=LIC_SEC[sec].p,P=LIC_ESTADO[sec].prox,o=P&&P.E[k];
+  if(!o)return;
+  const r=licSimCalc(sec,k);
+  const put=(id,h)=>{const e=document.getElementById(`${p}-sim-${id}${k}`);if(e)e.innerHTML=h;};
+  const gris=t=>`<span style="color:var(--text3)">${t}</span>`;
+  const sinBono=gris(o.mercado!=null?'—':o.i.estado==='nuevo'?'nuevo':'sin cotización hoy');
+  const pb=(v,ancla)=>`<b style="color:${v>0?'#f59e0b':'#4ade80'}">${licPb(v)}</b>`+(o.pe&&o.vs===ancla?`<span style="${LIC_CHICO}">esperado ${licPb(o.pe.med)}</span>`:'');
+  if(!r||r.error){put('e',gris(r?r.error:'—'));put('c',gris('—'));put('b',sinBono);}
+  else{
+    let eq;
+    if(r.modo==='precio')eq=`${licN(r.tasa)}% ${o.C.u}`;
+    else if(r.modo==='tem')eq=`${licN(r.tasa)}% TNA`;
+    else if(r.eq&&r.eq.tem!=null)eq=`TEM ${licN(r.eq.tem)}%`;
+    else if(r.eq&&r.eq.margen!=null)eq='a la par';
+    else if(r.eq)eq=`${r.eq.usd?'US$':'$'} ${licN(r.eq.precio)}`;
+    else eq=gris('sin precio: el bono no está en la app');
+    put('e',eq);
+    put('c',o.curva!=null?pb(r.vsCurva,'curva'):gris('sin curva'));
+    put('b',o.mercado!=null?pb(r.vsBono,'bono'):sinBono);
+  }
+  if(grafico===false)return;
+  const ch=LIC_CHARTS[sec][`${p}-prox-g${k}`],d=ch&&ch.data.datasets.find(x=>x.label==='Tu oferta');
+  if(d){d.data=r&&r.tasa!=null&&o.x>0?[{x:o.x,y:r.tasa,t:'Tu oferta'}]:[];ch.update('none');}
+}
+function licSimInput(sec,k){
+  const p=LIC_SEC[sec].p,P=LIC_ESTADO[sec].prox,o=P&&P.E[k];
+  if(!o)return;
+  const v=document.getElementById(`${p}-sim-v${k}`),m=document.getElementById(`${p}-sim-m${k}`);
+  const st=LIC_ESTADO[sec].sim||(LIC_ESTADO[sec].sim={});
+  const modo=m?m.value:licSimModos(o)[0][0];
+  st[licClave(o.i)]={valor:v?v.value:'',modo};
+  if(v)v.placeholder=licSimEjemplo(o,modo);
+  licSimPintar(sec,k);
+}
+
 async function licRenderProximo(sec){
   const p=LIC_SEC[sec].p,cont=document.getElementById(p+'-prox-c');
   if(!cont)return;
+  // Si se está escribiendo una oferta, el repintado no le saca el foco.
+  const act=document.activeElement,foco=act&&act.id&&cont.contains(act)?{id:act.id,a:act.selectionStart,b:act.selectionEnd}:null;
   const v=LIC_ESTADO[sec].ver,P=licProxima();
   if(!P){cont.innerHTML=`<div style="${LIC_SUB}">No hay más licitaciones en el cronograma publicado.</div>`;return;}
   const pasos=[['Llamado',P.llamado,'#38bdf8'],['Licitación',P.fecha,'var(--accent)'],['Liquidación',P.liquidacion,'#f59e0b']];
@@ -23089,9 +23199,14 @@ async function licRenderProximo(sec){
   const liq=parseDate(P.liquidacion||fmtDate(addHabiles(parseDate(P.fecha),2)));
   // Sin el secundario de cada licitación anterior todavía no hay premios.
   const hist=!LIC_DATA.licitaciones.some(l=>l.fecha<P.fecha&&!LIC_SNAP.has(l.fecha));
-  const E=ins.map(i=>licEstimar(i,ref,liq,P.fecha,hist,licA3500En(hoyAR())));
+  const tc=licA3500En(hoyAR());
+  const E=ins.map(i=>licEstimar(i,ref,liq,P.fecha,hist,tc));
+  LIC_ESTADO[sec].prox={E,liq,tc};
   const est=document.getElementById(p+'-prox-est');
-  if(est)est.innerHTML=licTablaEstimada(E,liq,hist);
+  if(est){
+    est.innerHTML=licTablaEstimada(E,liq,hist)+licSimHTML(sec,E);
+    E.forEach((o,k)=>licSimPintar(sec,k,false));
+  }
   const col=licColores();
   E.forEach((o,k)=>{
     const{i,C,cu,yo,x}=o;
@@ -23121,8 +23236,15 @@ async function licRenderProximo(sec){
         pointBackgroundColor:col.acento,pointBorderColor:col.acento,
         datalabels:{display:true,formatter:()=>licPb(o.pe.med),color:col.acento,font:{size:9,family:'DM Mono, monospace'},anchor:'center',align:35,offset:8}});
     }
+    // La oferta del simulador, si hay: se mueve sin rearmar el gráfico.
+    const so=licSimCalc(sec,k);
+    ds.push({label:'Tu oferta',data:so&&so.tasa!=null&&x>0?[{x,y:so.tasa,t:'Tu oferta'}]:[],showLine:false,pointRadius:8,pointStyle:'crossRot',
+      pointBorderWidth:2.5,pointBorderColor:col.texto,pointBackgroundColor:col.texto,
+      datalabels:{display:true,formatter:()=>'tu oferta',color:col.texto,font:{size:9,family:'DM Mono, monospace'},anchor:'center',align:-35,offset:8}});
     licChart(sec,`${p}-prox-g${k}`,{type:'scatter',data:{datasets:ds},options:licOpcionesCurva(col,cu.eje,C.u)});
   });
+  const fe=foco&&document.getElementById(foco.id);
+  if(fe){fe.focus();try{if(foco.a!=null)fe.setSelectionRange(foco.a,foco.b);}catch(e){}}
 }
 function licOpcionesCurva(col,eje,u){
   return{responsive:true,maintainAspectRatio:false,animation:{duration:150},

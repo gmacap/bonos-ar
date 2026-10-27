@@ -4373,9 +4373,25 @@ const omitir = (label, motivo) =>
         });
         const baja = E.filter(o => o.pe && o.pPremio && o.pPremio.precio > 0 && o.pMercado && o.pMercado.precio > 0 && Math.abs(o.pe.med) >= 1)
           .map(o => (o.pe.med > 0) === (o.pPremio.precio < o.pMercado.precio));
-        out.estimado = { filas: document.querySelectorAll('#lic-prox-est tbody tr').length, esperadas: E.length, hist,
+        out.estimado = { filas: document.querySelectorAll('#lic-prox-est > div:first-child tbody tr').length, esperadas: E.length, hist,
           conPremio: E.filter(o => o.pe).length, vuelve: vuelve.length, vuelveOk: vuelve.every(Boolean), baja: baja.length, bajaOk: baja.every(Boolean) };
+        // El simulador: el precio del secundario, escrito como lo escribe un
+        // operador, da premio cero contra el bono; una tasa 50 pb arriba de la
+        // curva da +50 pb contra la curva, en la tabla y en el gráfico.
+        const PE = LIC_ESTADO.ars.prox.E;
+        const k = PE.findIndex(o => o.mercado != null && o.pMercado && o.pMercado.precio > 0 && o.curva != null && o.x > 0);
+        if (k >= 0) {
+          const o = PE[k], inp = document.getElementById('lic-sim-v' + k), sel = document.getElementById('lic-sim-m' + k);
+          inp.value = licN(o.pMercado.precio, 4); sel.value = 'precio'; licSimInput('ars', k);
+          const b0 = licSimCalc('ars', k);
+          sel.value = 'tasa'; inp.value = String(o.curva + 0.5).replace('.', ','); licSimInput('ars', k);
+          const c50 = licSimCalc('ars', k);
+          const cruz = LIC_CHARTS.ars['lic-prox-g' + k].data.datasets.find(d => d.label === 'Tu oferta');
+          out.sim = { filas: document.querySelectorAll('[id^="lic-sim-v"]').length, b0: b0 && b0.vsBono, c50: c50 && c50.vsCurva,
+            celda: document.getElementById('lic-sim-c' + k).textContent, cruz: cruz && cruz.data.length === 1 && Math.abs(cruz.data[0].y - (o.curva + 0.5)) < 1e-9 };
+        }
       } finally {
+        LIC_ESTADO.ars.sim = {};
         D.llamado = llOrig;
         await licRenderProximo('ars');
       }
@@ -4413,6 +4429,10 @@ const omitir = (label, motivo) =>
     if (!es) omitir('el próximo llamado trae el precio en curva y con premio', 'no quedan licitaciones en el cronograma publicado');
     else check(es.filas === es.esperadas && es.esperadas > 0 && es.vuelve > 0 && es.vuelveOk && (!es.hist || (es.conPremio > 0 && es.baja > 0 && es.bajaOk)),
           'el próximo llamado trae el precio en curva y con premio: el de curva vuelve a dar su tasa y el premio baja el precio', JSON.stringify(es));
+    const sm = lic.sim;
+    if (es && !sm) omitir('el simulador de oferta da el premio contra el bono y contra la curva', 'ningún instrumento de la última licitación cotiza hoy');
+    else if (sm) check(sm.filas === es.esperadas && Math.abs(sm.b0) < 0.5 && Math.abs(sm.c50 - 50) < 1e-6 && /\+50 pb/.test(sm.celda) && sm.cruz,
+          'el simulador de oferta da el premio contra el bono y contra la curva, y marca la oferta en el gráfico', JSON.stringify(sm));
     check(lic.usd.visible && lic.usd.ver === 'usd' && lic.usd.soloUsd && lic.todos >= lic.usd.filas,
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
