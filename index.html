@@ -22454,6 +22454,9 @@ function _curvasUsdDraw(){
 // contra la curva de su familia ese día. Positivo es que el Tesoro pagó más que
 // el secundario.
 //
+// Para el próximo llamado, dos precios por instrumento: en la curva de hoy y
+// con el premio que viene pagando el Tesoro en ese tipo de instrumento.
+//
 // Una sola página para las dos secciones: en pesos arranca con los instrumentos
 // en pesos —dollar linked y duales incluidos, que se pagan en pesos— y en
 // dólares con los Bonares.
@@ -22485,6 +22488,9 @@ var LIC_CURVA_MIN=4;          // bonos para ajustar la curva de una familia
 var LIC_EXTRAP=[0.8,1.15];    // cuánto se puede salir del rango de la curva…
 var LIC_CURVA_EXTRAP=5;       // …y con cuántos bonos, como mínimo
 var LIC_PREMIO_MAX=1500;      // más que esto, en pb, es un dato roto y no un premio
+var LIC_PREMIO_N=8;           // premios que se miran para el del próximo llamado…
+var LIC_PREMIO_MIN_N=3;       // …y cuántos, como mínimo, para dar uno
+var LIC_PREMIO_UMBRAL=10;     // pb de mediana para decir que se espera premio
 
 // ── Datos ────────────────────────────────────────────────────────────────────
 async function licCargar(force){
@@ -22823,7 +22829,7 @@ function licPaginaHTML(sec){
       <div class="mode-row" style="margin-bottom:0;width:auto">${LIC_VER.map(([v,l])=>`<button class="mode-btn" style="white-space:nowrap;padding:5px 10px" id="${p}-ver-${v}" onclick="licVer('${sec}','${v}')">${l}</button>`).join('')}</div>
       <span id="${p}-estado" style="${sub};margin-left:auto"></span>
     </div>
-    ${secc('prox','Próxima licitación','cada instrumento del llamado sobre la curva de hoy')}
+    ${secc('prox','Próxima licitación','cada instrumento del llamado sobre la curva de hoy y a qué precio puede cortar')}
     ${secc('res','Resultado de cada licitación','corte contra el secundario del día: el mismo bono o, si es nuevo, la curva de su familia')}
     ${secc('col','Colocación','valor efectivo adjudicado en cada licitación, por tipo de instrumento')}
     ${secc('plz','Plazos','días desde la liquidación al vencimiento: promedio ponderado por monto y rango de lo adjudicado',
@@ -22894,6 +22900,9 @@ function licTile(n,v,c,t){
   return`<div style="border:1px solid var(--border);border-radius:4px;padding:6px 9px;background:var(--surface2)"${t?` title="${betrEsc(t)}"`:''}><div style="font-size:10px;color:var(--text3);letter-spacing:.04em">${n}</div><div style="font-family:var(--mono);font-size:14px;color:${c||'var(--text)'}">${v}</div></div>`;
 }
 var LIC_SUB='font-size:10px;color:var(--text3);font-family:var(--mono)';
+var LIC_TH='padding:5px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
+var LIC_TD='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;vertical-align:top';
+var LIC_CHICO='display:block;font-size:10px;color:var(--text3)';
 
 // ── Próxima licitación ───────────────────────────────────────────────────────
 function licProxima(){
@@ -22911,6 +22920,135 @@ function licCuanto(f){
   const n=Math.round((parseDate(f)-parseDate(hoyAR()))/86400000);
   return n===0?'hoy':n===1?'mañana':n>1?`en ${n} días`:'realizado';
 }
+
+// ── Precio estimado de corte ─────────────────────────────────────────────────
+// Dos tasas para cada instrumento del llamado, pasadas a precio a la liquidación
+// de la licitación. En curva: la que da la curva de hoy a su plazo. Con premio:
+// el ancla contra la que se midieron los premios del historial —el mismo bono
+// si cotiza hoy, la curva si es nuevo— más la mediana de los últimos premios de
+// su tipo medidos contra esa misma ancla.
+
+// La mediana de los últimos premios de un tipo. Sólo la primera vuelta: la
+// segunda repite el precio de la primera y contaría dos veces el mismo corte.
+// Si contra esa ancla hay muy pocos, todos los del tipo, y se avisa.
+function licPremioEsperado(clase,vs,antes){
+  const obs=[];
+  LIC_DATA.licitaciones.forEach(l=>{
+    if(l.fecha>=antes)return;
+    licCalcular(l).ins.forEach(i=>{if(i.clase===clase&&i.ronda!==2&&i.premio!=null)obs.push({fecha:l.fecha,v:i.premio,vs:i.vs});});
+  });
+  let m=obs.filter(o=>o.vs===vs),mezcla=false;
+  if(m.length<LIC_PREMIO_MIN_N){m=obs;mezcla=true;}
+  m=m.slice(-LIC_PREMIO_N);
+  if(m.length<LIC_PREMIO_MIN_N)return null;
+  const v=m.map(o=>o.v).sort((a,b)=>a-b),n=v.length;
+  const med=n%2?v[(n-1)/2]:(v[n/2-1]+v[n/2])/2;
+  const pos=v.filter(x=>x>0).length;
+  // Se espera premio si la mediana lo da y lo dieron dos de cada tres; no, si
+  // la mediana no lo da o lo dio uno de cada tres o menos.
+  const se=med>=LIC_PREMIO_UMBRAL&&pos>=n*2/3?'si':med<=0||pos<=n/3?'no':'duda';
+  return{med,n,pos,desde:m[0].fecha,mezcla,se};
+}
+
+// El x en [lo,hi] con el que f da obj. f monótona, en cualquier sentido.
+function licDespejar(f,obj,lo,hi){
+  let flo=f(lo);const fhi=f(hi);
+  if(flo==null||fhi==null||(flo-obj)*(fhi-obj)>0)return null;
+  for(let k=0;k<80&&hi-lo>1e-9*hi;k++){
+    const m=(lo+hi)/2,fm=f(m);
+    if(fm==null)return null;
+    if((fm-obj)*(flo-obj)>0){lo=m;flo=fm;}else hi=m;
+  }
+  return(lo+hi)/2;
+}
+
+// Lo que se ofrece por una tasa en la unidad de su curva, como en el
+// comunicado: el precio por cada VNO 1.000 —en dólares el dollar linked y los
+// Bonares—, la TEM de una LECAP nueva o el margen de una TAMAR nueva, que se
+// licitan a la par. Con el bono en la app, sale de su motor; si no, una letra o
+// un cero cupón se descuenta entero, que es como da el precio del comunicado.
+// px es el precio de hoy en la unidad del snapshot, para acotar la búsqueda.
+function licPrecioPara(i,sec,tasa,liq,tc,dias,px){
+  if(tasa==null||!isFinite(tasa))return null;
+  const bono=licBono(sec,i.ticker),usd=sec==='DLK'||sec==='BON';
+  if(i.estado==='nuevo'&&i.clase==='fija'&&i.vencimiento&&dias){
+    const vto=parseDate(i.vencimiento);
+    const tem=licDespejar(t=>calcTNA(100,calcVF(t,liq,vto),dias),tasa,0.01,20);
+    return tem==null?null:{tem};
+  }
+  if(i.estado==='nuevo'&&i.clase==='tamar'&&!bono)return{margen:tasa};
+  if(sec==='DLK'&&!tc)return null;
+  if(bono){
+    const aSnap=p=>sec==='DLK'?p/10*tc:p/10;
+    const f=p=>{const r=licTasaMotor(sec,bono,aSnap(p),liq,tc);return r?r.v:null;};
+    const p0=px>0?(sec==='DLK'?px*10/tc:px*10):1000;
+    for(const k of[4,2,1.3]){const p=licDespejar(f,tasa,p0/k,p0*k);if(p!=null)return{precio:p,usd};}
+    return null;
+  }
+  if(dias&&(sec==='CER'||sec==='DLK')&&/CERO CUP|^LETRA/i.test(i.nombre||'')){
+    const tir=sec==='DLK'?licDespejar(t=>dlkCalcTNA(t,dias),tasa,-50,300):tasa;
+    return tir==null?null:{precio:1000/Math.pow(1+tir/100,dias/365),usd};
+  }
+  return null;
+}
+
+// Un instrumento del llamado sobre la curva de hoy, con sus dos precios.
+function licEstimar(i,ref,liq,antes,hist,tc){
+  const C=LIC_CLASES[i.clase]||LIC_CLASES.fija,sec=C.s;
+  const cu=licCurva(ref,sec,i.clase==='dual');
+  const yo=i.ticker?ref.filas.find(r=>r.ticker===i.ticker&&r.sector===sec):null;
+  const dias=i.vencimiento?Math.max(1,diasAlPago(liq,parseDate(i.vencimiento))):null;
+  const o={i,C,sec,cu,yo,dias};
+  if(!cu)return o;
+  o.x=yo&&+yo[cu.eje]>0?+yo[cu.eje]:(cu.eje==='dias'?dias:null);
+  if(!(o.x>0))return o;
+  o.curva=cu.aj.f(Math.min(Math.max(o.x,cu.min),cu.max));
+  o.ext=o.x<cu.min||o.x>cu.max;
+  o.mercado=yo&&yo.tir!=null&&isFinite(+yo.tir)?+yo.tir:null;
+  o.vs=o.mercado!=null?'bono':'curva';
+  const px=yo&&+yo.price>0?+yo.price:null;
+  o.pCurva=licPrecioPara(i,sec,o.curva,liq,tc,dias,px);
+  if(o.mercado!=null)o.pMercado=licPrecioPara(i,sec,o.mercado,liq,tc,dias,px);
+  o.pe=hist?licPremioEsperado(i.clase,o.vs,antes):null;
+  if(o.pe){
+    o.conPremio=(o.vs==='bono'?o.mercado:o.curva)+o.pe.med/100;
+    o.pPremio=licPrecioPara(i,sec,o.conPremio,liq,tc,dias,px);
+  }
+  return o;
+}
+
+var LIC_SE={si:['Se espera premio','#f59e0b'],no:['No se espera premio','#4ade80'],duda:['Premio incierto','var(--text2)']};
+function licTablaEstimada(E,liq,hist){
+  const th=LIC_TH,td=LIC_TD,chico=LIC_CHICO,gris=t=>`<span style="color:var(--text3)">${t}</span>`;
+  const celda=(o,tasa,pr)=>{
+    const u=`${licN(tasa)}% ${o.C.u}`;
+    if(!pr)return`<b>${u}</b><span style="${chico}">sin precio: el bono no está en la app</span>`;
+    if(pr.margen!=null)return`<b>margen ${licN(pr.margen)}%</b><span style="${chico}">a la par</span>`;
+    if(pr.tem!=null)return`<b>TEM ${licN(pr.tem)}%</b><span style="${chico}">${u} · a la par</span>`;
+    return`<b>${pr.usd?'US$':'$'} ${licN(pr.precio)}</b><span style="${chico}">${u}</span>`;
+  };
+  const filas=E.map(o=>{
+    const i=o.i,C=o.C;
+    const nombre=`${betrEsc(licNombre(i))}<span style="${chico}">${C.l}${i.dual?' '+i.dual.toUpperCase()+'/TAMAR':''} · ${i.estado||''}</span>`;
+    const merc=o.mercado!=null?celda(o,o.mercado,o.pMercado):gris(i.estado==='nuevo'?'nuevo':'sin cotización hoy');
+    const curva=o.curva!=null?celda(o,o.curva,o.pCurva)+(o.ext?`<span style="${chico};color:var(--warn)">curva extrapolada</span>`:''):gris('sin curva de hoy');
+    let pre=gris(o.curva==null?'—':!hist?'cargando el historial…':'pocas licitaciones para medirlo');
+    if(o.pe){
+      const[t,c]=LIC_SE[o.pe.se];
+      pre=`<span style="border:1px solid ${c};color:${c};border-radius:3px;padding:0 5px;font-size:10px">${t}</span>
+        <span style="display:block;margin-top:3px"><b style="color:${o.pe.med>0?'#f59e0b':'#4ade80'}">${licPb(o.pe.med)}</b> <span style="font-size:10px;color:var(--text3)">vs ${o.vs==='bono'?'el bono':'la curva'}</span></span>
+        <span style="${chico}">${o.pe.pos} de ${o.pe.n} con premio, desde ${betrF(o.pe.desde)}${o.pe.mezcla?'<br>pocos contra '+(o.vs==='bono'?'el bono':'la curva')+': todos los del tipo':''}</span>`;
+    }
+    const con=o.conPremio!=null?celda(o,o.conPremio,o.pPremio):gris('—');
+    return`<tr><td style="${td};text-align:left" title="${betrEsc(i.nombre||'')}">${nombre}</td><td style="${td}">${betrF(i.vencimiento)}<span style="${chico}">${o.dias?o.dias+' d':''}</span></td>
+      <td style="${td}">${merc}</td><td style="${td}">${curva}</td><td style="${td}">${pre}</td><td style="${td}">${con}</td></tr>`;
+  }).join('');
+  return`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:780px">
+    <thead><tr><th style="${th};text-align:left">Instrumento</th><th style="${th}">Vence</th><th style="${th}">Secundario hoy</th><th style="${th}">En curva</th><th style="${th}">Premio histórico</th><th style="${th}">Con premio</th></tr></thead>
+    <tbody>${filas}</tbody></table></div>
+    <div style="${LIC_SUB};margin-top:6px;white-space:normal">Precios por cada VNO 1.000, como en el comunicado, a la liquidación del ${betrF(fmtDate(liq))}; una LECAP nueva se licita por TEM y una TAMAR nueva por margen, a la par. En curva: la tasa de la curva de hoy a su plazo. Con premio: el secundario del mismo bono —o la curva, si es nuevo o no cotiza— más la mediana de los últimos ${LIC_PREMIO_N} premios de su tipo, medidos igual. Se espera premio cuando la mediana pasa +${LIC_PREMIO_UMBRAL} pb y lo dieron al menos dos de cada tres.</div>`;
+}
+
 async function licRenderProximo(sec){
   const p=LIC_SEC[sec].p,cont=document.getElementById(p+'-prox-c');
   if(!cont)return;
@@ -22938,6 +23076,7 @@ async function licRenderProximo(sec){
     return`<span style="border:1px solid ${C.c};border-radius:3px;padding:2px 7px;font-family:var(--mono);font-size:11px;opacity:${en?1:.45}" title="${betrEsc(i.nombre||'')}">${betrEsc(licNombre(i))} <span style="color:var(--text3)">${C.l}${i.dual?' '+i.dual.toUpperCase()+'/TAMAR':''} · ${i.estado||''}</span></span>`;}).join('')}
     ${P.inst.url?`<a href="${P.inst.url}" target="_blank" rel="noopener" style="${LIC_SUB};margin-left:auto">llamado ↗</a>`:''}</div>`;
   if(!ins.length){h+=`<div style="${LIC_SUB}">En este llamado no hay instrumentos de esta vista${fuera?': elegí Todos para verlos':''}.</div>`;cont.innerHTML=h;return;}
+  h+=`<div id="${p}-prox-est" style="margin-bottom:14px"><div style="${LIC_SUB}">Calculando los precios…</div></div>`;
   h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">${ins.map((i,k)=>`<div>
     <div style="font-family:var(--mono);font-size:12px;color:var(--text);margin-bottom:2px">${betrEsc(licNombre(i))} · ${(LIC_CLASES[i.clase]||{}).l||''}</div>
     <div id="${p}-prox-t${k}" style="${LIC_SUB};margin-bottom:4px"></div>
@@ -22948,21 +23087,23 @@ async function licRenderProximo(sec){
   try{filas=await curvasFetchSnapshot(hoyAR(),'ALL');}catch(e){}
   const ref={fecha:hoyAR(),filas,vivo:true};
   const liq=parseDate(P.liquidacion||fmtDate(addHabiles(parseDate(P.fecha),2)));
+  // Sin el secundario de cada licitación anterior todavía no hay premios.
+  const hist=!LIC_DATA.licitaciones.some(l=>l.fecha<P.fecha&&!LIC_SNAP.has(l.fecha));
+  const E=ins.map(i=>licEstimar(i,ref,liq,P.fecha,hist,licA3500En(hoyAR())));
+  const est=document.getElementById(p+'-prox-est');
+  if(est)est.innerHTML=licTablaEstimada(E,liq,hist);
   const col=licColores();
-  ins.forEach((i,k)=>{
-    const C=LIC_CLASES[i.clase]||LIC_CLASES.fija,sec2=C.s;
-    const cu=licCurva(ref,sec2,i.clase==='dual');
+  E.forEach((o,k)=>{
+    const{i,C,cu,yo,x}=o;
     const t=document.getElementById(`${p}-prox-t${k}`);
     if(!cu){if(t)t.textContent='Sin curva de hoy para esta familia.';return;}
-    const yo=i.ticker?filas.find(r=>r.ticker===i.ticker&&r.sector===sec2):null;
-    const dias=i.vencimiento?Math.max(1,diasAlPago(liq,parseDate(i.vencimiento))):null;
-    let x=yo?+yo[cu.eje]:(cu.eje==='dias'?dias:null),y=yo?+yo.tir:null,txt='';
-    if(yo&&x>0){
-      const pb=(y-cu.aj.f(Math.min(Math.max(x,cu.min),cu.max)))*100;
-      txt=`Reapertura: hoy ${licN(y)}% ${C.u}, ${licPb(pb)} contra la curva (${pb>0?'más barato':'más caro'} que sus vecinos).`;
+    const y=o.mercado!=null?o.mercado:o.curva;
+    let txt='';
+    if(o.mercado!=null&&x>0){
+      const pb=(o.mercado-o.curva)*100;
+      txt=`Reapertura: hoy ${licN(o.mercado)}% ${C.u}, ${licPb(pb)} contra la curva (${pb>0?'más barato':'más caro'} que sus vecinos).`;
     }else if(x>0){
-      y=cu.aj.f(Math.min(Math.max(x,cu.min),cu.max));
-      txt=`Nuevo: la curva de hoy da ${licN(y)}% ${C.u} a ${x} días${x>cu.max?' (extrapolada: más largo que todo lo que cotiza)':''}.`;
+      txt=`${i.estado==='reapertura'?'Sin cotización hoy':'Nuevo'}: la curva de hoy da ${licN(o.curva)}% ${C.u} a ${x} días${x>cu.max?' (extrapolada: más largo que todo lo que cotiza)':''}.`;
     }else txt='Sin plazo para ubicarlo en la curva.';
     if(t)t.textContent=txt;
     const xs=cu.pts.map(q=>q.x).concat(x>0?[x]:[]);
@@ -22973,6 +23114,13 @@ async function licRenderProximo(sec){
     if(x>0&&y!=null)ds.push({label:licNombre(i),data:[{x,y}],showLine:false,pointRadius:8,pointBorderWidth:2.5,
       pointBackgroundColor:yo?C.c:'transparent',pointBorderColor:col.acento,
       datalabels:{display:true,formatter:()=>licNombre(i),color:col.acento,font:{size:10,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:6}});
+    // Del ancla al corte con premio, una raya punteada: el premio que se espera.
+    if(x>0&&o.conPremio!=null){
+      ds.push({label:'_premio',type:'line',data:[{x,y},{x,y:o.conPremio}],borderColor:col.acento,borderWidth:1.5,borderDash:[3,3],pointRadius:0,showLine:true,datalabels:{display:false}});
+      ds.push({label:'Con premio',data:[{x,y:o.conPremio,t:'Con premio histórico',nota:licPb(o.pe.med)+' vs '+(o.vs==='bono'?'el bono':'la curva')}],showLine:false,pointRadius:6,pointStyle:'rectRot',
+        pointBackgroundColor:col.acento,pointBorderColor:col.acento,
+        datalabels:{display:true,formatter:()=>licPb(o.pe.med),color:col.acento,font:{size:9,family:'DM Mono, monospace'},anchor:'center',align:35,offset:8}});
+    }
     licChart(sec,`${p}-prox-g${k}`,{type:'scatter',data:{datasets:ds},options:licOpcionesCurva(col,cu.eje,C.u)});
   });
 }
@@ -23026,9 +23174,7 @@ function licRenderResultado(sec){
   if(!r.ref)h+=`<div style="${LIC_SUB};margin-bottom:8px">No hay ruedas guardadas para esa fecha: la licitación se muestra sin premio.</div>`;
   else if(!r.mismoDia)h+=`<div style="${LIC_SUB};margin-bottom:8px">No hay cierre guardado del día de la licitación: el mercado es el del ${betrF(r.ref)}.</div>`;
   else if(r.vivo)h+=`<div style="${LIC_SUB};margin-bottom:8px">El mercado es el de los precios en vivo de hoy: el cierre todavía no se guardó.</div>`;
-  const th='padding:5px 8px;font-size:9px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border2)';
-  const td='padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;vertical-align:top';
-  const chico='display:block;font-size:10px;color:var(--text3)';
+  const th=LIC_TH,td=LIC_TD,chico=LIC_CHICO;
   const orden=Object.keys(LIC_CLASES);
   const filas=ins.slice().sort((a,b)=>orden.indexOf(a.clase)-orden.indexOf(b.clase)||(a.vencimiento||'').localeCompare(b.vencimiento||''));
   h+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:860px">

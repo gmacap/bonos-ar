@@ -4349,6 +4349,37 @@ const omitir = (label, motivo) =>
     out.meses = document.querySelectorAll('#lic-cro-c > div:last-child > div').length;
     out.graficos = Object.keys(LIC_CHARTS.ars).length;
     out.proxima = document.getElementById('lic-prox-c').textContent.includes('Licitación');
+    // El precio estimado de corte, con un llamado armado con los instrumentos de
+    // la última licitación: una fila por instrumento, la tasa de la curva vuelve
+    // a salir del motor con el precio en curva, y el premio baja el precio.
+    const prox = (D.cronograma || []).find(c => c[1] > hoyAR());
+    if (prox) {
+      for (let k = 0; k < 120 && D.licitaciones.some(l => !LIC_SNAP.has(l.fecha)); k++) await espera(250);
+      const llOrig = D.llamado, ult = D.licitaciones[D.licitaciones.length - 1];
+      D.llamado = { fecha: prox[1], liquidacion: prox[2], instrumentos: ult.instrumentos.filter(i => i.ronda !== 2 && !i.desierto)
+        .map(i => ({ ticker: i.ticker, nombre: i.nombre, clase: i.clase, dual: i.dual, estado: 'reapertura', vencimiento: i.vencimiento })) };
+      try {
+        await licRenderProximo('ars');
+        const filasHoy = await curvasFetchSnapshot(hoyAR(), 'ALL');
+        const liqP = parseDate(prox[2]), tcP = licA3500En(hoyAR());
+        const hist = !D.licitaciones.some(l => l.fecha < prox[1] && !LIC_SNAP.has(l.fecha));
+        const E = D.llamado.instrumentos.filter(i => licEnVista(i, 'pesos'))
+          .map(i => licEstimar(i, { fecha: hoyAR(), filas: filasHoy, vivo: true }, liqP, prox[1], hist, tcP));
+        const vuelve = E.filter(o => o.pCurva && o.pCurva.precio > 0).map(o => {
+          const bono = licBono(o.sec, o.i.ticker);
+          const p = o.sec === 'DLK' ? o.pCurva.precio / 10 * tcP : o.pCurva.precio / 10;
+          const r = bono && licTasaMotor(o.sec, bono, p, liqP, tcP);
+          return !!r && Math.abs(r.v - o.curva) < 1e-4;
+        });
+        const baja = E.filter(o => o.pe && o.pPremio && o.pPremio.precio > 0 && o.pMercado && o.pMercado.precio > 0 && Math.abs(o.pe.med) >= 1)
+          .map(o => (o.pe.med > 0) === (o.pPremio.precio < o.pMercado.precio));
+        out.estimado = { filas: document.querySelectorAll('#lic-prox-est tbody tr').length, esperadas: E.length, hist,
+          conPremio: E.filter(o => o.pe).length, vuelve: vuelve.length, vuelveOk: vuelve.every(Boolean), baja: baja.length, bajaOk: baja.every(Boolean) };
+      } finally {
+        D.llamado = llOrig;
+        await licRenderProximo('ars');
+      }
+    }
     // Dólares: la misma página, arrancando con los Bonares.
     switchSection('usd'); switchUsdTab('usd-licitaciones');
     await espera(1500);
@@ -4378,6 +4409,10 @@ const omitir = (label, motivo) =>
           'el premio es corte menos mercado, en pb, y queda en un rango creíble', JSON.stringify({ con: lic.conPremio, max: Math.round(lic.premioMax) }));
     check(lic.secciones === 6 && lic.meses === 12 && lic.graficos >= 3 && lic.proxima,
           'próxima licitación, resultado, colocación, plazos, premios y cronograma', JSON.stringify({ s: lic.secciones, m: lic.meses, g: lic.graficos }));
+    const es = lic.estimado;
+    if (!es) omitir('el próximo llamado trae el precio en curva y con premio', 'no quedan licitaciones en el cronograma publicado');
+    else check(es.filas === es.esperadas && es.esperadas > 0 && es.vuelve > 0 && es.vuelveOk && (!es.hist || (es.conPremio > 0 && es.baja > 0 && es.bajaOk)),
+          'el próximo llamado trae el precio en curva y con premio: el de curva vuelve a dar su tasa y el premio baja el precio', JSON.stringify(es));
     check(lic.usd.visible && lic.usd.ver === 'usd' && lic.usd.soloUsd && lic.todos >= lic.usd.filas,
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
