@@ -124,7 +124,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .hdate{font-size:var(--fs11);color:var(--text3);white-space:nowrap;}
 
 .nav{display:flex;border-bottom:1px solid var(--border);padding:0 1.5rem;background:var(--bg);overflow-x:auto;}
-.nav-tab{padding:9px 16px;font-size:var(--fs11);font-family:var(--mono);color:var(--text3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.nav-tab{padding:8px 16px;font-size:var(--fs11);font-family:var(--mono);color:var(--text3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
 .nav-tab:hover{color:var(--text2);}
 .nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
 /* Grupos de solapas: un botón y una lista. La lista va con position:fixed porque
@@ -1503,7 +1503,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
 
     <!-- COL 1: Breakevens (resizable) -->
-    <div id="be-col1" style="width:370px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
+    <div id="be-col1" style="width:405px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
 
       <!-- BE Inflación -->
       <div>
@@ -2696,19 +2696,20 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   // etiquetas de los puntos— escalado por el tamaño de letra elegido (--esc).
   // Las etiquetas llevan un borde del color del fondo, y las que se pisan con
   // otra se ocultan (vuelven al pasar el mouse). El tamaño propio de cada uno se
-  // guarda la primera vez, así reaplicar no lo agranda de nuevo.
+  // guarda la primera vez en $base, una propiedad común para que sobreviva a las
+  // copias que hace Chart.js al actualizar: así reaplicar no lo agranda de nuevo.
   const LETRA_MIN={eje:11,etiqueta:10};
   const letraEsc=()=>{try{return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--esc'))||1;}catch(e){return 1;}};
   const letraFondo=()=>{try{return getComputedStyle(document.body).getPropertyValue('--surface').trim()||'#141715';}catch(e){return'#141715';}};
   function letraFuente(f,min,esc){
     if(!f||typeof f!=='object')return;
-    if(!('$base' in f))Object.defineProperty(f,'$base',{value:typeof f.size==='number'?f.size:null,enumerable:false});
+    if(!('$base' in f))f.$base=typeof f.size==='number'?f.size:null;
     f.size=+(Math.max(min,f.$base||0)*esc).toFixed(1);
   }
   function letraEtiquetas(d,esc,fondo){
     if(!d||typeof d!=='object')return;
     if(typeof d.font!=='function'){d.font=d.font||{};letraFuente(d.font,LETRA_MIN.etiqueta,esc);}
-    if(d.textStrokeWidth==null||d.$halo){d.textStrokeColor=fondo;d.textStrokeWidth=3;Object.defineProperty(d,'$halo',{value:true,enumerable:false,configurable:true});}
+    if(d.textStrokeWidth==null||d.$halo){d.textStrokeColor=fondo;d.textStrokeWidth=3;d.$halo=true;}
     if(d.display===true)d.display='auto';
   }
   function letraConfig(cfg){
@@ -13025,7 +13026,7 @@ const BE_COL_LS='bonosAR_be_colwidths';
 // tuviera la TAMAR real (285), el forward del breakeven (315) o el último mes de
 // IPC (370, con lugar para la barra de desplazamiento): con menos, la columna nueva quedaba cortada, y el ancho viejo
 // estaba en el localStorage de todos los que ya habían entrado.
-const BE_COL1_MIN_UTIL=370;
+const BE_COL1_MIN_UTIL=405;   // con la letra de 12 px, la tabla con IPC y forward mide unos 380
 function beColWidthsLoad(){
   try{const r=localStorage.getItem(BE_COL_LS);if(r){const m=JSON.parse(r);['be-col1','be-col2'].forEach(id=>{
     const col=document.getElementById(id);
