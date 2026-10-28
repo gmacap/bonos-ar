@@ -3731,6 +3731,24 @@ const omitir = (label, motivo) =>
         'los grises de texto se leen en los tres temas, y los ejes de los gráficos usan el del tema',
         JSON.stringify(contraste));
 
+  // El tamaño de letra: A+ escala la letra chica de la página y la de los ejes
+  // de un gráfico abierto, y volver a A los deja como estaban.
+  const letra = await page.evaluate(() => {
+    const px = () => { const d = document.createElement('span'); d.style.fontSize = 'var(--fs10)'; document.body.appendChild(d); const v = parseFloat(getComputedStyle(d).fontSize); d.remove(); return v; };
+    const g = Object.values(Chart.instances || {}).find(c => c.options && c.options.scales && c.options.scales.x);
+    const eje = () => g ? g.options.scales.x.ticks.font.size : null;
+    const antes = { px: px(), eje: eje() };
+    setLetra('grande');
+    const grande = { px: px(), eje: eje(), activo: document.getElementById('letra-btn-grande').classList.contains('active') };
+    setLetra('normal');
+    const vuelta = { px: px(), eje: eje() };
+    return { antes, grande, vuelta, guardado: localStorage.getItem('bonosAR_letra') };
+  });
+  check(Math.abs(letra.antes.px - 12) < 0.01 && Math.abs(letra.grande.px - 13.8) < 0.01 && letra.grande.activo
+        && (letra.antes.eje == null || Math.abs(letra.grande.eje - letra.antes.eje * 1.15) < 0.11) && letra.vuelta.px === letra.antes.px
+        && letra.vuelta.eje === letra.antes.eje && letra.guardado === 'normal',
+        'el tamaño de letra escala la página y los gráficos, y vuelve', JSON.stringify(letra));
+
   // El BCRA a veces no contesta. Cada página se reintenta con más espera, una
   // página que falta en el medio no deja una serie a medias, y sin respuesta
   // queda la serie guardada con un aviso arriba que se va cuando contesta. Se

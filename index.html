@@ -415,6 +415,11 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="mode-btn"        id="theme-btn-mid"   onclick="setTheme('mid')"  title="Medio">◑</button>
       <button class="mode-btn"        id="theme-btn-light" onclick="setTheme('light')" title="Claro">○</button>
     </div>
+    <div class="mode-row" id="letra-switcher" title="Tamaño de letra">
+      <button class="mode-btn"        id="letra-btn-chica"  onclick="setLetra('chica')"  title="Letra más chica" aria-label="Letra más chica">A−</button>
+      <button class="mode-btn active" id="letra-btn-normal" onclick="setLetra('normal')" title="Letra normal" aria-label="Letra normal">A</button>
+      <button class="mode-btn"        id="letra-btn-grande" onclick="setLetra('grande')" title="Letra más grande" aria-label="Letra más grande">A+</button>
+    </div>
     <span id="snap-estado" onclick="snapEstadoRefrescar()" title="Estado del snapshot diario"
       style="display:none;align-items:center;gap:5px;font-family:var(--mono);font-size:var(--fs10);
              padding:3px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;
@@ -1491,8 +1496,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <!-- ═══════════════════════════════════════════════════════ BREAKEVEN PAGE -->
 <div id="page-breakeven" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;">
   <!-- TABLERO DEL DÍA -->
-  <div id="be-tablero" style="height:60px;box-sizing:border-box;display:flex;align-items:stretch;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;"></div>
-  <div id="be-columns" style="display:flex;height:calc(100% - 60px);gap:0;min-height:0;">
+  <!-- El alto de la franja sigue al tamaño de letra: con A+ el tercer renglón
+       quedaba cortado. -->
+  <div id="be-tablero" style="height:calc(60px*var(--esc));box-sizing:border-box;display:flex;align-items:stretch;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;"></div>
+  <div id="be-columns" style="display:flex;height:calc(100% - 60px*var(--esc));gap:0;min-height:0;">
 
 
     <!-- COL 1: Breakevens (resizable) -->
@@ -12539,6 +12546,25 @@ function setTheme(t){
   // resize charts after theme change
   [curveChart,beChartTF,beChartCER,cerTabChart,tamarTabChart,dlkTabChart].forEach(c=>{if(c)c.resize();});
 }
+// El tamaño de letra: mueve --esc, que escala toda la letra chica y la de los
+// gráficos (los títulos y los márgenes quedan). Es de la pantalla, como el
+// tema: se guarda en este navegador y no en la cuenta.
+const LETRA_ESC={chica:.92,normal:1,grande:1.15};
+function setLetra(t){
+  if(!LETRA_ESC[t])t='normal';
+  document.documentElement.style.setProperty('--esc',String(LETRA_ESC[t]));
+  ['chica','normal','grande'].forEach(x=>{
+    const b=document.getElementById('letra-btn-'+x);
+    if(b)b.classList.toggle('active',x===t);
+  });
+  try{localStorage.setItem('bonosAR_letra',t);}catch(e){}
+  if(window.letraGraficos)letraGraficos();
+}
+(function(){
+  let t='normal';
+  try{t=localStorage.getItem('bonosAR_letra')||'normal';}catch(e){}
+  if(t!=='normal')setLetra(t);
+}());
 // restore saved theme
 (function(){
   const saved=localStorage.getItem('bonosAR_theme')||'dark';
