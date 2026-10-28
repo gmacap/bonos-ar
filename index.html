@@ -33,6 +33,9 @@
   --info:#7ab3d4;--info-dim:#121f2a;
   --danger:#d47a7a;--danger-dim:#2e1a1a;
   --mono:'DM Mono',monospace;--serif:'Fraunces',serif;
+  /* Los renglones de las tablas: uno de cada dos más claro, bien marcado para
+     no saltar de renglón en tablas anchas, y el que está bajo el mouse. */
+  --zebra:rgba(255,255,255,.065);--fila-hover:rgba(168,213,162,.16);
 }
 /* TEMA MEDIO */
 body.theme-mid{
@@ -44,6 +47,7 @@ body.theme-mid{
   --warn:#d4a96a;--warn-dim:#2e2412;
   --info:#7ab3d4;--info-dim:#162130;
   --danger:#d47a7a;--danger-dim:#321f1f;
+  --zebra:rgba(255,255,255,.07);--fila-hover:rgba(142,204,136,.17);
 }
 /* TEMA CLARO */
 body.theme-light{
@@ -55,6 +59,7 @@ body.theme-light{
   --warn:#6a3a00;--warn-dim:#f0d8b0;
   --info:#08406e;--info-dim:#b4d0ec;
   --danger:#7a1010;--danger-dim:#f0c4c4;
+  --zebra:rgba(20,60,20,.075);--fila-hover:rgba(20,94,16,.14);
 }
 /* Ajustes específicos tema claro para mejor legibilidad */
 body.theme-light .nav-tab{color:#2c4a2c;}
@@ -74,7 +79,7 @@ body.theme-light .metric-label{color:#2c4a2c;}
 body.theme-light .metric-value{color:#0a140a;font-weight:500;}
 body.theme-light .panel-body{color:#0a140a;}
 body.theme-light table th{color:#1e3a1e;background:#d4dcd4;}
-body.theme-light table tr:hover td{background:rgba(0,0,0,0.04);}
+body.theme-light table tr:hover td{background:var(--fila-hover);}
 body.theme-light .pane-title{color:#0a140a;font-weight:500;}
 body.theme-light .pane-toolbar{background:#e4ebe4;border-color:#9ab09a;}
 body.theme-light .api-status{color:#2c4a2c;}
@@ -211,7 +216,8 @@ thead th:hover{color:var(--text2);}
 thead th.sorted{color:var(--accent);}
 tbody tr{border-bottom:1px solid var(--border);transition:background .08s;}
 tbody tr:last-child{border-bottom:none;}
-tbody tr:hover{background:var(--surface2);}
+tbody tr:nth-child(even){background:var(--zebra);}
+tbody tr:hover{background:var(--fila-hover);}
 tbody tr.selected{background:var(--accent-dim);}
 td{padding:0;height:36px;text-align:right;font-size:var(--fs13);}
 td.ticker-cell{text-align:left;}
@@ -4680,6 +4686,11 @@ function heatRange(col){
   if(vals.length<2)return null;
   return{min:Math.min(...vals),max:Math.max(...vals)};
 }
+// El color del mapa de calor: el fondo suave, para que se lean los números, y
+// una franja al costado que conserva la lectura de un vistazo.
+function heatFondo(r,g,b){
+  return `background:rgba(${r},${g},${b},0.12);box-shadow:inset 3px 0 0 rgba(${r},${g},${b},0.85);`;
+}
 // returns inline style string for heatmap cell background
 function heatStyle(val,range,col){
   if(!range||val==null||isNaN(val))return'';
@@ -4688,7 +4699,7 @@ function heatStyle(val,range,col){
   const r=Math.round(180*(1-t));
   const g=Math.round(160*t);
   const b=0;
-  return `background:rgba(${r},${g},${b},0.22);`;
+  return heatFondo(r,g,b);
 }
 
 function buildRow(r){
@@ -5939,7 +5950,7 @@ function cerHeatStyle(val,col){
   const mn=Math.min(...vals),mx=Math.max(...vals);
   const t=mx===mn?0.5:(val-mn)/(mx-mn);
   const rv=Math.round(180*(1-t)),gv=Math.round(160*t);
-  return `background:rgba(${rv},${gv},0,0.22);`;
+  return heatFondo(rv,gv,0);
 }
 
 function cerRenderTable(){
@@ -5999,9 +6010,9 @@ function cerRenderTable(){
     }
 
     // columnas proyectadas: no editables, color ámbar
-    function cercProy(val){
+    function cercProy(val,col){
       if(v||val==null||isNaN(val))return`<div class="cv no-edit c-muted">—</div>`;
-      const hs=cerHeatStyle(val,cerSortCol.includes('Proy')?cerSortCol:'tirProy');
+      const hs=cerHeatStyle(val,col);
       return`<div class="cv no-edit" style="color:var(--warn);${hs}">${fmtP2(val)}</div>`;
     }
 
@@ -6016,9 +6027,9 @@ function cerRenderTable(){
       <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td>${cerc('tir')}</td>
-      <td>${cercProy(r.tirProy)}</td>
-      <td>${cercProy(r.tnaProy)}</td>
-      <td>${cercProy(r.temProy)}</td>
+      <td>${cercProy(r.tirProy,'tirProy')}</td>
+      <td>${cercProy(r.tnaProy,'tnaProy')}</td>
+      <td>${cercProy(r.temProy,'temProy')}</td>
       <td onclick="event.stopPropagation()"><div class="row-act">
         <button class="rbtn del" onclick="cerDeleteRow('${r.ticker}')" style="display:${isAdmin()?'':'none'}">✕</button>
       </div></td>
