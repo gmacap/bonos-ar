@@ -221,6 +221,11 @@ tbody tr:hover{background:var(--fila-hover);}
 tbody tr.selected{background:var(--accent-dim);}
 td{padding:0;height:36px;text-align:right;font-size:var(--fs13);}
 td.ticker-cell{text-align:left;}
+/* Las explicaciones largas van detrás de un botón "i": el texto aparece al
+   pasar el mouse o con el foco del teclado (ver ayuda()). */
+.ayuda{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-family:var(--serif);font-style:italic;font-size:12px;line-height:1;padding:0;margin:0 0 0 4px;cursor:help;vertical-align:middle;flex-shrink:0;text-transform:none;letter-spacing:0;}
+.ayuda:hover,.ayuda:focus-visible{color:var(--accent);border-color:var(--accent2);outline:none;}
+.ayuda-globo{position:fixed;z-index:1000;display:none;max-width:min(400px,calc(100vw - 16px));padding:8px 11px;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-family:var(--mono);font-size:var(--fs11);line-height:1.55;white-space:normal;text-transform:none;letter-spacing:0;font-weight:400;text-align:left;pointer-events:none;}
 /* Licitaciones: los gráficos y las órdenes, lado a lado, para mover una orden
    en el gráfico y verla en la tabla a la vez; en pantallas angostas, una debajo
    de la otra. El panel de órdenes queda a la vista al bajar por los gráficos. */
@@ -22679,6 +22684,34 @@ function _curvasUsdDraw(){
   curvasUsdChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — MD ${i.parsed.x.toFixed(2)}, TIR ${i.parsed.y.toFixed(2)}%`+curvasPxTip(i.raw,'US$')}}},scales:{x:{type:'linear',title:{display:true,text:'Duration modificada (años)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:'TIR (%)',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
 }
 
+// ══════════════════════════════════════════════════════════════ AYUDA
+// Un texto largo detrás de un botón "i": un renglón de explicación cuesta
+// lugar y se lee una vez. El globo es uno solo, pegado al body: así no lo
+// recortan los paneles con scroll, y queda dentro de la ventana.
+function ayuda(texto,etiqueta){
+  return`<button type="button" class="ayuda" data-ayuda="${betrEsc(texto)}" aria-label="${betrEsc(etiqueta||'Más información')}">i</button>`;
+}
+(function(){
+  let globo=null;
+  const mostrar=el=>{
+    if(!globo){globo=document.createElement('div');globo.className='ayuda-globo';globo.setAttribute('role','tooltip');document.body.appendChild(globo);}
+    globo.textContent=el.getAttribute('data-ayuda');
+    globo.style.display='block';
+    const r=el.getBoundingClientRect(),w=globo.offsetWidth,h=globo.offsetHeight;
+    let y=r.bottom+6;
+    if(y+h>window.innerHeight-8)y=Math.max(8,r.top-h-6);
+    globo.style.left=Math.round(Math.min(Math.max(8,r.left+r.width/2-w/2),window.innerWidth-w-8))+'px';
+    globo.style.top=Math.round(y)+'px';
+  };
+  const ocultar=()=>{if(globo)globo.style.display='none';};
+  const de=e=>e.target&&e.target.closest?e.target.closest('[data-ayuda]'):null;
+  document.addEventListener('mouseover',e=>{const el=de(e);if(el)mostrar(el);});
+  document.addEventListener('mouseout',e=>{const el=de(e);if(el&&!el.contains(e.relatedTarget))ocultar();});
+  document.addEventListener('focusin',e=>{const el=de(e);if(el)mostrar(el);});
+  document.addEventListener('focusout',e=>{if(de(e))ocultar();});
+  document.addEventListener('scroll',ocultar,true);
+})();
+
 // ══════════════════════════════════════════════════════════════ LICITACIONES
 // Las licitaciones del Tesoro: el cronograma, el próximo llamado sobre la curva
 // de hoy y el resultado de cada licitación con su premio contra el secundario.
@@ -23069,7 +23102,7 @@ function licPaginaHTML(sec){
   const sub='font-size:var(--fs10);color:var(--text3);font-family:var(--mono)';
   const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px';
   const secc=(id,titulo,bajada,extra)=>`<section style="${caja}" id="${p}-${id}">
-      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px"><span style="${tit}">${titulo}</span><span style="${sub}">${bajada}</span>${extra||''}</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><span style="${tit}">${titulo}</span>${ayuda(bajada)}${extra||''}</div>
       <div id="${p}-${id}-c"></div></section>`;
   return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
@@ -23077,13 +23110,13 @@ function licPaginaHTML(sec){
       <div class="mode-row" style="margin-bottom:0;width:auto">${LIC_VER.map(([v,l])=>`<button class="mode-btn" style="white-space:nowrap;padding:5px 10px" id="${p}-ver-${v}" onclick="licVer('${sec}','${v}')">${l}</button>`).join('')}</div>
       <span id="${p}-estado" style="${sub};margin-left:auto"></span>
     </div>
-    ${secc('prox','Próxima licitación','cada instrumento del llamado sobre la curva de hoy y a qué precio puede cortar')}
-    ${secc('res','Resultado de cada licitación','corte contra el secundario del día: el mismo bono o, si es nuevo, la curva de su familia')}
-    ${secc('col','Colocación','valor efectivo adjudicado en cada licitación, por tipo de instrumento')}
-    ${secc('plz','Plazos','días desde la liquidación al vencimiento: promedio ponderado por monto y rango de lo adjudicado',
+    ${secc('prox','Próxima licitación','Cada instrumento del llamado sobre la curva de hoy, a qué precio puede cortar y las órdenes que simules.')}
+    ${secc('res','Resultado de cada licitación','El corte contra el secundario del día: el mismo bono o, si es nuevo, la curva de su familia. Los duales pagan el mayor entre la pata TAMAR (más un margen) y la otra pata; corte, mercado y premio van en la pata TAMAR, contra el mismo dual o la curva de los duales, y la otra pata se muestra abajo del corte.')}
+    ${secc('col','Colocación','El valor efectivo adjudicado en cada licitación, por tipo de instrumento. Arriba de cada barra, el total; en verde o rojo, el rollover cuando el comunicado lo informa. Una licitación fuera del cronograma (sin vencimientos que refinanciar) también suma.')}
+    ${secc('plz','Plazos','Los días desde la liquidación al vencimiento: el promedio ponderado por monto y el rango de lo adjudicado. Se le puede sumar el corte promedio de un tipo.',
       `<label class="gsel-lbl" style="margin-left:auto">Sumar corte promedio<select id="${p}-ovl" class="gsel" onchange="licOvl('${sec}',this.value)"></select></label>`)}
-    ${secc('pre','Historial de premios','cuánto pagó el Tesoro por encima (+) o por debajo (−) del secundario, por tipo, ponderado por monto')}
-    ${secc('cro','Cronograma','llamado, licitación y liquidación, según el calendario de la Secretaría de Finanzas')}
+    ${secc('pre','Historial de premios','Cuánto pagó el Tesoro por encima (+) o por debajo (−) del secundario, por tipo, ponderado por monto. Contra el cierre del día de cada licitación: el mismo bono si cotizaba, y si no la curva de su familia. La escala corta en ±300 pb; el valor real está en el globo de cada barra.')}
+    ${secc('cro','Cronograma','Llamado, licitación y liquidación, según el calendario de la Secretaría de Finanzas.')}
   </div>`;
 }
 
@@ -23343,10 +23376,10 @@ function licTablaEstimada(E,liq,hist,L){
     return`<tr><td style="${td};text-align:left" title="${betrEsc(i.nombre||'')}">${nombre}</td><td style="${td}">${betrF(i.vencimiento)}<span style="${chico}">${o.dias?o.dias+' d':''}</span></td>
       <td style="${td}">${merc}</td><td style="${td}">${curva}</td><td style="${td}">${pre}</td><td style="${td}">${con}</td></tr>`;
   }).join('');
+  const nota=`Precios por cada VNO 1.000, como en el comunicado, y tasas a la liquidación del ${betrF(fmtDate(liq))}; una LECAP nueva se licita por TEM y una TAMAR nueva por margen, a la par. El secundario y la curva son de hoy a T+1: ${L&&L.factor?`se llevan a la liquidación con la caución de ${L.dias} día${L.dias===1?'':'s'} (${licN(L.cau)}% TNA), que es lo que cuesta comprar hoy en pantalla financiándose hasta ahí`:'sin caución de BYMA, se toma la misma tasa a la liquidación'}${E.some(o=>o.sec==='BON')?'; los Bonares, a la misma tasa':''}. En curva: la tasa de la curva al mismo vencimiento. Con premio: el secundario del mismo bono —o la curva, si es nuevo o no cotiza— más la mediana de los últimos ${LIC_PREMIO_N} premios de su tipo, medidos igual. Esos premios se midieron contra el cierre a T+1 del día de cada licitación, sin llevarlo con la caución: un día, unos pocos pb. Se espera premio cuando la mediana pasa +${LIC_PREMIO_UMBRAL} pb y lo dieron al menos dos de cada tres.`;
   return`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:var(--fs12);min-width:780px">
-    <thead><tr><th style="${th};text-align:left">Instrumento</th><th style="${th}">Vence</th><th style="${th}">Secundario hoy</th><th style="${th}">En curva</th><th style="${th}">Premio histórico</th><th style="${th}">Con premio</th></tr></thead>
-    <tbody>${filas}</tbody></table></div>
-    <div style="${LIC_SUB};margin-top:6px;white-space:normal">Precios por cada VNO 1.000, como en el comunicado, y tasas a la liquidación del ${betrF(fmtDate(liq))}; una LECAP nueva se licita por TEM y una TAMAR nueva por margen, a la par. El secundario y la curva son de hoy a T+1: ${L&&L.factor?`se llevan a la liquidación con la caución de ${L.dias} día${L.dias===1?'':'s'} (${licN(L.cau)}% TNA), que es lo que cuesta comprar hoy en pantalla financiándose hasta ahí`:'sin caución de BYMA, se toma la misma tasa a la liquidación'}${E.some(o=>o.sec==='BON')?'; los Bonares, a la misma tasa':''}. En curva: la tasa de la curva al mismo vencimiento. Con premio: el secundario del mismo bono —o la curva, si es nuevo o no cotiza— más la mediana de los últimos ${LIC_PREMIO_N} premios de su tipo, medidos igual. Esos premios se midieron contra el cierre a T+1 del día de cada licitación, sin llevarlo con la caución: un día, unos pocos pb. Se espera premio cuando la mediana pasa +${LIC_PREMIO_UMBRAL} pb y lo dieron al menos dos de cada tres.</div>`;
+    <thead><tr><th style="${th};text-align:left">Instrumento${ayuda(nota,'Cómo se calculan los precios')}</th><th style="${th}">Vence</th><th style="${th}">Secundario hoy</th><th style="${th}">En curva</th><th style="${th}">Premio histórico</th><th style="${th}">Con premio</th></tr></thead>
+    <tbody>${filas}</tbody></table></div>`;
 }
 
 // ── Órdenes ──────────────────────────────────────────────────────────────────
@@ -23650,9 +23683,9 @@ function licRenderOrdenes(sec){
     }).join('');
   }).join('');
   const dl=P.todos.some(o=>o.sec==='DLK');
-  const nota=`El premio es la tasa de la orden menos la de la curva de hoy o la del mismo bono, las dos llevadas a la liquidación con la caución, en pb: positivo es más tasa que el mercado, o sea un precio más bajo. El precio va por cada VNO 1.000, a la liquidación de la licitación; el monto es VN × precio / 1.000, en pesos, salvo los Bonares, en dólares${dl&&P.tc?`; el dollar linked se integra en pesos al último A3500 (${licN(P.tc,4)}), y el comunicado dice el que se aplica`:''}. El CSV trae Ticker, Oferta, VN y Monto, separado por punto y coma.`;
+  const nota=`Una orden por renglón, varias por bono para escalonar. pb curva y pb bono: la tasa de la orden menos la de la curva de hoy o la del mismo bono, las dos llevadas a la liquidación con la caución; positivo es más tasa que el mercado, o sea un precio más bajo. Pasá el mouse por un número para el detalle. El precio va por cada VNO 1.000, a la liquidación de la licitación; el monto es VN × precio / 1.000, en pesos, salvo los Bonares, en dólares${dl&&P.tc?`; el dollar linked se integra en pesos al último A3500 (${licN(P.tc,4)}), y el comunicado dice el que se aplica`:''}. El CSV trae Ticker, Oferta, VN y Monto, separado por punto y coma.`;
   cont.innerHTML=`<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-      <span style="font-family:var(--serif);font-style:italic;font-size:15px;color:var(--accent)">Órdenes</span>
+      <span style="font-family:var(--serif);font-style:italic;font-size:15px;color:var(--accent)">Órdenes</span>${ayuda(nota,'Cómo se leen las órdenes')}
       <span id="${p}-ord-sub" style="${LIC_SUB}"></span></div>
     <table class="lic-ord"><thead><tr><th style="text-align:left">Oferta</th><th style="text-align:left">Cantidad</th>
       <th title="La tasa de un precio, o el precio de una tasa, a la liquidación">Equiv.</th><th title="El monto si escribiste VN, o los VN si escribiste el monto">Monto/VN</th>
@@ -23660,8 +23693,7 @@ function licRenderOrdenes(sec){
       <tbody>${filas}</tbody></table>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px">
       <button id="${p}-ord-csv" class="btn" style="padding:3px 10px" onclick="licOrdCSV('${sec}')">⤓ Bajar órdenes (CSV)</button>
-      <span id="${p}-ord-tot" style="${LIC_SUB}"></span></div>
-    <div style="${LIC_SUB};margin-top:6px;white-space:normal" title="${betrEsc(nota)}">pb: la tasa de la orden menos la de la curva o la del bono, a la liquidación; + es más tasa, precio más bajo. Pasá el mouse por un número para el detalle.</div>`;
+      <span id="${p}-ord-tot" style="${LIC_SUB}"></span></div>`;
   grupos.forEach(({o,k})=>licOrdLista(o).forEach(ord=>licOrdPintar(sec,k,ord.id)));
   licOrdTotales(sec);
   licOrdDestacar(sec);
@@ -23684,7 +23716,7 @@ function licOrdDestacar(sec){
     if(es&&!primera)primera=tr;
   });
   const sub=document.getElementById(p+'-ord-sub'),C=foco&&LIC_CLASES[foco];
-  if(sub)sub.textContent=C?`las de ${C.l}, destacadas · la descarga lleva todas`:'varias por bono, en precio o en tasa';
+  if(sub)sub.textContent=C?`${C.l}, destacadas`:'';
   if(primera&&!primera.contains(document.activeElement)){
     const top=primera.offsetTop-(cont.querySelector('thead')||{offsetHeight:0}).offsetHeight-4;
     if(top<cont.scrollTop||top>cont.scrollTop+cont.clientHeight-60)cont.scrollTop=Math.max(0,top);
@@ -23713,6 +23745,14 @@ function licTextoProx(o){
   if(x>0)return`${i.estado==='reapertura'?'sin cotización hoy':'nuevo'}: la curva de hoy da ${licN(o.curva1)}% ${C.u} a ${x} días de T+1${x>cu.max?' (extrapolada: más largo que todo lo que cotiza)':''}`;
   return'sin plazo para ubicarlo en la curva';
 }
+// Lo mismo, corto, para la tarjeta del gráfico: el detalle va en el botón.
+function licTextoCorto(o){
+  const{i,cu,x}=o;
+  if(!cu)return o.mercado1!=null?`${licN(o.mercado1)}% · sin curva`:'sin curva';
+  if(o.mercado1!=null&&x>0)return`${licN(o.mercado1)}% · ${licPb((o.mercado1-o.curva1)*100)} vs curva`;
+  if(x>0)return`${i.estado==='reapertura'?'sin cotización':'nuevo'} · curva ${licN(o.curva1)}%`;
+  return'sin plazo';
+}
 function licFoco(sec,c){
   LIC_ESTADO[sec].foco=c||null;
   licRenderGraficos(sec);
@@ -23730,14 +23770,14 @@ function licRenderGraficos(sec){
   const ver=foco?[foco]:fams;
   cont.innerHTML=`<div style="display:grid;grid-template-columns:${foco?'1fr':'repeat(auto-fit,minmax(min(350px,100%),1fr))'};gap:14px">${ver.map(c=>{
     const C=LIC_CLASES[c],de=P.E.filter(o=>o.i.clase===c),cu=de.some(o=>o.cu);
-    const boton=foco?`<button class="btn" style="margin-left:auto;padding:2px 10px;font-size:var(--fs11)" onclick="licFoco('${sec}',null)">← todas las curvas</button>`
+    const boton=foco?`${ayuda('Arrastrá el bono o una orden hacia arriba o hacia abajo: la orden se escribe en el panel de la derecha, con su precio. Del bono sale una orden nueva.','Cómo se arrastra')}<button class="btn" style="margin-left:auto;padding:2px 10px;font-size:var(--fs11)" onclick="licFoco('${sec}',null)">← todas las curvas</button>`
       :cu?`<button class="btn" style="margin-left:auto;padding:2px 10px;font-size:var(--fs11)" onclick="licFoco('${sec}','${c}')">⤢ ampliar</button>`:'';
     return`<div style="border:1px solid var(--border);border-radius:4px;padding:8px 10px 6px;min-width:0">
       <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
         <span style="font-family:var(--mono);font-size:var(--fs12);color:${C.c}">${C.l}</span><span style="${LIC_SUB}">${C.u}</span>${boton}</div>
-      ${de.map(o=>`<div style="${LIC_SUB};margin-top:3px"><span style="color:var(--text2)">${betrEsc(licNombre(o.i))}</span> · ${betrEsc(licTextoProx(o))}</div>`).join('')}
-      ${!cu?`<div style="${LIC_SUB};margin-top:8px">Sin curva no hay gráfico: las órdenes se cargan igual en el panel de la derecha${de.some(o=>o.mercado!=null)?', con su premio contra el mismo bono':''}.</div>`
-      :`${foco?`<div style="${LIC_SUB};margin-top:6px;color:var(--accent)">Arrastrá el bono o una orden hacia arriba o hacia abajo: la orden se escribe en el panel de la derecha, con su precio. Del bono sale una orden nueva.</div>`:''}
+      <div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:3px">${de.map(o=>`<span style="${LIC_SUB};display:inline-flex;align-items:center"><span style="color:var(--text2);margin-right:5px">${betrEsc(licNombre(o.i))}</span>${betrEsc(licTextoCorto(o))}${ayuda(licTextoProx(o))}</span>`).join('')}</div>
+      ${!cu?`<div style="${LIC_SUB};margin-top:8px;display:flex;align-items:center">Sin curva hoy${ayuda('Sin curva no hay gráfico: las órdenes se cargan igual en el panel de la derecha'+(de.some(o=>o.mercado!=null)?', con su premio contra el mismo bono':'')+'.')}</div>`
+      :`
       <div style="height:${foco?'min(520px,62vh)':'360px'};position:relative;margin-top:6px"><canvas id="${p}-prox-g-${c}"></canvas></div>`}</div>`;
   }).join('')}</div>`;
   const col=licColores();
@@ -23958,7 +23998,6 @@ function licRenderResultado(sec){
         <td style="${td}">${corte}<span style="${chico}">${[precio,ofi].filter(Boolean).join(' · ')}</span>${pata}</td>
         <td style="${td}">${merc}</td><td style="${td}">${pr}</td></tr>`;
     }).join('')}</tbody></table></div>`;
-  if(filas.some(i=>i.clase==='dual'))h+=`<div style="${LIC_SUB};margin-top:6px">Los duales pagan el mayor entre la pata TAMAR (más un margen) y la otra pata. Corte, mercado y premio van en la pata TAMAR, contra el mismo dual o la curva de los duales; la otra pata se muestra abajo del corte.</div>`;
   // Un gráfico por familia: el secundario del día, su curva y los cortes.
   const fams=Object.keys(LIC_CLASES).filter(k=>filas.some(i=>i.clase===k&&i.corte&&i.corte.v!=null&&i.x>0));
   if(r.ref&&fams.length)h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-top:12px">${fams.map(k=>`<div>
@@ -24023,8 +24062,7 @@ function licRenderColocacion(sec){
       ${licTile(`Colocado en ${anio} (${delAnio.length} licitaciones)`,licMonto(tot,mon))}
       ${licTile(`Tipo más colocado en ${anio}`,top?`${LIC_CLASES[top[0]].l} · ${Math.round(top[1]/tot*100)}%`:'—')}
       ${ver!=='usd'?licTile('Cobertura, últimas 6',cob?licN(cob)+'x':'—',null,'Ofertado sobre adjudicado, valor efectivo total de cada licitación'):''}
-    </div>${licScroll(p,'col',H.length,280)}
-    <div style="${LIC_SUB};margin-top:6px">Arriba de cada barra, el total; en verde o rojo, el rollover cuando el comunicado lo informa. Una licitación fuera del cronograma (sin vencimientos que refinanciar) también suma.</div>`;
+    </div>${licScroll(p,'col',H.length,280)}`;
   const col=licColores(),clases=Object.keys(LIC_CLASES).filter(k=>H.some(x=>x.r.porClase[k]>0));
   const div=mon==='USD'?1:1e6;
   const ds=clases.map(k=>({label:LIC_CLASES[k].l,data:H.map(x=>(x.r.porClase[k]||0)/div),backgroundColor:LIC_CLASES[k].c,stack:'s',datalabels:{display:false}}));
@@ -24086,7 +24124,7 @@ function licRenderPremios(sec){
   const clases=Object.keys(LIC_CLASES).filter(k=>filas.some(f=>f.pr[k]&&f.pr[k].premio!=null));
   if(!clases.length){cont.innerHTML=`<div style="${LIC_SUB}">${pendientes?'Cargando el secundario de cada licitación…':'Sin premios para mostrar en esta vista.'}</div>`;return;}
   const TOPE=300;
-  cont.innerHTML=licScroll(p,'pre',H.length,300)+`<div style="${LIC_SUB};margin-top:6px">Contra el cierre del día de cada licitación: el mismo bono si cotizaba, y si no la curva de su familia. La escala corta en ±${TOPE} pb; el valor real está en el globo.${pendientes?' Cargando las ruedas que faltan…':''}</div>`;
+  cont.innerHTML=licScroll(p,'pre',H.length,300)+(pendientes?`<div style="${LIC_SUB};margin-top:6px">Cargando las ruedas que faltan…</div>`:'');
   const col=licColores();
   const ds=clases.map(k=>({label:LIC_CLASES[k].l,data:filas.map(f=>{const v=f.pr[k]&&f.pr[k].premio;return v==null?null:Math.max(-TOPE,Math.min(TOPE,v));}),
     _real:filas.map(f=>f.pr[k]&&f.pr[k].premio),_n:filas.map(f=>f.pr[k]&&f.pr[k].n),backgroundColor:LIC_CLASES[k].c,borderRadius:2,datalabels:{display:false}}));

@@ -4408,6 +4408,14 @@ const omitir = (label, motivo) =>
     out.meses = document.querySelectorAll('#lic-cro-c > div:last-child > div').length;
     out.graficos = Object.keys(LIC_CHARTS.ars).length;
     out.proxima = document.getElementById('lic-prox-c').textContent.includes('Licitación');
+    // Las explicaciones van detrás de botones "i": al pasar el mouse, el globo.
+    const bi = document.querySelector('#page-licitaciones .ayuda');
+    if (bi) bi.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    const globo = document.querySelector('.ayuda-globo');
+    out.ayuda = { botones: document.querySelectorAll('#page-licitaciones .ayuda').length,
+      globo: !!globo && globo.style.display === 'block' && globo.textContent.length > 20 };
+    if (bi) bi.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+    out.ayuda.seVa = !globo || globo.style.display === 'none';
     // El precio estimado de corte, con un llamado armado con los instrumentos de
     // la última licitación: una fila por instrumento, la tasa de la curva vuelve
     // a salir del motor con el precio en curva, y el premio baja el precio. El
@@ -4528,6 +4536,8 @@ const omitir = (label, motivo) =>
           'el resultado muestra una fila por instrumento y los cinco indicadores', `${lic.sel}: ${lic.filas}/${lic.esperadas} filas, ${lic.tiles} tarjetas`);
     check(lic.premio && lic.conPremio > 0 && lic.premioMax < LIC_PREMIO_MAX_SMOKE,
           'el premio es corte menos mercado, en pb, y queda en un rango creíble', JSON.stringify({ con: lic.conPremio, max: Math.round(lic.premioMax) }));
+    check(lic.ayuda.botones >= 6 && lic.ayuda.globo && lic.ayuda.seVa,
+          'las explicaciones de Licitaciones van detrás de un botón "i" que muestra el texto al pasar el mouse', JSON.stringify(lic.ayuda));
     check(lic.secciones === 6 && lic.meses === 12 && lic.graficos >= 3 && lic.proxima,
           'próxima licitación, resultado, colocación, plazos, premios y cronograma', JSON.stringify({ s: lic.secciones, m: lic.meses, g: lic.graficos }));
     const es = lic.estimado;
