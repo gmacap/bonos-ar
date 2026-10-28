@@ -4473,10 +4473,25 @@ const omitir = (label, motivo) =>
           licOrdArrastrar('ars', k, id1, o.curva + 1);
           const ord1 = licOrdLista(o).find(x => x.id === id1), r3 = licOrdCalc(o, ord1, PX);
           const F = licOrdFilas('ars');
+          // Ampliada, el panel muestra todas las órdenes: las de esa curva,
+          // destacadas. Pararse en una orden de otra curva la amplía.
+          const panel = [...document.querySelectorAll('#lic-prox-ord tbody tr[data-clase]')];
+          const dest = panel.filter(tr => tr.classList.contains('destacada'));
+          const resalta = dest.length > 0 && dest.every(tr => tr.dataset.clase === o.i.clase)
+            && panel.some(tr => tr.dataset.clase !== o.i.clase && tr.classList.contains('atenuada'));
+          const otra = PE.findIndex(x => x.i.clase !== o.i.clase && x.cu);
+          let auto = null;
+          if (otra >= 0) {
+            const inp = document.getElementById('lic-o-' + licOrdLista(PE[otra])[0].id + '-v');
+            inp.focus(); auto = LIC_ESTADO.ars.foco === PE[otra].i.clase && document.activeElement === inp; inp.blur();
+          }
+          // La cantidad, con separadores de miles mientras se escribe.
+          const q = document.createElement('input');
+          const miles = ['2000000', '1234567,5', '1.000.00'].map(v => { q.value = v; licMiles(q); return q.value; });
           licFoco('ars', null);
           out.sim = { fams, lienzos, b0: r1.vsBono, c50: r2.vsCurva, monto: r2.monto, precio: r2.oferta && r2.oferta.precio, montoTxt, celda,
             cruces: cruces ? cruces.data.length : 0, solos, arrastre: r3.vsCurva, modo: licOrdModo(o, ord1),
-            csv: F.filas.length, fila: F.filas[0], ticker: o.i.ticker };
+            csv: F.filas.length, fila: F.filas[0], ticker: o.i.ticker, resalta, auto, miles };
         }
       } finally {
         LIC_ESTADO.ars.foco = null;
@@ -4529,6 +4544,9 @@ const omitir = (label, motivo) =>
           && Math.abs(sm.monto - 1e6 * sm.precio / 1000) < 1e-6 && sm.montoTxt && sm.cruces === 2 && sm.solos === 1
           && Math.abs(sm.arrastre - 100) < 1 && sm.modo === 'precio' && sm.csv === 1 && sm.fila && sm.fila[0] === sm.ticker && sm.fila[2] === 1e6
           && Math.abs(sm.fila[3] - sm.monto) < 0.01, ORD, JSON.stringify(sm));
+    if (sm) check(sm.resalta && sm.auto !== false && sm.miles.join('|') === '2.000.000|1.234.567,5|100.000',
+          'ampliada, el panel muestra todas las órdenes y destaca las de esa curva; pararse en otra la amplía; VN con separadores',
+          JSON.stringify({ resalta: sm.resalta, auto: sm.auto, miles: sm.miles }));
     check(lic.usd.visible && lic.usd.ver === 'usd' && lic.usd.soloUsd && lic.todos >= lic.usd.filas,
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
