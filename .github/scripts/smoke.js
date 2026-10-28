@@ -4467,7 +4467,7 @@ const omitir = (label, motivo) =>
           const g = LIC_CHARTS.ars['lic-prox-g-' + o.i.clase];
           const cruces = g && g.data.datasets.find(d => d._rol === 'orden' && d._k === k);
           const celda = (document.getElementById('lic-o-' + id2 + '-c') || {}).textContent;
-          const montoTxt = (document.getElementById('lic-o-' + id2 + '-mo') || {}).value;
+          const montoTxt = (document.getElementById('lic-o-' + id2 + '-d') || {}).textContent;
           licFoco('ars', o.i.clase);
           const solos = document.querySelectorAll('#lic-prox-graf canvas').length;
           licOrdArrastrar('ars', k, id1, o.curva + 1);
@@ -4525,7 +4525,7 @@ const omitir = (label, motivo) =>
     const sm = lic.sim;
     const ORD = 'órdenes: un gráfico por curva, premio contra el bono y la curva, monto, arrastre en el ampliado y CSV de back office';
     if (es && !sm) omitir(ORD, 'ningún instrumento de la última licitación cotiza hoy');
-    else if (sm) check(sm.lienzos === sm.fams && Math.abs(sm.b0) < 0.5 && Math.abs(sm.c50 - 50) < 1e-6 && /\+50 pb/.test(sm.celda)
+    else if (sm) check(sm.lienzos === sm.fams && Math.abs(sm.b0) < 0.5 && Math.abs(sm.c50 - 50) < 1e-6 && /^\+50$/.test((sm.celda || '').trim())
           && Math.abs(sm.monto - 1e6 * sm.precio / 1000) < 1e-6 && sm.montoTxt && sm.cruces === 2 && sm.solos === 1
           && Math.abs(sm.arrastre - 100) < 1 && sm.modo === 'precio' && sm.csv === 1 && sm.fila && sm.fila[0] === sm.ticker && sm.fila[2] === 1e6
           && Math.abs(sm.fila[3] - sm.monto) < 0.01, ORD, JSON.stringify(sm));
