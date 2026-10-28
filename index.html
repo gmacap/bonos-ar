@@ -23126,24 +23126,69 @@ function licPrecioPara(i,sec,tasa,liq,tc,dias,px){
   return null;
 }
 
-// Un instrumento del llamado sobre la curva de hoy, con sus dos precios.
-function licEstimar(i,ref,liq,antes,hist,tc){
+// La caución al plazo de d días corridos: entre los plazos que operaron, la
+// interpolada; afuera, la del extremo. null si no hay caución.
+function licCaucion(d){
+  const c=(typeof CAUCION_ARS!=='undefined'?CAUCION_ARS:[]).filter(x=>x.tna>0&&x.monto>0);
+  if(!c.length)return null;
+  if(d<=c[0].dias)return c[0].tna;
+  for(let k=1;k<c.length;k++)if(d<=c[k].dias){const a=c[k-1],b=c[k];return a.tna+(b.tna-a.tna)*(d-a.dias)/(b.dias-a.dias);}
+  return c[c.length-1].tna;
+}
+// De la liquidación del secundario (T+1) a la de la licitación: los días y el
+// factor de la caución de ese plazo; sin caución, factor null.
+function licLleva(liq){
+  const t1=G_LIQ||addHabiles(TODAY,1),dias=diasACT(t1,liq),cau=licCaucion(dias);
+  return{t1,dias,cau,factor:cau!=null?1+cau/100*dias/365:null};
+}
+// Una tasa del secundario, a T+1, llevada a la liquidación de la licitación: su
+// precio a T+1 —el de pantalla, si lo hay— financiado con la caución hasta la
+// liquidación, que es lo que cuesta lo mismo que licitar, y la tasa de ese
+// precio a la liquidación. Una LECAP nueva va por la cuenta de la tasa: su pago
+// se cancela. Sin factor, o sin precio, queda la misma tasa (constante).
+function licALiq(i,sec,r1,pantalla,L,liq,tc,dias,dias1,px){
+  const f=L.factor,igual=()=>({tasa:r1,precio:licPrecioPara(i,sec,r1,liq,tc,dias,px),constante:true});
+  if(r1==null||!isFinite(r1))return{tasa:null,precio:null};
+  if(!f)return igual();
+  if(i.estado==='nuevo'&&i.clase==='fija'){
+    const t=((1+r1/100*dias1/365)/f-1)*365/dias*100;
+    return{tasa:t,precio:licPrecioPara(i,sec,t,liq,tc,dias,px)};
+  }
+  if(i.estado==='nuevo'&&i.clase==='tamar'&&!licBono(sec,i.ticker))return igual();
+  let p1=null;
+  if(pantalla>0)p1=sec==='DLK'?(tc?pantalla*10/tc:null):pantalla*10;
+  else{const q=licPrecioPara(i,sec,r1,L.t1,tc,dias1,px);p1=q&&q.precio>0?q.precio:null;}
+  if(!(p1>0))return igual();
+  const pl=p1*f,t=licTasaDe(i,sec,pl,liq,tc,dias);
+  return t!=null&&isFinite(t)?{tasa:t,precio:{precio:pl,usd:sec==='DLK'||sec==='BON'}}:igual();
+}
+
+// Un instrumento del llamado sobre la curva de hoy, con sus dos precios. La
+// curva y el bono se leen en el secundario, a T+1 y al mismo vencimiento
+// (mercado1, curva1); para licitar se llevan a la liquidación de la licitación
+// con la caución (mercado, curva), y contra eso se miden los premios y las
+// órdenes. Los Bonares, sin caución en dólares, quedan a tasa constante.
+function licEstimar(i,ref,liq,antes,hist,tc,L){
+  L=L||licLleva(liq);
   const C=LIC_CLASES[i.clase]||LIC_CLASES.fija,sec=C.s;
   const cu=licCurva(ref,sec,i.clase==='dual');
   const yo=i.ticker?ref.filas.find(r=>r.ticker===i.ticker&&r.sector===sec):null;
-  const dias=i.vencimiento?Math.max(1,diasAlPago(liq,parseDate(i.vencimiento))):null;
+  const vto=i.vencimiento?parseDate(i.vencimiento):null;
+  const dias=vto?Math.max(1,diasAlPago(liq,vto)):null,dias1=vto?Math.max(1,diasAlPago(L.t1,vto)):null;
   const o={i,C,sec,cu,yo,dias};
   // El mismo bono hoy no depende de la curva: sin curva, se compara contra él.
-  o.mercado=yo&&yo.tir!=null&&isFinite(+yo.tir)?+yo.tir:null;
+  o.mercado1=yo&&yo.tir!=null&&isFinite(+yo.tir)?+yo.tir:null;
   if(cu){
-    o.x=yo&&+yo[cu.eje]>0?+yo[cu.eje]:(cu.eje==='dias'?dias:null);
-    if(o.x>0){o.curva=cu.aj.f(Math.min(Math.max(o.x,cu.min),cu.max));o.ext=o.x<cu.min||o.x>cu.max;}
+    o.x=yo&&+yo[cu.eje]>0?+yo[cu.eje]:(cu.eje==='dias'?dias1:null);
+    if(o.x>0){o.curva1=cu.aj.f(Math.min(Math.max(o.x,cu.min),cu.max));o.ext=o.x<cu.min||o.x>cu.max;}
   }
+  if(o.curva1==null&&o.mercado1==null)return o;
+  const px=yo&&+yo.price>0?+yo.price:null;
+  const Ls=sec==='BON'?{...L,factor:null}:L;
+  if(o.mercado1!=null){const m=licALiq(i,sec,o.mercado1,px,Ls,liq,tc,dias,dias1,px);o.mercado=m.tasa;o.pMercado=m.precio;o.constante=!!m.constante;}
+  if(o.curva1!=null){const c=licALiq(i,sec,o.curva1,null,Ls,liq,tc,dias,dias1,px);o.curva=c.tasa;o.pCurva=c.precio;o.constante=o.constante||!!c.constante;}
   if(o.curva==null&&o.mercado==null)return o;
   o.vs=o.mercado!=null?'bono':'curva';
-  const px=yo&&+yo.price>0?+yo.price:null;
-  if(o.curva!=null)o.pCurva=licPrecioPara(i,sec,o.curva,liq,tc,dias,px);
-  if(o.mercado!=null)o.pMercado=licPrecioPara(i,sec,o.mercado,liq,tc,dias,px);
   o.pe=hist?licPremioEsperado(i.clase,o.vs,antes):null;
   if(o.pe){
     o.conPremio=(o.vs==='bono'?o.mercado:o.curva)+o.pe.med/100;
@@ -23153,7 +23198,7 @@ function licEstimar(i,ref,liq,antes,hist,tc){
 }
 
 var LIC_SE={si:['Se espera premio','#f59e0b'],no:['No se espera premio','#4ade80'],duda:['Premio incierto','var(--text2)']};
-function licTablaEstimada(E,liq,hist){
+function licTablaEstimada(E,liq,hist,L){
   const th=LIC_TH,td=LIC_TD,chico=LIC_CHICO,gris=t=>`<span style="color:var(--text3)">${t}</span>`;
   const celda=(o,tasa,pr)=>{
     const u=`${licN(tasa)}% ${o.C.u}`;
@@ -23165,7 +23210,8 @@ function licTablaEstimada(E,liq,hist){
   const filas=E.map(o=>{
     const i=o.i,C=o.C;
     const nombre=`${betrEsc(licNombre(i))}<span style="${chico}">${C.l}${i.dual?' '+i.dual.toUpperCase()+'/TAMAR':''} · ${i.estado||''}</span>`;
-    const merc=o.mercado!=null?celda(o,o.mercado,o.pMercado):gris(i.estado==='nuevo'?'nuevo':'sin cotización hoy');
+    const pant=o.yo&&+o.yo.price>0?`<span style="${chico}">pantalla ${o.sec==='DLK'||o.sec==='BON'?'US$':'$'} ${licN(o.sec==='DLK'?(L&&L.tc?+o.yo.price*10/L.tc:null):+o.yo.price*10)} a T+1 · ${licN(o.mercado1)}%</span>`:'';
+    const merc=o.mercado!=null?celda(o,o.mercado,o.pMercado)+pant:gris(i.estado==='nuevo'?'nuevo':'sin cotización hoy');
     const curva=o.curva!=null?celda(o,o.curva,o.pCurva)+(o.ext?`<span style="${chico};color:var(--warn)">curva extrapolada</span>`:''):gris('sin curva de hoy');
     let pre=gris(o.curva==null&&o.mercado==null?'—':!hist?'cargando el historial…':'pocas licitaciones para medirlo');
     if(o.pe){
@@ -23181,7 +23227,7 @@ function licTablaEstimada(E,liq,hist){
   return`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;min-width:780px">
     <thead><tr><th style="${th};text-align:left">Instrumento</th><th style="${th}">Vence</th><th style="${th}">Secundario hoy</th><th style="${th}">En curva</th><th style="${th}">Premio histórico</th><th style="${th}">Con premio</th></tr></thead>
     <tbody>${filas}</tbody></table></div>
-    <div style="${LIC_SUB};margin-top:6px;white-space:normal">Precios por cada VNO 1.000, como en el comunicado, a la liquidación del ${betrF(fmtDate(liq))}; una LECAP nueva se licita por TEM y una TAMAR nueva por margen, a la par. En curva: la tasa de la curva de hoy a su plazo. Con premio: el secundario del mismo bono —o la curva, si es nuevo o no cotiza— más la mediana de los últimos ${LIC_PREMIO_N} premios de su tipo, medidos igual. Se espera premio cuando la mediana pasa +${LIC_PREMIO_UMBRAL} pb y lo dieron al menos dos de cada tres.</div>`;
+    <div style="${LIC_SUB};margin-top:6px;white-space:normal">Precios por cada VNO 1.000, como en el comunicado, y tasas a la liquidación del ${betrF(fmtDate(liq))}; una LECAP nueva se licita por TEM y una TAMAR nueva por margen, a la par. El secundario y la curva son de hoy a T+1: ${L&&L.factor?`se llevan a la liquidación con la caución de ${L.dias} día${L.dias===1?'':'s'} (${licN(L.cau)}% TNA), que es lo que cuesta comprar hoy en pantalla financiándose hasta ahí`:'sin caución de BYMA, se toma la misma tasa a la liquidación'}${E.some(o=>o.sec==='BON')?'; los Bonares, a la misma tasa':''}. En curva: la tasa de la curva al mismo vencimiento. Con premio: el secundario del mismo bono —o la curva, si es nuevo o no cotiza— más la mediana de los últimos ${LIC_PREMIO_N} premios de su tipo, medidos igual. Esos premios se midieron contra el cierre a T+1 del día de cada licitación, sin llevarlo con la caución: un día, unos pocos pb. Se espera premio cuando la mediana pasa +${LIC_PREMIO_UMBRAL} pb y lo dieron al menos dos de cada tres.</div>`;
 }
 
 // ── Órdenes ──────────────────────────────────────────────────────────────────
@@ -23453,7 +23499,7 @@ function licRenderOrdenes(sec){
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px">
       <button id="${p}-ord-csv" class="btn" style="padding:4px 12px" onclick="licOrdCSV('${sec}')">⤓ Bajar órdenes (CSV)</button>
       <span id="${p}-ord-tot" style="${LIC_SUB}"></span></div>
-    <div style="${LIC_SUB};margin-top:6px;white-space:normal">El premio es la tasa de la orden menos la de la curva de hoy o la del mismo bono, en pb: positivo es más tasa que el mercado, o sea un precio más bajo. Abajo, el que se espera según el historial. El precio va por cada VNO 1.000, a la liquidación de la licitación; el monto es VN × precio / 1.000, en pesos, salvo los Bonares, en dólares${dl&&P.tc?`; el dollar linked se integra en pesos al último A3500 (${licN(P.tc,4)}), y el comunicado dice el que se aplica`:''}. El CSV trae Ticker, Oferta, VN y Monto, separado por punto y coma.</div>`;
+    <div style="${LIC_SUB};margin-top:6px;white-space:normal">El premio es la tasa de la orden menos la de la curva de hoy o la del mismo bono, las dos llevadas a la liquidación con la caución, en pb: positivo es más tasa que el mercado, o sea un precio más bajo. Abajo, el que se espera según el historial. El precio va por cada VNO 1.000, a la liquidación de la licitación; el monto es VN × precio / 1.000, en pesos, salvo los Bonares, en dólares${dl&&P.tc?`; el dollar linked se integra en pesos al último A3500 (${licN(P.tc,4)}), y el comunicado dice el que se aplica`:''}. El CSV trae Ticker, Oferta, VN y Monto, separado por punto y coma.</div>`;
   grupos.forEach(({o,k})=>licOrdLista(o).forEach(ord=>licOrdPintar(sec,k,ord.id)));
   licOrdTotales(sec);
 }
@@ -23464,12 +23510,12 @@ function licRenderOrdenes(sec){
 // el bono y sus órdenes se arrastran en vertical.
 function licTextoProx(o){
   const{i,C,cu,x}=o;
-  if(!cu)return(o.mercado!=null?`hoy ${licN(o.mercado)}% ${C.u}; `:'')+'sin curva de hoy para esta familia';
-  if(o.mercado!=null&&x>0){
-    const pb=(o.mercado-o.curva)*100;
-    return`reapertura: hoy ${licN(o.mercado)}% ${C.u}, ${licPb(pb)} contra la curva (${pb>0?'más barato':'más caro'} que sus vecinos)`;
+  if(!cu)return(o.mercado1!=null?`hoy ${licN(o.mercado1)}% ${C.u}; `:'')+'sin curva de hoy para esta familia';
+  if(o.mercado1!=null&&x>0){
+    const pb=(o.mercado1-o.curva1)*100;
+    return`reapertura: hoy ${licN(o.mercado1)}% ${C.u} a T+1, ${licPb(pb)} contra la curva (${pb>0?'más barato':'más caro'} que sus vecinos)`;
   }
-  if(x>0)return`${i.estado==='reapertura'?'sin cotización hoy':'nuevo'}: la curva de hoy da ${licN(o.curva)}% ${C.u} a ${x} días${x>cu.max?' (extrapolada: más largo que todo lo que cotiza)':''}`;
+  if(x>0)return`${i.estado==='reapertura'?'sin cotización hoy':'nuevo'}: la curva de hoy da ${licN(o.curva1)}% ${C.u} a ${x} días de T+1${x>cu.max?' (extrapolada: más largo que todo lo que cotiza)':''}`;
   return'sin plazo para ubicarlo en la curva';
 }
 function licFoco(sec,c){
@@ -23613,23 +23659,27 @@ async function licRenderProximo(sec){
     return`<span style="border:1px solid ${C.c};border-radius:3px;padding:2px 7px;font-family:var(--mono);font-size:11px;opacity:${en?1:.45}" title="${betrEsc(i.nombre||'')}">${betrEsc(licNombre(i))} <span style="color:var(--text3)">${C.l}${i.dual?' '+i.dual.toUpperCase()+'/TAMAR':''} · ${i.estado||''}</span></span>`;}).join('')}
     ${P.inst.url?`<a href="${P.inst.url}" target="_blank" rel="noopener" style="${LIC_SUB};margin-left:auto">llamado ↗</a>`:''}</div>`;
   if(!ins.length){h+=`<div style="${LIC_SUB}">En este llamado no hay instrumentos de esta vista${fuera?': elegí Todos para verlos':''}.</div>`;cont.innerHTML=h;return;}
-  h+=`<div id="${p}-prox-est" style="margin-bottom:14px"><div style="${LIC_SUB}">Calculando los precios…</div></div><div id="${p}-prox-graf"></div><div id="${p}-prox-ord"></div>`;
-  cont.innerHTML=h;
+  // Lo que hay que esperar va antes de tocar la página: así un refresco no deja
+  // la sección vacía, ni pierde lo que se está escribiendo, mientras llegan.
   // La curva de hoy: en vivo si hay precios, si no la última rueda guardada.
   let filas=[];
   try{filas=await curvasFetchSnapshot(hoyAR(),'ALL');}catch(e){}
+  try{await caucionFetch();}catch(e){}
   const ref={fecha:hoyAR(),filas,vivo:true};
   const liq=parseDate(P.liquidacion||fmtDate(addHabiles(parseDate(P.fecha),2)));
   // Sin el secundario de cada licitación anterior todavía no hay premios.
   const hist=!LIC_DATA.licitaciones.some(l=>l.fecha<P.fecha&&!LIC_SNAP.has(l.fecha));
-  const tc=licA3500En(hoyAR());
+  const tc=licA3500En(hoyAR()),L={...licLleva(liq),tc};
   // Todos los del llamado, para las órdenes; en pantalla, los de la vista.
-  const todos=P.inst.instrumentos.map(i=>licEstimar(i,ref,liq,P.fecha,hist,tc));
+  const todos=P.inst.instrumentos.map(i=>licEstimar(i,ref,liq,P.fecha,hist,tc,L));
   const E=todos.filter(o=>licEnVista(o.i,v));
-  LIC_ESTADO[sec].prox={E,todos,liq,tc,fecha:P.fecha};
+  if(LIC_ESTADO[sec].arrastrando)return;
+  h+=`<div id="${p}-prox-est" style="margin-bottom:14px"></div><div id="${p}-prox-graf"></div><div id="${p}-prox-ord"></div>`;
+  cont.innerHTML=h;
+  LIC_ESTADO[sec].prox={E,todos,liq,tc,fecha:P.fecha,lleva:L};
   licOrdenes(P.fecha);
   const est=document.getElementById(p+'-prox-est');
-  if(est)est.innerHTML=licTablaEstimada(E,liq,hist);
+  if(est)est.innerHTML=licTablaEstimada(E,liq,hist,L);
   licRenderGraficos(sec);
   licRenderOrdenes(sec);
   const fe=activo&&document.getElementById(activo.id);

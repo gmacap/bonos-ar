@@ -4417,8 +4417,16 @@ const omitir = (label, motivo) =>
         });
         const baja = E.filter(o => o.pe && o.pPremio && o.pPremio.precio > 0 && o.pMercado && o.pMercado.precio > 0 && Math.abs(o.pe.med) >= 1)
           .map(o => (o.pe.med > 0) === (o.pPremio.precio < o.pMercado.precio));
+        // El secundario se lleva a la liquidación con la caución: el precio de
+        // pantalla por el factor. Y un instrumento sin cotización se ubica en la
+        // curva al mismo vencimiento, con los días desde T+1.
+        const Lp = licLleva(liqP);
+        const lleva = Lp.factor ? E.filter(o => o.sec !== 'DLK' && o.sec !== 'BON' && o.yo && +o.yo.price > 0 && o.pMercado && o.pMercado.precio > 0)
+          .map(o => Math.abs(o.pMercado.precio - o.yo.price * 10 * Lp.factor) < 1e-6) : null;
+        const mismoVto = E.filter(o => !o.yo && o.x > 0 && o.cu && o.cu.eje === 'dias').every(o => o.x === diasAlPago(Lp.t1, parseDate(o.i.vencimiento)));
         out.estimado = { filas: document.querySelectorAll('#lic-prox-est > div:first-child tbody tr').length, esperadas: E.length, hist,
-          conPremio: E.filter(o => o.pe).length, vuelve: vuelve.length, vuelveOk: vuelve.every(Boolean), baja: baja.length, bajaOk: baja.every(Boolean) };
+          conPremio: E.filter(o => o.pe).length, vuelve: vuelve.length, vuelveOk: vuelve.every(Boolean), baja: baja.length, bajaOk: baja.every(Boolean),
+          caucion: Lp.cau, lleva: lleva && lleva.length, llevaOk: lleva ? lleva.every(Boolean) : null, mismoVto };
         // Las órdenes. Un gráfico por curva. El precio del secundario, escrito
         // como lo escribe un operador, da premio cero contra el bono; una segunda
         // orden del mismo bono, 50 pb arriba de la curva y con VN, da +50 pb
@@ -4493,6 +4501,9 @@ const omitir = (label, motivo) =>
     if (!es) omitir('el próximo llamado trae el precio en curva y con premio', 'no quedan licitaciones en el cronograma publicado');
     else check(es.filas === es.esperadas && es.esperadas > 0 && es.vuelve > 0 && es.vuelveOk && (!es.hist || (es.conPremio > 0 && es.baja > 0 && es.bajaOk)),
           'el próximo llamado trae el precio en curva y con premio: el de curva vuelve a dar su tasa y el premio baja el precio', JSON.stringify(es));
+    if (es && es.caucion == null) omitir('el secundario se lleva a la liquidación con la caución', 'sin caución de BYMA');
+    else if (es) check(es.lleva > 0 && es.llevaOk && es.mismoVto,
+          'el secundario se lleva a la liquidación con la caución, y lo nuevo va en la curva al mismo vencimiento', JSON.stringify(es));
     const sm = lic.sim;
     const ORD = 'órdenes: un gráfico por curva, premio contra el bono y la curva, monto, arrastre en el ampliado y CSV de back office';
     if (es && !sm) omitir(ORD, 'ningún instrumento de la última licitación cotiza hoy');
