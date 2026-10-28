@@ -2672,6 +2672,48 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   };
   try{Chart.register(chipReset);}catch(e){}
 
+  // La letra de los gráficos. Cada gráfico fija la suya, y había ejes en 9 px:
+  // acá se le pone un piso —11 px a ejes, títulos de eje y leyendas, 10 a las
+  // etiquetas de los puntos— escalado por el tamaño de letra elegido (--esc).
+  // Las etiquetas llevan un borde del color del fondo, y las que se pisan con
+  // otra se ocultan (vuelven al pasar el mouse). El tamaño propio de cada uno se
+  // guarda la primera vez, así reaplicar no lo agranda de nuevo.
+  const LETRA_MIN={eje:11,etiqueta:10};
+  const letraEsc=()=>{try{return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--esc'))||1;}catch(e){return 1;}};
+  const letraFondo=()=>{try{return getComputedStyle(document.body).getPropertyValue('--surface').trim()||'#141715';}catch(e){return'#141715';}};
+  function letraFuente(f,min,esc){
+    if(!f||typeof f!=='object')return;
+    if(!('$base' in f))Object.defineProperty(f,'$base',{value:typeof f.size==='number'?f.size:null,enumerable:false});
+    f.size=+(Math.max(min,f.$base||0)*esc).toFixed(1);
+  }
+  function letraEtiquetas(d,esc,fondo){
+    if(!d||typeof d!=='object')return;
+    if(typeof d.font!=='function'){d.font=d.font||{};letraFuente(d.font,LETRA_MIN.etiqueta,esc);}
+    if(d.textStrokeWidth==null||d.$halo){d.textStrokeColor=fondo;d.textStrokeWidth=3;Object.defineProperty(d,'$halo',{value:true,enumerable:false,configurable:true});}
+    if(d.display===true)d.display='auto';
+  }
+  function letraConfig(cfg){
+    if(!cfg)return;
+    const esc=letraEsc(),fondo=letraFondo(),o=cfg.options||(cfg.options={});
+    Object.values(o.scales||{}).forEach(sc=>{
+      if(!sc||typeof sc!=='object')return;
+      sc.ticks=sc.ticks||{};
+      if(typeof sc.ticks.font!=='function'){sc.ticks.font=sc.ticks.font||{};letraFuente(sc.ticks.font,LETRA_MIN.eje,esc);}
+      if(sc.title&&typeof sc.title.font!=='function'){sc.title.font=sc.title.font||{};letraFuente(sc.title.font,LETRA_MIN.eje,esc);}
+    });
+    const p=o.plugins||(o.plugins={});
+    if(p.legend&&p.legend.labels&&typeof p.legend.labels.font!=='function'){p.legend.labels.font=p.legend.labels.font||{};letraFuente(p.legend.labels.font,LETRA_MIN.eje,esc);}
+    if(p.datalabels)letraEtiquetas(p.datalabels,esc,fondo);
+    ((cfg.data&&cfg.data.datasets)||[]).forEach(ds=>{if(ds&&ds.datalabels)letraEtiquetas(ds.datalabels,esc,fondo);});
+  }
+  // Los gráficos que cambian de datos traen datasets nuevos: se reaplica antes
+  // de cada actualización.
+  try{Chart.register({id:'letraLegible',beforeUpdate(chart){try{letraConfig(chart.config);}catch(e){}}});}catch(e){}
+  // Al cambiar el tamaño de letra o el tema, todos los gráficos abiertos.
+  window.letraGraficos=()=>{
+    Object.values(Chart.instances||{}).forEach(c=>{try{letraConfig(c.config);c.update('none');}catch(e){}});
+  };
+
   const Base=Chart;
   window.Chart=new Proxy(Base,{
     construct(target,args){
@@ -2680,6 +2722,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         cfg.options=cfg.options||{};
         const p=cfg.options.plugins=cfg.options.plugins||{};
         if(!p.zoom)p.zoom=zoomCfg(); // una config propia gana
+        try{letraConfig(cfg);}catch(e){}
       }
       const chart=new target(...args);
       const cv=chart.canvas;
@@ -12473,6 +12516,7 @@ function setTheme(t){
   });
   try{localStorage.setItem('bonosAR_theme',t);}catch(e){}
   chartColorDefecto();
+  if(window.letraGraficos)letraGraficos();
   // resize charts after theme change
   [curveChart,beChartTF,beChartCER,cerTabChart,tamarTabChart,dlkTabChart].forEach(c=>{if(c)c.resize();});
 }
@@ -23574,7 +23618,9 @@ function licGraficoFamilia(sec,c,col,grande){
     if(!(x>0)||y==null)return;
     ds.push({label:licNombre(o.i),_rol:'bono',_k:k,data:[{x,y}],showLine:false,pointRadius:grande?9:8,pointHitRadius:grande?14:6,pointBorderWidth:2.5,
       pointBackgroundColor:o.yo?C.c:'transparent',pointBorderColor:col.acento,
-      datalabels:{display:true,formatter:()=>licNombre(o.i),color:col.acento,font:{size:f,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:6}});
+      // Siempre a la vista: el nombre del bono y el precio de cada orden no se
+      // ocultan aunque se pisen (los demás rótulos, sí).
+      datalabels:{display:()=>true,formatter:()=>licNombre(o.i),color:col.acento,font:{size:f,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:6}});
     // Del ancla al corte con premio, una raya punteada: el premio que se espera.
     if(o.conPremio!=null){
       ds.push({label:'_premio',type:'line',data:[{x,y},{x,y:o.conPremio}],borderColor:col.acento,borderWidth:1.5,borderDash:[3,3],pointRadius:0,showLine:true,datalabels:{display:false}});
@@ -23585,7 +23631,7 @@ function licGraficoFamilia(sec,c,col,grande){
     ds.push({label:'Órdenes',_rol:'orden',_k:k,data:licOrdPuntos(sec,k,grande),showLine:false,pointRadius:grande?8:7,pointHitRadius:grande?14:6,pointStyle:'crossRot',
       pointBorderWidth:2.5,pointBorderColor:col.texto,pointBackgroundColor:col.texto,
       // La etiqueta va del lado con más lugar: cerca del eje, a la derecha.
-      datalabels:{display:true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].etq,color:col.texto,font:{size:f-1,family:'DM Mono, monospace'},anchor:'center',offset:10,clamp:true,
+      datalabels:{display:()=>true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].etq,color:col.texto,font:{size:f-1,family:'DM Mono, monospace'},anchor:'center',offset:10,clamp:true,
         align:ctx=>{const g=ctx.chart,a=g.chartArea,px=g.scales.x.getPixelForValue(ctx.dataset.data[ctx.dataIndex].x);return px<a.left+(a.right-a.left)*.35?'right':'left';}}});
   });
   licChart(sec,`${p}-prox-g-${c}`,{type:'scatter',data:{datasets:ds},options:licOpcionesCurva(col,cu.eje,C.u)});
