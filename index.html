@@ -22,11 +22,12 @@
      nav 35 + barra USD 28. USD: eso más la sub-barra de moneda, 36. */
   --alto-barras:113px; --alto-barras-usd:149px;
   --bg:#0d0f0e;--surface:#141715;--surface2:#1a1d1b;
-  --border:#252825;--border2:#2e322e;
-  /* Contraste contra --bg, --surface y --surface2: --text3 entre 4,5 y 5,1:1,
-     el mínimo para texto chico; --text2 entre 7,3 y 8,3:1, para que los dos
-     grises se sigan distinguiendo. El --text3 de antes daba 2,2:1. */
-  --text:#e8ede9;--text2:#a3ada2;--text3:#7d867d;
+  --border:#2d322e;--border2:#3a403a;
+  /* Contraste contra --bg, --surface y --surface2: --text3 entre 7,5 y 8,5:1,
+     --text2 entre 10,8 y 12,3:1 y --text entre 15 y 17:1, para que las notas
+     y las unidades se lean sin esfuerzo y los tres sigan distinguiéndose.
+     Antes, 4,5–5,1 y 7,3–8,3:1. Los bordes, más visibles: separan paneles. */
+  --text:#eef2ee;--text2:#c8d1c7;--text3:#a6afa5;
   --accent:#a8d5a2;--accent2:#6eb868;--accent-dim:#1a2e1a;
   --warn:#d4a96a;--warn-dim:#2e2412;
   --info:#7ab3d4;--info-dim:#121f2a;
@@ -36,9 +37,9 @@
 /* TEMA MEDIO */
 body.theme-mid{
   --bg:#1a1f1b;--surface:#222722;--surface2:#2a302a;
-  --border:#333a33;--border2:#3d453d;
-  /* --text3 entre 4,6 y 5,7:1; --text2 entre 7,3 y 9:1. */
-  --text:#d8e8d9;--text2:#a9c6aa;--text3:#869b91;
+  --border:#3b443b;--border2:#4a544a;
+  /* --text3 entre 6,5 y 8,1:1; --text2 entre 8,8 y 10,9:1. */
+  --text:#e6f0e7;--text2:#c2d6c3;--text3:#a6b9ae;
   --accent:#8ecc88;--accent2:#5aaa54;--accent-dim:#1a2e1a;
   --warn:#d4a96a;--warn-dim:#2e2412;
   --info:#7ab3d4;--info-dim:#162130;
@@ -48,17 +49,18 @@ body.theme-mid{
 body.theme-light{
   --bg:#dde4dd;--surface:#f2f6f2;--surface2:#e4ebe4;
   --border:#9ab09a;--border2:#7a9a7a;
-  --text:#0a140a;--text2:#1e3a1e;--text3:#3a5e3a;
+  /* --text3 entre 7,6 y 9,1:1; --text2 entre 11 y 13:1. */
+  --text:#071007;--text2:#183018;--text3:#2c4a2c;
   --accent:#145e10;--accent2:#0e480a;--accent-dim:#b8d8b4;
   --warn:#6a3a00;--warn-dim:#f0d8b0;
   --info:#08406e;--info-dim:#b4d0ec;
   --danger:#7a1010;--danger-dim:#f0c4c4;
 }
 /* Ajustes específicos tema claro para mejor legibilidad */
-body.theme-light .nav-tab{color:#3a5e3a;}
+body.theme-light .nav-tab{color:#2c4a2c;}
 body.theme-light .nav-tab.active{color:#145e10;border-bottom-color:#145e10;}
 body.theme-light .nav-tab:hover{color:#1e3a1e;}
-body.theme-light .proy-subtab{color:#3a5e3a;}
+body.theme-light .proy-subtab{color:#2c4a2c;}
 body.theme-light .proy-subtab.active{color:#145e10;border-bottom-color:#145e10;}
 body.theme-light .proy-subtab:hover{color:#1e3a1e;}
 body.theme-light .sbar-input{background:#f2f6f2;color:#0a140a;border-color:#7a9a7a;}
@@ -66,16 +68,16 @@ body.theme-light .btn{background:#e4ebe4;border-color:#7a9a7a;color:#1e3a1e;}
 body.theme-light .btn:hover{border-color:#145e10;color:#145e10;background:#d4e8d0;}
 body.theme-light .btn.primary{background:#145e10;color:#ffffff;border-color:#0e480a;}
 body.theme-light .btn.primary:hover{background:#0e480a;}
-body.theme-light .mode-btn{color:#3a5e3a;border-color:#9ab09a;background:#dde4dd;}
+body.theme-light .mode-btn{color:#2c4a2c;border-color:#9ab09a;background:#dde4dd;}
 body.theme-light .mode-btn.active{color:#145e10;border-color:#145e10;background:#b8d8b4;}
-body.theme-light .metric-label{color:#3a5e3a;}
+body.theme-light .metric-label{color:#2c4a2c;}
 body.theme-light .metric-value{color:#0a140a;font-weight:500;}
 body.theme-light .panel-body{color:#0a140a;}
 body.theme-light table th{color:#1e3a1e;background:#d4dcd4;}
 body.theme-light table tr:hover td{background:rgba(0,0,0,0.04);}
 body.theme-light .pane-title{color:#0a140a;font-weight:500;}
 body.theme-light .pane-toolbar{background:#e4ebe4;border-color:#9ab09a;}
-body.theme-light .api-status{color:#3a5e3a;}
+body.theme-light .api-status{color:#2c4a2c;}
 body.theme-light .api-status.ok{color:#145e10;font-weight:500;}
 body.theme-light .api-status.err{color:#7a1010;font-weight:500;}
 body.theme-light #usd-bar{background:#e4ebe4;border-color:#9ab09a;}
@@ -85,14 +87,14 @@ body.theme-light #usd-canje-bid,body.theme-light #usd-canje-ask{color:#08406e;fo
 body.theme-light #usd-brecha-bid,body.theme-light #usd-brecha-ask{color:#7a1010;font-weight:500;}
 body.theme-light .modal{background:#f2f6f2;border-color:#7a9a7a;box-shadow:0 4px 24px rgba(0,0,0,0.18);}
 body.theme-light .modal-title{color:#0a140a;font-weight:500;}
-body.theme-light .field label{color:#3a5e3a;font-weight:500;}
+body.theme-light .field label{color:#2c4a2c;font-weight:500;}
 body.theme-light .field input,body.theme-light .field select{background:#ffffff;color:#0a140a;border-color:#7a9a7a;}
 body.theme-light .right-panel{background:#f2f6f2;border-color:#9ab09a;}
 body.theme-light .panel-header{border-color:#9ab09a;background:#e4ebe4;}
 body.theme-light .panel-ticker{color:#0a140a;font-weight:500;}
 body.theme-light .chart-resize-handle{background:#d4dcd4;border-color:#9ab09a;}
 body.theme-light .chart-resize-handle::before{background:#7a9a7a;}
-body.theme-light .status-bar{background:#d4dcd4;color:#3a5e3a;border-color:#9ab09a;}
+body.theme-light .status-bar{background:#d4dcd4;color:#2c4a2c;border-color:#9ab09a;}
 body.theme-light .left-pane{border-color:#9ab09a;}
 body.theme-light .workspace{border-color:#9ab09a;}
 body.theme-light .col-resizer:hover{background:#9ab09a;}
@@ -12453,8 +12455,8 @@ snapEstadoRefrescar();
 // activo: estaba escrito fijo en un gris que sobre el fondo oscuro no se leía.
 // Es función declarada para que la vean los gráficos de más arriba.
 function colGris(){
-  try{return getComputedStyle(document.body).getPropertyValue('--text3').trim()||'#7d867d';}
-  catch(e){return'#7d867d';}
+  try{return getComputedStyle(document.body).getPropertyValue('--text3').trim()||'#a6afa5';}
+  catch(e){return'#a6afa5';}
 }
 function chartColorDefecto(){
   try{if(window.Chart&&Chart.defaults)Chart.defaults.color=colGris();}catch(e){}
