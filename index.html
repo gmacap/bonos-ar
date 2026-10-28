@@ -172,6 +172,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .equiv-inp{width:100%;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--mono);font-size:var(--fs12);padding:2px 0;outline:none;}
 .equiv-inp:focus{border-bottom-color:var(--border2);}
 .api-status{font-size:var(--fs11);color:var(--text3);}
+/* Con la letra más grande el encabezado no entra a 1440 px: el estado de los
+   precios se corta con puntos suspensivos (el texto entero queda en el globo)
+   y la fecha, que ya está en la barra de la rueda, se esconde en pantallas
+   angostas. */
+header .api-status{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+@media (max-width:1560px){.hdate{display:none;}}
 /* La barra de arriba lleva la fecha de operación, los dólares y los ajustes de
    la rueda en 28px. Abajo de ~1280 no entra: se corre sola en vez de aplastar
    los campos o de estirar la página a lo ancho. */
@@ -4207,6 +4213,8 @@ const usdSimbolo=()=>(typeof usdCurrency!=='undefined'&&usdCurrency==='ARS')?'$'
 const curvasPxTip=(raw,simb)=>raw&&raw.precio!=null?`  ·  ${fmtPrecio(raw.precio,simb)}`:'';
 const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
 
+// El estado de los precios se corta en el encabezado: el texto entero va al globo.
+(()=>{const el=document.getElementById('api-status');if(el&&window.MutationObserver)new MutationObserver(()=>{el.title=el.textContent;}).observe(el,{childList:true,characterData:true,subtree:true});})();
 document.getElementById('hoy').textContent=
   TODAY.toLocaleDateString('es-AR',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
 
