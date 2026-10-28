@@ -4351,8 +4351,11 @@ const omitir = (label, motivo) =>
     out.proxima = document.getElementById('lic-prox-c').textContent.includes('Licitación');
     // El precio estimado de corte, con un llamado armado con los instrumentos de
     // la última licitación: una fila por instrumento, la tasa de la curva vuelve
-    // a salir del motor con el precio en curva, y el premio baja el precio.
-    const prox = (D.cronograma || []).find(c => c[1] > hoyAR());
+    // a salir del motor con el precio en curva, y el premio baja el precio. El
+    // llamado de prueba es para la licitación que muestra la página: el día de
+    // una licitación todavía sin resultado, es la de hoy.
+    const P0 = licProxima();
+    const prox = P0 && [P0.llamado, P0.fecha, P0.liquidacion || fmtDate(addHabiles(parseDate(P0.fecha), 2))];
     if (prox) {
       for (let k = 0; k < 120 && D.licitaciones.some(l => !LIC_SNAP.has(l.fecha)); k++) await espera(250);
       const llOrig = D.llamado, ult = D.licitaciones[D.licitaciones.length - 1];
@@ -4375,23 +4378,43 @@ const omitir = (label, motivo) =>
           .map(o => (o.pe.med > 0) === (o.pPremio.precio < o.pMercado.precio));
         out.estimado = { filas: document.querySelectorAll('#lic-prox-est > div:first-child tbody tr').length, esperadas: E.length, hist,
           conPremio: E.filter(o => o.pe).length, vuelve: vuelve.length, vuelveOk: vuelve.every(Boolean), baja: baja.length, bajaOk: baja.every(Boolean) };
-        // El simulador: el precio del secundario, escrito como lo escribe un
-        // operador, da premio cero contra el bono; una tasa 50 pb arriba de la
-        // curva da +50 pb contra la curva, en la tabla y en el gráfico.
-        const PE = LIC_ESTADO.ars.prox.E;
-        const k = PE.findIndex(o => o.mercado != null && o.pMercado && o.pMercado.precio > 0 && o.curva != null && o.x > 0);
+        // Las órdenes. Un gráfico por curva. El precio del secundario, escrito
+        // como lo escribe un operador, da premio cero contra el bono; una segunda
+        // orden del mismo bono, 50 pb arriba de la curva y con VN, da +50 pb
+        // contra la curva y su monto, y las dos van al gráfico. Ampliado, el
+        // gráfico queda solo y arrastrar escribe el precio de esa tasa. El CSV
+        // lleva Ticker, Oferta, VN y Monto, sólo de las órdenes completas.
+        const PX = LIC_ESTADO.ars.prox, PE = PX.E;
+        const fams = new Set(PE.filter(o => o.cu).map(o => o.i.clase)).size, lienzos = document.querySelectorAll('#lic-prox-graf canvas').length;
+        const k = PE.findIndex(o => o.sec !== 'DLK' && o.mercado != null && o.pMercado && o.pMercado.precio > 0 && o.curva != null && o.x > 0);
         if (k >= 0) {
-          const o = PE[k], inp = document.getElementById('lic-sim-v' + k), sel = document.getElementById('lic-sim-m' + k);
-          inp.value = licN(o.pMercado.precio, 4); sel.value = 'precio'; licSimInput('ars', k);
-          const b0 = licSimCalc('ars', k);
-          sel.value = 'tasa'; inp.value = String(o.curva + 0.5).replace('.', ','); licSimInput('ars', k);
-          const c50 = licSimCalc('ars', k);
-          const cruz = LIC_CHARTS.ars['lic-prox-g' + k].data.datasets.find(d => d.label === 'Tu oferta');
-          out.sim = { filas: document.querySelectorAll('[id^="lic-sim-v"]').length, b0: b0 && b0.vsBono, c50: c50 && c50.vsCurva,
-            celda: document.getElementById('lic-sim-c' + k).textContent, cruz: cruz && cruz.data.length === 1 && Math.abs(cruz.data[0].y - (o.curva + 0.5)) < 1e-9 };
+          const o = PE[k], id1 = licOrdLista(o)[0].id;
+          licOrdCambio('ars', k, id1, 'm', 'precio');
+          licOrdCambio('ars', k, id1, 'v', licN(o.pMercado.precio, 4));
+          const r1 = licOrdCalc(o, licOrdLista(o).find(x => x.id === id1), PX);
+          const id2 = licOrdNueva('ars', k, false);
+          licOrdCambio('ars', k, id2, 'm', 'tasa');
+          licOrdCambio('ars', k, id2, 'v', String(o.curva + 0.5).replace('.', ','));
+          licOrdCambio('ars', k, id2, 'vn', '1.000.000');
+          const r2 = licOrdCalc(o, licOrdLista(o).find(x => x.id === id2), PX);
+          const g = LIC_CHARTS.ars['lic-prox-g-' + o.i.clase];
+          const cruces = g && g.data.datasets.find(d => d._rol === 'orden' && d._k === k);
+          const celda = (document.getElementById('lic-o-' + id2 + '-c') || {}).textContent;
+          const montoTxt = (document.getElementById('lic-o-' + id2 + '-mo') || {}).value;
+          licFoco('ars', o.i.clase);
+          const solos = document.querySelectorAll('#lic-prox-graf canvas').length;
+          licOrdArrastrar('ars', k, id1, o.curva + 1);
+          const ord1 = licOrdLista(o).find(x => x.id === id1), r3 = licOrdCalc(o, ord1, PX);
+          const F = licOrdFilas('ars');
+          licFoco('ars', null);
+          out.sim = { fams, lienzos, b0: r1.vsBono, c50: r2.vsCurva, monto: r2.monto, precio: r2.oferta && r2.oferta.precio, montoTxt, celda,
+            cruces: cruces ? cruces.data.length : 0, solos, arrastre: r3.vsCurva, modo: licOrdModo(o, ord1),
+            csv: F.filas.length, fila: F.filas[0], ticker: o.i.ticker };
         }
       } finally {
-        LIC_ESTADO.ars.sim = {};
+        LIC_ESTADO.ars.foco = null;
+        LIC_ORD = null;
+        try { localStorage.removeItem(LIC_ORD_LS); } catch (e) {}
         D.llamado = llOrig;
         await licRenderProximo('ars');
       }
@@ -4430,9 +4453,12 @@ const omitir = (label, motivo) =>
     else check(es.filas === es.esperadas && es.esperadas > 0 && es.vuelve > 0 && es.vuelveOk && (!es.hist || (es.conPremio > 0 && es.baja > 0 && es.bajaOk)),
           'el próximo llamado trae el precio en curva y con premio: el de curva vuelve a dar su tasa y el premio baja el precio', JSON.stringify(es));
     const sm = lic.sim;
-    if (es && !sm) omitir('el simulador de oferta da el premio contra el bono y contra la curva', 'ningún instrumento de la última licitación cotiza hoy');
-    else if (sm) check(sm.filas === es.esperadas && Math.abs(sm.b0) < 0.5 && Math.abs(sm.c50 - 50) < 1e-6 && /\+50 pb/.test(sm.celda) && sm.cruz,
-          'el simulador de oferta da el premio contra el bono y contra la curva, y marca la oferta en el gráfico', JSON.stringify(sm));
+    const ORD = 'órdenes: un gráfico por curva, premio contra el bono y la curva, monto, arrastre en el ampliado y CSV de back office';
+    if (es && !sm) omitir(ORD, 'ningún instrumento de la última licitación cotiza hoy');
+    else if (sm) check(sm.lienzos === sm.fams && Math.abs(sm.b0) < 0.5 && Math.abs(sm.c50 - 50) < 1e-6 && /\+50 pb/.test(sm.celda)
+          && Math.abs(sm.monto - 1e6 * sm.precio / 1000) < 1e-6 && sm.montoTxt && sm.cruces === 2 && sm.solos === 1
+          && Math.abs(sm.arrastre - 100) < 1 && sm.modo === 'precio' && sm.csv === 1 && sm.fila && sm.fila[0] === sm.ticker && sm.fila[2] === 1e6
+          && Math.abs(sm.fila[3] - sm.monto) < 0.01, ORD, JSON.stringify(sm));
     check(lic.usd.visible && lic.usd.ver === 'usd' && lic.usd.soloUsd && lic.todos >= lic.usd.filas,
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
