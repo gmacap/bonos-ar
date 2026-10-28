@@ -5945,7 +5945,7 @@ function cerRenderTable(){
     }
 
     return`<tr class="${sel}" onclick="cerHandleRowClick(event,'${r.ticker}')">
-      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span></div></td>
+      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
       <td><div class="cv no-edit" style="justify-content:center">${tipoBadge}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
@@ -9550,7 +9550,7 @@ function tamarRenderTable(){
         ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}${pesosCierreMarca(r)}</div>`
         :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
     return`<tr onclick="tamarRowClick(event,'${r.ticker}')" style="cursor:pointer">
-      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span></div></td>
+      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
@@ -13383,11 +13383,13 @@ const CHART_TIPO_COLORS={
   dlk:  {point:'#a855f7',border:'#7c3aed',trend:'rgba(168,85,247,0.4)', label:'#a855f7'},
 };
 
+// Los indexados que ya fijaron van con la tasa fija y no con su familia: ver
+// FIJADOS.
 function beGetBondsForTipo(tipo){
-  if(tipo==='tf')    return LECAPS.filter(r=>r.vcto&&r.precio);
-  if(tipo==='cer')   return CER_BONDS.filter(r=>r.vcto&&r.precio);
-  if(tipo==='tamar') return TAMAR_BONDS.filter(r=>r.vcto&&r.precio);
-  if(tipo==='dlk')   return DLK_BONDS.filter(r=>r.vcto&&r.precio);
+  if(tipo==='tf')    return LECAPS.filter(r=>r.vcto&&r.precio).concat(fijBonos());
+  if(tipo==='cer')   return CER_BONDS.filter(r=>r.vcto&&r.precio&&!fijTasas(r));
+  if(tipo==='tamar') return TAMAR_BONDS.filter(r=>r.vcto&&r.precio&&!fijTasas(r));
+  if(tipo==='dlk')   return DLK_BONDS.filter(r=>r.vcto&&r.precio&&!fijTasas(r));
   return[];
 }
 
@@ -13396,7 +13398,7 @@ function beGetExcludedForTipo(tipo, chartId='tf'){
 }
 
 function beEnrichForTipo(b,tipo){
-  if(tipo==='tf')    return calcLecap(b)||{};
+  if(tipo==='tf')    return(LECAPS.includes(b)?calcLecap(b):fijTasas(b))||{};
   if(tipo==='cer')   return cerEnrich(b)||{};
   if(tipo==='tamar') return tamarVista(tamarEnrich(b))||{};
   if(tipo==='dlk')   return dlkEnrich(b)||{};
@@ -13824,7 +13826,7 @@ function dlkRenderTable(){
         ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}${pesosCierreMarca(r)}</div>`
         :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
     return`<tr onclick="dlkRowClick(event,'${r.ticker}')" style="cursor:pointer">
-      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span></div></td>
+      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${r.dias}</div></td>
       <td>${pxCell}</td>
@@ -19405,7 +19407,7 @@ async function _curvasSnapshotTodayImpl(){
     if(!CER_INDEX.length) await cerFetchIndex();
     CER_BONDS.forEach(b=>{
       if(b.precio==null||b.precioCierre)return;
-      if(curvasMuyCerca(b.vcto,liq))return;
+      if(curvasMuyCerca(b.vcto,liq)||fijTasas(b))return;
       try{
         const e=cerEnrich(b);
         if(!e||isNaN(e.tir)||!e.dias)return;
@@ -19420,7 +19422,7 @@ async function _curvasSnapshotTodayImpl(){
   if(!fresh('TAMAR')&&typeof TAMAR_BONDS!=='undefined'&&TAMAR_BONDS&&TAMAR_BONDS.length){
     TAMAR_BONDS.forEach(b=>{
       if(b.precio==null||b.precioCierre)return;
-      if(curvasMuyCerca(b.vcto,liq))return;
+      if(curvasMuyCerca(b.vcto,liq)||fijTasas(b))return;
       try{
         const e=tamarEnrich(b);
         if(!e||isNaN(e.margenTNA)||!e.dias)return;
@@ -19435,7 +19437,7 @@ async function _curvasSnapshotTodayImpl(){
   if(!fresh('DLK')&&typeof DLK_BONDS!=='undefined'&&DLK_BONDS&&DLK_BONDS.length){
     DLK_BONDS.forEach(b=>{
       if(b.precio==null||b.precioCierre)return;
-      if(curvasMuyCerca(b.vcto,liq))return;
+      if(curvasMuyCerca(b.vcto,liq)||fijTasas(b))return;
       try{
         const e=dlkEnrich(b);
         if(!e||e.tna==null||!e.dias)return;
@@ -19443,6 +19445,19 @@ async function _curvasSnapshotTodayImpl(){
         rows.push({snapshot_date:today,ticker:b.ticker,sector:'DLK',price:+b.precio.toFixed(4),tir:+e.tna.toFixed(6),md:mdDLK,dias:e.dias,
           ...curvasLibroDe(b.bid,b.ask,b.monto)});
       }catch(ex){}
+    });
+  }
+
+  // Los indexados que ya fijaron se archivan con la tasa fija, con su TNA: ver
+  // FIJADOS. Hace falta el índice CER para saber cuáles son.
+  if(!fresh('TF')){
+    if(!CER_INDEX.length){try{await cerFetchIndex();}catch(e){}}
+    fijBonos().forEach(b=>{
+      if(b.precioCierre||curvasMuyCerca(b.vcto,liq))return;
+      const f=fijTasas(b);
+      if(!f)return;
+      rows.push({snapshot_date:today,ticker:b.ticker,sector:'TF',price:+b.precio.toFixed(4),tir:+f.tna.toFixed(6),md:+f.md.toFixed(4),dias:f.dias,
+        ...curvasLibroDe(b.bid,b.ask,b.monto)});
     });
   }
 
@@ -19550,8 +19565,113 @@ async function curvasFetchSnapshot(dateStr,sector){
     if(sector&&sector!=='ALL') q=q.eq('sector',sector);
     const{data,error}=await q;
     if(error||!data)return[];
-    return data;
+    return fijSinDoble(data);
   }catch(e){return[];}
+}
+
+// ══════════════════════════════════════════════════════════════════ FIJADOS
+// Un bono indexado "fija" cuando ya se publicó el índice de su último pago: el
+// CER de 10 días hábiles antes del vencimiento, la última TAMAR del promedio
+// (también hasta 10 hábiles antes) o el A3500 de 3 hábiles antes en el dollar
+// linked. Un dual fija cuando fijaron sus dos patas, y paga la mayor. Desde ahí
+// paga una cantidad de pesos conocida: dejó de cubrir y es un bono a tasa fija.
+//
+// En las curvas sale de su familia y entra en la de tasa fija, con su TNA como
+// la de una LECAP: en el Resumen, en la rueda en vivo y en las ruedas que se
+// archivan desde el 28/10/2026; lo guardado antes queda como estaba. En su
+// propia solapa sigue, marcado y con la TNA al lado.
+
+// Los pagos que quedan, en la unidad del precio por cada 100 de nominal y con
+// la fecha en que se cobran; null si alguno depende de un índice sin publicar.
+function fijFlujosCer(b){
+  if(!b||!b.vcto||!b.emision)return null;
+  const ult=projGetLastCerReal(),vto=parseDate(b.vcto);
+  if(!ult||fmtDate(cerGetFechaCer(vto))>ult.fecha)return null;
+  const em=cerGetValorCer(parseDate(b.emision)),fin=cerGetValorCer(vto);
+  if(!(em>0)||!(fin>0))return null;
+  const pago=siguienteHabil(vto);
+  const fl=b.tipo==='cupon'?cerBuildFlujos(b,b.precio>0?b.precio:100,cerFactor(b.emision)||1).slice(1):[{fecha:pago,monto:100}];
+  // Cada pago se ajusta con el CER de 10 hábiles antes del suyo; el último, con
+  // el del vencimiento nominal.
+  const out=fl.map(f=>{const c=+f.fecha>=+pago?fin:cerGetValorCer(f.fecha);return c>0?{fecha:f.fecha,monto:f.monto*c/em}:null;});
+  return out.length&&out.every(Boolean)?out:null;
+}
+function fijFlujosTamar(t){
+  if(!t||!t.vcto||!t.emision||!TAMAR_INDEX.length)return null;
+  const vto=parseDate(t.vcto);
+  if(fmtDate(restarHabiles(vto,10))>TAMAR_INDEX.reduce((m,x)=>x.fecha>m?x.fecha:m,''))return null;
+  const e=tamarEnrich({...t,precio:t.precio>0?t.precio:100*(t.tcInicial||1)}),d=e&&e._debug;
+  if(!d||d.DIAS_TAMAR_PROYECTAR>0||!(e.vpvProy>0))return null;
+  return[{fecha:siguienteHabil(vto),monto:e.vpvProy*(t.tcInicial||1)}];
+}
+// El A3500 publicado de un día, o null.
+function fijA3500(f){
+  for(let i=DLK_INDEX.length-1;i>=0;i--){const x=DLK_INDEX[i];if(x.fecha===f)return x.valor>0?x.valor:null;if(x.fecha<f)break;}
+  return null;
+}
+function fijFlujosDlk(b){
+  if(!b||!b.vcto||!DLK_INDEX.length)return null;
+  if(fmtDate(restarHabiles(parseDate(b.vcto),3))>DLK_INDEX[DLK_INDEX.length-1].fecha)return null;
+  const ff=dlkBuildFF(b,G_LIQ||addHabiles(TODAY,1)).ff;
+  const out=ff.map(ev=>{const d=parseDate(ev.fecha),tc=fijA3500(fmtDate(restarHabiles(d,3)));return tc?{fecha:siguienteHabil(d),monto:ev.cf*tc}:null;});
+  return out.length&&out.every(Boolean)?out:null;
+}
+function fijFlujos(b){
+  if(!b||!b.vcto)return null;
+  const t=(TAMAR_BONDS||[]).find(x=>x.ticker===b.ticker),dual=t?dualTipo(t):null;
+  if(dual){
+    const B=fijFlujosTamar(t);
+    if(!B)return null;
+    const vto=parseDate(t.vcto),tem=dual==='tf'?dualTemFija(t):null;
+    const A=dual==='tf'?(tem?[{fecha:siguienteHabil(vto),monto:calcVF(tem,parseDate(t.emision),vto)*(t.tcInicial||1)}]:null)
+      :dual==='cer'?fijFlujosCer(CER_BONDS.find(x=>x.ticker===t.ticker)):fijFlujosDlk(DLK_BONDS.find(x=>x.ticker===t.ticker));
+    if(!A||A.length!==1||B.length!==1)return null;
+    return[{fecha:B[0].fecha,monto:Math.max(A[0].monto,B[0].monto)}];
+  }
+  if(t)return fijFlujosTamar(t);
+  if((CER_BONDS||[]).some(x=>x.ticker===b.ticker))return fijFlujosCer(b);
+  if((DLK_BONDS||[]).some(x=>x.ticker===b.ticker))return fijFlujosDlk(b);
+  return null;
+}
+// Las tasas de un bono que fijó, con su precio y como las de una LECAP: con un
+// solo pago, TNA = (pago / precio − 1) × 365 / días; con varios, la TIR llevada
+// a TNA al plazo del último. null si no fijó.
+function fijTasas(b){
+  if(!b||!(b.precio>0))return null;
+  const fl=fijFlujos(b);
+  if(!fl)return null;
+  const liq=G_LIQ||addHabiles(TODAY,1),fut=fl.filter(f=>f.fecha>liq);
+  if(!fut.length)return null;
+  const fin=fut[fut.length-1].fecha,dias=diasACT(liq,fin),pago=fut.reduce((s,f)=>s+f.monto,0);
+  if(!(dias>0))return null;
+  const tir=fut.every(f=>+f.fecha===+fin)?calcTIR(calcTNA(b.precio,pago,dias),dias):xirr([{fecha:new Date(liq),monto:-b.precio},...fut]);
+  if(!isFinite(tir))return null;
+  return{tna:tirToTNA(tir,dias),tir,tem:calcTEM(tir),dias,md:dias/365/(1+tir/100),pago,flujos:fut};
+}
+// Los indexados con precio que ya fijaron, una vez cada uno: un dual está en
+// dos listas.
+function fijBonos(){
+  const vistos=new Set(),out=[];
+  [...(CER_BONDS||[]),...(TAMAR_BONDS||[]),...(DLK_BONDS||[])].forEach(b=>{
+    if(!b||!b.vcto||!(b.precio>0)||vistos.has(b.ticker)||!fijTasas(b))return;
+    vistos.add(b.ticker);out.push(b);
+  });
+  return out;
+}
+// La marca en la tabla de su familia.
+function fijMarca(b){
+  const f=fijTasas(b);
+  if(!f)return'';
+  const pago=f.pago.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return` <span title="Ya se publicó el índice de su último pago: paga ${pago} por cada 100 de nominal. En las curvas va con la tasa fija." style="font-size:9px;padding:0 4px;border:1px solid var(--accent);border-radius:3px;color:var(--accent);white-space:nowrap">fijado · TNA ${fmtP2(f.tna)}</span>`;
+}
+// Un indexado que fijó a mitad de una rueda puede quedar archivado ese día en
+// su familia y en tasa fija: vale el de tasa fija.
+function fijSinDoble(filas){
+  if(!filas||!filas.length)return filas;
+  const k=r=>(r.snapshot_date||'')+'|'+r.ticker;
+  const tf=new Set(filas.filter(r=>r.sector==='TF').map(k));
+  return tf.size?filas.filter(r=>r.sector==='TF'||!tf.has(k(r))):filas;
 }
 
 function curvasSnapshotFromMemory(sector){
@@ -19584,13 +19704,17 @@ function curvasSnapshotFromMemory(sector){
     LECAPS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=enrich(b);if(!e||isNaN(e.tna))return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'TF',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='CER'||sector==='ALL')&&CER_BONDS&&CER_BONDS.length){
-    CER_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=cerEnrich(b);if(!e||isNaN(e.tir))return;rows.push({ticker:b.ticker,tir:e.tir,md:null,dias:e.dias,sector:'CER',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
+    CER_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq)||fijTasas(b))return;try{const e=cerEnrich(b);if(!e||isNaN(e.tir))return;rows.push({ticker:b.ticker,tir:e.tir,md:null,dias:e.dias,sector:'CER',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='TAMAR'||sector==='ALL')&&typeof TAMAR_BONDS!=='undefined'&&TAMAR_BONDS&&TAMAR_BONDS.length){
-    TAMAR_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=tamarEnrich(b);if(!e||isNaN(e.margenTNA)||!e.dias)return;rows.push({ticker:b.ticker,tir:e.margenTNA,md:null,dias:e.dias,sector:'TAMAR',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
+    TAMAR_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq)||fijTasas(b))return;try{const e=tamarEnrich(b);if(!e||isNaN(e.margenTNA)||!e.dias)return;rows.push({ticker:b.ticker,tir:e.margenTNA,md:null,dias:e.dias,sector:'TAMAR',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
   }
   if((!sector||sector==='DLK'||sector==='ALL')&&typeof DLK_BONDS!=='undefined'&&DLK_BONDS&&DLK_BONDS.length){
-    DLK_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq))return;try{const e=dlkEnrich(b);if(!e||e.tna==null)return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'DLK',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
+    DLK_BONDS.forEach(b=>{if(b.precio==null||b.precioCierre)return;if(curvasMuyCerca(b.vcto,liq)||fijTasas(b))return;try{const e=dlkEnrich(b);if(!e||e.tna==null)return;rows.push({ticker:b.ticker,tir:e.tna,md:null,dias:e.dias,sector:'DLK',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});}catch(ex){}});
+  }
+  // Los indexados que ya fijaron, con la tasa fija: ver FIJADOS.
+  if(!sector||sector==='TF'||sector==='ALL'){
+    fijBonos().forEach(b=>{if(b.precioCierre||curvasMuyCerca(b.vcto,liq))return;const f=fijTasas(b);if(f)rows.push({ticker:b.ticker,tir:f.tna,md:null,dias:f.dias,sector:'TF',price:b.precio,...curvasLibroDe(b.bid,b.ask,b.monto)});});
   }
   return rows;
 }
@@ -22590,7 +22714,7 @@ async function licTraerSnapshots(fechas){
       .select('snapshot_date,ticker,sector,tir,price,dias,md'+(conLibro?',monto':''))
       .in('snapshot_date',lote).order('snapshot_date',{ascending:true}));
     lote.forEach(f=>LIC_SNAP.set(f,[]));
-    filas.forEach(r=>{const a=LIC_SNAP.get(r.snapshot_date);if(a)a.push(r);});
+    fijSinDoble(filas).forEach(r=>{const a=LIC_SNAP.get(r.snapshot_date);if(a)a.push(r);});
   }
 }
 function licHabilAnterior(f){let d=parseDate(f);do{d.setDate(d.getDate()-1);}while(!esHabil(d));return fmtDate(d);}
@@ -24684,7 +24808,7 @@ async function fichaFetchRueda(fecha,soloArchivado){
       .select('ticker,sector,tir,md,dias,price'+(conLibro?',monto,spread':''))
       .eq('snapshot_date',fecha).or(`dias.is.null,dias.gte.${CURVAS_DIAS_MIN}`);
     if(error||!data)return[];
-    return data;
+    return fijSinDoble(data);
   }catch(e){return[];}
 }
 

@@ -1819,6 +1819,47 @@ const omitir = (label, motivo) =>
         'la prueba anterior corrió sobre bonos reales',
         `TAMAR ${congelado.tamar.length} · DLK ${congelado.dlk.length}`);
 
+  // Bonos fijados: un CER cuyo índice del vencimiento ya se publicó paga pesos
+  // conocidos y va con la tasa fija, con la TNA de una LECAP; uno que vence
+  // lejos sigue en CER. Con dos letras de prueba, que después se sacan.
+  const fij = await page.evaluate(() => {
+    const ult = projGetLastCerReal();
+    if (!ult) return { sinCer: true };
+    const liq = G_LIQ || addHabiles(TODAY, 1);
+    // El último hábil cuyo CER de 10 hábiles antes ya está publicado, a más de
+    // CURVAS_DIAS_MIN días.
+    let vto = addHabiles(parseDate(ult.fecha), 10);
+    while (fmtDate(cerGetFechaCer(vto)) > ult.fecha) vto = restarHabiles(vto, 1);
+    if (diasAlPago(liq, vto) <= CURVAS_DIAS_MIN + 2) return { sinVentana: true };
+    const em = fmtDate(restarHabiles(liq, 200));
+    const cerca = { ticker: 'ZZFIJ1', tipo: 'lecer', emision: em, vcto: fmtDate(vto), precio: 100 };
+    const lejos = { ticker: 'ZZFIJ2', tipo: 'lecer', emision: em, vcto: fmtDate(addHabiles(liq, 400)), precio: 100 };
+    const pago = 100 * cerGetValorCer(vto) / cerGetValorCer(parseDate(em));
+    cerca.precio = +(pago / 1.02).toFixed(2); lejos.precio = cerca.precio;
+    CER_BONDS.push(cerca, lejos);
+    try {
+      const f = fijTasas(cerca), dias = diasAlPago(liq, vto);
+      const enCER = curvasSnapshotFromMemory('CER').map(r => r.ticker), enTF = curvasSnapshotFromMemory('TF');
+      const tf = enTF.find(r => r.ticker === 'ZZFIJ1');
+      return {
+        tna: f && f.tna, esperada: calcTNA(cerca.precio, pago, dias), lejos: fijTasas(lejos),
+        cercaEnCER: enCER.includes('ZZFIJ1'), lejosEnCER: enCER.includes('ZZFIJ2'), tfTir: tf && tf.tir,
+        resumenTF: beGetBondsForTipo('tf').some(b => b.ticker === 'ZZFIJ1'), resumenCER: beGetBondsForTipo('cer').some(b => b.ticker === 'ZZFIJ1'),
+        marca: /fijado/.test(fijMarca(cerca)) && !fijMarca(lejos),
+      };
+    } finally {
+      CER_BONDS.splice(CER_BONDS.indexOf(cerca), 1);
+      CER_BONDS.splice(CER_BONDS.indexOf(lejos), 1);
+    }
+  });
+  if (fij.sinCer || fij.sinVentana) omitir('un CER que ya fijó va con la tasa fija', fij.sinCer ? 'sin índice CER' : 'el CER publicado no alcanza para una letra de prueba');
+  else {
+    check(fij.tna != null && Math.abs(fij.tna - fij.esperada) < 1e-9 && fij.lejos === null,
+          'un CER con el índice del vencimiento publicado paga pesos conocidos: TNA como la de una LECAP; uno lejano no fijó', JSON.stringify(fij));
+    check(!fij.cercaEnCER && fij.lejosEnCER && Math.abs(fij.tfTir - fij.tna) < 1e-9 && fij.resumenTF && !fij.resumenCER && fij.marca,
+          'el que fijó sale de la curva CER y entra en la de tasa fija, en vivo y en el Resumen, y su tabla lo marca', JSON.stringify(fij));
+  }
+
   // dlkTCProy: coincide con el contrato en su fin de mes e interpola adentro.
   const tcproy = await page.evaluate(() => {
     const guardado = (typeof MAE_FUTUROS !== 'undefined' ? MAE_FUTUROS : []).slice();
