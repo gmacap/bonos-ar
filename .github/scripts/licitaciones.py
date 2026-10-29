@@ -17,11 +17,14 @@ precio de corte y VNO adjudicado. Se usa sólo para una licitación que el MAE y
 tiene y Finanzas todavía no publicó, y para el llamado si la noticia no está.
 
 Lo que no se puede reconstruir de los comunicados no se inventa: el rollover
-aparece sólo cuando el texto lo dice.
+oficial aparece sólo cuando el texto lo dice. Aparte, y marcado como tal, va un
+rollover estimado sobre el total de vencimientos (ver "Rollover estimado"), con
+el libro de circulación en circulacion.json.
 
 Uso:
   python .github/scripts/licitaciones.py                 # al día
   python .github/scripts/licitaciones.py --desde 2025-01-01   # historial
+  python .github/scripts/licitaciones.py --libro-desde 2024-01-01   # rearma el libro
 
 Sólo biblioteca estándar: el workflow no instala nada.
 """
@@ -32,6 +35,7 @@ import io
 import json
 import os
 import re
+import ssl
 import sys
 import time
 import unicodedata
@@ -54,6 +58,8 @@ MESES = {'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6
 TICKER = re.compile(r'\(\s*(?!NUEV|REAPERT)([A-Z][A-Z0-9]{2,5})\s*(?:[-–—]\s*(nuev[oa]s?|reapertura))?\s*\)', re.I)
 # Sin ticker: "(nuevo)", o con el nombre comercial, "(BONAR 2027 - reapertura)".
 SIN_TICKER = re.compile(r'\(\s*(?:[A-Z]+\s+\d{4}\s*[-–—]\s*)?(nuev[oa]s?|reapertura)\s*\)', re.I)
+# Al revés, como en algunos comunicados de 2026: "(nuevo - S17L6)".
+TICKER_INV = re.compile(r'\(\s*(nuev[oa]s?|reapertura)\s*[-–—]\s*([A-Z][A-Z0-9]{2,5})\s*\)', re.I)
 
 
 def log(*a):
@@ -215,16 +221,18 @@ def vencimiento_de(nombre):
 
 
 def instrumento(nombre):
-    m = TICKER.search(nombre)
+    m, mi = TICKER.search(nombre), TICKER_INV.search(nombre)
     if m:
         ticker, estado = m.group(1).upper(), (m.group(2) or '').lower()
+    elif mi:
+        ticker, estado = mi.group(2).upper(), mi.group(1).lower()
     elif SIN_TICKER.search(nombre) and 'TESORO' in sin_tildes(nombre).upper():
         # Sin ticker todavía: se completa después con el de otra licitación
         # del mismo bono, o con la lista de bonos de la app.
         ticker, estado = None, SIN_TICKER.search(nombre).group(1).lower()
     else:
         return None
-    limpio = norm(SIN_TICKER.sub('', TICKER.sub('', nombre))).rstrip(' ;,.y')
+    limpio = norm(SIN_TICKER.sub('', TICKER.sub('', TICKER_INV.sub('', nombre)))).rstrip(' ;,.y')
     limpio = re.sub(r'\s*\(\d+\)\s*$', '', limpio)
     return {'ticker': ticker, 'nombre': limpio, 'clase': clase_de(nombre), 'dual': dual_de(nombre),
             'estado': 'nuevo' if estado.startswith('nuev') else 'reapertura' if estado else None,
@@ -373,7 +381,7 @@ def parsear_resultado(pagina, ronda=1):
     m = re.search(r'roll-?over[”"\s]*(?:del|de)?\s*([\d.,]+)\s*%', texto, re.I)
     if m:
         lic['rollover'] = num(m.group(1))
-    m = re.search(r'vencimientos de \$\s*([\d.,]+)\s*billones', texto)
+    m = re.search(r'vencimientos\s*(?:de\s*|\(\s*)\$\s*([\d.,]+)\s*billones', texto)
     if m:
         lic['vencimientos'] = round(num(m.group(1)) * 1e6, 0)   # en millones, como el resto
     # Los totales en dólares de un instrumento integrado en dólares, pasados a
@@ -397,7 +405,7 @@ def parsear_llamado(pagina):
             conv = False
         if conv:
             continue
-        for m in list(TICKER.finditer(b)) + list(SIN_TICKER.finditer(b)):
+        for m in list(TICKER.finditer(b)) + list(TICKER_INV.finditer(b)) + list(SIN_TICKER.finditer(b)):
             pre = b[:m.end()]
             # El nombre del instrumento es lo que viene antes del ticker en esa línea.
             nombre = re.split(r'(?:^|\s)[a-z]\.\s', pre)[-1]
@@ -552,6 +560,379 @@ def mae_resultados():
     return por
 
 
+# ── Rollover estimado ─────────────────────────────────────────────────────────
+# Finanzas casi nunca publica en el comunicado los vencimientos que refinancia
+# cada licitación. Se estiman: el VNO en circulación de cada instrumento que
+# vence entre la liquidación de la licitación anterior del cronograma y la de
+# esta, por su valor de rescate.
+#
+# El VNO sale de un libro armado con los comunicados desde 2024: cada
+# licitación por efectivo informa el VNO total en circulación de lo que reabre;
+# cada conversión, el VNO rescatado del título que se convierte —a veces con el
+# porcentaje de la circulación que era— y lo que se entrega del nuevo; el canje
+# de enero de 2025, los títulos elegibles y la canasta. El valor de rescate es
+# el último cierre de BYMA antes del vencimiento; una LETAMAR que no operó se
+# capitaliza con la TAMAR del BCRA más su margen.
+#
+# Es el rollover sobre el total de vencimientos. Finanzas a veces lo informa
+# sobre lo que está en manos privadas: cuando el BCRA o el FGS tienen mucho, el
+# oficial da más alto (marzo de 2025: 91,61% oficial, 62,9% estimado). Lo que el
+# libro no conoce —un título anterior a 2024 que no se reabrió ni se convirtió—
+# no entra, y queda anotado en los que faltan.
+CIRCULACION = os.path.join(RAIZ, 'circulacion.json')
+HISTORIA_DESDE = '2025-01-01'     # lo que muestra la página
+LIBRO_DESDE_DEFECTO = '2024-01-01'
+BYMA_HIST = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/chart/historical-series/history'
+BCRA_TAMAR = 'https://api.bcra.gob.ar/estadisticas/v4.0/Monetarias/44'
+MES_TICKER = 'EFMAYJLGSOND'
+NO_TICKER = {'OPCION', 'NUEVO', 'NUEVA', 'REAPERTURA', 'BONCER', 'LELINK', 'LECAP', 'BONCAP', 'LETAMAR',
+             'DUAL', 'BONO', 'LETRA', 'TAMAR', 'BONTE', 'LECER', 'BONAR'}
+ORDEN_OP = {'s': 0, '-': 1, '+': 2}
+
+
+def tickers_en(s):
+    u = sin_tildes(s or '').upper()
+    return [t for t in re.findall(r'\b([A-Z][A-Z0-9]{3,5})\b', u)
+            if any(c.isdigit() for c in t) and t not in NO_TICKER and not re.fullmatch(r'A\d+', t)]
+
+
+def ticker_de(nombre):
+    """El ticker de una fila de conversión, también con 'OPCIÓN 1 - TZXM8'."""
+    ins = {'clase': clase_de(nombre), 'dual': dual_de(nombre), 'vencimiento': vencimiento_de(nombre)}
+    m, mi = TICKER.search(nombre or ''), TICKER_INV.search(nombre or '')
+    if m or mi:
+        return (m.group(1) if m else mi.group(2)).upper(), ins
+    for par in reversed(re.findall(r'\(([^()]*)\)?', nombre or '')):
+        t = tickers_en(par)
+        if t:
+            return t[-1], ins
+    return None, ins
+
+
+def vto_de_ticker(t):
+    m = re.fullmatch(r'[SDMXT](\d{2})([EFMAYJLGSOND])(\d)', t or '')
+    if not m:
+        return None
+    try:
+        return dt.date(2020 + int(m.group(3)), MES_TICKER.index(m.group(2)) + 1, int(m.group(1))).isoformat()
+    except ValueError:
+        return None
+
+
+def _col(enc, *claves):
+    for k, c in enumerate(enc):
+        if all(x in sin_tildes(c).upper() for x in claves):
+            return k
+    return None
+
+
+def eventos_de(pagina, efectivo):
+    """Los movimientos del VNO en circulación que informa un comunicado, como
+    [ticker, op, valor]: op 's' es el total en circulación, '-' lo rescatado y
+    '+' lo entregado. Un instrumento nuevo sin ticker va como 'clase|vencimiento'."""
+    ev, meta = [], {}
+
+    def alta(t, ins=None, **kw):
+        d = meta.setdefault(t, {})
+        for k in ('clase', 'dual', 'vencimiento', 'margen', 'moneda', 'tem'):
+            v = (ins or {}).get(k, kw.get(k))
+            if v is not None and k not in d:
+                d[k] = v
+
+    if efectivo:
+        for i in parsear_resultado(pagina)['instrumentos']:
+            t = i.get('ticker') or '%s|%s' % (i.get('clase'), i.get('vencimiento'))
+            alta(t, i)
+            if i.get('circulacion'):
+                ev.append([t, 's', i['circulacion']])
+            elif i.get('desierto'):
+                meta[t]['desierto'] = True
+    bl = cuerpo(pagina)
+    texto = ' '.join(b for k, b in bl if k == 'texto')
+    pct = {}
+    for m in re.finditer(r'representa (?:el )?([\d.,]+)\s*% del VNO en circulaci[oó]n([^.]{0,60})', texto):
+        t = tickers_en(m.group(2))
+        if t:
+            pct[t[0]] = num(m.group(1))
+    for m in re.finditer(r'VNO total a ser rescatado de([^.]{0,60}?) es (?:USD|\$)\s*([\d.,]+)', texto):
+        t = tickers_en(m.group(1))
+        if t:
+            alta(t[-1])
+            ev.append([t[-1], '-', num(m.group(2))])
+    # El vencimiento de un título que sólo aparece como el que se convierte.
+    for m in re.finditer(r'vencimiento (?:el |al )?(\d{1,2} de [a-záéíóú]+ de \d{4})\s*\(([A-Z][A-Z0-9]{3,5})\)', texto, re.I):
+        if any(c.isdigit() for c in m.group(2)):
+            alta(m.group(2).upper(), vencimiento=fecha_larga(m.group(1)))
+    for k, b in bl:
+        if k != 'tabla' or not b or len(b[0]) < 2:
+            continue
+        enc = b[0]
+        e0, ult = sin_tildes(enc[0]).upper(), sin_tildes(enc[-1]).upper()
+        # Canje: los títulos elegibles por ticker, y lo que se emite.
+        if e0.startswith('TITULOS ELEGIBLES'):
+            cn = _col(enc, 'NUEVO VNO EN CIRCULACION')
+            ca = _col(enc, 'VNO', 'ADJUDICADO')
+            for fila in b[1:]:
+                t = (fila[0] or '').strip().upper()
+                if not re.fullmatch(r'[A-Z][A-Z0-9]{3,5}', t):
+                    continue
+                alta(t)
+                if cn is not None and num(fila[cn], monto=True):
+                    ev.append([t, 's', num(fila[cn], monto=True)])
+                elif ca is not None and num(fila[ca], monto=True):
+                    ev.append([t, '-', num(fila[ca], monto=True)])
+            continue
+        if e0.startswith('NUEVOS INSTRUMENTOS') and _col(enc, 'VNO A EMITIR') is not None:
+            ce = _col(enc, 'VNO A EMITIR')
+            for fila in b[1:]:
+                t, ins = ticker_de(fila[0])
+                if t and num(fila[ce], monto=True):
+                    alta(t, ins, moneda='ARS')
+                    ev.append([t, '+', num(fila[ce], monto=True)])
+            continue
+        # Conversión: la última columna nombra el título que se rescata.
+        if not any(w in ult for w in ('RESCAT', 'A ENTREGAR DE', 'A INTEGRAR')):
+            continue
+        fuente = (tickers_en(enc[-1]) or [None])[-1]
+        cadj = _col(enc, 'VNO ADJUDICADO')
+        total, suma = None, 0
+        for fila in b[1:]:
+            nom = fila[0] or ''
+            if 'TOTAL' in sin_tildes(nom).upper():
+                fuente = fuente or (tickers_en(nom) or [None])[-1]
+                total = num(fila[-1], monto=True)
+                continue
+            t, ins = ticker_de(nom)
+            v = num(fila[cadj], monto=True) if cadj is not None and cadj < len(fila) else None
+            if t and v:
+                alta(t, ins, moneda='USD' if es_usd(fila[cadj]) else 'ARS')
+                ev.append([t, '+', v])
+            if len(fila) == len(enc):
+                suma += num(fila[-1], monto=True) or 0
+        if fuente and (total or suma):
+            alta(fuente)
+            ev.append([fuente, '-', total or suma])
+    # Lo que el texto declara desierto no se emitió.
+    for frase in re.split(r'\.\s', texto):
+        if re.search(r'declar[oóaá]\w*\s+desiert', frase, re.I):
+            for t in tickers_en(frase):
+                alta(t)
+                if not any(tt == t and op == 's' for tt, op, _ in ev):
+                    meta[t]['desierto'] = True
+    # "Un porcentaje de participación del 38,25%": de la circulación del único
+    # título que se convierte.
+    m = re.search(r'porcentaje de participaci[oó]n del ([\d.,]+)\s*%', texto)
+    fuentes = {t for t, op, _ in ev if op == '-'}
+    if m and len(fuentes) == 1 and not pct:
+        pct[fuentes.pop()] = num(m.group(1))
+    # El porcentaje de la circulación que se rescata da la circulación previa.
+    for t, x in pct.items():
+        res = sum(v for tt, op, v in ev if tt == t and op == '-')
+        if res and x:
+            ev.insert(0, [t, 's', round(res / (x / 100), 0)])
+    return ev, meta
+
+
+def leer_libro():
+    try:
+        with io.open(CIRCULACION, encoding='utf-8') as f:
+            d = json.load(f)
+        return {'fuentes': d.get('fuentes') or {}, 'inst': d.get('inst') or {}}
+    except Exception:
+        return {'fuentes': {}, 'inst': {}}
+
+
+def volcar_libro(libro):
+    j = lambda o: json.dumps(o, ensure_ascii=False, separators=(', ', ': '))
+    ins = sorted(libro['inst'].items())
+    fu = sorted(libro['fuentes'].items(), key=lambda kv: (kv[1]['fecha'], kv[0]))
+    out = ['{', ' "fuente": "Comunicados de la Secretaría de Finanzas desde 2024: VNO en circulación, rescatado y entregado, en millones",',
+           ' "inst": {']
+    out += ['  %s: %s%s' % (json.dumps(k), j(v), ',' if n < len(ins) - 1 else '') for n, (k, v) in enumerate(ins)]
+    out += [' },', ' "fuentes": {']
+    out += ['  %s: %s%s' % (json.dumps(k), j(v), ',' if n < len(fu) - 1 else '') for n, (k, v) in enumerate(fu)]
+    return '\n'.join(out + [' }', '}']) + '\n'
+
+
+def eventos_por_ticker(libro):
+    """[fecha, op, valor] ordenados de cada ticker. Lo que entró sin ticker se
+    suma al ticker del mismo tipo y vencimiento, si se conoce."""
+    inst = libro['inst']
+    real = {(d.get('clase'), d.get('vencimiento')): t for t, d in inst.items() if '|' not in t and d.get('vencimiento')}
+    alias = {t: real.get((d.get('clase'), d.get('vencimiento'))) for t, d in inst.items() if '|' in t}
+    evs = {}
+    for f in libro['fuentes'].values():
+        for t, op, v in f['ev']:
+            t = alias.get(t) or t
+            evs.setdefault(t, []).append([f['fecha'], op, v])
+    for e in evs.values():
+        e.sort(key=lambda x: (x[0], ORDEN_OP.get(x[1], 9)))
+    return evs, {t for t, a in alias.items() if a}
+
+
+def circulacion_al(evs, fecha):
+    """El VNO en circulación antes de una fecha: el último total conocido más lo
+    que entró y salió después. None si no hay de dónde partir."""
+    v, base = None, False
+    for f, op, x in evs:
+        if f >= fecha:
+            break
+        if op == 's':
+            v, base = x, True
+        elif op == '+':
+            v = (v or 0) + x
+        elif op == '-':
+            v = (v or 0) - x
+    # Creado por un canje o una conversión dentro del libro: arranca en cero.
+    if v is None or (not base and evs[0][1] != '+'):
+        return None
+    return max(v, 0)
+
+
+_SIN_CERT = ssl.create_default_context()
+_SIN_CERT.check_hostname = False
+_SIN_CERT.verify_mode = ssl.CERT_NONE   # el certificado de BYMA no valida; el dato es público
+
+
+def byma_cierre(simbolo, vto):
+    """El último cierre antes del vencimiento, por cada 100 VN."""
+    d = dt.date.fromisoformat(vto)
+    q = {'symbol': simbolo + ' 24HS', 'resolution': 'D',
+         'from': int(dt.datetime(d.year, d.month, d.day, tzinfo=dt.timezone.utc).timestamp()) - 25 * 86400,
+         'to': int(dt.datetime(d.year, d.month, d.day, tzinfo=dt.timezone.utc).timestamp()) + 86400}
+    try:
+        req = urllib.request.Request(BYMA_HIST + '?' + urllib.parse.urlencode(q),
+                                     headers={'User-Agent': 'Mozilla/5.0 (bonos-ar)', 'Accept': 'application/json'})
+        with urllib.request.urlopen(req, context=_SIN_CERT, timeout=30) as r:
+            j = json.loads(r.read())
+    except Exception as e:
+        log('BYMA', simbolo, e)
+        return None
+    if j.get('s') != 'ok':
+        return None
+    pares = [(dt.datetime.fromtimestamp(a, dt.timezone.utc).date().isoformat(), c)
+             for a, c in zip(j.get('t') or [], j.get('c') or []) if c and c > 0]
+    pares = [x for x in pares if x[0] < vto]
+    return pares[-1] if pares else None
+
+
+_TAMAR = {}
+
+
+def pago_tamar(emision, vto, margen):
+    """Una LETAMAR que no operó: capitaliza la TAMAR del BCRA más su margen, día
+    a día, de la emisión al vencimiento. Por cada 1 VN."""
+    if not _TAMAR:
+        try:
+            q = urllib.parse.urlencode({'Desde': LIBRO_DESDE_DEFECTO, 'Limit': 3000})
+            with urllib.request.urlopen(urllib.request.Request(BCRA_TAMAR + '?' + q, headers={'User-Agent': 'Mozilla/5.0'}), timeout=40) as r:
+                for x in json.loads(r.read())['results'][0]['detalle']:
+                    _TAMAR[x['fecha']] = x['valor']
+        except Exception as e:
+            log('TAMAR', e)
+            return None
+    d, fin, f, ultima = dt.date.fromisoformat(emision), dt.date.fromisoformat(vto), 1.0, None
+    while d < fin:
+        ultima = _TAMAR.get(d.isoformat(), ultima)
+        if ultima is None:
+            return None
+        f *= 1 + (ultima + margen) / 100 / 365
+        d += dt.timedelta(days=1)
+    return f
+
+
+def simbolos(t, d):
+    if '|' not in t:
+        return [t]
+    v = d.get('vencimiento') or ''
+    if len(v) < 10:
+        return []
+    cod = v[8:10] + MES_TICKER[int(v[5:7]) - 1] + v[3]
+    return [x + cod for x in {'fija': 'ST', 'cer': 'X', 'dl': 'D', 'tamar': 'M'}.get(d.get('clase'), '')]
+
+
+def precio_rescate(t, d, vto, emision):
+    """Por cada 1 VN, en pesos: el dollar linked ya cotiza en pesos."""
+    sim = simbolos(t, d)
+    for s in sim:
+        c = byma_cierre(s, vto)
+        time.sleep(0.3)
+        if c:
+            return c[1] / 100, 'BYMA ' + c[0], s
+    if d.get('clase') == 'tamar' and d.get('margen') is not None and emision:
+        f = pago_tamar(emision, vto, d['margen'])
+        if f:
+            return f, 'TAMAR + margen', (sim or [t])[0]
+    return None, None, t
+
+
+def habil(f):
+    d = dt.date.fromisoformat(f)
+    while d.weekday() >= 5:
+        d += dt.timedelta(days=1)
+    return d.isoformat()
+
+
+def estimar_rollover(lics, crono, libro, recalcular_desde, previo):
+    """Los vencimientos y el rollover estimados de cada licitación del
+    cronograma. Las anteriores a recalcular_desde quedan como estaban."""
+    evs, absorbidos = eventos_por_ticker(libro)
+    liqs = sorted({c[2] for c in crono if c[2]})
+    del_crono = {c[1] for c in crono}
+    # Para la primera ventana, las licitaciones del libro anteriores al cronograma.
+    efectivo = sorted({f['fecha'] for f in libro['fuentes'].values() if any(op == 's' for _, op, _ in f['ev'])})
+    for l in lics:
+        if l['fecha'] not in del_crono or l['fecha'] < HISTORIA_DESDE or l.get('fuente') != 'Finanzas':
+            continue
+        viejo = previo.get(l['fecha']) or {}
+        if l['fecha'] < recalcular_desde and viejo.get('vencEst'):
+            l['vencEst'], l['rolloverEst'] = viejo['vencEst'], viejo.get('rolloverEst')
+            continue
+        liq = l.get('liquidacion')
+        if not liq:
+            continue
+        prev = max((x for x in liqs if x < liq), default=None)
+        if not prev:
+            ant = [f for f in efectivo if f < l['fecha']]
+            if not ant:
+                continue
+            prev = habil((dt.date.fromisoformat(ant[-1]) + dt.timedelta(days=2)).isoformat())
+        detalle, faltan = [], []
+        # Si BYMA no contesta, el precio de la corrida anterior.
+        antes = {x[0]: x for x in (viejo.get('vencEst') or {}).get('detalle', [])}
+        for t, d in sorted(libro['inst'].items(), key=lambda kv: (kv[1].get('vencimiento') or '', kv[0])):
+            v = d.get('vencimiento') or vto_de_ticker(t)
+            if not v or t in absorbidos or d.get('clase') == 'usd' or not (prev < habil(v) <= liq):
+                continue
+            e = evs.get(t)
+            if not e:
+                if not d.get('desierto'):
+                    faltan.append(t)
+                continue
+            vn = circulacion_al(e, v)
+            if vn is None:
+                faltan.append(t)
+                continue
+            if vn < 1:
+                continue
+            emision = next((f for f, op, _ in e if op in ('s', '+')), None)
+            px, de, sim = precio_rescate(t, d, v, emision)
+            if px is None and sim in antes:
+                px, de = antes[sim][2] / 100, antes[sim][4]
+            if px is None:
+                faltan.append(sim)
+                continue
+            detalle.append([sim, round(vn), round(px * 100, 3), round(vn * px), de])
+        total = sum(x[3] for x in detalle)
+        r2 = sum(i.get('veAdjudicado', 0) for i in l.get('instrumentos', []) if i.get('ronda') == 2 and i.get('veMoneda') != 'USD')
+        adj = (l.get('adjudicadoVE') or 0) + r2
+        l['vencEst'] = {k: v for k, v in {'desde': prev, 'total': total, 'detalle': detalle, 'faltan': faltan or None}.items() if v is not None}
+        l['rolloverEst'] = round(adj / total * 100, 2) if total and adj else None
+        if l['rolloverEst'] is None:
+            l.pop('rolloverEst')
+        log('rollover estimado', l['fecha'], l.get('rolloverEst'), 'faltan' if faltan else '', ' '.join(faltan))
+
+
 # ── Armado ────────────────────────────────────────────────────────────────────
 def completar_tickers(lics, llamado):
     """Un bono nuevo sale en el resultado sin ticker; en la reapertura
@@ -615,8 +996,11 @@ def leer_actual():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--desde', help='YYYY-MM-DD: rearma el historial desde esa fecha')
+    ap.add_argument('--libro-desde', help='YYYY-MM-DD: rearma el libro de circulación desde esa fecha')
     a = ap.parse_args()
     previo = leer_actual()
+    # Lo leído, aparte: las licitaciones viejas se completan en el lugar.
+    leido = json.loads(json.dumps(previo))
     hoy = dt.date.today()
     por_fecha = {l['fecha']: l for l in previo.get('licitaciones', [])}
     desde = a.desde or (hoy - dt.timedelta(days=45)).isoformat()
@@ -631,8 +1015,18 @@ def main():
         crono = previo.get('cronograma', [])
     liq_de = {c[1]: c[2] for c in crono}
 
-    noticias = sorted(listado(desde), key=lambda x: x['fecha'])
-    log('noticias desde', desde, ':', len(noticias))
+    libro_desde = min(a.libro_desde or desde, desde)
+    todas = sorted(listado(libro_desde), key=lambda x: x['fecha'])
+    noticias = [n for n in todas if n['fecha'] >= max(desde, HISTORIA_DESDE)]
+    log('noticias desde', desde, ':', len(noticias), '· para el libro desde', libro_desde, ':', len(todas))
+    paginas = {}
+
+    def pagina(u):
+        if u not in paginas:
+            paginas[u] = get(u)
+            time.sleep(1)
+        return paginas[u]
+
     ultimo_llamado, llamados = None, []
     for n in noticias:
         tipo = tipo_noticia(n['titulo'])
@@ -643,11 +1037,10 @@ def main():
             llamados.append(n)
             continue
         try:
-            pag = get(n['url'])
+            pag = pagina(n['url'])
         except Exception as e:
             log('no se pudo leer', n['url'], e)
             continue
-        time.sleep(1)
         if tipo == 'resultado':
             r = parsear_resultado(pag)
             if not r['instrumentos']:
@@ -657,7 +1050,7 @@ def main():
             r['liquidacion'] = liq_de.get(n['fecha']) or (por_fecha.get(n['fecha']) or {}).get('liquidacion')
             # Lo cargado a mano (el rollover, por ejemplo) no se pisa con un hueco.
             viejo = por_fecha.get(n['fecha']) or {}
-            for k in ('rollover', 'vencimientos', 'manual'):
+            for k in ('rollover', 'vencimientos', 'manual', 'rolloverOficial'):
                 if k in viejo and k not in r:
                     r[k] = viejo[k]
             por_fecha[n['fecha']] = {k: v for k, v in r.items() if v is not None}
@@ -740,10 +1133,48 @@ def main():
 
     lics = [por_fecha[f] for f in sorted(por_fecha)]
     completar_tickers(lics, llamado)
+
+    # El libro de circulación: los comunicados de resultados que faltan, o
+    # todos desde --libro-desde.
+    libro = leer_libro()
+    for n in todas:
+        if not sin_tildes(n['titulo']).upper().startswith('RESULTADO'):
+            continue
+        if n['url'] in libro['fuentes'] and n['fecha'] < desde:
+            continue
+        try:
+            ev, meta = eventos_de(pagina(n['url']), tipo_noticia(n['titulo']) in ('resultado', 'segunda', 'correccion'))
+        except Exception as e:
+            log('libro:', n['url'], e)
+            continue
+        libro['fuentes'][n['url']] = {'fecha': n['fecha'], 'ev': ev}
+        for t, d in meta.items():
+            viejo = libro['inst'].setdefault(t, {})
+            for k, v in d.items():
+                if k == 'desierto':
+                    continue
+                viejo.setdefault(k, v)
+            # Desierto sólo si nunca tuvo circulación.
+            if d.get('desierto') and not any(tt == t and op == 's' for tt, op, _ in ev):
+                viejo.setdefault('desierto', True)
+            elif any(tt == t and op == 's' for tt, op, _ in ev):
+                viejo.pop('desierto', None)
+    try:
+        estimar_rollover(lics, crono, libro, a.libro_desde or desde, {l['fecha']: l for l in previo.get('licitaciones', [])})
+    except Exception as e:
+        log('rollover estimado:', e)
+    texto_libro = volcar_libro(libro)
+    viejo_libro = io.open(CIRCULACION, encoding='utf-8').read() if os.path.exists(CIRCULACION) else ''
+    if texto_libro != viejo_libro:
+        json.loads(texto_libro)
+        with io.open(CIRCULACION, 'w', encoding='utf-8', newline='\r\n') as f:
+            f.write(texto_libro)
+        log('Escrito', CIRCULACION, ':', len(libro['fuentes']), 'comunicados')
+
     datos = {'fuente': 'Secretaría de Finanzas (argentina.gob.ar) · respaldo: MAE',
              'cronograma': crono, 'llamado': llamado, 'licitaciones': lics}
     sin_sello = lambda d: {k: v for k, v in d.items() if k != 'generado'}
-    if sin_sello(previo) == datos:
+    if sin_sello(leido) == datos:
         log('Sin cambios.')
         return
     datos = {'generado': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'), **datos}

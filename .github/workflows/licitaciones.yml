@@ -47,15 +47,17 @@ jobs:
 
       # El script no reescribe el archivo cuando sólo cambiaría el sello de
       # tiempo: "sin cambios" acá es que no hubo llamado ni resultado nuevo.
+      # circulacion.json es el libro del VNO en circulación, para el rollover
+      # estimado.
       - name: Commitear si cambió
         run: |
-          if git diff --quiet -- licitaciones.json; then
+          if git diff --quiet -- licitaciones.json circulacion.json; then
             echo "Sin novedades."
             exit 0
           fi
           ultima=$(python -c "import json;d=json.load(open('licitaciones.json',encoding='utf-8'));print(d['licitaciones'][-1]['fecha'] if d['licitaciones'] else '')")
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add licitaciones.json
+          git add licitaciones.json circulacion.json
           git commit -m "data(licitaciones): al ${ultima}"
           git push

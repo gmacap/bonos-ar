@@ -4575,6 +4575,19 @@ const omitir = (label, motivo) =>
         }
       }
     }
+    // El rollover: el de Finanzas cuando lo informa y, si no, el estimado sobre
+    // el total de vencimientos, con un detalle que cuadra.
+    {
+      const crono = new Set((D.cronograma || []).map(c => c[1]));
+      const prog = D.licitaciones.filter(l => l.fuente === 'Finanzas' && crono.has(l.fecha) && l.fecha >= '2025-01-01' && l.liquidacion && l.liquidacion <= hoyAR());
+      const est = D.licitaciones.filter(l => l.vencEst && l.vencEst.total > 0);
+      const cuadra = est.every(l => Math.abs(l.vencEst.detalle.reduce((s, x) => s + x[3], 0) - l.vencEst.total) <= 2
+        && l.vencEst.detalle.every(x => Math.abs(x[1] * x[2] / 100 - x[3]) <= Math.max(2, x[3] * 1e-4)));
+      const ofi = D.licitaciones.find(l => l.rollover != null);
+      out.roll = { prog: prog.length, con: prog.filter(l => licRollover(l)).length, est: est.length, cuadra,
+        oficialManda: !ofi || licRollover(ofi).est === false,
+        texto: licRolloverTexto(licRollover(D.licitaciones[D.licitaciones.length - 1])) };
+    }
     // Dólares: la misma página, arrancando con los Bonares.
     switchSection('usd'); switchUsdTab('usd-licitaciones');
     await espera(1500);
@@ -4629,6 +4642,9 @@ const omitir = (label, motivo) =>
     else check(tu.filas === 3 && tu.estados === tu.esperados && tu.nPaga === 2 && tu.paga && tu.archivo, TUS, JSON.stringify(tu));
     if (tu) check(tu.lugar && tu.lugar.nueva.join() === 'true,true' && tu.lugar.aMano === false && tu.lugar.vieja.join() === 'false,false,3',
           'tus órdenes van arriba y abiertas hasta dos hábiles después de la licitación; después, abajo del resultado y plegadas', JSON.stringify(tu.lugar));
+    const ro = lic.roll;
+    check(ro && ro.con >= ro.prog * 0.8 && ro.est >= 20 && ro.cuadra && ro.oficialManda && ro.texto !== '—',
+          'el rollover está en casi todas las licitaciones: el de Finanzas si lo informa, si no estimado con un detalle que cuadra', JSON.stringify(ro));
     check(lic.plegar && lic.plegar.plegado && lic.plegar.vuelve && lic.plegar.grafico,
           'cada módulo de Licitaciones se pliega desde su título, se recuerda y al desplegarse se repinta', JSON.stringify(lic.plegar));
     check(lic.usd.visible && lic.usd.ver === 'usd' && lic.usd.soloUsd && lic.todos >= lic.usd.filas,
