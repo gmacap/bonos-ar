@@ -161,6 +161,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .calc-incl{margin:0 6px 0 0;accent-color:var(--accent);cursor:pointer;vertical-align:middle;flex-shrink:0;}
 tr.calc-fuera>td{opacity:.42;}
 tr.calc-fuera:hover>td{opacity:.75;}
+/* Bonos nuevos de una licitación: el aviso para el admin, arriba de la tabla
+   de cada calculadora, y la marca "por liquidar" hasta la emisión. */
+.altas-aviso{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 10px;padding:6px 10px;border:1px solid var(--border2);border-left:3px solid var(--accent);border-radius:4px;background:var(--surface2);font-family:var(--mono);font-size:var(--fs11);color:var(--text2);}
+.altas-aviso:empty{display:none;}
+.altas-aviso .altas-item{display:inline-flex;align-items:center;gap:6px;padding:2px 4px 2px 8px;border:1px solid var(--border);border-radius:3px;background:var(--surface);}
+.altas-aviso button{font-family:var(--mono);font-size:var(--fs10);padding:1px 7px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);color:var(--text2);cursor:pointer;}
+.altas-aviso button.primary{border-color:var(--accent2);color:var(--accent);}
+.altas-nota{margin:0 0 10px;padding:7px 10px;border:1px solid var(--border2);border-left:3px solid var(--accent);border-radius:4px;background:var(--surface2);font-family:var(--mono);font-size:var(--fs11);line-height:1.5;color:var(--text2);}
+.altas-nota b{color:var(--warn);font-weight:500;}
+.altas-nota a{color:var(--accent);}
+.por-liquidar{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid var(--warn);border-radius:3px;color:var(--warn);font-size:var(--fs9);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;}
 .nav-tab.disabled{opacity:.3;cursor:not-allowed;}
 .proy-subtab{padding:5px 2px;font-size:var(--fs11);font-family:var(--mono);color:var(--text3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
 .proy-subtab:hover{color:var(--text2);}
@@ -2887,6 +2898,7 @@ async function authCargarPermisos(){
 
 function authUpdateAdminUI(){
   const admin=isAdmin();
+  ['tf','cer','tamar','dlk','bon'].forEach(k=>{try{altasPintar(k);}catch(e){}});
   // Solo ocultar botones de agregar/eliminar bonos en las toolbars de TF/CER/TAMAR
   document.querySelectorAll(
     '.pane-toolbar .btn.primary:not(#sint-add-btn)'
@@ -3016,7 +3028,7 @@ async function authAction(){
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
   'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1'];
 // Keys que van a Supabase compartidas
-const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
+const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
 
 // Trae lo de la cuenta al navegador. Devuelve qué claves tiene la cuenta y si
 // alguna difiere de lo que había, o null si no se pudo leer.
@@ -3343,6 +3355,7 @@ function usdFamRenderSummaryRows(fam){
   const enriched=usdSumSort(usdSumEnrich(fam.bonds,liq),fam.sortCol,fam.sortAsc);
   tbody.innerHTML=enriched.map(e=>usdSumRowHtml(e,fam.sel===e.b.ticker,fam.selectFn,fam.id)).join('');
   fam.chartRender();
+  if(fam.id==='bon')altasPintar('bon');
 }
 
 function usdFamRenderSummary(fam){
@@ -4723,6 +4736,7 @@ function renderTable(){
   };
   tbody.innerHTML=rows.map(r=>buildRow(r)).join('');
   set('st-count',rows.length+' letra'+(rows.length!==1?'s':''));
+  altasPintar('tf');
   renderChart();
 }
 
@@ -4786,7 +4800,7 @@ function buildRow(r){
     :'<span style="font-size:var(--fs10);color:var(--accent)">BONCAP</span>';
 
   return `<tr class="${sel}${calcFilaCls('tf',r.ticker)}" onclick="handleRowClick(event,'${r.ticker}')">
-    <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('tf',r.ticker)}<span class="c-ticker">${r.ticker}</span></div></td>
+    <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('tf',r.ticker)}<span class="c-ticker">${r.ticker}</span>${altasMarca(r.emision)}</div></td>
     <td><div class="cv no-edit" style="justify-content:center">${tipoBadge}</div></td>
     <td><div class="cv no-edit c-date">${vctoStr}</div></td>
     <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
@@ -5016,6 +5030,7 @@ function toggleEmision(){
 
 // ── MODAL NUEVA LECAP ─────────────────────────────────────────────────────────
 function openModal(){
+  altasNota('modal',null);
   ['m-ticker','m-tem-emision','m-emision','m-vcto','m-precio'].forEach(id=>{document.getElementById(id).value='';});
   document.getElementById('m-vf-preview').value='';
   document.getElementById('modal').classList.add('open');
@@ -6065,7 +6080,7 @@ function cerRenderTable(){
     }
 
     return`<tr class="${sel}${calcFilaCls('cer',r.ticker)}" onclick="cerHandleRowClick(event,'${r.ticker}')">
-      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('cer',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
+      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('cer',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}${altasMarca(r.emision)}</div></td>
       <td><div class="cv no-edit" style="justify-content:center">${tipoBadge}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
@@ -6335,6 +6350,7 @@ function cerToggleEmision(){
 
 // ── CER MODAL ─────────────────────────────────────────────────────────────────
 function cerOpenModal(){
+  altasNota('cer-modal',null);
   ['cer-m-ticker','cer-m-cupon','cer-m-precio','cer-m-primer-cupon'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('cer-m-tipo').value='lecer';
   document.getElementById('cer-m-emision').value='';
@@ -9672,7 +9688,7 @@ function tamarRenderTable(){
         ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}${pesosCierreMarca(r)}</div>`
         :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
     return`<tr class="${calcFilaCls('tamar',r.ticker)}" onclick="tamarRowClick(event,'${r.ticker}')" style="cursor:pointer">
-      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('tamar',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
+      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('tamar',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}${altasMarca(r.emision)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
@@ -9904,6 +9920,7 @@ function tamarLoadBonds(){
 }
 
 function tamarOpenModal(){
+  altasNota('tamar-modal',null);
   ['tamar-m-ticker','tamar-m-emision','tamar-m-vcto','tamar-m-precio','tamar-m-margen','tamar-m-tc','tamar-m-temfija'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value='';
   });
@@ -13155,6 +13172,161 @@ function beRenderChartSintChips(){
   }).join('');
 }
 
+// ── CALCULADORAS: BONOS NUEVOS DE LAS LICITACIONES ────────────────────────────
+// Lo que una licitación emite por primera vez se propone en su calculadora
+// desde el día del resultado, con lo que dice el comunicado: el vencimiento, la
+// liquidación como emisión, la TEM de corte de una LECAP nueva, el margen de
+// corte de un bono TAMAR, el A3500 del comunicado para un dual con dólar. No
+// entra solo: el admin lo revisa en el formulario de alta de esa calculadora,
+// ya completado, y recién al guardarlo queda para todos. Lo que el comunicado
+// no trae —el margen de un dual, el cupón de un Bonar, un ticker que no se
+// puede deducir— queda en blanco y la nota del formulario lo dice. Un dual va a
+// las dos calculadoras de sus patas, como los que ya están cargados. Hasta la
+// liquidación, el bono se ve marcado "por liquidar".
+//
+// Funciones y no variables: las tablas se pintan al cargar, antes de que el
+// script llegue hasta acá.
+function altasDiasAtras(){return 60;}
+function altasDescartadas(){try{const v=JSON.parse(localStorage.getItem('bonosAR_altas_descartadas_v1')||'[]');return new Set(Array.isArray(v)?v:[]);}catch(e){return new Set();}}
+// Las calculadoras de cada instrumento: un dual va a las de sus dos patas.
+function altasDestinos(i){
+  if(i.clase==='fija')return['tf'];
+  if(i.clase==='cer')return['cer'];
+  if(i.clase==='tamar')return['tamar'];
+  if(i.clase==='dl')return['dlk'];
+  if(i.clase==='usd')return['bon'];
+  if(i.clase==='dual')return i.dual==='cer'?['cer','tamar']:i.dual==='dl'?['dlk','tamar']:['tamar'];
+  return[];
+}
+// Una letra sin ticker en el comunicado: S, X, D o M más día, mes y año, como
+// la convención de Finanzas (S16O6 vence el 16/10/2026). Un bono, no se adivina.
+function altasTickerDeducido(i){
+  const v=i.vencimiento||'';
+  if(v.length<10)return null;
+  const cod=v.slice(8,10)+'EFMAYJLGSOND'[+v.slice(5,7)-1]+v[3],letra=/^\s*LETRA/i.test(i.nombre||'');
+  if(i.clase==='fija')return(letra?'S':'T')+cod;
+  const pre=letra?{cer:'X',dl:'D',tamar:'M'}[i.clase]:null;
+  return pre?pre+cod:null;
+}
+function altasFecha(f){return f?f.slice(8,10)+'/'+f.slice(5,7)+'/'+f.slice(2,4):'';}
+function altasF(f){return String(f||'').split('-').reverse().join('/');}
+function altasEsc(t){return String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+// Las propuestas de una calculadora: instrumentos nuevos de las licitaciones
+// recientes que todavía no vencieron, no están en la lista ni se descartaron.
+function altasPropuestas(clave){
+  if(!LIC_DATA||!Array.isArray(LIC_DATA.licitaciones))return[];
+  const C=calcClave(clave);
+  if(!C)return[];
+  const lista=C.bonos(),hoy=hoyAR(),desc=altasDescartadas();
+  const desde=fmtDate(new Date(parseDate(hoy).getTime()-altasDiasAtras()*864e5));
+  const out=[],vistos=new Set();
+  LIC_DATA.licitaciones.forEach(l=>{
+    if(l.fecha<desde||l.fuente!=='Finanzas')return;
+    (l.instrumentos||[]).forEach(i=>{
+      if(i.estado!=='nuevo'||i.desierto||i.ronda===2||!i.vencimiento||i.vencimiento<=hoy)return;
+      if(!altasDestinos(i).includes(clave))return;
+      const deducido=!i.ticker?altasTickerDeducido(i):null,ticker=i.ticker||deducido||'';
+      const id=`${clave}|${ticker||i.clase+'|'+i.vencimiento}`;
+      if(vistos.has(id)||desc.has(id))return;
+      // Ya cargado: el mismo ticker o, sin ticker, el mismo vencimiento.
+      if(lista.some(b=>ticker?b.ticker===ticker:(b.vcto||b.vencimiento)===i.vencimiento))return;
+      vistos.add(id);
+      out.push({id,clave,ticker,deducido:!!deducido,i,l,emision:licLiq(l)});
+    });
+  });
+  return out;
+}
+// Lo que se completa en el formulario y lo que falta revisar a mano.
+function altasCampos(P){
+  const{clave,i,l}=P,c={},falta=[];
+  if(!P.ticker)falta.push('el ticker: el comunicado no lo trae y no se puede deducir');
+  else if(P.deducido)falta.push(`el ticker ${P.ticker}, deducido del vencimiento: confirmalo`);
+  if(clave==='tf'){
+    if(i.tem!=null&&i.precio==null)c.tem=i.tem;
+    else falta.push('la TEM de emisión: se licitó por precio; está en las notas del comunicado');
+  }
+  if(clave==='cer'){
+    c.tipo=/CERO CUP|^\s*LETRA/i.test(i.nombre||'')?'lecer':'cupon';
+    if(c.tipo==='cupon')falta.push('el cupón y la amortización');
+  }
+  if(clave==='tamar'){
+    if(i.clase==='tamar'&&i.margen!=null)c.margen=i.margen;
+    else falta.push('el margen sobre TAMAR'+(i.clase==='dual'?': en un dual está en el llamado, no en el resultado':''));
+    if(i.clase==='dual'&&i.dual==='dl'){c.tc=licA3500(l);falta.push('el tipo de cambio inicial: va el A3500 del comunicado');}
+    if(i.clase==='dual'&&i.dual==='fija')falta.push('la TEM de la pata fija');
+  }
+  if(clave==='dlk'&&i.clase==='dual')falta.push('es la pata dólar linked de un dual: el resto va en TAMAR');
+  if(clave==='cer'&&i.clase==='dual')falta.push('es la pata CER de un dual: el margen va en TAMAR');
+  if(clave==='bon'){
+    const m=/(\d+(?:[.,]\d+)?)\s*%/.exec(i.nombre||'');
+    if(m)c.tasa=+m[1].replace(',','.');
+    falta.push('la periodicidad del cupón y la amortización');
+  }
+  return{c,falta};
+}
+// El formulario de alta de la calculadora, completado, con la nota arriba.
+function altasNota(modalId,html){
+  const m=document.getElementById(modalId);
+  if(!m)return;
+  const vieja=m.querySelector('.altas-nota');
+  if(vieja)vieja.remove();
+  if(!html)return;
+  const t=m.querySelector('.modal-title'),d=document.createElement('div');
+  d.className='altas-nota';d.innerHTML=html;
+  if(t)t.insertAdjacentElement('afterend',d);
+}
+function altaRevisar(clave,id){
+  const P=altasPropuestas(clave).find(x=>x.id===id);
+  if(!P)return;
+  const{c,falta}=altasCampos(P),v=(el,x)=>{const e=document.getElementById(el);if(e&&x!=null)e.value=x;};
+  let modal;
+  if(clave==='tf'){openModal();modal='modal';v('m-ticker',P.ticker);v('m-tem-emision',c.tem);v('m-emision',P.emision);v('m-vcto',P.i.vencimiento);previewModalVF();}
+  else if(clave==='cer'){cerOpenModal();modal='cer-modal';v('cer-m-ticker',P.ticker);v('cer-m-tipo',c.tipo);cerModalTipoChange();v('cer-m-emision',P.emision);v('cer-m-vcto',P.i.vencimiento);}
+  else if(clave==='tamar'){tamarOpenModal();modal='tamar-modal';v('tamar-m-ticker',P.ticker);v('tamar-m-emision',P.emision);v('tamar-m-vcto',P.i.vencimiento);v('tamar-m-margen',c.margen);v('tamar-m-tc',c.tc);}
+  else if(clave==='dlk'){dlkOpenModal();modal='dlk-modal';v('dlk-m-ticker',P.ticker);v('dlk-m-cupon',0);v('dlk-m-freq-cupon','0');v('dlk-m-amort-tipo','bullet');dlkModalAmortChange();v('dlk-m-emision',P.emision);v('dlk-m-vcto',P.i.vencimiento);}
+  else if(clave==='bon'){bopModalCtx='bon';bopOpenModal();modal='bop-modal';v('bop-f-ticker',P.ticker);v('bop-f-emision',P.emision);v('bop-f-inicio-int',P.emision);v('bop-f-venc',P.i.vencimiento);v('bop-f-tasa',c.tasa);}
+  else return;
+  altasNota(modal,`Propuesto desde la licitación del ${altasF(P.l.fecha)}${P.l.url?` · <a href="${P.l.url}" target="_blank" rel="noopener">comunicado ↗</a>`:''}: ${altasEsc(P.i.nombre||'')}. `
+    +`Emisión ${altasF(P.emision)}, cuando liquida; vencimiento ${altasF(P.i.vencimiento)}. Revisá todo antes de guardar: al guardar queda para todos.`
+    +(falta.length?`<br>Falta o hay que confirmar: <b>${falta.map(altasEsc).join('</b> · <b>')}</b>.`:''));
+}
+function altaDescartar(clave,id){
+  const P=altasPropuestas(clave).find(x=>x.id===id);
+  if(!P||!confirm(`¿Descartar ${P.ticker||'el instrumento que vence el '+altasF(P.i.vencimiento)}? No se vuelve a proponer.`))return;
+  const d=altasDescartadas();d.add(id);
+  try{localStorage.setItem('bonosAR_altas_descartadas_v1',JSON.stringify([...d]));}catch(e){}
+  altasPintar(clave);
+}
+// El aviso arriba de la tabla de cada calculadora, sólo para el admin.
+function altasCaja(clave){
+  let el=document.getElementById('altas-'+clave);
+  if(el)return el;
+  const ref={tf:'table-body',cer:'cer-table-body',tamar:'tamar-table-body',dlk:'dlk-table-body'}[clave];
+  const tabla=ref?(document.getElementById(ref)||{closest:()=>null}).closest('table'):document.getElementById(clave+'-summary-table');
+  if(!tabla||!tabla.parentElement)return null;
+  el=document.createElement('div');el.id='altas-'+clave;el.className='altas-aviso';
+  tabla.parentElement.insertBefore(el,tabla);
+  return el;
+}
+function altasPintar(clave){
+  if(!isAdmin()){const el=document.getElementById('altas-'+clave);if(el)el.innerHTML='';return;}
+  if(typeof LIC_DATA==='undefined'||!LIC_DATA){
+    if(typeof LIC_URL==='string'&&!altasPintar._pidio){altasPintar._pidio=true;licCargar().then(()=>['tf','cer','tamar','dlk','bon'].forEach(altasPintar)).catch(()=>{});}
+    return;
+  }
+  const el=altasCaja(clave);
+  if(!el)return;
+  const P=altasPropuestas(clave);
+  el.innerHTML=!P.length?'':`<span>Bonos nuevos de licitaciones, para revisar antes de que queden:</span>`+P.map(x=>
+    `<span class="altas-item" title="${altasEsc(x.i.nombre||'')}">${altasEsc(x.ticker||'sin ticker')} <span style="color:var(--text3)">vence ${altasFecha(x.i.vencimiento)} · licitación ${altasFecha(x.l.fecha)}${x.emision>hoyAR()?' · por liquidar':''}</span>`
+    +`<button type="button" class="primary" onclick="altaRevisar('${clave}','${x.id}')">Revisar</button><button type="button" onclick="altaDescartar('${clave}','${x.id}')" title="No proponerlo más">✕</button></span>`).join('');
+}
+// Hasta la emisión, la marca en la fila.
+function altasMarca(emision){
+  if(!emision||emision<=hoyAR())return'';
+  return`<span class="por-liquidar" title="Bono nuevo: se emite el ${altasF(emision)}, cuando liquida la licitación. Hasta entonces no cotiza.">por liquidar</span>`;
+}
+
 // ── CALCULADORAS: BONOS FUERA DEL GRÁFICO ─────────────────────────────────────
 // En cada calculadora se puede sacar un bono del gráfico y de la curva
 // ajustada —uno que casi no opera, uno que distorsiona el tramo— sin borrarlo:
@@ -13217,6 +13389,7 @@ function cerRenderTabChart(){
   const status=document.getElementById('cer-chart-status');
   if(!canvas)return;
   calcBonosPintar('cer');
+  altasPintar('cer');
   if(!CER_INDEX.length){if(status)status.textContent='(sin índice CER)';return;}
   if(status)status.textContent='';
   const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('cer');
@@ -13240,6 +13413,7 @@ function tamarRenderTabChart(){
   const canvas=document.getElementById('tamar-curve-chart');
   if(!canvas)return;
   calcBonosPintar('tamar');
+  altasPintar('tamar');
   if(!TAMAR_INDEX.length)return;
   const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('tamar');
   if(!TAMAR_DATA.length&&TAMAR_BONDS.length) TAMAR_DATA=TAMAR_BONDS.map(tamarEnrich);
@@ -13704,6 +13878,7 @@ function dlkRenderTabChart(){
   const canvas=document.getElementById('dlk-curve-chart');
   if(!canvas)return;
   calcBonosPintar('dlk');
+  altasPintar('dlk');
   const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('dlk');
   if(!DLK_DATA.length&&DLK_BONDS.length) DLK_DATA=DLK_BONDS.map(dlkEnrich);
   const pts=DLK_DATA.map(r=>{
@@ -14029,7 +14204,7 @@ function dlkRenderTable(){
         ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}${pesosCierreMarca(r)}</div>`
         :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
     return`<tr class="${calcFilaCls('dlk',r.ticker)}" onclick="dlkRowClick(event,'${r.ticker}')" style="cursor:pointer">
-      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('dlk',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
+      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('dlk',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}${altasMarca(r.emision)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${r.dias}</div></td>
       <td>${pxCell}</td>
@@ -14275,6 +14450,7 @@ async function dlkFetchPrices(){
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 function dlkOpenModal(){
+  altasNota('dlk-modal',null);
   ['dlk-m-ticker','dlk-m-cupon','dlk-m-emision','dlk-m-vcto','dlk-m-precio','dlk-m-ncuotas','dlk-m-primer-amort'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value='';
   });
@@ -16520,7 +16696,7 @@ function usdSumRowHtml(e,isSel,onClickFn,group){
   const pxTitle=cierre?usdCierreTexto(b).replace(/"/g,'&quot;')+' · click para editar':'Click para editar precio';
   const pxColor=ovr?'var(--warn)':usdEsCierre(b)?'var(--info)':'var(--text)';
   return`<tr class="${calcFilaCls(g,b.ticker)}" style="cursor:pointer;border-bottom:1px solid var(--border);${bg}" onclick="${onClickFn}('${b.ticker}')" ${hov}>
-    <td style="padding:9px 14px;color:var(--accent);font-weight:600;white-space:nowrap;text-align:left">${calcCasilla(g,b.ticker)}${b.ticker}</td>
+    <td style="padding:9px 14px;color:var(--accent);font-weight:600;white-space:nowrap;text-align:left">${calcCasilla(g,b.ticker)}${b.ticker}${altasMarca(b.emision)}</td>
     <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--text3)">${varStr}</td>
     <td style="padding:9px 12px;text-align:right">${libroSpreadHTML(libroSpread(b.lastBid,b.lastAsk),b.lastMonto)}</td>
@@ -16810,6 +16986,7 @@ function bopDSaveEdits(){usdFamDSaveEdits(USD_FAM.bop);}
 
 // ── MODAL ───────────────────────────────────────────────────────────────────
 function bopOpenModal(ticker){
+  altasNota('bop-modal',null);
   bopEditingTicker=ticker||null;
   bopStepRows=[];
   document.getElementById('bop-modal-title').textContent=ticker?`Editar ${ticker}`:'Nuevo Bono';

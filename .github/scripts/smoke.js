@@ -4725,6 +4725,65 @@ const omitir = (label, motivo) =>
   check(calc.lecap && calc.lecap.n1 === calc.lecap.n0 - 1 && calc.bon && calc.bon.n1 === calc.bon.n0 - 1 && /Bonos/.test(calc.bon.boton),
         'en LECAP y en Bonares también: el desplegable saca el bono del gráfico', JSON.stringify({ lecap: calc.lecap, bon: calc.bon }));
 
+  // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
+  // lo del comunicado (un dual, en las dos de sus patas); el formulario de alta
+  // se abre completo y con la nota de lo que falta; el aviso es sólo del admin;
+  // un bono cargado deja de proponerse y, hasta que liquida, va marcado.
+  console.log('\nBonos nuevos de las licitaciones');
+  const alt = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    await licCargar();
+    const D = LIC_DATA, hoy = hoyAR(), dia = n => fmtDate(new Date(parseDate(hoy).getTime() + n * 864e5));
+    const liq = dia(2), vto = dia(200);
+    const prueba = { fecha: dia(-1), liquidacion: liq, fuente: 'Finanzas', url: 'https://www.argentina.gob.ar/', a3500: 1500, instrumentos: [
+      { ticker: 'ZZPRU', nombre: 'LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS', clase: 'fija', estado: 'nuevo', vencimiento: vto, tem: 2.1, vnoAdjudicado: 1, ronda: 1 },
+      { nombre: 'LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS', clase: 'fija', estado: 'nuevo', vencimiento: dia(230), tem: 2.2, vnoAdjudicado: 1, ronda: 1 },
+      { nombre: 'BONO DEL TESORO NACIONAL EN PESOS DUAL CER / TAMAR', clase: 'dual', dual: 'cer', estado: 'nuevo', vencimiento: dia(400), precio: 1000, vnoAdjudicado: 1, ronda: 1 }] };
+    D.licitaciones.push(prueba);
+    const adminOrig = isAdmin;
+    try {
+      const tf = altasPropuestas('tf'), cer = altasPropuestas('cer'), tam = altasPropuestas('tamar');
+      const deducido = tf.find(x => x.i.vencimiento === dia(230));
+      out.propuestas = { tf: tf.filter(x => x.l === prueba).map(x => x.ticker), deducido: deducido && deducido.deducido ? deducido.ticker : null,
+        dual: [cer.some(x => x.l === prueba), tam.some(x => x.l === prueba)] };
+      // Sin admin, ningún aviso; con admin, el aviso con el bono.
+      switchSection('pesos'); switchTab('lecap'); await espera(800); renderTable();
+      out.sinAdmin = !(document.getElementById('altas-tf') || {}).textContent;
+      isAdmin = () => true; renderTable();
+      out.conAdmin = /ZZPRU/.test((document.getElementById('altas-tf') || {}).textContent || '');
+      // El formulario, completo y con la nota.
+      altaRevisar('tf', tf.find(x => x.ticker === 'ZZPRU').id);
+      out.form = ['m-ticker', 'm-tem-emision', 'm-emision', 'm-vcto'].map(id => document.getElementById(id).value).join('|');
+      out.esperado = ['ZZPRU', '2.1', liq, vto].join('|');
+      out.nota = !!document.querySelector('#modal .altas-nota');
+      closeModal(); openModal(); out.notaSeVa = !document.querySelector('#modal .altas-nota'); closeModal();
+      const dualT = tam.find(x => x.l === prueba);
+      altaRevisar('tamar', dualT.id);
+      const nT = (document.querySelector('#tamar-modal .altas-nota') || {}).textContent || '';
+      out.dualFalta = /margen/.test(nT) && /ticker/.test(nT) && document.getElementById('tamar-m-margen').value === '';
+      tamarCloseModal();
+      // Cargado: deja de proponerse y, antes de liquidar, va marcado.
+      LECAPS.push({ ticker: 'ZZPRU', emision: liq, vcto: vto, tem_emision: 2.1, precio: null, pct_change: null });
+      DATA = LECAPS.map(enrich); renderTable();
+      const fila = [...document.querySelectorAll('#table-body tr')].find(tr => tr.textContent.includes('ZZPRU'));
+      out.cargado = { yaNo: !altasPropuestas('tf').some(x => x.ticker === 'ZZPRU'), marca: !!fila && !!fila.querySelector('.por-liquidar') };
+    } finally {
+      isAdmin = adminOrig;
+      LECAPS = LECAPS.filter(x => x.ticker !== 'ZZPRU'); DATA = LECAPS.map(enrich);
+      D.licitaciones.splice(D.licitaciones.indexOf(prueba), 1);
+      renderTable();
+    }
+    switchTab('breakeven');
+    return out;
+  });
+  check(alt.propuestas && alt.propuestas.tf.includes('ZZPRU') && /^S\d{2}[A-Z]\d$/.test(alt.propuestas.deducido || '') && alt.propuestas.dual.every(Boolean),
+        'cada bono nuevo se propone en su calculadora, el ticker de una letra se deduce y un dual va a sus dos patas', JSON.stringify(alt.propuestas));
+  check(alt.sinAdmin && alt.conAdmin && alt.form === alt.esperado && alt.nota && alt.notaSeVa && alt.dualFalta,
+        'el admin lo revisa en el formulario de alta ya completado, con la nota de lo que falta', JSON.stringify({ ...alt, propuestas: undefined }));
+  check(alt.cargado && alt.cargado.yaNo && alt.cargado.marca,
+        'cargado, deja de proponerse y hasta la liquidación va marcado "por liquidar"', JSON.stringify(alt.cargado));
+
   // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.
   console.log('\nFuturos de dólar y de caución');
   const fut = await page.evaluate(async () => {
