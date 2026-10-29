@@ -1,5 +1,5 @@
 {
- "generado": "2026-10-27T00:39:47+00:00",
+ "generado": "2026-10-29T13:48:49+00:00",
  "fuente": "Secretaría de Finanzas (argentina.gob.ar) · respaldo: MAE",
  "cronograma": [
   ["2025-01-13", "2025-01-15", "2025-01-17"],
@@ -49,14 +49,7 @@
   ["2026-11-24", "2026-11-26", "2026-11-30"],
   ["2026-12-09", "2026-12-11", "2026-12-15"]
  ],
- "llamado": {"fecha": "2026-10-28", "liquidacion": "2026-10-30", "publicado": "2026-10-26", "url": "https://www.argentina.gob.ar/noticias/llamado-licitacion-de-instrumentos-del-tesoro-nacional-denominados-en-pesos-y-en-dolares-15", "fuente": "Finanzas", "instrumentos": [
-  {"nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 26 DE FEBRERO DE 2027", "clase": "fija", "estado": "nuevo", "vencimiento": "2027-02-26"},
-  {"ticker": "TZXM7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 31 DE MARZO DE 2027", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-03-31"},
-  {"ticker": "TZXO7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 29 DE OCTUBRE DE 2027", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-10-29"},
-  {"ticker": "TMG27", "nombre": "BONO DEL TESORO NACIONAL EN PESOS A TASA TAMAR CON VENCIMIENTO 31 DE AGOSTO DE 2027", "clase": "tamar", "estado": "reapertura", "vencimiento": "2027-08-31"},
-  {"ticker": "TXMD8", "nombre": "BONO DEL TESORO NACIONAL EN PESOS DUAL CER / TAMAR CON VENCIMIENTO 15 DE DICIEMBRE DE 2028", "clase": "dual", "dual": "cer", "estado": "reapertura", "vencimiento": "2028-12-15"},
-  {"ticker": "D15E7", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 15 DE ENERO DE 2027", "clase": "dl", "estado": "reapertura", "vencimiento": "2027-01-15"}
- ]},
+ "llamado": null,
  "licitaciones": [
   {"ofertas": 2855, "ofertadoVE": 4103161.0, "adjudicadoVE": 3487488.0, "vencimientos": 1690000.0, "fecha": "2025-01-15", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-de-lecap-boncap-y-boncer-0", "fuente": "Finanzas", "liquidacion": "2025-01-17", "instrumentos": [
    {"ticker": "S31L5", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 31 DE JULIO DE 2025", "clase": "fija", "estado": "reapertura", "vencimiento": "2025-07-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 850908.0, "vnoAdjudicado": 735917.0, "circulacion": 1844422.0, "veAdjudicado": 940502.0, "veMoneda": "ARS", "precio": 1278.0, "tem": 2.27},
@@ -470,6 +463,14 @@
    {"ticker": "TMG28", "nombre": "BONO DEL TESORO NACIONAL EN PESOS A TASA TAMAR CON VENCIMIENTO 31 DE AGOSTO DE 2028", "clase": "tamar", "estado": "reapertura", "vencimiento": "2028-08-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 1220204.0, "vnoAdjudicado": 1055629.0, "circulacion": 6449527.0, "veAdjudicado": 1156970.0, "veMoneda": "ARS", "precio": 1096.0, "tirea": 38.91},
    {"ticker": "TXMD9", "nombre": "BONO DEL TESORO NACIONAL EN PESOS DUAL CER / TAMAR CON VENCIMIENTO 14 DE DICIEMBRE DE 2029", "clase": "dual", "dual": "cer", "estado": "reapertura", "vencimiento": "2029-12-14", "ronda": 1, "moneda": "ARS", "vnoOfertado": 2322085.0, "vnoAdjudicado": 1941291.0, "circulacion": 8774083.0, "veAdjudicado": 1704454.0, "veMoneda": "ARS", "precio": 878.0, "tirea": 6.99, "tireaPata": "CER"},
    {"ticker": "TMVE8", "nombre": "BONO DEL TESORO NACIONAL EN MONEDA DUAL TAMAR / DÓLAR LINKED CON VENCIMIENTO 31 DE ENERO DE 2028", "clase": "dual", "dual": "dl", "estado": "reapertura", "vencimiento": "2028-01-31", "ronda": 1, "moneda": "USD", "vnoOfertado": 990.0, "vnoAdjudicado": 727.0, "circulacion": 4194.0, "veAdjudicado": 1042888.0, "veMoneda": "ARS", "precio": 946.46, "tirea": 4.35, "tireaPata": "DL"}
+  ]},
+  {"ofertas": 4789, "ofertadoVE": 15787369.0, "adjudicadoVE": 11558649.0, "a3500": 1538.741, "fecha": "2026-10-28", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-16", "fuente": "Finanzas", "liquidacion": "2026-10-30", "instrumentos": [
+   {"ticker": "S26F7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 26 DE FEBRERO DE 2027", "clase": "fija", "estado": "nuevo", "vencimiento": "2027-02-26", "ronda": 1, "moneda": "ARS", "vnoOfertado": 3783368.0, "vnoAdjudicado": 2078224.0, "circulacion": 2078224.0, "veAdjudicado": 2078224.0, "veMoneda": "ARS", "tem": 2.1, "tirea": 28.32},
+   {"ticker": "TZXM7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 31 DE MARZO DE 2027", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-03-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 762569.0, "vnoAdjudicado": 481373.0, "circulacion": 2479797.0, "veAdjudicado": 1124968.0, "veMoneda": "ARS", "precio": 2337.0, "tirea": 3.04},
+   {"ticker": "TZXO7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 29 DE OCTUBRE DE 2027", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-10-29", "ronda": 1, "moneda": "ARS", "vnoOfertado": 991405.0, "vnoAdjudicado": 816940.0, "circulacion": 1323188.0, "veAdjudicado": 830828.0, "veMoneda": "ARS", "precio": 1017.0, "tirea": 6.23},
+   {"ticker": "TMG27", "nombre": "BONO DEL TESORO NACIONAL EN PESOS A TASA TAMAR CON VENCIMIENTO 31 DE AGOSTO DE 2027", "clase": "tamar", "estado": "reapertura", "vencimiento": "2027-08-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 2041257.0, "vnoAdjudicado": 1203103.0, "circulacion": 2362006.0, "veAdjudicado": 1461770.0, "veMoneda": "ARS", "precio": 1215.0, "tirea": 30.94},
+   {"ticker": "TXMD8", "nombre": "BONO DEL TESORO NACIONAL EN PESOS DUAL CER / TAMAR CON VENCIMIENTO 15 DE DICIEMBRE DE 2028", "clase": "dual", "dual": "cer", "estado": "reapertura", "vencimiento": "2028-12-15", "ronda": 1, "moneda": "ARS", "vnoOfertado": 3968804.0, "vnoAdjudicado": 3665004.0, "circulacion": 7472631.0, "veAdjudicado": 3534897.0, "veMoneda": "ARS", "precio": 964.5, "tirea": 6.21, "tireaPata": "CER"},
+   {"ticker": "D15E7", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 15 DE ENERO DE 2027", "clase": "dl", "estado": "reapertura", "vencimiento": "2027-01-15", "ronda": 1, "moneda": "USD", "vnoOfertado": 1878.0, "vnoAdjudicado": 1666.0, "circulacion": 3620.0, "veAdjudicado": 2527963.0, "veMoneda": "ARS", "precio": 986.0, "tirea": 7.0}
   ]}
  ]
 }
