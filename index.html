@@ -23147,7 +23147,7 @@ function licPaginaHTML(sec){
     </div>
     ${secc('prox','Próxima licitación','Cada instrumento del llamado sobre la curva de hoy, a qué precio puede cortar y las órdenes que simules.')}
     ${secc('res','Resultado de cada licitación','El corte contra el secundario del día: el mismo bono o, si es nuevo, la curva de su familia. Los duales pagan el mayor entre la pata TAMAR (más un margen) y la otra pata; corte, mercado y premio van en la pata TAMAR, contra el mismo dual o la curva de los duales, y la otra pata se muestra abajo del corte.')}
-    ${secc('col','Colocación','El valor efectivo adjudicado en cada licitación, por tipo de instrumento. Arriba de cada barra, el total y, con Todos, el rollover: el de Finanzas cuando lo informa y, si no, estimado sobre el total de vencimientos (≈; ≤ si falta algún vencimiento). Una licitación fuera del cronograma (sin vencimientos que refinanciar) también suma.')}
+    ${secc('col','Colocación','El valor efectivo adjudicado en cada licitación, por tipo de instrumento. Arriba de cada barra, el total y el rollover de la licitación entera: el de Finanzas cuando lo informa y, si no, estimado sobre el total de vencimientos (≈; ≤ si falta algún vencimiento). Una licitación fuera del cronograma (sin vencimientos que refinanciar) también suma.')}
     ${secc('plz','Plazos','Los días desde la liquidación al vencimiento: el promedio ponderado por monto y el rango de lo adjudicado. Se le puede sumar el corte promedio de un tipo.',
       `<label class="gsel-lbl" style="margin-left:auto">Sumar corte promedio<select id="${p}-ovl" class="gsel" onchange="licOvl('${sec}',this.value)"></select></label>`)}
     ${secc('pre','Historial de premios','Cuánto pagó el Tesoro por encima (+) o por debajo (−) del secundario, por tipo, ponderado por monto. Contra el cierre del día de cada licitación: el mismo bono si cotizaba, y si no la curva de su familia. La escala corta en ±300 pb; el valor real está en el globo de cada barra.')}
@@ -24167,9 +24167,8 @@ function licRenderResultado(sec){
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px">
     ${licTile('Adjudicado',licMonto(adjTot,mon),'var(--accent)')}
     ${licTile(ver==='todos'?'Ofertado · cobertura':'Cobertura (VN)',ver==='todos'&&l.ofertadoVE?`${licMonto(l.ofertadoVE,'ARS')} · ${licN(cob)}x`:(cob?licN(cob)+'x':'—'),null,'Ofertado sobre adjudicado')}
-    ${(()=>{const R=ver==='todos'?licRollover(l):null;
-      return licTile(`Rollover${R&&R.est?' estimado':''}${ver==='todos'?ayuda(licRolloverNota(l,R),'De dónde sale el rollover'):''}`,licRolloverTexto(R),R?(R.v>=100?'#4ade80':'var(--danger)'):null,
-        ver==='todos'?null:'Con todos los instrumentos a la vista: el rollover es de la licitación entera');})()}
+    ${(()=>{const R=licRollover(l),nota=licRolloverNota(l,R)+(ver==='todos'?'':' Es de la licitación entera, con todos sus instrumentos, en cualquier vista.');
+      return licTile(`Rollover${R&&R.est?' estimado':''}${ayuda(nota,'De dónde sale el rollover')}`,licRolloverTexto(R),R?(R.v>=100?'#4ade80':'var(--danger)'):null);})()}
     ${licTile('Plazo promedio',res.plazo?Math.round(res.plazo)+' días':'—',null,'Ponderado por valor efectivo, desde la liquidación')}
     ${licTile('Premio promedio',licPb(prem),prem==null?null:prem>0?'#f59e0b':'#4ade80','Corte menos secundario, ponderado por monto. Positivo: el Tesoro convalidó más tasa que el mercado')}
   </div>`;
@@ -24274,14 +24273,14 @@ function licRenderColocacion(sec){
   const ds=clases.map(k=>({label:LIC_CLASES[k].l,data:H.map(x=>(x.r.porClase[k]||0)/div),backgroundColor:LIC_CLASES[k].c,stack:'s',datalabels:{display:false}}));
   ds.push({label:'_total',type:'line',stack:'total',data:H.map(x=>x.r.total/div),showLine:false,pointRadius:0,
     datalabels:{display:true,anchor:'end',align:'top',offset:2,color:col.texto,font:{size:9,family:'DM Mono, monospace'},
-      formatter:(v,c)=>{const R=ver==='todos'?licRollover(H[c.dataIndex].l):null;return(mon==='USD'?Math.round(v):licN(v,1))+(R?`\n${licRolloverTexto(R,0).replace(' ','')}`:'');}}});
+      formatter:(v,c)=>{const R=licRollover(H[c.dataIndex].l);return(mon==='USD'?Math.round(v):licN(v,1))+(R?`\n${licRolloverTexto(R,0).replace(' ','')}`:'');}}});
   licChart(sec,`${p}-col-g`,{type:'bar',data:{labels:H.map(x=>licDiaCorto(x.l.fecha)+'/'+x.l.fecha.slice(2,4)),datasets:ds},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:22}},
       plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12,filter:i=>!i.text.startsWith('_')}},datalabels:{display:false},
         tooltip:{filter:i=>!String(i.dataset.label).startsWith('_')&&i.parsed.y>0,callbacks:{
           title:c=>'Licitación '+betrF(H[c[0].dataIndex].l.fecha),
           label:i=>`${i.dataset.label}: ${licMonto(i.parsed.y*div,mon)}`,
-          footer:c=>{const l=H[c[0].dataIndex].l;return[`Total ${licMonto(H[c[0].dataIndex].r.total,mon)}`].concat(ver==='todos'&&l.ofertadoVE&&l.adjudicadoVE?[`Cobertura ${licN(l.ofertadoVE/l.adjudicadoVE)}x`]:[]).concat((R=>R?[`Rollover${R.est?' estimado':''} ${licRolloverTexto(R)}`]:[])(ver==='todos'?licRollover(l):null));}}}},
+          footer:c=>{const l=H[c[0].dataIndex].l;return[`Total ${licMonto(H[c[0].dataIndex].r.total,mon)}`].concat(ver==='todos'&&l.ofertadoVE&&l.adjudicadoVE?[`Cobertura ${licN(l.ofertadoVE/l.adjudicadoVE)}x`]:[]).concat((R=>R?[`Rollover${R.est?' estimado':''} ${licRolloverTexto(R)}`]:[])(licRollover(l)));}}}},
       scales:{x:{...licEjeX(col),stacked:true},y:{stacked:true,title:{display:true,text:mon==='USD'?'millones de US$':'billones de $',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10}}}}}});
   licAlFinal(p,'col');
 }

@@ -4587,6 +4587,11 @@ const omitir = (label, motivo) =>
       out.roll = { prog: prog.length, con: prog.filter(l => licRollover(l)).length, est: est.length, cuadra,
         oficialManda: !ofi || licRollover(ofi).est === false,
         texto: licRolloverTexto(licRollover(D.licitaciones[D.licitaciones.length - 1])) };
+      // En la vista con la que abre la página, Pesos, la tarjeta lo muestra.
+      LIC_ESTADO.ars.sel = null; licRenderResultado('ars');
+      const tarjeta = [...document.querySelectorAll('#lic-res-c > div:nth-of-type(2) > div')].find(d => d.textContent.startsWith('Rollover'));
+      out.roll.vista = LIC_ESTADO.ars.ver;
+      out.roll.tarjeta = tarjeta ? tarjeta.textContent.replace(/^Rollover( estimado)?i?/, '').trim() : null;
     }
     // Dólares: la misma página, arrancando con los Bonares.
     switchSection('usd'); switchUsdTab('usd-licitaciones');
@@ -4643,7 +4648,8 @@ const omitir = (label, motivo) =>
     if (tu) check(tu.lugar && tu.lugar.nueva.join() === 'true,true' && tu.lugar.aMano === false && tu.lugar.vieja.join() === 'false,false,3',
           'tus órdenes van arriba y abiertas hasta dos hábiles después de la licitación; después, abajo del resultado y plegadas', JSON.stringify(tu.lugar));
     const ro = lic.roll;
-    check(ro && ro.con >= ro.prog * 0.8 && ro.est >= 20 && ro.cuadra && ro.oficialManda && ro.texto !== '—',
+    check(ro && ro.con >= ro.prog * 0.8 && ro.est >= 20 && ro.cuadra && ro.oficialManda && ro.texto !== '—'
+          && ro.vista === 'pesos' && ro.tarjeta && ro.tarjeta !== '—',
           'el rollover está en casi todas las licitaciones: el de Finanzas si lo informa, si no estimado con un detalle que cuadra', JSON.stringify(ro));
     check(lic.plegar && lic.plegar.plegado && lic.plegar.vuelve && lic.plegar.grafico,
           'cada módulo de Licitaciones se pliega desde su título, se recuerda y al desplegarse se repinta', JSON.stringify(lic.plegar));
