@@ -156,6 +156,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .msel-nota{color:var(--text3);font-size:var(--fs10);margin-left:auto;padding-left:8px;}
 .msel details>summary{cursor:pointer;list-style:none;}
 .msel details>summary::-webkit-details-marker{display:none;}
+/* Calculadoras: un bono fuera del gráfico y de la curva queda atenuado en la
+   tabla, con su casilla para volver a incluirlo. */
+.calc-incl{margin:0 6px 0 0;accent-color:var(--accent);cursor:pointer;vertical-align:middle;flex-shrink:0;}
+tr.calc-fuera>td{opacity:.42;}
+tr.calc-fuera:hover>td{opacity:.75;}
 .nav-tab.disabled{opacity:.3;cursor:not-allowed;}
 .proy-subtab{padding:5px 2px;font-size:var(--fs11);font-family:var(--mono);color:var(--text3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
 .proy-subtab:hover{color:var(--text2);}
@@ -754,7 +759,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div class="chart-area" id="chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);">
   <div class="chart-resize-handle" id="chart-resize-handle"></div>
   <div class="chart-toolbar">
-    <span class="chart-title">Curva de tasas</span><span data-curva-sel="tf" style="margin-left:10px"></span>
+    <span class="chart-title">Curva de tasas</span><span data-curva-sel="tf" style="margin-left:10px"></span><span id="calc-bonos-tf" style="margin-left:8px"></span>
     <div class="chart-mode-row">
       <button class="chart-mode-btn active" onclick="setChartMode('tna',this)">TNA</button>
       <button class="chart-mode-btn" onclick="setChartMode('tir',this)">TIR</button>
@@ -1009,7 +1014,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <div id="cer-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="cer-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;gap:8px;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em">Curva CER · TIR Real</span><span data-curva-sel="cer" style="margin-left:10px"></span>
+      <span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em">Curva CER · TIR Real</span><span data-curva-sel="cer" style="margin-left:10px"></span><span id="calc-bonos-cer" style="margin-left:8px"></span>
       <span id="cer-chart-status" style="font-size:var(--fs10);color:var(--text3);margin-left:4px"></span>
     </div>
     <div style="flex:1;min-height:0;padding:.2rem .5rem;">
@@ -1127,7 +1132,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <div id="tamar-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="tamar-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em">Curva TAMAR · Margen TNA</span><span data-curva-sel="tamar" style="margin-left:10px"></span>
+      <span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em">Curva TAMAR · Margen TNA</span><span data-curva-sel="tamar" style="margin-left:10px"></span><span id="calc-bonos-tamar" style="margin-left:8px"></span>
     </div>
     <div style="flex:1;min-height:0;padding:.2rem .5rem;">
       <canvas id="tamar-curve-chart" style="width:100%;height:100%"></canvas>
@@ -1299,7 +1304,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <div id="dlk-chart-area" style="height:calc((100vh - var(--alto-barras)) / 2);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
     <div class="chart-resize-handle" id="dlk-chart-resize-handle"></div>
     <div style="display:flex;align-items:center;padding:.3rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0;">
-      <span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em">Curva DLK · TIR %</span><span data-curva-sel="dlk" style="margin-left:10px"></span>
+      <span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em">Curva DLK · TIR %</span><span data-curva-sel="dlk" style="margin-left:10px"></span><span id="calc-bonos-dlk" style="margin-left:8px"></span>
     </div>
     <div style="flex:1;min-height:0;padding:.2rem .5rem;">
       <canvas id="dlk-curve-chart" style="width:100%;height:100%"></canvas>
@@ -2231,7 +2236,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     </div>
     <div class="chart-area" id="bon-chart-area" style="height:200px;">
       <div class="chart-resize-handle" id="bon-chart-handle"></div>
-      <div class="chart-toolbar"><span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="bon" style="margin-left:10px"></span></div>
+      <div class="chart-toolbar"><span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="bon" style="margin-left:10px"></span><span id="calc-bonos-bon" style="margin-left:8px"></span></div>
       <div class="chart-wrap"><canvas id="bon-yield-chart"></canvas></div>
     </div>
   </div>
@@ -2264,7 +2269,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     </div>
     <div class="chart-area" id="glo-chart-area" style="height:200px;">
       <div class="chart-resize-handle" id="glo-chart-handle"></div>
-      <div class="chart-toolbar"><span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="glo" style="margin-left:10px"></span></div>
+      <div class="chart-toolbar"><span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="glo" style="margin-left:10px"></span><span id="calc-bonos-glo" style="margin-left:8px"></span></div>
       <div class="chart-wrap"><canvas id="glo-yield-chart"></canvas></div>
     </div>
   </div>
@@ -2303,7 +2308,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     <div class="chart-area" id="bop-chart-area" style="height:200px;">
       <div class="chart-resize-handle" id="bop-chart-handle"></div>
       <div class="chart-toolbar">
-        <span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="bop" style="margin-left:10px"></span>
+        <span class="chart-title">Curva TIR vs MD</span><span data-curva-sel="bop" style="margin-left:10px"></span><span id="calc-bonos-bop" style="margin-left:8px"></span>
       </div>
       <div class="chart-wrap"><canvas id="bop-yield-chart"></canvas></div>
     </div>
@@ -3009,7 +3014,7 @@ async function authAction(){
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
-  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1'];
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -3582,10 +3587,11 @@ function usdFamDRenderFlows(fam,liq,tirPct){
 function usdFamChartRender(fam){
   const canvas=document.getElementById(fam.id+'-yield-chart');
   if(!canvas)return;
-  const chartLiq=bopFmtDate(G_LIQ||addHabiles(TODAY,1));
+  calcBonosPintar(fam.id);
+  const chartLiq=bopFmtDate(G_LIQ||addHabiles(TODAY,1)),ex=calcExcl(fam.id);
   const pts=[];
   for(const b of fam.bonds){
-    if(b.lastPrecio==null)continue;
+    if(b.lastPrecio==null||ex.has(b.ticker))continue;
     const flows=bopGenFlows(b);
     const tir=bopTIR(b,chartLiq,b.lastPrecio,flows);
     if(tir==null)continue;
@@ -4779,8 +4785,8 @@ function buildRow(r){
     ?'<span style="font-size:var(--fs10);color:var(--info)">LECAP</span>'
     :'<span style="font-size:var(--fs10);color:var(--accent)">BONCAP</span>';
 
-  return `<tr class="${sel}" onclick="handleRowClick(event,'${r.ticker}')">
-    <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span></div></td>
+  return `<tr class="${sel}${calcFilaCls('tf',r.ticker)}" onclick="handleRowClick(event,'${r.ticker}')">
+    <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('tf',r.ticker)}<span class="c-ticker">${r.ticker}</span></div></td>
     <td><div class="cv no-edit" style="justify-content:center">${tipoBadge}</div></td>
     <td><div class="cv no-edit c-date">${vctoStr}</div></td>
     <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
@@ -5053,9 +5059,11 @@ function renderChart(){
   const canvas=document.getElementById('curve-chart');
   if(!canvas)return;
 
+  const ex=calcExcl('tf');
   const pts=DATA
-    .filter(r=>r.dias>0&&r.precio!=null&&!isNaN(r[chartMode]))
+    .filter(r=>r.dias>0&&r.precio!=null&&!isNaN(r[chartMode])&&!ex.has(r.ticker))
     .sort((a,b)=>a.dias-b.dias);
+  calcBonosPintar('tf');
 
   if(curveChart){curveChart.destroy();curveChart=null;}
   // remove stale tooltip
@@ -6056,8 +6064,8 @@ function cerRenderTable(){
       return`<div class="cv no-edit" style="color:var(--warn);${hs}">${fmtP2(val)}</div>`;
     }
 
-    return`<tr class="${sel}" onclick="cerHandleRowClick(event,'${r.ticker}')">
-      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
+    return`<tr class="${sel}${calcFilaCls('cer',r.ticker)}" onclick="cerHandleRowClick(event,'${r.ticker}')">
+      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('cer',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
       <td><div class="cv no-edit" style="justify-content:center">${tipoBadge}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
@@ -6102,6 +6110,7 @@ function cerCommitCell(){
   CER_BONDS[idx]={...CER_BONDS[idx],precio,manualOverride:true,precioCierre:null};savePortfolio();
   CER_DATA=CER_BONDS.map(cerEnrich);
   cerRenderTable();
+  cerRenderTabChart();
   if(cerSelectedTicker===ticker)cerRecalcPanel();
 }
 function cerHandleRowClick(e,ticker){
@@ -6115,6 +6124,7 @@ function cerDeleteRow(ticker){
   CER_DATA=CER_BONDS.map(cerEnrich);
   if(cerSelectedTicker===ticker)cerClosePanel();
   cerRenderTable();
+  cerRenderTabChart();
 }
 
 // ── CER PANEL ─────────────────────────────────────────────────────────────────
@@ -9661,8 +9671,8 @@ function tamarRenderTable(){
       :(r.precioCierre&&!pxOverride)
         ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}${pesosCierreMarca(r)}</div>`
         :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
-    return`<tr onclick="tamarRowClick(event,'${r.ticker}')" style="cursor:pointer">
-      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
+    return`<tr class="${calcFilaCls('tamar',r.ticker)}" onclick="tamarRowClick(event,'${r.ticker}')" style="cursor:pointer">
+      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('tamar',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
@@ -9715,6 +9725,7 @@ function tamarCommitCell(){
   tamarSaveBonds();
   TAMAR_DATA=TAMAR_BONDS.map(tamarEnrich);
   tamarRenderTable();
+  tamarRenderTabChart();
   if(tamarSelectedTicker===ticker)tamarOpenPanel(ticker);
   beRefreshIfVisible();
 }
@@ -9877,7 +9888,8 @@ function tamarClosePanel(){
 
 function tamarDeleteRow(ticker){
   TAMAR_BONDS=TAMAR_BONDS.filter(r=>r.ticker!==ticker);
-  tamarSaveBonds();tamarRenderTable();
+  TAMAR_DATA=TAMAR_BONDS.map(tamarEnrich);
+  tamarSaveBonds();tamarRenderTable();tamarRenderTabChart();
   if(tamarSelectedTicker===ticker)tamarClosePanel();
 }
 
@@ -13143,16 +13155,73 @@ function beRenderChartSintChips(){
   }).join('');
 }
 
+// ── CALCULADORAS: BONOS FUERA DEL GRÁFICO ─────────────────────────────────────
+// En cada calculadora se puede sacar un bono del gráfico y de la curva
+// ajustada —uno que casi no opera, uno que distorsiona el tramo— sin borrarlo:
+// en la tabla queda atenuado, con su casilla para volver a incluirlo, y arriba
+// del gráfico está el desplegable "Bonos" con todos. Es por calculadora y se
+// guarda como lo personal. Las otras solapas (Curvas, Resumen) no se enteran.
+// Funciones y no variables: el gráfico de LECAP se dibuja al cargar, antes de
+// que el script llegue hasta acá.
+function calcClave(k){return({
+  tf:   {bonos:()=>LECAPS||[],      vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>renderTable()},
+  cer:  {bonos:()=>CER_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{cerRenderTable();cerRenderTabChart();}},
+  tamar:{bonos:()=>TAMAR_BONDS||[], vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{tamarRenderTable();tamarRenderTabChart();}},
+  dlk:  {bonos:()=>DLK_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>dlkRenderTable()},
+  bon:  {bonos:()=>BON_BONDS||[],   vigente:b=>!b.vencimiento||b.vencimiento>hoyAR(), repintar:()=>bonRenderSummaryRows()},
+  glo:  {bonos:()=>GLO_BONDS||[],   vigente:b=>!b.vencimiento||b.vencimiento>hoyAR(), repintar:()=>gloRenderSummaryRows()},
+  bop:  {bonos:()=>BOP_BONDS||[],   vigente:b=>!b.vencimiento||b.vencimiento>hoyAR(), repintar:()=>bopRenderSummaryRows()},
+})[k];}
+function calcExclGuardar(o){try{localStorage.setItem('bonosAR_calc_excluidos_v1',JSON.stringify(o));}catch(e){}}
+function calcExclTodo(){try{const o=JSON.parse(localStorage.getItem('bonosAR_calc_excluidos_v1')||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
+function calcExcl(clave){const v=calcExclTodo()[clave];return new Set(Array.isArray(v)?v:[]);}
+function calcExcluir(clave,ticker,fuera){
+  const o=calcExclTodo(),s=new Set(Array.isArray(o[clave])?o[clave]:[]);
+  if(fuera)s.add(ticker);else s.delete(ticker);
+  o[clave]=[...s];
+  calcExclGuardar(o);
+  calcRepintar(clave);
+}
+function calcTodos(clave,incluir){
+  const o=calcExclTodo();
+  const C=calcClave(clave);
+  o[clave]=incluir?[]:C.bonos().filter(C.vigente).map(b=>b.ticker);
+  calcExclGuardar(o);
+  calcRepintar(clave);
+}
+function calcRepintar(clave){
+  try{calcClave(clave).repintar();}catch(e){console.warn('[calculadoras]',clave,e);}
+  calcBonosPintar(clave);
+}
+// La casilla de la fila y la clase que la atenúa.
+function calcCasilla(clave,ticker,ex){
+  const fuera=(ex||calcExcl(clave)).has(ticker);
+  return`<input type="checkbox" class="calc-incl" ${fuera?'':'checked'} title="${fuera?'Fuera del gráfico y de la curva: tildá para incluirlo':'En el gráfico y en la curva: destildá para sacarlo'}" onclick="event.stopPropagation()" onchange="calcExcluir('${clave}','${ticker}',!this.checked)">`;
+}
+function calcFilaCls(clave,ticker,ex){return(ex||calcExcl(clave)).has(ticker)?' calc-fuera':'';}
+function calcBonosPintar(clave){
+  const C=calcClave(clave);
+  if(!C||!document.getElementById('calc-bonos-'+clave))return;
+  const ex=calcExcl(clave),bonos=C.bonos().filter(C.vigente);
+  const vto=b=>{const v=b.vcto||b.vencimiento||'';return v?v.slice(8,10)+'/'+v.slice(5,7)+'/'+v.slice(2,4):'';};
+  const dentro=bonos.filter(b=>!ex.has(b.ticker)).length;
+  mselPintar('calc-bonos-'+clave,{titulo:'Bonos',resumen:`${dentro}/${bonos.length}`,vacio:'Sin bonos',
+    acciones:[{l:'Todos',fn:`calcTodos('${clave}',true)`},{l:'Ninguno',fn:`calcTodos('${clave}',false)`}],
+    grupos:[{l:'En el gráfico y en la curva',items:bonos.slice().sort((a,b)=>(a.vcto||a.vencimiento||'').localeCompare(b.vcto||b.vencimiento||''))
+      .map(b=>({l:b.ticker,v:b.ticker,on:!ex.has(b.ticker),nota:vto(b),fn:`calcExcluir('${clave}','${b.ticker}',!this.checked)`}))}]});
+}
+
 // ── CER TAB CHART ─────────────────────────────────────────────────────────────
 function cerRenderTabChart(){
   const canvas=document.getElementById('cer-curve-chart');
   const status=document.getElementById('cer-chart-status');
   if(!canvas)return;
+  calcBonosPintar('cer');
   if(!CER_INDEX.length){if(status)status.textContent='(sin índice CER)';return;}
   if(status)status.textContent='';
-  const liq=G_LIQ||addHabiles(TODAY,1);
+  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('cer');
   const pts=CER_BONDS.map(r=>{
-    if(!r.vcto||!r.precio)return null;
+    if(!r.vcto||!r.precio||ex.has(r.ticker))return null;
     const vctoDate=parseDate(r.vcto);
     if(!vctoDate)return null;
     const dias=diasAlPago(liq,vctoDate);
@@ -13170,11 +13239,12 @@ function cerRenderTabChart(){
 function tamarRenderTabChart(){
   const canvas=document.getElementById('tamar-curve-chart');
   if(!canvas)return;
+  calcBonosPintar('tamar');
   if(!TAMAR_INDEX.length)return;
-  const liq=G_LIQ||addHabiles(TODAY,1);
+  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('tamar');
   if(!TAMAR_DATA.length&&TAMAR_BONDS.length) TAMAR_DATA=TAMAR_BONDS.map(tamarEnrich);
   const pts=TAMAR_DATA.map(r=>{
-    if(!r.vcto||!r.precio||isNaN(r.margenTNA))return null;
+    if(!r.vcto||!r.precio||isNaN(r.margenTNA)||ex.has(r.ticker))return null;
     const vctoDate=parseDate(r.vcto);
     if(!vctoDate)return null;
     const dias=diasAlPago(liq,vctoDate);
@@ -13633,10 +13703,11 @@ function dlkCommitCell(){
 function dlkRenderTabChart(){
   const canvas=document.getElementById('dlk-curve-chart');
   if(!canvas)return;
-  const liq=G_LIQ||addHabiles(TODAY,1);
+  calcBonosPintar('dlk');
+  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('dlk');
   if(!DLK_DATA.length&&DLK_BONDS.length) DLK_DATA=DLK_BONDS.map(dlkEnrich);
   const pts=DLK_DATA.map(r=>{
-    if(!r.vcto||!r.precio||r.tir==null||isNaN(r.tir))return null;
+    if(!r.vcto||!r.precio||r.tir==null||isNaN(r.tir)||ex.has(r.ticker))return null;
     const dias=diasAlPago(liq,parseDate(r.vcto));
     if(dias<=0)return null;
     return{ticker:r.ticker,dias,val:r.tir,precio:r.precio};
@@ -13957,8 +14028,8 @@ function dlkRenderTable(){
       :(r.precioCierre&&!pxOverride)
         ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}${pesosCierreMarca(r)}</div>`
         :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtARS(r.precio):'—'}</div>`;
-    return`<tr onclick="dlkRowClick(event,'${r.ticker}')" style="cursor:pointer">
-      <td class="ticker-cell"><div class="cv left no-edit"><span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
+    return`<tr class="${calcFilaCls('dlk',r.ticker)}" onclick="dlkRowClick(event,'${r.ticker}')" style="cursor:pointer">
+      <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('dlk',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${r.dias}</div></td>
       <td>${pxCell}</td>
@@ -16448,8 +16519,8 @@ function usdSumRowHtml(e,isSel,onClickFn,group){
   const cierre=!ovr&&b.lastPrecioCierre;
   const pxTitle=cierre?usdCierreTexto(b).replace(/"/g,'&quot;')+' · click para editar':'Click para editar precio';
   const pxColor=ovr?'var(--warn)':usdEsCierre(b)?'var(--info)':'var(--text)';
-  return`<tr style="cursor:pointer;border-bottom:1px solid var(--border);${bg}" onclick="${onClickFn}('${b.ticker}')" ${hov}>
-    <td style="padding:9px 14px;color:var(--accent);font-weight:600">${b.ticker}</td>
+  return`<tr class="${calcFilaCls(g,b.ticker)}" style="cursor:pointer;border-bottom:1px solid var(--border);${bg}" onclick="${onClickFn}('${b.ticker}')" ${hov}>
+    <td style="padding:9px 14px;color:var(--accent);font-weight:600;white-space:nowrap;text-align:left">${calcCasilla(g,b.ticker)}${b.ticker}</td>
     <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--text3)">${varStr}</td>
     <td style="padding:9px 12px;text-align:right">${libroSpreadHTML(libroSpread(b.lastBid,b.lastAsk),b.lastMonto)}</td>

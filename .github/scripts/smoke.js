@@ -4657,6 +4657,74 @@ const omitir = (label, motivo) =>
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
 
+  // Calculadoras: un precio escrito en la tabla mueve el bono en el gráfico; un
+  // bono destildado sale del gráfico y de la curva, queda atenuado en la tabla
+  // y el desplegable "Bonos" lo cuenta. En pesos y en dólares.
+  console.log('\nCalculadoras: precio y bonos en el gráfico');
+  const calc = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    try { localStorage.removeItem('bonosAR_calc_excluidos_v1'); } catch (e) {}
+    const editar = (sec, t, nuevo) => {
+      if (sec === 'cer') { cerEditingCell = { ticker: t, col: 'precio' }; cerRenderTable(); document.getElementById('cer-ci-input').value = String(nuevo); cerCommitCell(); }
+      else { tamarEditingCell = { ticker: t }; tamarRenderTable(); document.getElementById('tamar-ci-input').value = String(nuevo); tamarCommitCell(); }
+    };
+    for (const sec of ['cer', 'tamar']) {
+      switchSection('pesos'); switchTab(sec); await espera(1200);
+      const ch = () => sec === 'cer' ? cerTabChart : tamarTabChart;
+      const punto = t => { const d = ch() && ch().data.datasets[1].data.find(x => x.ticker === t); return d ? d.y : null; };
+      const d0 = ch() && ch().data.datasets[1].data.find(x => x.precio > 0);
+      if (!d0) continue;
+      const L = sec === 'cer' ? CER_BONDS : TAMAR_BONDS, t = d0.ticker, i = L.findIndex(x => x.ticker === t), orig = { ...L[i] };
+      const antes = punto(t);
+      editar(sec, t, +(orig.precio * 1.02).toFixed(2));
+      out[sec] = { t, antes, despues: punto(t) };
+      L[i] = orig;
+      if (sec === 'cer') { CER_DATA = CER_BONDS.map(cerEnrich); cerRenderTable(); cerRenderTabChart(); }
+      else { TAMAR_DATA = TAMAR_BONDS.map(tamarEnrich); tamarRenderTable(); tamarRenderTabChart(); }
+      if (sec !== 'cer') continue;
+      // La casilla de la fila saca el bono.
+      const n0 = ch().data.datasets[1].data.length;
+      const fila = () => [...document.querySelectorAll('#page-cer tr')].find(tr => (tr.querySelector('.c-ticker') || {}).textContent === t);
+      const casilla = fila().querySelector('.calc-incl');
+      casilla.checked = false; casilla.dispatchEvent(new Event('change', { bubbles: true }));
+      out.fuera = { n0, n1: ch().data.datasets[1].data.length, sinPunto: punto(t) == null, atenuada: fila().classList.contains('calc-fuera'),
+        boton: (document.querySelector('#calc-bonos-cer .msel-btn') || {}).textContent || '', guardado: calcExcl('cer').has(t) };
+      calcTodos('cer', true);
+      out.fuera.vuelve = ch().data.datasets[1].data.length === n0 && !fila().classList.contains('calc-fuera');
+    }
+    // LECAP y Bonares, desde el desplegable.
+    switchTab('lecap'); await espera(1000);
+    if (curveChart) {
+      const n0 = curveChart.data.datasets[0].data.length, t = DATA.find(r => r.dias > 0 && r.precio != null).ticker;
+      calcExcluir('tf', t, true);
+      out.lecap = { n0, n1: curveChart.data.datasets[0].data.length };
+      calcTodos('tf', true);
+    }
+    switchSection('usd'); switchUsdTab('usd-bonares'); await espera(2000);
+    const F = USD_FAM.bon;
+    if (F.chart) {
+      const n0 = F.chart.data.datasets[0].data.length, t = F.chart.data.datasets[0].data[0].ticker;
+      calcExcluir('bon', t, true);
+      out.bon = { n0, n1: F.chart.data.datasets[0].data.length, boton: (document.querySelector('#calc-bonos-bon .msel-btn') || {}).textContent || '' };
+      calcTodos('bon', true);
+    }
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  for (const sec of ['cer', 'tamar']) {
+    const c = calc[sec];
+    if (!c) omitir(`${sec.toUpperCase()}: el precio escrito en la tabla mueve el bono en el gráfico`, 'sin bonos con precio en el gráfico');
+    else check(c.antes != null && c.despues != null && Math.abs(c.despues - c.antes) > 1e-6,
+          `${sec.toUpperCase()}: el precio escrito en la tabla mueve el bono en el gráfico`, JSON.stringify(c));
+  }
+  const fu = calc.fuera;
+  if (!fu) omitir('un bono destildado sale del gráfico y de la curva, queda atenuado y el desplegable lo cuenta', 'sin gráfico CER');
+  else check(fu.n1 === fu.n0 - 1 && fu.sinPunto && fu.atenuada && fu.guardado && /Bonos · \d+\/\d+/.test(fu.boton) && fu.vuelve,
+        'un bono destildado sale del gráfico y de la curva, queda atenuado y el desplegable lo cuenta', JSON.stringify(fu));
+  check(calc.lecap && calc.lecap.n1 === calc.lecap.n0 - 1 && calc.bon && calc.bon.n1 === calc.bon.n0 - 1 && /Bonos/.test(calc.bon.boton),
+        'en LECAP y en Bonares también: el desplegable saca el bono del gráfico', JSON.stringify({ lecap: calc.lecap, bon: calc.bon }));
+
   // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.
   console.log('\nFuturos de dólar y de caución');
   const fut = await page.evaluate(async () => {
