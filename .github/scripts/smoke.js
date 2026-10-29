@@ -4509,6 +4509,38 @@ const omitir = (label, motivo) =>
         await licRenderProximo('ars');
       }
     }
+    // Tus órdenes contra el resultado: con órdenes cargadas para la última
+    // licitación, la que ofrece más que el corte entra, la que ofrece justo el
+    // corte entra al corte y la que ofrece menos queda afuera; lo adjudicado se
+    // paga al precio de corte. Con el llamado siguiente pasan al historial y se
+    // siguen viendo.
+    {
+      const ult = D.licitaciones[D.licitaciones.length - 1];
+      const iP = licCalcular(ult).ins.find(i => i.ronda !== 2 && !i.desierto && i.precio > 0 && i.sec !== 'DLK' && i.sec !== 'BON' && licEnVista(i, 'pesos'));
+      if (iP) {
+        const c = licClave(iP);
+        const ords = [['si', iP.precio + 1], ['corte', iP.precio], ['no', iP.precio - 1]]
+          .map(([e, p], k) => ({ e, ord: { id: 'smk' + k, modo: 'precio', valor: licN(p), vn: '1.000.000', monto: '', base: 'vn' } }));
+        LIC_ORD = { fecha: ult.fecha, ordenes: { [c]: ords.map(x => x.ord) } };
+        LIC_ESTADO.ars.sel = ult.fecha;
+        try {
+          licRenderResultado('ars');
+          const T = licOrdContra(ult, 'pesos'), F = T ? T.filas : [];
+          const caja = document.querySelector('#lic-res-c .lic-tus');
+          const conPago = F.filter(x => x.pagas > 0);
+          out.tus = { ticker: iP.ticker, filas: caja ? caja.querySelectorAll('tbody tr').length : 0,
+            estados: F.map(x => x.estado).join(), esperados: ords.map(x => x.e).join(), nPaga: conPago.length,
+            paga: conPago.every(x => Math.abs(x.pagas - 1e6 * iP.precio / 1000) < 1e-6) };
+          licOrdenes('2099-12-31');
+          out.tus.archivo = LIC_ORD.fecha === '2099-12-31' && Array.isArray((licOrdDe(ult.fecha) || {})[c]);
+        } finally {
+          LIC_ORD = null;
+          try { localStorage.removeItem(LIC_ORD_LS); localStorage.removeItem(LIC_ORD_HIST_LS); } catch (e) {}
+          LIC_ESTADO.ars.sel = null;
+          licRenderResultado('ars');
+        }
+      }
+    }
     // Dólares: la misma página, arrancando con los Bonares.
     switchSection('usd'); switchUsdTab('usd-licitaciones');
     await espera(1500);
@@ -4557,6 +4589,10 @@ const omitir = (label, motivo) =>
     if (sm) check(sm.resalta && sm.auto !== false && sm.miles.join('|') === '2.000.000|1.234.567,5|100.000',
           'ampliada, el panel muestra todas las órdenes y destaca las de esa curva; pararse en otra la amplía; VN con separadores',
           JSON.stringify({ resalta: sm.resalta, auto: sm.auto, miles: sm.miles }));
+    const TUS = 'tus órdenes contra el resultado: arriba del corte entra, en el corte entra al corte, abajo queda afuera; se paga al corte y el llamado siguiente las guarda';
+    const tu = lic.tus;
+    if (!tu) omitir(TUS, 'la última licitación no trae un instrumento en pesos con precio de corte');
+    else check(tu.filas === 3 && tu.estados === tu.esperados && tu.nPaga === 2 && tu.paga && tu.archivo, TUS, JSON.stringify(tu));
     check(lic.usd.visible && lic.usd.ver === 'usd' && lic.usd.soloUsd && lic.todos >= lic.usd.filas,
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }

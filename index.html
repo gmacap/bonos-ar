@@ -3001,7 +3001,7 @@ async function authAction(){
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
-  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1'];
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1'];
 
@@ -22734,7 +22734,8 @@ function ayuda(texto,etiqueta){
 // con el premio que viene pagando el Tesoro en ese tipo de instrumento; un
 // gráfico por curva, que se amplía; y órdenes simuladas, varias por bono, con
 // su premio contra la curva y contra el mismo bono, que se arrastran en el
-// gráfico ampliado y se bajan en un CSV para back office.
+// gráfico ampliado y se bajan en un CSV para back office. Cuando sale el
+// resultado, cada orden se mira contra el corte: si entró y cuánto se paga.
 //
 // Una sola página para las dos secciones: en pesos arranca con los instrumentos
 // en pesos —dollar linked y duales incluidos, que se pagan en pesos— y en
@@ -23390,8 +23391,9 @@ function licTablaEstimada(E,liq,hist,L){
 // premio contra la curva de hoy y contra el mismo bono, y el efectivo.
 //
 // Son del llamado y no de la sección: el mismo bono tiene las mismas órdenes
-// en pesos y en dólares. Se guardan como lo personal, con sesión, y las de una
-// licitación anterior se descartan.
+// en pesos y en dólares. Se guardan como lo personal, con sesión. Cuando llega
+// el llamado siguiente, las de la licitación anterior pasan al historial, para
+// mirarlas contra su resultado.
 var LIC_ORD_LS='bonosAR_lic_ordenes_v1';
 var LIC_ORD=null;            // {fecha, ordenes:{clave:[{id,modo,valor,vn,monto,base}]}}
 var LIC_ORD_N=0;
@@ -23440,10 +23442,35 @@ function licOrdEjemplo(o,modo){
   if(modo==='tem')return pr&&pr.tem!=null?licN(pr.tem):'';
   return t!=null?licN(t):'';
 }
-function licOrdenes(fecha){
+var LIC_ORD_HIST_LS='bonosAR_lic_ordenes_hist_v1';   // fecha -> {ordenes}
+var LIC_ORD_HIST_N=12;        // licitaciones con órdenes que se guardan
+function licOrdLeer(){
   if(!LIC_ORD){try{const r=localStorage.getItem(LIC_ORD_LS);LIC_ORD=r?JSON.parse(r):null;}catch(e){LIC_ORD=null;}}
-  if(!LIC_ORD||typeof LIC_ORD!=='object'||LIC_ORD.fecha!==fecha||!LIC_ORD.ordenes||typeof LIC_ORD.ordenes!=='object')LIC_ORD={fecha,ordenes:{}};
+  return LIC_ORD&&typeof LIC_ORD==='object'&&LIC_ORD.ordenes&&typeof LIC_ORD.ordenes==='object'?LIC_ORD:null;
+}
+function licOrdHist(){
+  try{const h=JSON.parse(localStorage.getItem(LIC_ORD_HIST_LS)||'null');return h&&typeof h==='object'&&!Array.isArray(h)?h:{};}catch(e){return{};}
+}
+function licOrdConValor(O){return!!O&&Object.values(O).some(L=>Array.isArray(L)&&L.some(x=>x&&String(x.valor||'').trim()));}
+function licOrdArchivar(A){
+  if(!A||!A.fecha||!licOrdConValor(A.ordenes))return;
+  const h=licOrdHist();
+  h[A.fecha]={ordenes:A.ordenes};
+  Object.keys(h).sort().slice(0,-LIC_ORD_HIST_N).forEach(f=>delete h[f]);
+  try{localStorage.setItem(LIC_ORD_HIST_LS,JSON.stringify(h));}catch(e){}
+}
+function licOrdenes(fecha){
+  const A=licOrdLeer();
+  if(!A||A.fecha!==fecha){licOrdArchivar(A);LIC_ORD={fecha,ordenes:{}};}
   return LIC_ORD.ordenes;
+}
+// Las órdenes que se cargaron para una licitación: las del llamado o las del
+// historial.
+function licOrdDe(fecha){
+  const A=licOrdLeer();
+  if(A&&A.fecha===fecha)return A.ordenes;
+  const h=licOrdHist()[fecha];
+  return h&&h.ordenes&&typeof h.ordenes==='object'?h.ordenes:null;
 }
 function licOrdGuardar(){try{if(LIC_ORD)localStorage.setItem(LIC_ORD_LS,JSON.stringify(LIC_ORD));}catch(e){}}
 function licOrdNuevaObj(o){return{id:'o'+Date.now().toString(36)+(++LIC_ORD_N),modo:licOrdModos(o)[0][0],valor:'',vn:'',monto:'',base:'vn'};}
@@ -23884,7 +23911,11 @@ async function licRenderProximo(sec){
       <div style="${LIC_SUB}">${f?licCuanto(f):''}</div></div>`;}).join('')}</div>`;
   // La anterior ya se hizo pero todavía no liquidó.
   const ult=LIC_DATA.licitaciones[LIC_DATA.licitaciones.length-1];
-  if(ult&&licLiq(ult)>=hoyAR())h+=`<div style="${LIC_SUB};margin-bottom:8px">La licitación del ${betrF(ult.fecha)} ya se hizo y liquida ${licCuanto(licLiq(ult))} (${betrF(licLiq(ult))}): el resultado está abajo.</div>`;
+  if(ult&&licLiq(ult)>=hoyAR()){
+    const T=licOrdContra(ult,v),F=T?T.filas:[],ad=F.filter(x=>x.estado==='si'||x.estado==='corte').length;
+    const tus=F.length?` Tus órdenes: ${ad} de ${F.length} adjudicada${F.length===1?'':'s'}.`:'';
+    h+=`<div style="${LIC_SUB};margin-bottom:8px">La licitación del ${betrF(ult.fecha)} ya se hizo y liquida ${licCuanto(licLiq(ult))} (${betrF(licLiq(ult))}): el resultado está abajo.${tus}</div>`;
+  }
   if(!P.inst){
     h+=`<div style="${LIC_SUB}">Los instrumentos se publican con el llamado${P.llamado?' del '+betrF(P.llamado):''}, y aparecen acá ese mismo día.</div>`;
     cont.innerHTML=h;return;
@@ -23932,6 +23963,107 @@ function licOpcionesCurva(col,eje,u){
       y:{title:{display:true,text:u+' (%)',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>(+v).toFixed(1)+'%'}}}};
 }
 
+// ── Las órdenes contra el resultado ──────────────────────────────────────────
+// Cada orden contra el corte de su instrumento: entra la que ofreció más precio
+// que el corte, o menos TEM, margen o tasa. Es de precio único —el valor
+// efectivo del comunicado es VN por precio de corte—: lo adjudicado se paga al
+// corte, no a lo ofrecido. Justo en el corte puede haber prorrateo, y el
+// comunicado no lo informa. Una orden en tasa se pasa a precio como en el CSV.
+function licOrdVsCorte(i,ord,liq,tc){
+  const o={i,sec:i.sec,C:LIC_CLASES[i.clase]||LIC_CLASES.fija};
+  const modo=licOrdModo(o,ord),v=licLeerNum(ord.valor),usd=i.sec==='DLK'||i.sec==='BON';
+  const out={i,ord,modo,estado:null,dif:null};
+  if(v==null)return out;
+  const px=i.precio>0?(i.sec==='DLK'?(tc?i.precio/10*tc:null):i.precio/10):null;
+  let of=null;
+  if(modo==='precio')of={precio:v,usd};
+  else if(modo==='tem')of={tem:v};
+  else{
+    const pr=licPrecioPara(i,i.sec,v,liq,tc,i.dias,px);
+    of=!pr?null:pr.precio>0?{precio:+pr.precio.toFixed(2),usd}:pr.tem!=null?{tem:+pr.tem.toFixed(2)}:pr.margen!=null?{margen:pr.margen}:null;
+  }
+  out.of=of;
+  out.tasa=modo==='tasa'?v:modo==='tem'?(i.dias&&i.vencimiento?calcTNA(100,calcVF(v,liq,parseDate(i.vencimiento)),i.dias):null):licTasaDe(i,i.sec,v,liq,tc,i.dias);
+  if(out.tasa!=null&&!isFinite(out.tasa))out.tasa=null;
+  // Los VN, como en el CSV: con monto, los que entran al precio ofrecido.
+  const aPesos=x=>x/1000*(i.sec==='DLK'?tc:1);
+  const ofVN=of&&of.precio>0?aPesos(of.precio):of?1:null;
+  const q=licLeerNum(ord.base==='monto'?ord.monto:ord.vn);
+  out.vn=!(q>0)?null:ord.base==='monto'?(ofVN>0?Math.floor(q/ofVN):null):q;
+  if(i.desierto){out.estado='no';out.desierto=true;return out;}
+  // La diferencia es oferta menos corte: en precio, adentro si es positiva; en
+  // TEM, margen o tasa (pb), si es negativa.
+  let d=null,eps,precio=false;
+  if(of&&of.precio!=null&&i.precio!=null){d=of.precio-i.precio;eps=0.005;precio=true;}
+  else if(of&&of.tem!=null&&i.tem!=null&&i.precio==null){d=(of.tem-i.tem)*100;eps=0.5;}
+  else if(of&&of.margen!=null&&i.margen!=null){d=(of.margen-i.margen)*100;eps=0.5;}
+  else if(out.tasa!=null&&i.corte&&i.corte.v!=null){d=(out.tasa-i.corte.v)*100;eps=0.5;}
+  if(d==null||!isFinite(d))return out;
+  out.dif=d;out.difPrecio=precio;
+  out.estado=Math.abs(d)<eps?'corte':(precio?d>0:d<0)?'si':'no';
+  if(out.estado!=='no'&&out.vn)out.pagas=out.vn*(i.precio>0?aPesos(i.precio):1);
+  return out;
+}
+// Las órdenes de una licitación contra su resultado, las de la vista. null si
+// no se cargó ninguna.
+function licOrdContra(l,ver){
+  const O=licOrdDe(l.fecha);
+  if(!licOrdConValor(O))return null;
+  const r=licCalcular(l),liq=parseDate(licLiq(l)),tc=licA3500(l);
+  const usadas=new Set(),filas=[];
+  r.ins.filter(i=>i.ronda!==2).forEach(i=>{
+    [i.ticker,i.clase+'|'+(i.vencimiento||'')].forEach(c=>{
+      if(!c||usadas.has(c)||!Array.isArray(O[c]))return;
+      usadas.add(c);
+      if(!licEnVista(i,ver))return;
+      O[c].filter(ord=>ord&&String(ord.valor||'').trim()).forEach(ord=>filas.push(licOrdVsCorte(i,ord,liq,tc)));
+    });
+  });
+  const sueltas=Object.keys(O).filter(c=>!usadas.has(c)&&Array.isArray(O[c])&&O[c].some(x=>x&&String(x.valor||'').trim())).length;
+  return{filas,sueltas,liq};
+}
+var LIC_ADJ={si:['Adjudicada','#4ade80','Ofreciste más precio, o menos tasa, que el corte: entra entera, al precio de corte'],
+  corte:['Al corte','#f59e0b','Ofreciste justo el corte: entra, pero puede haberse prorrateado, y el comunicado no lo informa'],
+  no:['Afuera','var(--danger)','Ofreciste menos precio, o más tasa, que el corte: no se adjudica']};
+function licTusOrdenes(l,ver){
+  const T=licOrdContra(l,ver);
+  if(!T||(!T.filas.length&&!T.sueltas))return'';
+  const F=T.filas,cuantas=k=>F.filter(x=>x.estado===k).length;
+  const si=cuantas('si'),co=cuantas('corte'),no=cuantas('no'),sin=F.length-si-co-no;
+  let ars=0,usd=0;
+  F.forEach(x=>{if(x.pagas>0){if(x.i.sec==='BON')usd+=x.pagas;else ars+=x.pagas;}});
+  const th=LIC_TH,td=LIC_TD,chico=LIC_CHICO;
+  const chip=(k,t)=>{const E=LIC_ADJ[k];return`<span style="display:inline-block;border:1px solid ${E[1]};color:${E[1]};border-radius:3px;padding:1px 7px;font-size:var(--fs11)" title="${betrEsc(t||E[2])}">${E[0]}</span>`;};
+  const nota=`Cada orden que cargaste en Próxima licitación, contra el corte de su instrumento. Entra si ofreciste más precio que el corte, o menos TEM, margen o tasa. La licitación es de precio único: lo adjudicado se paga al precio de corte, no al ofrecido, y por eso el monto puede diferir del que calculaste. Justo en el corte puede haber prorrateo, y el comunicado no lo informa. Una orden en tasa se pasa a precio como en el CSV. Son las órdenes simuladas en la app: si a back office le pasaste otras, valen esas.`;
+  const resumen=[`${si+co} de ${F.length} adjudicada${F.length===1?'':'s'}`,co?`${co} al corte`:'',
+    ars?`a pagar $ ${licN(ars,0)}`:'',usd?`US$ ${licN(usd,0)}`:'',(ars||usd)?`el ${betrF(licLiq(l))}`:''].filter(Boolean).join(' · ');
+  const filas=F.map(x=>{
+    const i=x.i,C=LIC_CLASES[i.clase]||LIC_CLASES.fija,usdI=i.sec==='DLK'||i.sec==='BON',mon=i.sec==='BON'?'US$ ':'$ ';
+    const oferta=x.of?licOrdTexto(x.of):betrEsc(x.ord.valor);
+    const tasa=x.tasa!=null?`<span style="${chico}">${licN(x.tasa)}% ${C.u}</span>`:'';
+    const corte=i.desierto?'desierto':i.precio!=null?`${usdI?'US$ ':'$ '}${licN(i.precio)}`:i.tem!=null?`TEM ${licN(i.tem)}%`:i.margen!=null?`margen ${licN(i.margen)}%`:'—';
+    const corteT=i.corte&&i.corte.v!=null?`<span style="${chico}">${licN(i.corte.v)}% ${C.u}</span>`:'';
+    const dif=x.dif==null?'<span style="color:var(--text3)">—</span>':x.difPrecio?`${x.dif>0?'+':''}${licN(x.dif)}`:licPb(x.dif);
+    const est=x.estado?chip(x.estado,x.desierto?'El instrumento quedó desierto: no se adjudicó nada':null)
+      :`<span style="color:var(--text3)" title="No hay un corte en la misma unidad que la orden">sin comparar</span>`;
+    return`<tr><td style="${td};text-align:left">${betrEsc(licNombre(i))}<span style="${chico}">${C.l}</span></td>
+      <td style="${td}">${oferta}${tasa}</td><td style="${td}">${corte}${corteT}</td><td style="${td}">${dif}</td>
+      <td style="${td}">${x.vn!=null?licN(x.vn,0):'<span style="color:var(--text3)">—</span>'}</td><td style="${td}">${est}</td>
+      <td style="${td}">${x.pagas>0?mon+licN(x.pagas,0):'<span style="color:var(--text3)">—</span>'}</td></tr>`;
+  }).join('');
+  return`<div class="lic-tus" style="border:1px solid var(--border2);border-radius:4px;background:var(--surface2);padding:8px 10px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <span style="font-family:var(--mono);font-size:var(--fs12);color:var(--accent)">Tus órdenes</span>${ayuda(nota,'Cómo se leen tus órdenes')}
+      <span style="${LIC_SUB}">${resumen}</span>
+      ${no?`<span style="${LIC_SUB}">· ${no} afuera</span>`:''}${sin?`<span style="${LIC_SUB}">· ${sin} sin comparar</span>`:''}
+    </div>
+    ${F.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:var(--fs12);min-width:640px">
+      <thead><tr><th style="${th};text-align:left">Instrumento</th><th style="${th}">Tu oferta</th><th style="${th}">Corte</th><th style="${th}">Diferencia</th><th style="${th}">VN</th><th style="${th}">Resultado</th><th style="${th}">A pagar</th></tr></thead>
+      <tbody>${filas}</tbody></table></div>`:''}
+    ${T.sueltas?`<div style="${LIC_SUB};margin-top:4px">${T.sueltas} instrumento${T.sueltas===1?'':'s'} con órdenes no ${T.sueltas===1?'está':'están'} en el resultado${ver!=='todos'?' de esta vista':''}.</div>`:''}
+  </div>`;
+}
+
 // ── Resultado de cada licitación ─────────────────────────────────────────────
 function licRenderResultado(sec){
   const p=LIC_SEC[sec].p,cont=document.getElementById(p+'-res-c');
@@ -23973,6 +24105,7 @@ function licRenderResultado(sec){
   if(!r.ref)h+=`<div style="${LIC_SUB};margin-bottom:8px">No hay ruedas guardadas para esa fecha: la licitación se muestra sin premio.</div>`;
   else if(!r.mismoDia)h+=`<div style="${LIC_SUB};margin-bottom:8px">No hay cierre guardado del día de la licitación: el mercado es el del ${betrF(r.ref)}.</div>`;
   else if(r.vivo)h+=`<div style="${LIC_SUB};margin-bottom:8px">El mercado es el de los precios en vivo de hoy: el cierre todavía no se guardó.</div>`;
+  h+=licTusOrdenes(l,ver);
   const th=LIC_TH,td=LIC_TD,chico=LIC_CHICO;
   const orden=Object.keys(LIC_CLASES);
   const filas=ins.slice().sort((a,b)=>orden.indexOf(a.clase)-orden.indexOf(b.clase)||(a.vencimiento||'').localeCompare(b.vencimiento||''));

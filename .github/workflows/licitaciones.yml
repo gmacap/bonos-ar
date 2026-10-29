@@ -1,14 +1,17 @@
 name: Actualizar licitaciones
 
 # Finanzas publica el llamado dos días hábiles antes de la licitación, y el
-# resultado la tarde del mismo día, entre las 17 y las 19 de Buenos Aires. Tres
-# pasadas por día hábil alcanzan: a la mañana por el llamado y a la tarde, dos
-# veces, por el resultado.
+# resultado la tarde o la noche del mismo día. GitHub atrasa las corridas
+# programadas, a veces horas, y más las que caen en punto o y media: van en
+# minutos sueltos. Dos a la tarde, dos a la noche —el resultado del 28/10/2026
+# todavía no estaba a las 23:35— y una a la mañana, que levanta lo de la noche.
 on:
   schedule:
-    - cron: '0 13 * * 1-5'    # 10:00 ART
-    - cron: '30 21 * * 1-5'   # 18:30 ART
-    - cron: '30 23 * * 1-5'   # 20:30 ART
+    - cron: '17 11 * * 1-5'   # 08:17 ART
+    - cron: '47 20 * * 1-5'   # 17:47 ART
+    - cron: '23 22 * * 1-5'   # 19:23 ART
+    - cron: '53 0 * * 2-6'    # 21:53 ART
+    - cron: '41 2 * * 2-6'    # 23:41 ART
   workflow_dispatch:
     inputs:
       desde:
