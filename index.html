@@ -245,6 +245,14 @@ td.ticker-cell{text-align:left;}
 .lic-ord tr.atenuada:hover,.lic-ord tr.atenuada:focus-within{opacity:.8;}
 .lic-ord tr.destacada>td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
 .lic-ord select.gsel{padding:1px 1px;}
+/* Cada módulo se pliega desde su título: queda el renglón del título, y la
+   página se recorre más corta. */
+.lic-plegar{display:inline-flex;align-items:center;gap:7px;background:none;border:0;padding:0;margin:0;cursor:pointer;color:inherit;font:inherit;text-align:left;}
+.lic-plegar .chev{display:inline-block;width:11px;color:var(--text3);font-family:var(--mono);font-size:var(--fs11);transition:transform .15s;}
+.lic-plegar:hover .chev{color:var(--accent);}
+.lic-plegar[aria-expanded="false"] .chev{transform:rotate(-90deg);}
+.lic-plegar:focus-visible{outline:1px solid var(--accent2);outline-offset:2px;}
+section.plegada>div:first-child,.lic-tus.plegada>div:first-child{margin-bottom:0 !important;}
 
 /* cell views */
 .cv{padding:0 10px;height:100%;display:flex;align-items:center;justify-content:flex-end;cursor:pointer;}
@@ -23102,9 +23110,10 @@ function licPaginaHTML(sec){
   const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
   const sub='font-size:var(--fs10);color:var(--text3);font-family:var(--mono)';
   const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px';
-  const secc=(id,titulo,bajada,extra)=>`<section style="${caja}" id="${p}-${id}">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><span style="${tit}">${titulo}</span>${ayuda(bajada)}${extra||''}</div>
-      <div id="${p}-${id}-c"></div></section>`;
+  const pleg=licPlegadas(sec);
+  const secc=(id,titulo,bajada,extra)=>`<section style="${caja}" id="${p}-${id}"${pleg.has(id)?' class="plegada"':''}>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button type="button" class="lic-plegar" aria-expanded="${!pleg.has(id)}" aria-controls="${p}-${id}-c" title="Plegar o desplegar" onclick="licPlegar('${sec}','${id}')"><span class="chev">▾</span><span style="${tit}">${titulo}</span></button>${ayuda(bajada)}${extra||''}</div>
+      <div id="${p}-${id}-c"${pleg.has(id)?' hidden':''}></div></section>`;
   return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
       <span style="${tit};font-size:17px">Licitaciones del Tesoro</span>
@@ -23119,6 +23128,26 @@ function licPaginaHTML(sec){
     ${secc('pre','Historial de premios','Cuánto pagó el Tesoro por encima (+) o por debajo (−) del secundario, por tipo, ponderado por monto. Contra el cierre del día de cada licitación: el mismo bono si cotizaba, y si no la curva de su familia. La escala corta en ±300 pb; el valor real está en el globo de cada barra.')}
     ${secc('cro','Cronograma','Llamado, licitación y liquidación, según el calendario de la Secretaría de Finanzas.')}
   </div>`;
+}
+
+// Los módulos plegados, por sección: quedan así al volver.
+var LIC_PLEG_LS='bonosAR_lic_plegadas_v1';
+var LIC_PLEG_FN={prox:'licRenderProximo',res:'licRenderResultado',col:'licRenderColocacion',plz:'licRenderPlazos',pre:'licRenderPremios',cro:'licRenderCronograma'};
+function licPlegLeer(){try{const o=JSON.parse(localStorage.getItem(LIC_PLEG_LS)||'{}');return o&&typeof o==='object'?o:{};}catch(e){return{};}}
+function licPlegadas(sec){const o=licPlegLeer();return new Set(Array.isArray(o[sec])?o[sec]:[]);}
+function licPlegar(sec,id){
+  const p=LIC_SEC[sec].p,sc=document.getElementById(`${p}-${id}`),c=document.getElementById(`${p}-${id}-c`);
+  if(!sc||!c)return;
+  const plegar=!c.hidden,b=sc.querySelector('.lic-plegar');
+  c.hidden=plegar;sc.classList.toggle('plegada',plegar);
+  if(b)b.setAttribute('aria-expanded',String(!plegar));
+  const o=licPlegLeer(),P=licPlegadas(sec);
+  if(plegar)P.add(id);else P.delete(id);
+  o[sec]=[...P];
+  try{localStorage.setItem(LIC_PLEG_LS,JSON.stringify(o));}catch(e){}
+  // Al desplegar se repinta: un gráfico dibujado plegado no tiene tamaño.
+  const fn=!plegar&&LIC_DATA&&window[LIC_PLEG_FN[id]];
+  if(fn)Promise.resolve(fn(sec)).catch(e=>console.warn('[licitaciones]',id,e));
 }
 
 function licPintarVer(sec){
@@ -24022,10 +24051,22 @@ function licOrdContra(l,ver){
   const sueltas=Object.keys(O).filter(c=>!usadas.has(c)&&Array.isArray(O[c])&&O[c].some(x=>x&&String(x.valor||'').trim())).length;
   return{filas,sueltas,liq};
 }
+// Hasta dos días hábiles después de la licitación —la liquidación, en general—
+// lo que importa son las órdenes propias; después, la licitación en sí.
+var LIC_TUS_HABILES=2;
+function licOrdReciente(l){return hoyAR()<=fmtDate(addHabiles(parseDate(l.fecha),LIC_TUS_HABILES));}
+function licTusPlegar(b,sec,fecha){
+  const caja=b.closest('.lic-tus'),c=caja&&caja.querySelector('.lic-tus-c');
+  if(!c)return;
+  c.hidden=!c.hidden;
+  caja.classList.toggle('plegada',c.hidden);
+  b.setAttribute('aria-expanded',String(!c.hidden));
+  (LIC_ESTADO[sec].tus=LIC_ESTADO[sec].tus||{})[fecha]=!c.hidden;
+}
 var LIC_ADJ={si:['Adjudicada','#4ade80','Ofreciste más precio, o menos tasa, que el corte: entra entera, al precio de corte'],
   corte:['Al corte','#f59e0b','Ofreciste justo el corte: entra, pero puede haberse prorrateado, y el comunicado no lo informa'],
   no:['Afuera','var(--danger)','Ofreciste menos precio, o más tasa, que el corte: no se adjudica']};
-function licTusOrdenes(l,ver){
+function licTusOrdenes(l,ver,sec,arriba){
   const T=licOrdContra(l,ver);
   if(!T||(!T.filas.length&&!T.sueltas))return'';
   const F=T.filas,cuantas=k=>F.filter(x=>x.estado===k).length;
@@ -24051,16 +24092,20 @@ function licTusOrdenes(l,ver){
       <td style="${td}">${x.vn!=null?licN(x.vn,0):'<span style="color:var(--text3)">—</span>'}</td><td style="${td}">${est}</td>
       <td style="${td}">${x.pagas>0?mon+licN(x.pagas,0):'<span style="color:var(--text3)">—</span>'}</td></tr>`;
   }).join('');
-  return`<div class="lic-tus" style="border:1px solid var(--border2);border-radius:4px;background:var(--surface2);padding:8px 10px;margin-bottom:10px">
+  const ab=(LIC_ESTADO[sec].tus||{})[l.fecha];
+  const abierta=ab!=null?ab:arriba;
+  return`<div class="lic-tus${abierta?'':' plegada'}" style="border:1px solid var(--border2);border-radius:4px;background:var(--surface2);padding:8px 10px;${arriba?'margin-bottom:10px':'margin-top:12px'}">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-      <span style="font-family:var(--mono);font-size:var(--fs12);color:var(--accent)">Tus órdenes</span>${ayuda(nota,'Cómo se leen tus órdenes')}
+      <button type="button" class="lic-plegar" aria-expanded="${abierta}" title="Plegar o desplegar" onclick="licTusPlegar(this,'${sec}','${l.fecha}')"><span class="chev">▾</span><span style="font-family:var(--mono);font-size:var(--fs12);color:var(--accent)">Tus órdenes</span></button>${ayuda(nota,'Cómo se leen tus órdenes')}
       <span style="${LIC_SUB}">${resumen}</span>
       ${no?`<span style="${LIC_SUB}">· ${no} afuera</span>`:''}${sin?`<span style="${LIC_SUB}">· ${sin} sin comparar</span>`:''}
     </div>
+    <div class="lic-tus-c"${abierta?'':' hidden'}>
     ${F.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:var(--fs12);min-width:640px">
       <thead><tr><th style="${th};text-align:left">Instrumento</th><th style="${th}">Tu oferta</th><th style="${th}">Corte</th><th style="${th}">Diferencia</th><th style="${th}">VN</th><th style="${th}">Resultado</th><th style="${th}">A pagar</th></tr></thead>
       <tbody>${filas}</tbody></table></div>`:''}
     ${T.sueltas?`<div style="${LIC_SUB};margin-top:4px">${T.sueltas} instrumento${T.sueltas===1?'':'s'} con órdenes no ${T.sueltas===1?'está':'están'} en el resultado${ver!=='todos'?' de esta vista':''}.</div>`:''}
+    </div>
   </div>`;
 }
 
@@ -24105,7 +24150,8 @@ function licRenderResultado(sec){
   if(!r.ref)h+=`<div style="${LIC_SUB};margin-bottom:8px">No hay ruedas guardadas para esa fecha: la licitación se muestra sin premio.</div>`;
   else if(!r.mismoDia)h+=`<div style="${LIC_SUB};margin-bottom:8px">No hay cierre guardado del día de la licitación: el mercado es el del ${betrF(r.ref)}.</div>`;
   else if(r.vivo)h+=`<div style="${LIC_SUB};margin-bottom:8px">El mercado es el de los precios en vivo de hoy: el cierre todavía no se guardó.</div>`;
-  h+=licTusOrdenes(l,ver);
+  const tusArriba=licOrdReciente(l);
+  if(tusArriba)h+=licTusOrdenes(l,ver,sec,true);
   const th=LIC_TH,td=LIC_TD,chico=LIC_CHICO;
   const orden=Object.keys(LIC_CLASES);
   const filas=ins.slice().sort((a,b)=>orden.indexOf(a.clase)-orden.indexOf(b.clase)||(a.vencimiento||'').localeCompare(b.vencimiento||''));
@@ -24136,6 +24182,7 @@ function licRenderResultado(sec){
   if(r.ref&&fams.length)h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-top:12px">${fams.map(k=>`<div>
     <div style="font-family:var(--mono);font-size:var(--fs12);color:${LIC_CLASES[k].c};margin-bottom:4px">${LIC_CLASES[k].l} <span style="${LIC_SUB}">${LIC_CLASES[k].u} · cierre ${licDiaCorto(r.ref)}</span></div>
     <div style="height:260px;position:relative"><canvas id="${p}-res-g-${k}"></canvas></div></div>`).join('')}</div>`;
+  if(!tusArriba)h+=licTusOrdenes(l,ver,sec,false);
   cont.innerHTML=h;
   if(!r.ref)return;
   const ref=licRef(l.fecha),col=licColores();

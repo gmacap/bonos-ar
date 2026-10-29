@@ -4416,6 +4416,19 @@ const omitir = (label, motivo) =>
       globo: !!globo && globo.style.display === 'block' && globo.textContent.length > 20 };
     if (bi) bi.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
     out.ayuda.seVa = !globo || globo.style.display === 'none';
+    // Cada módulo se pliega desde su título, queda plegado al volver a armar
+    // la página y, al desplegarlo, se repinta con su gráfico.
+    {
+      const c = document.getElementById('lic-col-c'), sc = document.getElementById('lic-col');
+      licPlegar('ars', 'col');
+      const plegado = c.hidden && sc.classList.contains('plegada') && licPlegadas('ars').has('col')
+        && licPaginaHTML('ars').includes('id="lic-col-c" hidden');
+      licPlegar('ars', 'col');
+      await espera(400);
+      const cv = c.querySelector('canvas');
+      out.plegar = { plegado, vuelve: !c.hidden && !licPlegadas('ars').has('col'), grafico: !!cv && cv.width > 0 };
+      try { localStorage.removeItem(LIC_PLEG_LS); } catch (e) {}
+    }
     // El precio estimado de corte, con un llamado armado con los instrumentos de
     // la última licitación: una fila por instrumento, la tasa de la curva vuelve
     // a salir del motor con el precio en curva, y el premio baja el precio. El
@@ -4531,6 +4544,27 @@ const omitir = (label, motivo) =>
           out.tus = { ticker: iP.ticker, filas: caja ? caja.querySelectorAll('tbody tr').length : 0,
             estados: F.map(x => x.estado).join(), esperados: ords.map(x => x.e).join(), nPaga: conPago.length,
             paga: conPago.every(x => Math.abs(x.pagas - 1e6 * iP.precio / 1000) < 1e-6) };
+          // Hasta dos hábiles después, arriba de la tabla y abiertas; después,
+          // abajo y plegadas, con el resumen a la vista. Plegarlas a mano se
+          // respeta al repintar.
+          const lugar = () => {
+            const cj = document.querySelector('#lic-res-c .lic-tus');
+            const tabla = [...document.querySelectorAll('#lic-res-c table')].find(t => !t.closest('.lic-tus'));
+            return cj && tabla ? { arriba: !!(cj.compareDocumentPosition(tabla) & Node.DOCUMENT_POSITION_FOLLOWING),
+              abierta: !cj.querySelector('.lic-tus-c').hidden, filas: cj.querySelectorAll('tbody tr').length, cj } : null;
+          };
+          const orig = licOrdReciente;
+          try {
+            licOrdReciente = () => true; licRenderResultado('ars');
+            const nueva = lugar();
+            nueva.cj.querySelector('.lic-plegar').click();
+            licRenderResultado('ars');
+            const aMano = lugar();
+            LIC_ESTADO.ars.tus = {};
+            licOrdReciente = () => false; licRenderResultado('ars');
+            const vieja = lugar();
+            out.tus.lugar = { nueva: [nueva.arriba, nueva.abierta], aMano: aMano.abierta, vieja: [vieja.arriba, vieja.abierta, vieja.filas] };
+          } finally { licOrdReciente = orig; LIC_ESTADO.ars.tus = {}; }
           licOrdenes('2099-12-31');
           out.tus.archivo = LIC_ORD.fecha === '2099-12-31' && Array.isArray((licOrdDe(ult.fecha) || {})[c]);
         } finally {
@@ -4593,6 +4627,10 @@ const omitir = (label, motivo) =>
     const tu = lic.tus;
     if (!tu) omitir(TUS, 'la última licitación no trae un instrumento en pesos con precio de corte');
     else check(tu.filas === 3 && tu.estados === tu.esperados && tu.nPaga === 2 && tu.paga && tu.archivo, TUS, JSON.stringify(tu));
+    if (tu) check(tu.lugar && tu.lugar.nueva.join() === 'true,true' && tu.lugar.aMano === false && tu.lugar.vieja.join() === 'false,false,3',
+          'tus órdenes van arriba y abiertas hasta dos hábiles después de la licitación; después, abajo del resultado y plegadas', JSON.stringify(tu.lugar));
+    check(lic.plegar && lic.plegar.plegado && lic.plegar.vuelve && lic.plegar.grafico,
+          'cada módulo de Licitaciones se pliega desde su título, se recuerda y al desplegarse se repinta', JSON.stringify(lic.plegar));
     check(lic.usd.visible && lic.usd.ver === 'usd' && lic.usd.soloUsd && lic.todos >= lic.usd.filas,
           'en dólares la misma página arranca con los Bonares, y Todos suma el resto', JSON.stringify({ ...lic.usd, todos: lic.todos }));
   }
