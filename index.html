@@ -163,7 +163,17 @@ tr.calc-fuera>td{opacity:.42;}
 tr.calc-fuera:hover>td{opacity:.75;}
 /* Bonos nuevos de una licitación: el aviso para el admin, arriba de la tabla
    de cada calculadora, y la marca "por liquidar" hasta la emisión. */
-.altas-aviso{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 10px;padding:6px 10px;border:1px solid var(--border2);border-left:3px solid var(--accent);border-radius:4px;background:var(--surface2);font-family:var(--mono);font-size:var(--fs11);color:var(--text2);}
+.altas-aviso{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:6px 10px;padding:7px 10px;border:1px solid var(--warn);border-left:4px solid var(--warn);border-radius:4px;background:color-mix(in srgb,var(--warn) 13%,var(--surface2));font-family:var(--mono);font-size:var(--fs11);color:var(--text);}
+.altas-aviso>span:first-child{color:var(--warn);font-weight:500;}
+/* La píldora del encabezado y las marcas del menú: un bono para revisar se ve
+   desde cualquier solapa. */
+#altas-pildora{display:none;align-items:center;gap:6px;font-family:var(--mono);font-size:var(--fs10);padding:3px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;border:1px solid var(--warn);color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent);}
+#altas-pildora:hover{background:color-mix(in srgb,var(--warn) 24%,transparent);}
+.altas-punto{width:7px;height:7px;border-radius:50%;background:var(--warn);flex-shrink:0;animation:altasLatido 1.8s ease-out infinite;}
+@keyframes altasLatido{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--warn) 60%,transparent)}70%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.altas-punto{animation:none;}}
+.altas-num{display:inline-block;min-width:15px;margin-left:6px;padding:0 4px;border-radius:8px;background:var(--warn);color:#141414;font-size:var(--fs9);font-weight:600;line-height:15px;text-align:center;letter-spacing:0;}
+.nav-tab.altas-pend::after{content:'●';color:var(--warn);margin-left:6px;font-size:.75em;vertical-align:middle;}
 .altas-aviso:empty{display:none;}
 .altas-aviso .altas-item{display:inline-flex;align-items:center;gap:6px;padding:2px 4px 2px 8px;border:1px solid var(--border);border-radius:3px;background:var(--surface);}
 .altas-aviso button{font-family:var(--mono);font-size:var(--fs10);padding:1px 7px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);color:var(--text2);cursor:pointer;}
@@ -476,6 +486,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       style="display:none;align-items:center;gap:5px;font-family:var(--mono);font-size:var(--fs10);
              padding:3px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;
              border:1px solid var(--warn);color:var(--warn)"></span>
+    <span id="altas-pildora" onclick="altasIr()" role="button" tabindex="0" onkeydown="if(event.key==='Enter')altasIr()"></span>
     <span id="sesion-aviso" onclick="authAction()" title="Sin sesión, tus carteras, el Resumen y tus proyecciones no se guardan: se pierden al recargar la página. Iniciá sesión para guardarlos en tu cuenta."
       style="display:none;align-items:center;gap:5px;font-family:var(--mono);font-size:var(--fs10);
              padding:3px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;
@@ -4477,6 +4488,8 @@ function apiBestPrice(api){
 // escritos a mano no se tocan.
 function pesosSinPrecioHoy(r,liq){
   if(r.manualOverride||!r.vcto||diasACT(liq,parseDate(r.vcto))<=0)return r;
+  // Un bono nuevo que todavía no liquidó no cotiza: no le falta precio.
+  if(r.emision&&r.emision>hoyAR())return{...r,precio:null,pct_change:null,precioCierre:null};
   return{...r,precio:null,pct_change:null,bid:null,ask:null,vol:null,ops:null,monto:null,
     precioCierre:{buscando:true}};
 }
@@ -6506,6 +6519,7 @@ function cerSaveModal(){
     savePortfolio();
     cerCloseModal();
     cerRenderTable();
+    altasPintar('cer');
     // fetch precio automáticamente
     cerFetchPrices();
     try{cerOpenPanel(ticker);}catch(e){console.error('cerOpenPanel error:',e);}
@@ -9945,6 +9959,7 @@ function tamarSaveModal(){
   tamarSaveBonds();
   tamarCloseModal();
   tamarRenderTable();
+  altasPintar('tamar');
   tamarFetchPrices();
 }
 
@@ -13309,11 +13324,12 @@ function altasCaja(clave){
   return el;
 }
 function altasPintar(clave){
-  if(!isAdmin()){const el=document.getElementById('altas-'+clave);if(el)el.innerHTML='';return;}
+  if(!isAdmin()){const el=document.getElementById('altas-'+clave);if(el)el.innerHTML='';altasAvisosPintar();return;}
   if(typeof LIC_DATA==='undefined'||!LIC_DATA){
     if(typeof LIC_URL==='string'&&!altasPintar._pidio){altasPintar._pidio=true;licCargar().then(()=>['tf','cer','tamar','dlk','bon'].forEach(altasPintar)).catch(()=>{});}
     return;
   }
+  altasAvisosPintar();
   const el=altasCaja(clave);
   if(!el)return;
   const P=altasPropuestas(clave);
@@ -13321,6 +13337,43 @@ function altasPintar(clave){
     `<span class="altas-item" title="${altasEsc(x.i.nombre||'')}">${altasEsc(x.ticker||'sin ticker')} <span style="color:var(--text3)">vence ${altasFecha(x.i.vencimiento)} · licitación ${altasFecha(x.l.fecha)}${x.emision>hoyAR()?' · por liquidar':''}</span>`
     +`<button type="button" class="primary" onclick="altaRevisar('${clave}','${x.id}')">Revisar</button><button type="button" onclick="altaDescartar('${clave}','${x.id}')" title="No proponerlo más">✕</button></span>`).join('');
 }
+// Lo pendiente, a la vista desde cualquier solapa: la píldora del encabezado,
+// el número en "Calculadoras" y una marca en el ítem de cada calculadora.
+function altasDondeIr(){return{tf:['pesos','lecap','Tasa fija'],cer:['pesos','cer','CER'],tamar:['pesos','tamar','TAMAR'],dlk:['pesos','dlk','DLK'],bon:['usd','usd-bonares','Bonares']};}
+function altasPendientes(){
+  try{if(!isAdmin()||typeof LIC_DATA==='undefined'||!LIC_DATA)return[];}catch(e){return[];}
+  return['tf','cer','tamar','dlk','bon'].flatMap(k=>altasPropuestas(k));
+}
+function altasAvisosPintar(){
+  const P=altasPendientes(),D=altasDondeIr(),n=P.length;
+  const pil=document.getElementById('altas-pildora');
+  if(pil){
+    pil.style.display=n?'inline-flex':'none';
+    pil.innerHTML=n?`<span class="altas-punto"></span>${n} ${n===1?'bono':'bonos'} para revisar`:'';
+    pil.title=n?'Bonos nuevos de licitaciones, para revisar antes de que queden: '+P.map(x=>`${x.ticker||'sin ticker'} (${D[x.clave][2]})`).join(', ')+'. Click para ir.':'';
+  }
+  // El número en "Calculadoras" de cada sección y la marca en cada ítem.
+  [['nav-pesos',P.filter(x=>D[x.clave][0]==='pesos').length],['nav-usd',P.filter(x=>D[x.clave][0]==='usd').length]].forEach(([nav,m])=>{
+    const btn=[...document.querySelectorAll(`#${nav} .nav-grupo-btn`)].find(b=>/^Calculadoras/.test(b.textContent));
+    if(!btn)return;
+    let b=btn.querySelector('.altas-num');
+    if(m&&!b){b=document.createElement('span');b.className='altas-num';btn.insertBefore(b,btn.querySelector('.nav-grupo-flecha'));}
+    if(b){if(m){b.textContent=m;b.title=`${m} para revisar`;}else b.remove();}
+  });
+  Object.entries(D).forEach(([k,[sec,tab]])=>{
+    const it=document.getElementById(sec==='usd'?'nav-'+tab:'nav-'+tab);
+    if(it)it.classList.toggle('altas-pend',P.some(x=>x.clave===k));
+  });
+}
+function altasIr(){
+  const P=altasPendientes();
+  if(!P.length)return;
+  const[sec,tab]=altasDondeIr()[P[0].clave];
+  switchSection(sec);
+  if(sec==='usd')switchUsdTab(tab);else switchTab(tab);
+  setTimeout(()=>{const el=document.getElementById('altas-'+P[0].clave);if(el)el.scrollIntoView({block:'nearest'});},300);
+}
+
 // Hasta la emisión, la marca en la fila.
 function altasMarca(emision){
   if(!emision||emision<=hoyAR())return'';
@@ -14529,6 +14582,7 @@ function dlkSaveModal(){
   dlkCloseModal();
   DLK_DATA=DLK_BONDS.map(dlkEnrich);
   dlkRenderTable();
+  altasPintar('dlk');
   if(bond.precio) dlkOpenPanel(ticker);
   dlkFetchPrices();
 }
@@ -21476,7 +21530,9 @@ async function seriesHist912(sym){
       {cache:'no-store',signal:AbortSignal.timeout(FX_HIST_TIMEOUT_MS)});
     if(!r.ok)throw new Error('data912 HTTP '+r.status);
     const raw=await r.json();
-    for(const x of raw||[]){
+    // Un bono que todavía no operó no tiene historia: data912 contesta un
+    // objeto en vez de la lista.
+    for(const x of Array.isArray(raw)?raw:[]){
       const f=String((x&&x.date)||'').slice(0,10);
       const c=+((x||{}).c);
       if(f&&isFinite(c)&&c>0)m.set(f,c);

@@ -4752,6 +4752,14 @@ const omitir = (label, motivo) =>
       out.sinAdmin = !(document.getElementById('altas-tf') || {}).textContent;
       isAdmin = () => true; renderTable();
       out.conAdmin = /ZZPRU/.test((document.getElementById('altas-tf') || {}).textContent || '');
+      // Desde cualquier solapa: la píldora del encabezado y las marcas del menú.
+      altasAvisosPintar();
+      const pil = document.getElementById('altas-pildora');
+      out.pildora = { ve: pil.style.display !== 'none' && /para revisar/.test(pil.textContent),
+        num: +((document.querySelector('#nav-pesos .altas-num') || {}).textContent || 0),
+        item: document.getElementById('nav-lecap').classList.contains('altas-pend') };
+      // Un bono que todavía no liquidó no se busca como "sin precio".
+      out.sinBuscar = pesosSinPrecioHoy({ ticker: 'ZZPRU', vcto: vto, emision: liq, precio: 5 }, parseDate(hoy)).precioCierre === null;
       // El formulario, completo y con la nota.
       altaRevisar('tf', tf.find(x => x.ticker === 'ZZPRU').id);
       out.form = ['m-ticker', 'm-tem-emision', 'm-emision', 'm-vcto'].map(id => document.getElementById(id).value).join('|');
@@ -4773,6 +4781,8 @@ const omitir = (label, motivo) =>
       LECAPS = LECAPS.filter(x => x.ticker !== 'ZZPRU'); DATA = LECAPS.map(enrich);
       D.licitaciones.splice(D.licitaciones.indexOf(prueba), 1);
       renderTable();
+      altasAvisosPintar();
+      out.pildoraSeVa = document.getElementById('altas-pildora').style.display === 'none' && !document.querySelector('#nav-pesos .altas-num');
     }
     switchTab('breakeven');
     return out;
@@ -4781,7 +4791,10 @@ const omitir = (label, motivo) =>
         'cada bono nuevo se propone en su calculadora, el ticker de una letra se deduce y un dual va a sus dos patas', JSON.stringify(alt.propuestas));
   check(alt.sinAdmin && alt.conAdmin && alt.form === alt.esperado && alt.nota && alt.notaSeVa && alt.dualFalta,
         'el admin lo revisa en el formulario de alta ya completado, con la nota de lo que falta', JSON.stringify({ ...alt, propuestas: undefined }));
-  check(alt.cargado && alt.cargado.yaNo && alt.cargado.marca,
+  check(alt.pildora && alt.pildora.ve && alt.pildora.num >= 1 && alt.pildora.item && alt.pildoraSeVa,
+        'un bono para revisar se ve desde cualquier solapa: la píldora del encabezado, el número en Calculadoras y la marca en el menú',
+        JSON.stringify({ pildora: alt.pildora, seVa: alt.pildoraSeVa }));
+  check(alt.cargado && alt.cargado.yaNo && alt.cargado.marca && alt.sinBuscar,
         'cargado, deja de proponerse y hasta la liquidación va marcado "por liquidar"', JSON.stringify(alt.cargado));
 
   // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.
