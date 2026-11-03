@@ -10708,8 +10708,10 @@ function beTamarAvisoSens(res){
 }
 
 // La celda contra tasa fija: el número, que abre el detalle, abajo contra qué
-// LECAP —en otro color si las elegiste vos— y los avisos. Sin comparación
-// posible, el botón para elegirla.
+// LECAP —en otro color si las elegiste vos, con "auto" si no— y los avisos.
+// Las LECAP de abajo también abren el selector, como los CER de la TAMAR real:
+// sin eso, con la elección automática no se veía que se podía cambiar. Sin
+// comparación posible, el botón para elegirla.
 function beTamarCeldaTF(ticker,res){
   const td=html=>`<td style="padding:1px 4px;text-align:right;font-family:var(--mono);font-size:var(--fs10);white-space:nowrap">${html}</td>`;
   const boton=t=>`<button onclick="betfAbrir('${ticker}')" style="background:none;border:none;padding:0;color:var(--text3);cursor:pointer;font-family:var(--mono);font-size:var(--fs9);text-decoration:underline">${t}</button>`;
@@ -10725,7 +10727,7 @@ function beTamarCeldaTF(ticker,res){
   if(res.extrapola)avisos.push(`<span title="${betrEsc(beTamarAvisoExtrapola(res))}" style="color:var(--warn)">↗</span>`);
   return td(
     `<button onclick="betfAbrir('${ticker}')" title="${betrEsc(titulo)}" style="background:none;border:none;padding:0;cursor:pointer;font-family:var(--mono);font-size:var(--fs10);color:var(--warn);font-weight:600">${fmtP2(res.tamar_be_tna)}</button>${avisos.length?' '+avisos.join(''):''}`
-    +`<br><span title="${res.tfManual?'LECAP elegidas por vos':'LECAP elegidas automáticamente'}" style="color:${res.tfManual?'var(--accent2)':'var(--text3)'};font-size:var(--fs8)">${res.tfTicker}</span>`);
+    +`<br><button onclick="betfAbrir('${ticker}')" title="${res.tfManual?'LECAP elegidas por vos: click para cambiarlas':'LECAP elegidas automáticamente: click para elegir contra cuáles comparar'}" style="background:none;border:none;padding:0;cursor:pointer;font-family:var(--mono);font-size:var(--fs8);text-decoration:underline dotted;color:${res.tfManual?'var(--accent2)':'var(--text3)'}">${res.tfTicker}${res.tfManual?'':' · auto'}</button>`);
 }
 
 // ── El selector de tasa fija ─────────────────────────────────────────────────

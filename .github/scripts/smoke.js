@@ -3248,6 +3248,11 @@ const omitir = (label, motivo) =>
     out.avisos = (html.match(/⚠/g) || []).length;
     out.avisosBetr = (html.match(/despeje amplifica/g) || []).length;
     out.botonesElegir = (html.match(/elegir TF/g) || []).length;
+    // Con número, las LECAP de abajo abren el selector, como los CER de la TAMAR
+    // real: "auto" si las eligió la app.
+    const conNumero = [...tb.querySelectorAll('tr')].filter(tr => tr.children[2] && /\d[.,]\d\d%/.test(tr.children[2].textContent));
+    out.cambiar = { conNumero: conNumero.length, links: conNumero.filter(tr => [...tr.children[2].querySelectorAll('button')]
+      .some(b => /betfAbrir/.test(b.getAttribute('onclick') || '') && !/%/.test(b.textContent) && /[A-Z]\d/.test(b.textContent))).length };
     // fmtP2 ya trae el %: sumarle otro en el texto lo duplicaba.
     out.textoLimpio = !/%%|% puntos/.test(html);
     out.sync = SUPA_USER_KEYS.includes(BETF_LS);
@@ -3270,6 +3275,9 @@ const omitir = (label, motivo) =>
           'la tabla avisa en cada bono muy sensible al precio',
           `${betf.avisos - betf.avisosBetr} avisos, ${betf.sensibles} sensibles`);
   }
+  if (betf.cambiar && betf.cambiar.conNumero)
+    check(betf.cambiar.links === betf.cambiar.conNumero,
+          'con número, las LECAP de abajo abren el selector de tasa fija, como los CER de la TAMAR real', JSON.stringify(betf.cambiar));
   if (!betf.extrap) omitir('poco después de la última LECAP', 'ningún TAMAR vence en ese tramo');
   else check(betf.extrapBien, 'si vence poco después de la última LECAP, se usa esa plana y se avisa',
              `${betf.extrap} bono(s)`);
@@ -4673,7 +4681,9 @@ const omitir = (label, motivo) =>
       switchSection('pesos'); switchTab(sec); await espera(1200);
       const ch = () => sec === 'cer' ? cerTabChart : tamarTabChart;
       const punto = t => { const d = ch() && ch().data.datasets[1].data.find(x => x.ticker === t); return d ? d.y : null; };
-      const d0 = ch() && ch().data.datasets[1].data.find(x => x.precio > 0);
+      // Uno con plazo: a pocos días del vencimiento, un 2% de precio deja la TIR
+      // sin calcular y el punto sale del gráfico, que es lo correcto.
+      const d0 = ch() && ch().data.datasets[1].data.find(x => x.precio > 0 && x.x > 60);
       if (!d0) continue;
       const L = sec === 'cer' ? CER_BONDS : TAMAR_BONDS, t = d0.ticker, i = L.findIndex(x => x.ticker === t), orig = { ...L[i] };
       const antes = punto(t);
