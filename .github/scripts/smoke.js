@@ -4807,6 +4807,53 @@ const omitir = (label, motivo) =>
   check(alt.cargado && alt.cargado.yaNo && alt.cargado.marca && alt.sinBuscar,
         'cargado, deja de proponerse y hasta la liquidación va marcado "por liquidar"', JSON.stringify(alt.cargado));
 
+  // Liquidez: liquidez.json con el REPO del MAE, la parte del BCRA estimada con
+  // las dos tasas —contra lo que tomó el BCRA el 19/10 y el 27/10/2026— y la
+  // página con sus cuatro gráficos, en pesos y en dólares.
+  console.log('\nLiquidez');
+  const liq = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    switchSection('pesos'); switchTab('liquidez');
+    for (let k = 0; k < 40 && !LIQ_DATA && !LIQ_ERROR; k++) await espera(250);
+    out.error = LIQ_ERROR;
+    if (!LIQ_DATA) return out;
+    const R = LIQ_DATA.ruedas;
+    out.n = R.length;
+    out.forma = R.every((r, k) => /^\d{4}-\d{2}-\d{2}$/.test(r[0]) && r[1] > 0 && (!k || R[k - 1][0] < r[0]));
+    const de = f => { const r = R.find(x => x[0] === f); return r ? +liqEstimar(r).bcra.toFixed(3) : null; };
+    out.bcra = { '2026-10-19': de('2026-10-19'), '2026-10-27': de('2026-10-27') };
+    // Sin diferencia entre las tasas, el BCRA no operó; con la tasa sin BCRA casi
+    // en la suya, no se estima; cerca, va marcada.
+    out.cero = liqEstimar(['x', 1e6, 21, 21]).bcra === 0;
+    out.indet = liqEstimar(['x', 1e6, 20.0, 20.01]).indet === true;
+    out.imprecisa = liqEstimar(['x', 1e6, 20.05, 20.15]).imprecisa === true && !liqEstimar(['x', 1e6, 20.4, 20.85]).imprecisa;
+    await espera(500);
+    const ch = LIQ_CHARTS.ars;
+    out.graficos = ['liq-g-bcra', 'liq-g-mix', 'liq-g-var', 'liq-g-tasa'].filter(k => ch[k]).length;
+    out.tarjetas = document.querySelectorAll('#liq-tiles > div').length;
+    out.barras = ch['liq-g-bcra'] ? ch['liq-g-bcra'].data.labels.length : 0;
+    liqSetVentana('ars', '66');
+    out.barras66 = LIQ_CHARTS.ars['liq-g-bcra'] ? LIQ_CHARTS.ars['liq-g-bcra'].data.labels.length : 0;
+    liqSetVentana('ars', '22');
+    switchSection('usd'); switchUsdTab('usd-liquidez'); await espera(800);
+    out.usd = ['uliq-g-bcra', 'uliq-g-mix', 'uliq-g-var', 'uliq-g-tasa'].filter(k => LIQ_CHARTS.usd[k]).length;
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  if (liq.error || !liq.n) check(false, 'se lee el REPO del MAE', liq.error || 'sin datos');
+  else {
+    check(liq.n >= 100 && liq.forma, 'liquidez.json trae el REPO desde enero de 2026, una rueda por fecha', `${liq.n} ruedas`);
+    const cerca = (a, b) => a != null && Math.abs(a - b) <= 0.05;
+    check(cerca(liq.bcra['2026-10-19'], 2.28) && cerca(liq.bcra['2026-10-27'], 2.99),
+          'la parte del BCRA, despejada de las dos tasas con el BCRA a 20%, da lo que tomó el 19/10 y el 27/10', JSON.stringify(liq.bcra));
+    check(liq.cero && liq.indet && liq.imprecisa,
+          'sin diferencia de tasas el BCRA no operó; con la tasa sin BCRA casi en 20% no se estima, y cerca va marcada', JSON.stringify({ cero: liq.cero, indet: liq.indet, imprecisa: liq.imprecisa }));
+    check(liq.graficos === 4 && liq.tarjetas >= 4 && liq.barras === 22 && liq.barras66 === Math.min(66, liq.n - 1) && liq.usd === 4,
+          'la solapa Liquidez muestra las tarjetas y los cuatro gráficos, cambia de ventana, y está también en dólares',
+          JSON.stringify({ g: liq.graficos, t: liq.tarjetas, b: liq.barras, b66: liq.barras66, usd: liq.usd }));
+  }
+
   // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.
   console.log('\nFuturos de dólar y de caución');
   const fut = await page.evaluate(async () => {
@@ -5862,9 +5909,9 @@ const omitir = (label, motivo) =>
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones,futuros', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
-        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
+        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-liquidez,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
         'cada lista desplegable tiene sus solapas', nav.menus.join(' · '));
   check(nav.abre && nav.navega && nav.escape && nav.afuera,
