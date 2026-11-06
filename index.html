@@ -509,6 +509,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-dual" onclick="switchTab('dual')">Dual</button>
       <button class="nav-tab" role="menuitem" id="nav-licitaciones" onclick="switchTab('licitaciones')">Licitaciones</button>
       <button class="nav-tab" role="menuitem" id="nav-futuros" onclick="switchTab('futuros')">Futuros</button>
+      <button class="nav-tab" role="menuitem" id="nav-liquidez" onclick="switchTab('liquidez')">Liquidez</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -550,6 +551,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-usd-spreadleg" onclick="switchUsdTab('usd-spreadleg')">Spread Leg.</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-licitaciones" onclick="switchUsdTab('usd-licitaciones')">Licitaciones</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-futuros" onclick="switchUsdTab('usd-futuros')">Futuros</button>
+      <button class="nav-tab" role="menuitem" id="nav-usd-liquidez" onclick="switchUsdTab('usd-liquidez')">Liquidez</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-riesgo" onclick="switchUsdTab('usd-riesgo')">Riesgo país</button>
     </div>
   </div>
@@ -1194,6 +1196,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-cartera" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 <div id="page-licitaciones" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 <div id="page-futuros" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
+<div id="page-liquidez" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 
 <!-- ═══════════════════════════════════════════════════════ DUAL PAGE -->
 <div id="page-dual" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
@@ -2200,6 +2203,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-usd-cartera" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-licitaciones" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-futuros" class="pg" style="overflow-y:auto"></div>
+<div id="page-usd-liquidez" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-riesgo" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-sintusd" class="pg" style="flex-direction:column"></div>
 <div id="page-usd-spreadleg" class="pg">
@@ -5284,13 +5288,13 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-riesgo','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-curvas','usd-series','usd-comentario'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-liquidez','usd-riesgo','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-comentario','page-dual','page-retornos','page-cartera','page-licitaciones','page-futuros','page-sintusd'];
+    'page-comentario','page-dual','page-retornos','page-cartera','page-licitaciones','page-futuros','page-liquidez','page-sintusd'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -5373,6 +5377,7 @@ function switchUsdTab(tab){
   if(tab==='usd-cartera') cartInit('usd');
   if(tab==='usd-licitaciones') licInit('usd');
   if(tab==='usd-futuros') futInit('usd');
+  if(tab==='usd-liquidez') liqInit('usd');
   if(tab==='usd-riesgo') rpsInit();
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
@@ -5449,6 +5454,9 @@ function switchTab(tab){
   } else if(tab==='futuros'){
     document.getElementById('page-futuros').style.display='block';
     futInit('ars');
+  } else if(tab==='liquidez'){
+    document.getElementById('page-liquidez').style.display='block';
+    liqInit('ars');
   } else if(tab==='sintusd'){
     document.getElementById('page-sintusd').style.display='flex';
     susInit('ars');
@@ -24681,6 +24689,214 @@ function licRenderCronograma(sec){
   cont.innerHTML=h+'</div>';
 }
 
+// ══════════════════════════════════════════════════════════════════ LIQUIDEZ
+// El REPO en pesos del MAE, rueda por rueda: cuánto se operó y cuánto de eso
+// tomó el BCRA. El MAE publica el volumen y dos tasas promedio ponderadas, la de
+// todo el REPO y la que deja afuera al BCRA, pero no cuánto operó el BCRA. Si el
+// BCRA toma a una tasa fija r —20% TNA desde enero de 2026—, la tasa de todo el
+// REPO es el promedio ponderado de r y la del resto, y su parte sale despejada:
+//     BCRA / total = (tasa sin BCRA − tasa) / (tasa sin BCRA − r)
+// Contra lo que tomó el BCRA entre el 06/10 y el 04/11/2026 da dentro de 0,05
+// billones por rueda.
+//
+// Dos límites, que la página dice. Las tasas vienen con dos decimales: cuando el
+// mercado opera cerca de r el denominador es chico y el redondeo pesa —con la
+// tasa sin BCRA a 0,2 puntos de r, ±5 puntos de la parte—, y esas ruedas van
+// atenuadas. Y si en una rueda el BCRA además inyecta, a otra tasa, la cuenta
+// mezcla las dos puntas.
+//
+// Lo intradía —las operaciones del día, la inyección acumulada, el BCRA de hoy
+// contra los promedios— necesita las operaciones una por una, que el MAE no
+// publica: queda para cuando haya fuente.
+//
+// Una sola página para pesos y dólares, como Futuros. Estado en var: la solapa
+// se arma recién cuando se abre.
+var LIQ_URL='liquidez.json';
+var LIQ_DATA=null,LIQ_PROMESA=null,LIQ_ERROR=null;
+var LIQ_SEC={ars:{pagina:'page-liquidez',p:'liq'},usd:{pagina:'page-usd-liquidez',p:'uliq'}};
+var LIQ_CHARTS={ars:{},usd:{}};
+var LIQ_TASA_BCRA=20;     // TNA a la que toma el BCRA en el REPO
+var LIQ_ERR_MAX=0.05;     // error de redondeo de su parte desde el que la rueda va atenuada
+var LIQ_LS='bonosAR_liquidez_v1';
+var LIQ_VENT=[['22','1 mes'],['66','3 meses'],['132','6 meses'],['todo','Desde enero']];
+var LIQ_COL={bcra:'#3b82f6',resto:'#93c5fd',pct:'#f87171',varResto:'#fb923c',tasa:'#a8d5a2',sin:'#fbbf24'};
+
+async function liqCargar(force){
+  if(LIQ_DATA&&!force)return LIQ_DATA;
+  if(LIQ_PROMESA)return LIQ_PROMESA;
+  LIQ_PROMESA=(async()=>{
+    try{
+      const r=await fetch(LIQ_URL+(force?'?t='+Date.now():''),{cache:'no-cache'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const d=await r.json();
+      if(!d||!Array.isArray(d.ruedas))throw new Error('liquidez.json sin ruedas');
+      LIQ_DATA=d;LIQ_ERROR=null;
+    }catch(e){LIQ_ERROR=e.message||String(e);}
+    finally{LIQ_PROMESA=null;}
+    return LIQ_DATA;
+  })();
+  return LIQ_PROMESA;
+}
+
+// Una rueda [fecha, volumen en millones, tasa, tasa sin BCRA] con la parte del
+// BCRA estimada, en billones. err es el error de la parte por el redondeo de las
+// dos tasas a dos decimales.
+function liqEstimar(r){
+  const[f,v,t,n]=r,total=v/1e6,out={f,total,t,n};
+  if(n==null||t==null)return{...out,bcra:null,resto:null,pct:null,indet:true};
+  const dif=n-t,den=n-LIQ_TASA_BCRA;
+  if(Math.abs(dif)<0.005)return{...out,bcra:0,resto:total,pct:0,err:0};
+  if(den<=0.02)return{...out,bcra:null,resto:null,pct:null,indet:true};
+  const sh=Math.max(0,Math.min(1,dif/den)),err=0.01/den;
+  return{...out,bcra:total*sh,resto:total*(1-sh),pct:sh*100,err,imprecisa:err>LIQ_ERR_MAX};
+}
+function liqVentana(){
+  try{const v=(JSON.parse(localStorage.getItem(LIQ_LS)||'{}')||{}).ventana;if(LIQ_VENT.some(x=>x[0]===v))return v;}catch(e){}
+  return'22';
+}
+function liqSetVentana(sec,v){
+  try{const o=JSON.parse(localStorage.getItem(LIQ_LS)||'{}')||{};o.ventana=v;localStorage.setItem(LIQ_LS,JSON.stringify(o));}catch(e){}
+  ['ars','usd'].forEach(s=>{if(document.getElementById(LIQ_SEC[s].p+'-tiles'))liqRender(s);});
+}
+function liqSerie(){
+  if(!LIQ_DATA)return[];
+  const todas=LIQ_DATA.ruedas.map(liqEstimar),v=liqVentana();
+  // Una rueda de más, para la variación de la primera.
+  return v==='todo'?todas:todas.slice(-(+v+1));
+}
+function liqB(v,d){return v==null||!isFinite(v)?'—':licN(v,d==null?2:d);}
+function liqDia(f){return f.slice(8,10)+'/'+f.slice(5,7);}
+function liqNotaRueda(x){
+  if(x.indet)return'Sin estimación: la tasa sin BCRA está casi en el '+LIQ_TASA_BCRA+'% al que toma el BCRA, y con dos decimales la cuenta no da.';
+  if(x.imprecisa)return`Estimación imprecisa: la tasa sin BCRA está a ${licN(x.n-LIQ_TASA_BCRA)} puntos del ${LIQ_TASA_BCRA}%; con tasas de dos decimales, la parte del BCRA puede moverse ±${licN(x.err*100,0)} puntos.`;
+  return'';
+}
+
+async function liqInit(sec){
+  const S=LIQ_SEC[sec],pg=document.getElementById(S.pagina);
+  if(!pg)return;
+  if(!pg.innerHTML.trim())pg.innerHTML=liqPaginaHTML(sec);
+  const est=document.getElementById(S.p+'-estado');
+  if(!LIQ_DATA&&est)est.textContent='Cargando el REPO…';
+  await liqCargar();
+  if(!LIQ_DATA){if(est)est.textContent='No se pudo leer el REPO: '+(LIQ_ERROR||'sin datos');return;}
+  liqRender(sec);
+}
+
+function liqPaginaHTML(sec){
+  const p=LIQ_SEC[sec].p;
+  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+  const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px;min-width:0';
+  const nota=`El REPO en pesos a un día del MAE, rueda por rueda. El MAE publica el volumen y la tasa promedio de todo el REPO y la misma sin el BCRA, pero no cuánto operó el BCRA: `
+    +`se estima suponiendo que toma a ${LIQ_TASA_BCRA}% TNA. Así, la tasa de todo el REPO es el promedio de la del BCRA y la del resto, y la parte del BCRA es `
+    +`(tasa sin BCRA − tasa) / (tasa sin BCRA − ${LIQ_TASA_BCRA}). Contra lo que tomó el BCRA entre el 06/10 y el 04/11/2026 da dentro de 0,05 billones por rueda. `
+    +`Las tasas vienen con dos decimales: cuando el mercado opera cerca del ${LIQ_TASA_BCRA}% la cuenta pierde precisión, y esas ruedas van atenuadas. Si una rueda el BCRA además inyecta, a otra tasa, la estimación mezcla las dos puntas. `
+    +`Lo intradía —las operaciones del día, la inyección acumulada del BCRA, lo de hoy contra los promedios— necesita las operaciones una por una, que el MAE no publica.`;
+  const card=(id,titulo,bajada)=>`<section style="${caja}">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><span style="${tit}">${titulo}</span><span style="${LIC_SUB}">${bajada}</span></div>
+      <div style="position:relative;height:300px;min-width:0"><canvas id="${p}-${id}"></canvas></div></section>`;
+  return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <span style="${tit};font-size:17px">Liquidez · REPO en pesos</span>${ayuda(nota,'De dónde salen los números')}
+      <div class="mode-row" style="margin-bottom:0;width:auto">${LIQ_VENT.map(([v,l])=>`<button class="mode-btn" style="white-space:nowrap;padding:5px 10px" id="${p}-v-${v}" onclick="liqSetVentana('${sec}','${v}')">${l}</button>`).join('')}</div>
+      <span id="${p}-estado" style="${LIC_SUB};margin-left:auto"></span>
+    </div>
+    <div id="${p}-tiles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(520px,100%),1fr));gap:14px">
+      ${card('g-bcra','Pesos tomados por el BCRA en REPO','billones de $')}
+      ${card('g-mix','Pesos tomados en REPO','billones de $ · BCRA y resto, y el % del BCRA')}
+      ${card('g-var','Variación diaria: BCRA y resto','billones de $ contra la rueda anterior')}
+      ${card('g-tasa','Tasa del REPO','TNA % · de todo el REPO y sin el BCRA')}
+    </div>
+  </div>`;
+}
+
+function liqChart(sec,id,cfg){
+  const cv=document.getElementById(id);
+  if(!cv)return null;
+  if(LIQ_CHARTS[sec][id]){LIQ_CHARTS[sec][id].destroy();delete LIQ_CHARTS[sec][id];}
+  if(window.ChartDataLabels)Chart.register(ChartDataLabels);
+  return LIQ_CHARTS[sec][id]=new Chart(cv,cfg);
+}
+
+function liqRender(sec){
+  const S=LIQ_SEC[sec],p=S.p;
+  if(!LIQ_DATA||!document.getElementById(p+'-tiles'))return;
+  const v=liqVentana();
+  LIQ_VENT.forEach(([k])=>{const b=document.getElementById(`${p}-v-${k}`);if(b)b.classList.toggle('active',k===v);});
+  const est=document.getElementById(p+'-estado');
+  if(est){
+    const g=LIQ_DATA.generado?new Date(LIQ_DATA.generado):null;
+    est.textContent=`Fuente: MAE${g?' · actualizado '+g.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})+' '+g.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):''}`;
+  }
+  const serie=liqSerie();
+  if(serie.length<2)return;
+  const X=v==='todo'?serie:serie.slice(1);
+  const ult=X[X.length-1],ant=serie[serie.length-2];
+
+  // Las tarjetas: la última rueda.
+  const nota=liqNotaRueda(ult);
+  const tiles=document.getElementById(p+'-tiles');
+  tiles.innerHTML=licTile(`REPO total · ${liqDia(ult.f)}`,'$ '+liqB(ult.total)+' bill.','var(--accent)','Volumen del REPO en pesos a un día, todas las ruedas del MAE')
+    +licTile('Tomado por el BCRA',ult.bcra!=null?`$ ${liqB(ult.bcra)} bill. · ${licN(ult.pct,1)}%`:'—',LIQ_COL.bcra,nota||'Estimado con las dos tasas promedio del MAE')
+    +licTile('Resto del mercado',ult.resto!=null?'$ '+liqB(ult.resto)+' bill.':'—',null,nota||'')
+    +licTile('Tasa promedio',`${licN(ult.t)}% · sin BCRA ${licN(ult.n)}%`,null,`TNA promedio ponderada de todo el REPO y sin las operaciones del BCRA, que toma a ${LIQ_TASA_BCRA}%`)
+    +(ant&&ant.bcra!=null&&ult.bcra!=null?licTile('BCRA contra la rueda anterior',(ult.bcra-ant.bcra>=0?'+':'')+liqB(ult.bcra-ant.bcra)+' bill.',ult.bcra>=ant.bcra?'#4ade80':'var(--danger)',`El ${liqDia(ant.f)} tomó $ ${liqB(ant.bcra)} bill.`):'');
+
+  const col=licColores(),etq=X.map(x=>liqDia(x.f)),pocos=X.length<=30;
+  const alfa=(c,x)=>x.imprecisa?c+'66':c;
+  const tick={color:col.texto,font:{size:10}},grilla={color:col.grilla};
+  const ejeX={ticks:{...tick,maxRotation:60,minRotation:pocos?45:0,autoSkip:!pocos},grid:{display:false}};
+  const tip=extra=>({callbacks:{title:c=>'Rueda del '+X[c[0].dataIndex].f.split('-').reverse().join('/'),
+    afterBody:c=>{const n=liqNotaRueda(X[c[0].dataIndex]);return(extra?extra(X[c[0].dataIndex]):[]).concat(n?[n]:[]);}}});
+  // Con una ventana corta van todas las etiquetas, aunque se toquen, como en el
+  // gráfico de origen: la regla general las esconde. Un contorno del color del
+  // fondo las deja leer encima de las barras.
+  const fondo=getComputedStyle(document.body).getPropertyValue('--surface').trim()||'#151815';
+  const etiquetas=(fmt,extra)=>({display:()=>pocos,anchor:'end',align:'end',offset:1,clamp:true,color:col.texto,
+    textStrokeColor:fondo,textStrokeWidth:3,font:{size:9,family:'DM Mono, monospace'},formatter:fmt,...extra});
+
+  // 1. Lo que tomó el BCRA.
+  liqChart(sec,`${p}-g-bcra`,{type:'bar',data:{labels:etq,datasets:[{label:'BCRA',data:X.map(x=>x.bcra),backgroundColor:X.map(x=>alfa(LIQ_COL.bcra,x)),borderRadius:2,
+      datalabels:etiquetas(v=>v==null?'':licN(v,2))}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:16}},
+      plugins:{legend:{display:false},tooltip:{...tip(x=>[`Total del REPO: $ ${liqB(x.total)} bill.`]),callbacks:{...tip().callbacks,label:c=>`BCRA: $ ${liqB(c.parsed.y)} bill. (${licN(X[c.dataIndex].pct,1)}% del REPO)`,afterBody:tip(x=>[`Total del REPO: $ ${liqB(x.total)} bill.`]).callbacks.afterBody}}},
+      scales:{x:ejeX,y:{beginAtZero:true,ticks:{...tick,callback:v=>licN(v,1)},grid:grilla,title:{display:true,text:'billones de $',color:col.texto,font:{size:10}}}}}});
+
+  // 2. BCRA y resto, apilados, con el % del BCRA.
+  liqChart(sec,`${p}-g-mix`,{type:'bar',data:{labels:etq,datasets:[
+      {label:'BCRA',data:X.map(x=>x.bcra),backgroundColor:X.map(x=>alfa(LIQ_COL.bcra,x)),stack:'s',order:2,datalabels:{display:false}},
+      {label:'Resto',data:X.map(x=>x.resto),backgroundColor:X.map(x=>alfa(LIQ_COL.resto,x)),stack:'s',order:2,datalabels:{display:false}},
+      {label:'% BCRA',type:'line',data:X.map(x=>x.pct),yAxisID:'y2',borderColor:LIQ_COL.pct,backgroundColor:LIQ_COL.pct,borderWidth:2,pointRadius:2,tension:.2,order:1,spanGaps:true,
+        datalabels:etiquetas(v=>v==null?'':licN(v,1),{color:LIQ_COL.pct,align:'top',offset:3})}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:16}},
+      plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12}},tooltip:{...tip(),callbacks:{...tip().callbacks,
+        label:c=>c.dataset.yAxisID==='y2'?`% BCRA: ${licN(c.parsed.y,1)}%`:`${c.dataset.label}: $ ${liqB(c.parsed.y)} bill.`,
+        footer:c=>`Total: $ ${liqB(X[c[0].dataIndex].total)} bill.`}}},
+      scales:{x:{...ejeX,stacked:true},y:{stacked:true,beginAtZero:true,ticks:{...tick,callback:v=>licN(v,1)},grid:grilla,title:{display:true,text:'billones de $',color:col.texto,font:{size:10}}},
+        y2:{position:'right',min:0,max:100,ticks:{...tick,color:LIQ_COL.pct,callback:v=>v+'%'},grid:{display:false}}}}});
+
+  // 3. La variación de cada uno contra la rueda anterior.
+  const prev=i=>v==='todo'?(i>0?X[i-1]:null):serie[i];
+  const dif=(x,i,k)=>{const a=prev(i);return a&&a[k]!=null&&x[k]!=null?x[k]-a[k]:null;};
+  liqChart(sec,`${p}-g-var`,{type:'bar',data:{labels:etq,datasets:[
+      {label:'BCRA',data:X.map((x,i)=>dif(x,i,'bcra')),backgroundColor:X.map(x=>alfa(LIQ_COL.bcra,x)),borderRadius:2,
+        datalabels:etiquetas(v=>v==null?'':licN(v,2),{anchor:c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start',align:c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start'})},
+      {label:'Resto',data:X.map((x,i)=>dif(x,i,'resto')),backgroundColor:X.map(x=>alfa(LIQ_COL.varResto,x)),borderRadius:2,
+        datalabels:etiquetas(v=>v==null?'':licN(v,2),{anchor:c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start',align:c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start'})}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:16,bottom:4}},
+      plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12}},tooltip:{...tip(),callbacks:{...tip().callbacks,label:c=>`${c.dataset.label}: ${c.parsed.y>=0?'+':''}${liqB(c.parsed.y)} bill.`}}},
+      scales:{x:ejeX,y:{ticks:{...tick,callback:v=>licN(v,1)},grid:grilla,title:{display:true,text:'billones de $',color:col.texto,font:{size:10}}}}}});
+
+  // 4. Las dos tasas, y la del BCRA.
+  liqChart(sec,`${p}-g-tasa`,{type:'line',data:{labels:etq,datasets:[
+      {label:'Todo el REPO',data:X.map(x=>x.t),borderColor:LIQ_COL.tasa,backgroundColor:LIQ_COL.tasa,borderWidth:2,pointRadius:pocos?2:0,tension:.2,datalabels:{display:false}},
+      {label:'Sin el BCRA',data:X.map(x=>x.n),borderColor:LIQ_COL.sin,backgroundColor:LIQ_COL.sin,borderWidth:2,pointRadius:pocos?2:0,tension:.2,datalabels:{display:false}},
+      {label:`BCRA, ${LIQ_TASA_BCRA}%`,data:X.map(()=>LIQ_TASA_BCRA),borderColor:col.tenue,borderDash:[5,4],borderWidth:1.5,pointRadius:0,datalabels:{display:false}}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12}},tooltip:{...tip(),callbacks:{...tip().callbacks,label:c=>`${c.dataset.label}: ${licN(c.parsed.y)}%`}}},
+      scales:{x:ejeX,y:{ticks:{...tick,callback:v=>licN(v,1)+'%'},grid:grilla,title:{display:true,text:'TNA %',color:col.texto,font:{size:10}}}}}});
+}
 // ═══════════════════════════════════════════════════════════════════ FUTUROS
 // Futuros de dólar y de caución de A3: la curva de tasas implícitas, cada
 // contrato con su volumen e interés abierto, las tasas forward, la historia de
