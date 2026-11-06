@@ -1,5 +1,5 @@
 {
- "generado": "2026-10-29T15:26:28+00:00",
+ "generado": "2026-11-06T02:35:53+00:00",
  "fuente": "Secretaría de Finanzas (argentina.gob.ar) · respaldo: MAE",
  "cronograma": [
   ["2025-01-13", "2025-01-15", "2025-01-17"],
@@ -49,7 +49,13 @@
   ["2026-11-24", "2026-11-26", "2026-11-30"],
   ["2026-12-09", "2026-12-11", "2026-12-15"]
  ],
- "llamado": null,
+ "llamado": {"fecha": "2026-11-11", "liquidacion": "2026-11-13", "publicado": "2026-11-05", "url": "https://www.argentina.gob.ar/noticias/llamado-licitacion-de-instrumentos-del-tesoro-nacional-denominados-en-pesos-y-en-dolares-16", "fuente": "Finanzas", "instrumentos": [
+  {"ticker": "S29E7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 29 DE ENERO DE 2027", "clase": "fija", "estado": "reapertura", "vencimiento": "2027-01-29"},
+  {"ticker": "T30J7", "nombre": "BONO DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 30 DE JUNIO DE 2027", "clase": "fija", "estado": "reapertura", "vencimiento": "2027-06-30"},
+  {"ticker": "TZX28", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 30 DE JUNIO DE 2028", "clase": "cer", "estado": "reapertura", "vencimiento": "2028-06-30"},
+  {"nombre": "LETRA DEL TESORO NACIONAL EN PESOS A TASA TAMAR CON VENCIMIENTO 30 DE ABRIL DE 2027", "clase": "tamar", "estado": "nuevo", "vencimiento": "2027-04-30"},
+  {"ticker": "D15E7", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 15 DE ENERO DE 2027", "clase": "dl", "estado": "reapertura", "vencimiento": "2027-01-15"}
+ ]},
  "licitaciones": [
   {"ofertas": 2855, "ofertadoVE": 4103161.0, "adjudicadoVE": 3487488.0, "vencimientos": 1690000.0, "fecha": "2025-01-15", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-de-lecap-boncap-y-boncer-0", "fuente": "Finanzas", "liquidacion": "2025-01-17", "vencEst": {"desde": "2024-12-13", "total": 1690940, "detalle": [["S17E5", 1289957, 131.085, 1690940, "BYMA 2025-01-15"]]}, "rolloverEst": 206.25, "instrumentos": [
    {"ticker": "S31L5", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 31 DE JULIO DE 2025", "clase": "fija", "estado": "reapertura", "vencimiento": "2025-07-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 850908.0, "vnoAdjudicado": 735917.0, "circulacion": 1844422.0, "veAdjudicado": 940502.0, "veMoneda": "ARS", "precio": 1278.0, "tem": 2.27},
