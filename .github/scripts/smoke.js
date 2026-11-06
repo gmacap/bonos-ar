@@ -4807,6 +4807,45 @@ const omitir = (label, motivo) =>
   check(alt.cargado && alt.cargado.yaNo && alt.cargado.marca && alt.sinBuscar,
         'cargado, deja de proponerse y hasta la liquidación va marcado "por liquidar"', JSON.stringify(alt.cargado));
 
+  // Calendario: las fechas oficiales de calendario.json (INDEC, la Ciudad, la
+  // Fed), el cronograma de licitaciones, los vencimientos y pagos de los bonos y
+  // el futuro de dólar entran solos; el IPC aproximado sólo donde no hay fecha
+  // oficial; cada día muestra sus eventos con texto, y la leyenda filtra.
+  console.log('\nCalendario');
+  const cal = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    switchSection('pesos'); switchTab('calendario');
+    for (let k = 0; k < 40 && (!CAL_DATA || !LIC_DATA); k++) await espera(250);
+    await espera(300);
+    const out = {};
+    out.n = CAL_DATA ? CAL_DATA.eventos.length : 0;
+    out.tiposOf = CAL_DATA ? [...new Set(CAL_DATA.eventos.map(e => e[2]))].sort().join() : '';
+    const auto = calAutoEventos(), cub = calCubiertos();
+    out.aproxTapado = auto.filter(e => e.aprox && e.tipo === 'ipc_nacion' && cub.ipc_nacion.has(e.fecha.slice(0, 7))).length;
+    out.lic = auto.filter(e => e.id.startsWith('lic_')).length;
+    out.vto = auto.filter(e => e.tipo === 'vencimiento').length;
+    out.fut = auto.filter(e => e.tipo === 'futuro').length;
+    out.chips = document.querySelectorAll('#cal-grid .cal-ev').length;
+    out.conTexto = [...document.querySelectorAll('#cal-grid .cal-ev')].every(c => c.textContent.trim().length > 2);
+    out.leyenda = document.querySelectorAll('#cal-leyenda .cal-ley').length;
+    const tiene = t => Object.values(calEventosPorFecha()).some(a => a.some(e => e.tipo === t));
+    const antes = tiene('futuro');
+    calToggleTipo('futuro');
+    out.oculta = antes && !tiene('futuro');
+    calToggleTipo('futuro');
+    out.vuelve = tiene('futuro');
+    switchTab('breakeven');
+    return out;
+  });
+  check(cal.n >= 30 && cal.tiposOf === 'fomc,indec,ipc_caba,ipc_nacion',
+        'calendario.json trae las fechas oficiales del INDEC, la Ciudad y la Fed', JSON.stringify({ n: cal.n, tipos: cal.tiposOf }));
+  check(cal.aproxTapado === 0 && cal.lic >= 3 && cal.vto > 5 && cal.fut >= 12,
+        'entran solos el cronograma de licitaciones, los vencimientos y el futuro de dólar, y el IPC aproximado sólo donde no hay fecha oficial',
+        JSON.stringify({ aprox: cal.aproxTapado, lic: cal.lic, vto: cal.vto, fut: cal.fut }));
+  check(cal.chips > 3 && cal.conTexto && cal.leyenda > 3 && cal.oculta && cal.vuelve,
+        'cada día muestra sus eventos con texto y la leyenda oculta y vuelve a mostrar un tipo',
+        JSON.stringify({ chips: cal.chips, texto: cal.conTexto, ley: cal.leyenda, oculta: cal.oculta, vuelve: cal.vuelve }));
+
   // Liquidez: liquidez.json con el REPO del MAE, la parte del BCRA estimada con
   // las dos tasas —contra lo que tomó el BCRA el 19/10 y el 27/10/2026— y la
   // página con sus cuatro gráficos, en pesos y en dólares.

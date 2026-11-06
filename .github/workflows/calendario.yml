@@ -1,0 +1,40 @@
+name: Actualizar calendario
+
+# Los calendarios de difusión del INDEC, de la Ciudad y de la Fed cambian poco:
+# una pasada por día hábil alcanza. Va a minutos sueltos porque las tareas en
+# punto son las que más se demoran.
+on:
+  schedule:
+    - cron: '17 12 * * 1-5'   # 09:17 ART
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  calendario:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Sólo biblioteca estándar: no hay nada que instalar.
+      - name: Leer los calendarios de difusión
+        run: python .github/scripts/calendario.py
+
+      - name: Commitear si cambió
+        run: |
+          if git diff --quiet -- calendario.json; then
+            echo "Sin novedades."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add calendario.json
+          git commit -m "data(calendario): fechas de difusión al $(date -u +%F)"
+          git push

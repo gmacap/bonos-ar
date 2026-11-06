@@ -181,6 +181,14 @@ tr.calc-fuera:hover>td{opacity:.75;}
 .altas-nota{margin:0 0 10px;padding:7px 10px;border:1px solid var(--border2);border-left:3px solid var(--accent);border-radius:4px;background:var(--surface2);font-family:var(--mono);font-size:var(--fs11);line-height:1.5;color:var(--text2);}
 .altas-nota b{color:var(--warn);font-weight:500;}
 .altas-nota a{color:var(--accent);}
+/* Calendario: cada evento es una etiqueta legible dentro del día, con el color
+   de su tipo al costado; la leyenda filtra. */
+.cal-dia{min-height:max(118px,calc((100vh - var(--alto-barras) - 210px) / 6));border-radius:4px;padding:5px 6px;cursor:pointer;box-sizing:border-box;display:flex;flex-direction:column;gap:3px;min-width:0;overflow:hidden;}
+.cal-ev{display:block;font-size:var(--fs10);line-height:1.4;padding:1px 6px;border-left:3px solid var(--c);background:color-mix(in srgb,var(--c) 17%,transparent);border-radius:2px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono);}
+.cal-mas{font-size:var(--fs9);color:var(--text3);padding-left:4px;}
+.cal-ley{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--border2);border-radius:12px;background:var(--surface);color:var(--text2);font-family:var(--mono);font-size:var(--fs10);cursor:pointer;}
+.cal-ley.off{opacity:.38;text-decoration:line-through;}
+.cal-ley b{font-weight:500;color:var(--text3);}
 .por-liquidar{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid var(--warn);border-radius:3px;color:var(--warn);font-size:var(--fs9);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;}
 .nav-tab.disabled{opacity:.3;cursor:not-allowed;}
 .proy-subtab{padding:5px 2px;font-size:var(--fs11);font-family:var(--mono);color:var(--text3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
@@ -2112,48 +2120,40 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 </div>
 
 <!-- CALENDARIO PAGE -->
-<div id="page-calendario" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto;padding:1.5rem 2rem;">
-  <div style="max-width:1100px;margin:0 auto;">
+<div id="page-calendario" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto;padding:1rem 1.5rem;">
+  <div style="max-width:1720px;margin:0 auto;">
     <!-- Header navegación -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:.75rem;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <button class="btn" style="padding:3px 10px;font-size:18px;line-height:1;min-width:30px" onclick="calPrevMes()">&#8249;</button>
-        <div id="cal-titulo" style="font-family:var(--serif);font-size:20px;font-weight:300;font-style:italic;color:var(--accent);min-width:200px;text-align:center">—</div>
-        <button class="btn" style="padding:3px 10px;font-size:18px;line-height:1;min-width:30px" onclick="calNextMes()">&#8250;</button>
+        <button class="btn" style="padding:3px 10px;font-size:18px;line-height:1;min-width:30px" onclick="calPrevMes()" aria-label="Mes anterior">&#8249;</button>
+        <div id="cal-titulo" style="font-family:var(--serif);font-size:22px;font-weight:300;font-style:italic;color:var(--accent);min-width:210px;text-align:center">—</div>
+        <button class="btn" style="padding:3px 10px;font-size:18px;line-height:1;min-width:30px" onclick="calNextMes()" aria-label="Mes siguiente">&#8250;</button>
         <button class="btn" style="padding:4px 10px;font-size:var(--fs11);margin-left:4px" onclick="calGoToday()">Hoy</button>
+        <span id="cal-fuentes" style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin-left:8px"></span>
       </div>
       <button id="cal-add-btn" class="btn primary" style="display:none;padding:6px 14px;font-size:var(--fs12)" onclick="calOpenModal()">+ Evento</button>
     </div>
 
-    <!-- Leyenda -->
-    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:1rem;font-size:var(--fs10);color:var(--text3);align-items:center;">
-      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-right:4px;vertical-align:middle"></span>Llamado</span>
-      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:4px;vertical-align:middle"></span>Licitación</span>
-      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:4px;vertical-align:middle"></span>Liquidación</span>
-      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;margin-right:4px;vertical-align:middle"></span>IPC Nación</span>
-      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#a855f7;margin-right:4px;vertical-align:middle"></span>IPC CABA</span>
-      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#dc2626;margin-right:4px;vertical-align:middle"></span>Feriado</span>
-      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#6b7280;margin-right:4px;vertical-align:middle"></span>Otro</span>
-    </div>
+    <!-- Leyenda: cada tipo se muestra u oculta -->
+    <div id="cal-leyenda" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.75rem;align-items:center;"></div>
 
     <!-- Grilla + lista de eventos -->
-    <div style="display:flex;gap:20px;align-items:flex-start;">
-      <!-- Grilla -->
+    <div style="display:flex;gap:16px;align-items:flex-start;">
       <div style="flex:1;min-width:0;">
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;">
-          <div style="text-align:center;font-size:var(--fs10);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Lun</div>
-          <div style="text-align:center;font-size:var(--fs10);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Mar</div>
-          <div style="text-align:center;font-size:var(--fs10);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Mié</div>
-          <div style="text-align:center;font-size:var(--fs10);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Jue</div>
-          <div style="text-align:center;font-size:var(--fs10);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Vie</div>
-          <div style="text-align:center;font-size:var(--fs10);text-transform:uppercase;letter-spacing:.04em;padding:4px 0;color:var(--warn)">Sáb</div>
-          <div style="text-align:center;font-size:var(--fs10);text-transform:uppercase;letter-spacing:.04em;padding:4px 0;color:var(--warn)">Dom</div>
+        <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-bottom:4px;">
+          <div style="text-align:center;font-size:var(--fs11);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Lun</div>
+          <div style="text-align:center;font-size:var(--fs11);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Mar</div>
+          <div style="text-align:center;font-size:var(--fs11);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Mié</div>
+          <div style="text-align:center;font-size:var(--fs11);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Jue</div>
+          <div style="text-align:center;font-size:var(--fs11);text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:4px 0">Vie</div>
+          <div style="text-align:center;font-size:var(--fs11);text-transform:uppercase;letter-spacing:.04em;padding:4px 0;color:var(--warn)">Sáb</div>
+          <div style="text-align:center;font-size:var(--fs11);text-transform:uppercase;letter-spacing:.04em;padding:4px 0;color:var(--warn)">Dom</div>
         </div>
-        <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;"></div>
+        <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;"></div>
       </div>
 
       <!-- Lista de eventos del mes -->
-      <div id="cal-side" style="width:258px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:calc(100vh - var(--alto-barras) - 126px);overflow-y:auto;"></div>
+      <div id="cal-side" style="width:300px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:calc(100vh - var(--alto-barras) - 120px);overflow-y:auto;"></div>
     </div>
   </div>
 </div>
@@ -12299,15 +12299,43 @@ let CAL_MODAL_EDITING_ID=null;
 const CAL_MESES_ES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const CAL_DIAS_ABR=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const CAL_TIPOS={
-  llamado:    {label:'Llamado',     color:'#f59e0b'},
-  licitacion: {label:'Licitación',  color:'#ef4444'},
-  liquidacion:{label:'Liquidación', color:'#22c55e'},
-  ipc_nacion: {label:'IPC Nación',  color:'#3b82f6'},
-  ipc_caba:   {label:'IPC CABA',    color:'#a855f7'},
-  feriado:    {label:'Feriado',     color:'#dc2626'},
-  custom:     {label:'Otro',        color:'#6b7280'},
+  feriado:    {label:'Feriado',          color:'#dc2626'},
+  licitacion: {label:'Licitación',       color:'#ef4444'},
+  llamado:    {label:'Llamado',          color:'#f59e0b'},
+  liquidacion:{label:'Liquidación',      color:'#22c55e'},
+  ipc_nacion: {label:'IPC Nación',       color:'#3b82f6'},
+  ipc_caba:   {label:'IPC CABA',         color:'#a855f7'},
+  indec:      {label:'INDEC',            color:'#38bdf8'},
+  fomc:       {label:'Fed',              color:'#ec4899'},
+  pago:       {label:'Pago de bonos',    color:'#eab308'},
+  vencimiento:{label:'Vencimiento',      color:'#14b8a6'},
+  futuro:     {label:'Futuro de dólar',  color:'#f97316'},
+  custom:     {label:'Otro',             color:'#6b7280'},
 };
-const CAL_TIPO_PRIO={llamado:0,licitacion:1,liquidacion:2,ipc_nacion:3,ipc_caba:4,feriado:5,custom:6};
+const CAL_TIPO_PRIO={feriado:0,licitacion:1,llamado:2,liquidacion:3,ipc_nacion:4,ipc_caba:5,indec:6,fomc:7,pago:8,vencimiento:9,futuro:10,custom:11};
+// Las fechas oficiales que baja el workflow (calendario.json): INDEC, la Ciudad
+// y la Fed. El cronograma de licitaciones sale de licitaciones.json, y los
+// vencimientos y pagos, de los bonos de las calculadoras.
+var CAL_DATA=null,CAL_PROMESA=null;
+async function calCargar(){
+  if(CAL_DATA)return CAL_DATA;
+  if(CAL_PROMESA)return CAL_PROMESA;
+  CAL_PROMESA=(async()=>{
+    try{const r=await fetch('calendario.json',{cache:'no-cache'});if(r.ok){const d=await r.json();if(d&&Array.isArray(d.eventos))CAL_DATA=d;}}
+    catch(e){console.warn('[calendario]',e.message);}
+    finally{CAL_PROMESA=null;}
+    return CAL_DATA;
+  })();
+  return CAL_PROMESA;
+}
+const CAL_OCULTOS_LS='bonosAR_cal_ocultos_v1';
+function calOcultos(){try{const v=JSON.parse(localStorage.getItem(CAL_OCULTOS_LS)||'[]');return new Set(Array.isArray(v)?v:[]);}catch(e){return new Set();}}
+function calToggleTipo(t){
+  const o=calOcultos();
+  if(o.has(t))o.delete(t);else o.add(t);
+  try{localStorage.setItem(CAL_OCULTOS_LS,JSON.stringify([...o]));}catch(e){}
+  calRender();
+}
 
 function calLoadEventos(){
   try{const raw=localStorage.getItem(CAL_LS_KEY);CAL_EVENTOS_ADMIN=raw?JSON.parse(raw):[];}
@@ -12326,16 +12354,92 @@ function calAjustarHabil(d){
   return d;
 }
 
+// El día hábil de pago de una fecha que cae en fin de semana o feriado.
+function calHabilSig(f){const d=parseDate(f);while(!esHabil(d))d.setDate(d.getDate()+1);return fmtDate(d);}
+function calUltHabil(y,m){const d=new Date(y,m+1,0);while(!esHabil(d))d.setDate(d.getDate()-1);return fmtDate(d);}
+// Los meses de publicación que ya tienen la fecha oficial, por tipo.
+function calCubiertos(){
+  const c={ipc_nacion:new Set(),ipc_caba:new Set()};
+  (CAL_DATA&&CAL_DATA.eventos||[]).forEach(e=>{if(c[e[2]])c[e[2]].add(e[0].slice(0,7));});
+  return c;
+}
+// El mes de publicación de una fecha aproximada de IPC: el que sigue al de
+// referencia.
+function calMesPubIpc(id){
+  const m=/^auto_ipc_[nc]_(\d{4})_(\d{1,2})$/.exec(id||'');
+  if(!m)return null;
+  const d=new Date(+m[1],+m[2]+1,1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
 function calAutoEventos(){
-  const ev=[];
+  const ev=[],cub=calCubiertos();
   const y0=TODAY.getFullYear()-1, y1=TODAY.getFullYear()+2;
+  // Las fechas oficiales: INDEC, la Ciudad y la Fed.
+  (CAL_DATA&&CAL_DATA.eventos||[]).forEach(([fecha,hora,tipo,corto,titulo,fuente],k)=>{
+    ev.push({id:`of_${tipo}_${fecha}_${k}`,fecha,tipo,corto,hora,titulo,fuente,auto:true,oficial:true});
+  });
+  // El IPC aproximado, sólo donde todavía no hay fecha oficial.
   for(let y=y0;y<=y1;y++){
     for(let m=0;m<12;m++){
-      const dN=calAjustarHabil(new Date(y,m+1,15));
-      ev.push({id:`auto_ipc_n_${y}_${m}`,fecha:calFmtFecha(dN.getFullYear(),dN.getMonth(),dN.getDate()),tipo:'ipc_nacion',titulo:`IPC Nación ${CAL_MESES_ES[m]} ${y}`,desc:'Aprox. — fecha estimada INDEC',auto:true});
-      const dC=calAjustarHabil(new Date(y,m+1,13));
-      ev.push({id:`auto_ipc_c_${y}_${m}`,fecha:calFmtFecha(dC.getFullYear(),dC.getMonth(),dC.getDate()),tipo:'ipc_caba',titulo:`IPC CABA ${CAL_MESES_ES[m]} ${y}`,desc:'Aprox. — fecha estimada GCBA',auto:true});
+      const pub=calFmtFecha(new Date(y,m+1,1).getFullYear(),new Date(y,m+1,1).getMonth(),1).slice(0,7);
+      if(!cub.ipc_nacion.has(pub)){
+        const dN=calAjustarHabil(new Date(y,m+1,15));
+        ev.push({id:`auto_ipc_n_${y}_${m}`,fecha:calFmtFecha(dN.getFullYear(),dN.getMonth(),dN.getDate()),tipo:'ipc_nacion',corto:'IPC '+CAL_MESES_ES[m].slice(0,3).toLowerCase(),titulo:`IPC Nación ${CAL_MESES_ES[m]} ${y}`,desc:'Aprox. — fecha estimada INDEC',auto:true,aprox:true});
+      }
+      if(!cub.ipc_caba.has(pub)){
+        const dC=calAjustarHabil(new Date(y,m+1,13));
+        ev.push({id:`auto_ipc_c_${y}_${m}`,fecha:calFmtFecha(dC.getFullYear(),dC.getMonth(),dC.getDate()),tipo:'ipc_caba',corto:'IPC CABA '+CAL_MESES_ES[m].slice(0,3).toLowerCase(),titulo:`IPC CABA ${CAL_MESES_ES[m]} ${y}`,desc:'Aprox. — fecha estimada GCBA',auto:true,aprox:true});
+      }
     }
+  }
+  // El cronograma de licitaciones del Tesoro.
+  const crono=(typeof LIC_DATA!=='undefined'&&LIC_DATA&&LIC_DATA.cronograma)||[];
+  const ll=typeof LIC_DATA!=='undefined'&&LIC_DATA&&LIC_DATA.llamado;
+  const dm=f=>f?f.slice(8,10)+'/'+f.slice(5,7):'';
+  crono.forEach(([lla,lic,liq])=>{
+    const ins=ll&&ll.fecha===lic&&ll.instrumentos?ll.instrumentos.map(i=>i.ticker||('nuevo '+dm(i.vencimiento))).join(', '):'';
+    if(lla)ev.push({id:`lic_llamado_${lla}`,fecha:lla,tipo:'llamado',corto:'Llamado',titulo:`Llamado a licitación del Tesoro: licita el ${dm(lic)}`,fuente:'Finanzas',auto:true});
+    if(lic)ev.push({id:`lic_licitacion_${lic}`,fecha:lic,tipo:'licitacion',corto:'Licitación',titulo:`Licitación del Tesoro: liquida el ${dm(liq)}`,desc:ins?'Instrumentos: '+ins:'',fuente:'Finanzas',auto:true});
+    if(liq)ev.push({id:`lic_liquidacion_${liq}`,fecha:liq,tipo:'liquidacion',corto:'Liquidación',titulo:`Liquidación de la licitación del ${dm(lic)}`,fuente:'Finanzas',auto:true});
+  });
+  // Vencimientos y pagos de los bonos de las calculadoras. Un dual está en dos
+  // listas: va una vez.
+  const vistos=new Set();
+  const vto=(lista,clase)=>(lista||[]).forEach(b=>{
+    if(!b||!b.ticker||!b.vcto||vistos.has(b.ticker))return;
+    vistos.add(b.ticker);
+    ev.push({id:`vto_${b.ticker}`,fecha:calHabilSig(b.vcto),tipo:'vencimiento',ticker:b.ticker,corto:b.ticker,titulo:`Vence ${b.ticker}`,desc:clase,auto:true});
+  });
+  try{vto(LECAPS,'Tasa fija');vto(CER_BONDS,'CER');vto(TAMAR_BONDS,'TAMAR');vto(DLK_BONDS,'Dólar linked');}catch(e){}
+  // Los CER con cupón: sus fechas de renta.
+  try{(CER_BONDS||[]).forEach(b=>{
+    if(b.tipo!=='cupon'||!b.emision||!b.vcto)return;
+    cerCouponDates(b.emision,b.vcto,b.freq||6,b.primerCupon||null).forEach(d=>{
+      const f=fmtDate(d);
+      if(f>=b.vcto)return;
+      ev.push({id:`pago_${b.ticker}_${f}`,fecha:calHabilSig(f),tipo:'pago',ticker:b.ticker,corto:b.ticker,titulo:`Paga ${b.ticker}`,desc:'CER · renta'+(b.amort&&b.amort!=='bullet'?' y amortización':''),auto:true});
+    });
+  });}catch(e){}
+  // Los bonos en dólares: cada flujo, con renta, amortización o las dos.
+  try{
+    if(typeof BON_BONDS!=='undefined'&&!BON_BONDS.length&&typeof bonLoad==='function')bonLoad();
+    if(typeof GLO_BONDS!=='undefined'&&!GLO_BONDS.length&&typeof gloLoad==='function')gloLoad();
+    if(typeof BOP_BONDS!=='undefined'&&!BOP_BONDS.length&&typeof bopLoad==='function')bopLoad();
+    [[BON_BONDS,'Bonar'],[GLO_BONDS,'Global'],[BOP_BONDS,'Bopreal']].forEach(([lista,clase])=>(lista||[]).forEach(b=>{
+      if(!b||!b.ticker||vistos.has(b.ticker))return;
+      vistos.add(b.ticker);
+      bopGenFlows(b).forEach(fl=>{
+        const fin=fl.saldo<=0.0005;
+        const que=fl.cupon>0&&fl.amortPct>0?'renta y amortización':fl.amortPct>0?'amortización':'renta';
+        ev.push({id:`${fin?'vto':'pago'}_${b.ticker}_${fl.fecha}`,fecha:fl.fecha,tipo:fin?'vencimiento':'pago',ticker:b.ticker,corto:b.ticker,
+          titulo:fin?`Vence ${b.ticker}`:`Paga ${b.ticker}`,desc:`${clase} · ${que}`,auto:true});
+      });
+    }));
+  }catch(e){console.warn('[calendario] bonos en dólares:',e.message);}
+  // El futuro de dólar de A3 vence el último día hábil de cada mes.
+  for(let y=y0;y<=y1;y++)for(let m=0;m<12;m++){
+    const f=calUltHabil(y,m);
+    ev.push({id:`fut_${y}_${m}`,fecha:f,tipo:'futuro',corto:'Fut. dólar '+CAL_MESES_ES[m].slice(0,3).toLowerCase(),titulo:`Vence el futuro de dólar de ${CAL_MESES_ES[m].toLowerCase()} ${y}`,desc:'A3: último día hábil del mes',auto:true});
   }
   return ev;
 }
@@ -12348,18 +12452,64 @@ function calFeriadosMes(y,m){
     .map(f=>({id:`feriado_${f.fecha}`,fecha:f.fecha,tipo:'feriado',titulo:f.desc||'Feriado Nacional',auto:true}));
 }
 
-function calEventosPorFecha(){
+function calEventosPorFecha(conOcultos){
   const y=CAL_MES.getFullYear(), m=CAL_MES.getMonth();
-  // admin overrides tienen prioridad sobre auto: si comparten ID, gana el admin
-  const adminIds=new Set(CAL_EVENTOS_ADMIN.map(e=>e.id));
-  const autoFiltrados=calAutoEventos().filter(e=>!adminIds.has(e.id));
+  const cub=calCubiertos(),ocultos=conOcultos?new Set():calOcultos();
+  // Una corrección a mano de un IPC aproximado ya no va si ese mes tiene la
+  // fecha oficial.
+  const admin=CAL_EVENTOS_ADMIN.filter(e=>{
+    const pub=calMesPubIpc(e.id);
+    return!pub||!(e.id.startsWith('auto_ipc_n')?cub.ipc_nacion:cub.ipc_caba).has(pub);
+  });
+  // admin overrides tienen prioridad sobre auto: si comparten ID, gana el admin.
+  // Una licitación cargada a mano tapa la automática del mismo día y tipo.
+  const adminIds=new Set(admin.map(e=>e.id)),adminDia=new Set(admin.map(e=>e.tipo+'|'+e.fecha));
+  const autoFiltrados=calAutoEventos().filter(e=>!adminIds.has(e.id)&&!(e.id.startsWith('lic_')&&adminDia.has(e.tipo+'|'+e.fecha)));
+  const desde=calFmtFecha(y,m,1),hasta=calFmtFecha(y,m,new Date(y,m+1,0).getDate());
   const map={};
-  [...autoFiltrados,...CAL_EVENTOS_ADMIN,...calFeriadosMes(y,m)].forEach(e=>{
+  [...autoFiltrados,...admin,...calFeriadosMes(y,m)].forEach(e=>{
+    if(!e.fecha||e.fecha<desde||e.fecha>hasta||ocultos.has(e.tipo))return;
     if(!map[e.fecha])map[e.fecha]=[];
     map[e.fecha].push(e);
   });
-  Object.values(map).forEach(arr=>arr.sort((a,b)=>(CAL_TIPO_PRIO[a.tipo]??99)-(CAL_TIPO_PRIO[b.tipo]??99)));
+  Object.values(map).forEach(arr=>arr.sort((a,b)=>(CAL_TIPO_PRIO[a.tipo]??99)-(CAL_TIPO_PRIO[b.tipo]??99)||String(a.hora||'').localeCompare(String(b.hora||''))));
   return map;
+}
+// Lo que se ve dentro del día: un renglón por evento, salvo los vencimientos y
+// los pagos, que van juntos en uno.
+function calItemsDia(evs){
+  const items=[],grupos={};
+  evs.forEach(e=>{
+    if(e.tipo==='vencimiento'||e.tipo==='pago'){(grupos[e.tipo]=grupos[e.tipo]||[]).push(e);return;}
+    // Un título que repite el tipo y la fecha ("Llamado 5 Noviembre 2026",
+    // "Feriado Nacional") no agrega nada dentro del día: va el tipo, o el título.
+    const lab=(CAL_TIPOS[e.tipo]||CAL_TIPOS.custom).label,tit=String(e.titulo||'').trim();
+    const base=e.corto||(new RegExp('^'+lab+'\\s+\\d','i').test(tit)?lab
+      :tit.toLowerCase().startsWith(lab.toLowerCase())?tit:tit?lab+' · '+tit:lab);
+    const hora=e.hora?' · '+e.hora.replace(/^0/,'').replace(':00',' h'):'';
+    items.push({tipo:e.tipo,txt:base+hora+(e.aprox?' ~':''),title:[e.titulo,e.desc,e.fuente].filter(Boolean).join(' · ')});
+  });
+  ['pago','vencimiento'].forEach(t=>{
+    const g=grupos[t];
+    if(!g)return;
+    const tk=[...new Set(g.map(e=>e.ticker||e.corto))];
+    const pre=t==='pago'?(tk.length>1?'Pagan ':'Paga '):(tk.length>1?'Vencen ':'Vence ');
+    items.push({tipo:t,txt:pre+tk.join(' · '),title:g.map(e=>`${e.titulo}${e.desc?' ('+e.desc+')':''}`).join(' · ')});
+  });
+  return items.sort((a,b)=>(CAL_TIPO_PRIO[a.tipo]??99)-(CAL_TIPO_PRIO[b.tipo]??99));
+}
+function calLeyenda(){
+  const el=document.getElementById('cal-leyenda');
+  if(!el)return;
+  const todos=calEventosPorFecha(true),cuenta={};
+  Object.values(todos).forEach(arr=>arr.forEach(e=>{cuenta[e.tipo]=(cuenta[e.tipo]||0)+1;}));
+  const oc=calOcultos();
+  el.innerHTML=Object.entries(CAL_TIPOS).filter(([t])=>cuenta[t]||oc.has(t)).map(([t,x])=>
+    `<button type="button" class="cal-ley${oc.has(t)?' off':''}" onclick="calToggleTipo('${t}')" title="${oc.has(t)?'Mostrar':'Ocultar'} ${x.label.toLowerCase()}">
+      <span style="width:9px;height:9px;border-radius:2px;background:${x.color}"></span>${x.label} <b>${cuenta[t]||0}</b></button>`).join('')
+    +`<span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono)">· tocá un tipo para ocultarlo</span>`;
+  const f=document.getElementById('cal-fuentes');
+  if(f)f.textContent=CAL_DATA&&CAL_DATA.generado?'Fechas oficiales al '+new Date(CAL_DATA.generado).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}):'';
 }
 
 function calInit(){
@@ -12367,6 +12517,10 @@ function calInit(){
   const addBtn=document.getElementById('cal-add-btn');
   if(addBtn) addBtn.style.display=isAdmin()?'':'none';
   calRender();
+  // Las fechas oficiales y el cronograma de licitaciones llegan después.
+  const pend=[calCargar()];
+  if(typeof licCargar==='function'&&!(typeof LIC_DATA!=='undefined'&&LIC_DATA))pend.push(licCargar());
+  Promise.all(pend).then(()=>{if(currentTab==='calendario')calRender();}).catch(()=>{});
 }
 
 function calPrevMes(){
@@ -12404,7 +12558,7 @@ function calRender(){
 
   const cells=[];
   for(let i=0;i<offset;i++){
-    cells.push(`<div style="min-height:82px;background:var(--surface);opacity:0.15;border-radius:4px;border:1px solid var(--border);"></div>`);
+    cells.push(`<div class="cal-dia" style="background:var(--surface);opacity:0.15;border:1px solid var(--border);cursor:default"></div>`);
   }
 
   for(let d=1;d<=diasEnMes;d++){
@@ -12430,33 +12584,35 @@ function calRender(){
     // número del día: círculo relleno para hoy
     let dayNumHtml;
     if(isToday){
-      dayNumHtml=`<div style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:white;font-size:var(--fs11);font-weight:700;margin-bottom:3px">${d}</div>`;
+      dayNumHtml=`<div style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:white;font-size:var(--fs12);font-weight:700;flex-shrink:0">${d}</div>`;
     } else {
-      const c=isWeekend||isFeriado?'var(--warn)':'var(--text1)';
-      dayNumHtml=`<div style="font-size:var(--fs12);font-weight:500;color:${c};margin-bottom:4px">${d}</div>`;
+      const c=isWeekend||isFeriado?'var(--warn)':'var(--text)';
+      dayNumHtml=`<div style="font-size:var(--fs13);font-weight:500;color:${c};line-height:24px;flex-shrink:0">${d}</div>`;
     }
 
-    let chipsHtml=evs.slice(0,5).map(e=>{
-      const t=CAL_TIPOS[e.tipo]||CAL_TIPOS.custom;
-      return `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${t.color};flex-shrink:0" title="${e.titulo||t.label}"></span>`;
-    }).join('');
-    if(evs.length>5) chipsHtml+=`<span style="font-size:var(--fs8);color:var(--text3)">+${evs.length-5}</span>`;
+    // Cada evento, con su texto y el color de su tipo; el detalle, en el globo y
+    // en la lista de la derecha.
+    const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const items=calItemsDia(evs),MAX=4;
+    let chipsHtml=items.slice(0,items.length>MAX?MAX-1:MAX).map(it=>
+      `<span class="cal-ev" style="--c:${(CAL_TIPOS[it.tipo]||CAL_TIPOS.custom).color}" title="${esc(it.title||it.txt)}">${esc(it.txt)}</span>`).join('');
+    if(items.length>MAX)chipsHtml+=`<span class="cal-mas">+${items.length-MAX+1} más</span>`;
 
     cells.push(`
-      <div onclick="calClickDia('${fechaStr}')"
-           style="min-height:82px;background:${bg};border:${border};border-radius:4px;padding:5px 6px;cursor:pointer;box-sizing:border-box;">
+      <div class="cal-dia" onclick="calClickDia('${fechaStr}')" style="background:${bg};border:${border};">
         ${dayNumHtml}
-        <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center">${chipsHtml}</div>
+        ${chipsHtml}
       </div>`);
   }
 
   const total=offset+diasEnMes;
   const resto=(7-(total%7))%7;
   for(let i=0;i<resto;i++){
-    cells.push(`<div style="min-height:82px;background:var(--surface);opacity:0.15;border-radius:4px;border:1px solid var(--border);"></div>`);
+    cells.push(`<div class="cal-dia" style="background:var(--surface);opacity:0.15;border:1px solid var(--border);cursor:default"></div>`);
   }
   grid.innerHTML=cells.join('');
 
+  calLeyenda();
   calRenderSide(evMap);
 }
 
@@ -12493,13 +12649,15 @@ function calRenderSide(evMap){
 
     evs.forEach(e=>{
       const t=CAL_TIPOS[e.tipo]||CAL_TIPOS.custom;
-      const isEditableIpc=e.auto&&(e.tipo==='ipc_nacion'||e.tipo==='ipc_caba');
+      const isEditableIpc=e.aprox&&(e.tipo==='ipc_nacion'||e.tipo==='ipc_caba');
       const editBtn=(isAdmin()&&(!e.auto||isEditableIpc))?`<button class="btn" style="font-size:var(--fs9);padding:1px 6px;margin-left:auto;flex-shrink:0;line-height:1.5" onclick="calEditEvento('${e.id}')">✎</button>`:'';
-      const aprox=(e.auto&&e.tipo!=='feriado')?` <span style="font-size:var(--fs9);color:var(--text3);font-style:italic">aprox.</span>`:'';
-      html+=`<div style="display:flex;align-items:flex-start;gap:4px;border-left:2px solid ${t.color};padding-left:6px;margin-bottom:4px">
+      const aprox=e.aprox?` <span style="font-size:var(--fs9);color:var(--text3);font-style:italic">aprox.</span>`:'';
+      const extra=[e.hora?e.hora+' h':'',e.fuente||''].filter(Boolean).join(' · ');
+      html+=`<div style="display:flex;align-items:flex-start;gap:4px;border-left:3px solid ${t.color};padding-left:7px;margin-bottom:5px">
         <div style="flex:1;min-width:0">
-          <div style="font-size:var(--fs9);color:var(--text3);text-transform:uppercase;letter-spacing:.04em">${t.label}${aprox}</div>
-          <div style="font-size:var(--fs11);color:var(--text1)">${e.titulo||''}</div>
+          <div style="font-size:var(--fs9);color:var(--text3);text-transform:uppercase;letter-spacing:.04em">${t.label}${aprox}${extra?` <span style="text-transform:none;letter-spacing:0">· ${extra}</span>`:''}</div>
+          <div style="font-size:var(--fs11);color:var(--text)">${e.titulo||''}</div>
+          ${e.desc&&!e.aprox?`<div style="font-size:var(--fs10);color:var(--text3)">${e.desc}</div>`:''}
         </div>
         ${editBtn}
       </div>`;
