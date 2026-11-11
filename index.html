@@ -25058,7 +25058,23 @@ var LIQ_TASA_BCRA=20;     // TNA a la que toma el BCRA en el REPO
 var LIQ_ERR_MAX=0.05;     // error de redondeo de su parte desde el que la rueda va atenuada
 var LIQ_LS='bonosAR_liquidez_v1';
 var LIQ_VENT=[['22','1 mes'],['66','3 meses'],['132','6 meses'],['todo','Desde enero']];
-var LIQ_COL={bcra:'#3b82f6',resto:'#93c5fd',pct:'#f87171',varResto:'#fb923c',tasa:'#a8d5a2',sin:'#fbbf24'};
+var LIQ_FOCO={ars:null,usd:null};   // el gráfico ampliado de cada sección
+var LIQ_GRAFICOS=['g-bcra','g-mix','g-var','g-tasa'];
+// Los colores de la app, con un sentido fijo en los cuatro gráficos: el celeste
+// de los futuros es el BCRA, el gris de las comparaciones es el resto del
+// mercado, y los del tema, el total y el porcentaje. Los del tema se leen en
+// cada pintada, así siguen al modo claro.
+function liqPaleta(){
+  const cs=getComputedStyle(document.body),v=(k,d)=>cs.getPropertyValue(k).trim()||d;
+  return{bcra:[56,189,248,.7],resto:[150,150,150,.45],bcraLinea:'rgba(56,189,248,0.75)',
+    total:v('--accent','#a8d5a2'),pct:v('--warn','#d4a96a'),sin:'rgba(150,150,150,0.95)'};
+}
+function liqFoco(sec,id){
+  LIQ_FOCO[sec]=LIQ_GRAFICOS.includes(id)?id:null;
+  liqRender(sec);
+  const s=id&&document.getElementById(`${LIQ_SEC[sec].p}-c-${id}`);
+  if(s&&s.scrollIntoView)s.scrollIntoView({block:'nearest'});
+}
 
 async function liqCargar(force){
   if(LIQ_DATA&&!force)return LIQ_DATA;
@@ -25131,9 +25147,10 @@ function liqPaginaHTML(sec){
     +`(tasa sin BCRA − tasa) / (tasa sin BCRA − ${LIQ_TASA_BCRA}). Contra lo que tomó el BCRA entre el 06/10 y el 04/11/2026 da dentro de 0,05 billones por rueda. `
     +`Las tasas vienen con dos decimales: cuando el mercado opera cerca del ${LIQ_TASA_BCRA}% la cuenta pierde precisión, y esas ruedas van atenuadas. Si una rueda el BCRA además inyecta, a otra tasa, la estimación mezcla las dos puntas. `
     +`Lo intradía —las operaciones del día, la inyección acumulada del BCRA, lo de hoy contra los promedios— necesita las operaciones una por una, que el MAE no publica.`;
-  const card=(id,titulo,bajada)=>`<section style="${caja}">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><span style="${tit}">${titulo}</span><span style="${LIC_SUB}">${bajada}</span></div>
-      <div style="position:relative;height:300px;min-width:0"><canvas id="${p}-${id}"></canvas></div></section>`;
+  const card=(id,titulo,bajada)=>`<section id="${p}-c-${id}" style="${caja}">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><span style="${tit}">${titulo}</span><span style="${LIC_SUB}">${bajada}</span>
+        <button type="button" class="btn liq-ampliar" style="margin-left:auto;padding:2px 10px;font-size:var(--fs11)" onclick="liqFoco('${sec}','${id}')">⤢ ampliar</button></div>
+      <div class="liq-lienzo" style="position:relative;height:300px;min-width:0"><canvas id="${p}-${id}"></canvas></div></section>`;
   return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
     <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
       <span style="${tit};font-size:17px">Liquidez · REPO en pesos</span>${ayuda(nota,'De dónde salen los números')}
@@ -25141,7 +25158,7 @@ function liqPaginaHTML(sec){
       <span id="${p}-estado" style="${LIC_SUB};margin-left:auto"></span>
     </div>
     <div id="${p}-tiles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px"></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(520px,100%),1fr));gap:14px">
+    <div id="${p}-graficos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(520px,100%),1fr));gap:14px">
       ${card('g-bcra','Pesos tomados por el BCRA en REPO','billones de $')}
       ${card('g-mix','Pesos tomados en REPO','billones de $ · BCRA y resto, y el % del BCRA')}
       ${card('g-var','Variación diaria: BCRA y resto','billones de $ contra la rueda anterior')}
@@ -25176,14 +25193,30 @@ function liqRender(sec){
   // Las tarjetas: la última rueda.
   const nota=liqNotaRueda(ult);
   const tiles=document.getElementById(p+'-tiles');
-  tiles.innerHTML=licTile(`REPO total · ${liqDia(ult.f)}`,'$ '+liqB(ult.total)+' bill.','var(--accent)','Volumen del REPO en pesos a un día, todas las ruedas del MAE')
-    +licTile('Tomado por el BCRA',ult.bcra!=null?`$ ${liqB(ult.bcra)} bill. · ${licN(ult.pct,1)}%`:'—',LIQ_COL.bcra,nota||'Estimado con las dos tasas promedio del MAE')
+  tiles.innerHTML=licTile(`REPO total · ${liqDia(ult.f)}`,'$ '+liqB(ult.total)+' bill.',null,'Volumen del REPO en pesos a un día, todas las ruedas del MAE')
+    +licTile('Tomado por el BCRA',ult.bcra!=null?`$ ${liqB(ult.bcra)} bill. · ${licN(ult.pct,1)}%`:'—',null,nota||'Estimado con las dos tasas promedio del MAE')
     +licTile('Resto del mercado',ult.resto!=null?'$ '+liqB(ult.resto)+' bill.':'—',null,nota||'')
     +licTile('Tasa promedio',`${licN(ult.t)}% · sin BCRA ${licN(ult.n)}%`,null,`TNA promedio ponderada de todo el REPO y sin las operaciones del BCRA, que toma a ${LIQ_TASA_BCRA}%`)
-    +(ant&&ant.bcra!=null&&ult.bcra!=null?licTile('BCRA contra la rueda anterior',(ult.bcra-ant.bcra>=0?'+':'')+liqB(ult.bcra-ant.bcra)+' bill.',ult.bcra>=ant.bcra?'#4ade80':'var(--danger)',`El ${liqDia(ant.f)} tomó $ ${liqB(ant.bcra)} bill.`):'');
+    +(ant&&ant.bcra!=null&&ult.bcra!=null?licTile('BCRA contra la rueda anterior',(ult.bcra-ant.bcra>=0?'+':'')+liqB(ult.bcra-ant.bcra)+' bill.',ult.bcra>=ant.bcra?'var(--accent2)':'var(--danger)',`El ${liqDia(ant.f)} tomó $ ${liqB(ant.bcra)} bill.`):'');
 
-  const col=licColores(),etq=X.map(x=>liqDia(x.f)),pocos=X.length<=30;
-  const alfa=(c,x)=>x.imprecisa?c+'66':c;
+  // Ampliado: queda sólo ese gráfico, con todo el alto de la pantalla.
+  const foco=LIQ_GRAFICOS.includes(LIQ_FOCO[sec])?LIQ_FOCO[sec]:null;
+  const grilla0=document.getElementById(p+'-graficos');
+  if(grilla0)grilla0.style.gridTemplateColumns=foco?'1fr':'repeat(auto-fit,minmax(min(520px,100%),1fr))';
+  LIQ_GRAFICOS.forEach(id=>{
+    const s=document.getElementById(`${p}-c-${id}`);
+    if(!s)return;
+    s.style.display=!foco||foco===id?'':'none';
+    const lz=s.querySelector('.liq-lienzo');
+    if(lz)lz.style.height=foco?'max(380px,calc(100vh - var(--alto-barras) - 250px))':'300px';
+    const b=s.querySelector('.liq-ampliar');
+    if(b){b.textContent=foco?'← todos los gráficos':'⤢ ampliar';b.setAttribute('onclick',`liqFoco('${sec}',${foco?'null':`'${id}'`})`);}
+  });
+
+  const col=licColores(),pal=liqPaleta(),etq=X.map(x=>liqDia(x.f)),pocos=X.length<=(foco?66:30);
+  const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  // Las ruedas con la estimación imprecisa van más tenues.
+  const alfa=(c,x)=>rgba(c,x.imprecisa?c[3]*0.35:c[3]);
   const tick={color:col.texto,font:{size:10}},grilla={color:col.grilla};
   const ejeX={ticks:{...tick,maxRotation:60,minRotation:pocos?45:0,autoSkip:!pocos},grid:{display:false}};
   const tip=extra=>({callbacks:{title:c=>'Rueda del '+X[c[0].dataIndex].f.split('-').reverse().join('/'),
@@ -25196,7 +25229,7 @@ function liqRender(sec){
     textStrokeColor:fondo,textStrokeWidth:3,font:{size:9,family:'DM Mono, monospace'},formatter:fmt,...extra});
 
   // 1. Lo que tomó el BCRA.
-  liqChart(sec,`${p}-g-bcra`,{type:'bar',data:{labels:etq,datasets:[{label:'BCRA',data:X.map(x=>x.bcra),backgroundColor:X.map(x=>alfa(LIQ_COL.bcra,x)),borderRadius:2,
+  liqChart(sec,`${p}-g-bcra`,{type:'bar',data:{labels:etq,datasets:[{label:'BCRA',data:X.map(x=>x.bcra),backgroundColor:X.map(x=>alfa(pal.bcra,x)),borderRadius:3,
       datalabels:etiquetas(v=>v==null?'':licN(v,2))}]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:16}},
       plugins:{legend:{display:false},tooltip:{...tip(x=>[`Total del REPO: $ ${liqB(x.total)} bill.`]),callbacks:{...tip().callbacks,label:c=>`BCRA: $ ${liqB(c.parsed.y)} bill. (${licN(X[c.dataIndex].pct,1)}% del REPO)`,afterBody:tip(x=>[`Total del REPO: $ ${liqB(x.total)} bill.`]).callbacks.afterBody}}},
@@ -25204,24 +25237,24 @@ function liqRender(sec){
 
   // 2. BCRA y resto, apilados, con el % del BCRA.
   liqChart(sec,`${p}-g-mix`,{type:'bar',data:{labels:etq,datasets:[
-      {label:'BCRA',data:X.map(x=>x.bcra),backgroundColor:X.map(x=>alfa(LIQ_COL.bcra,x)),stack:'s',order:2,datalabels:{display:false}},
-      {label:'Resto',data:X.map(x=>x.resto),backgroundColor:X.map(x=>alfa(LIQ_COL.resto,x)),stack:'s',order:2,datalabels:{display:false}},
-      {label:'% BCRA',type:'line',data:X.map(x=>x.pct),yAxisID:'y2',borderColor:LIQ_COL.pct,backgroundColor:LIQ_COL.pct,borderWidth:2,pointRadius:2,tension:.2,order:1,spanGaps:true,
-        datalabels:etiquetas(v=>v==null?'':licN(v,1),{color:LIQ_COL.pct,align:'top',offset:3})}]},
+      {label:'BCRA',data:X.map(x=>x.bcra),backgroundColor:X.map(x=>alfa(pal.bcra,x)),stack:'s',order:2,datalabels:{display:false}},
+      {label:'Resto',data:X.map(x=>x.resto),backgroundColor:X.map(x=>alfa(pal.resto,x)),stack:'s',order:2,datalabels:{display:false}},
+      {label:'% BCRA',type:'line',data:X.map(x=>x.pct),yAxisID:'y2',borderColor:pal.pct,backgroundColor:pal.pct,borderWidth:2,pointRadius:2,tension:.2,order:1,spanGaps:true,
+        datalabels:etiquetas(v=>v==null?'':licN(v,1),{color:pal.pct,align:'top',offset:3})}]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:16}},
       plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12}},tooltip:{...tip(),callbacks:{...tip().callbacks,
         label:c=>c.dataset.yAxisID==='y2'?`% BCRA: ${licN(c.parsed.y,1)}%`:`${c.dataset.label}: $ ${liqB(c.parsed.y)} bill.`,
         footer:c=>`Total: $ ${liqB(X[c[0].dataIndex].total)} bill.`}}},
       scales:{x:{...ejeX,stacked:true},y:{stacked:true,beginAtZero:true,ticks:{...tick,callback:v=>licN(v,1)},grid:grilla,title:{display:true,text:'billones de $',color:col.texto,font:{size:10}}},
-        y2:{position:'right',min:0,max:100,ticks:{...tick,color:LIQ_COL.pct,callback:v=>v+'%'},grid:{display:false}}}}});
+        y2:{position:'right',min:0,max:100,ticks:{...tick,color:pal.pct,callback:v=>v+'%'},grid:{display:false}}}}});
 
   // 3. La variación de cada uno contra la rueda anterior.
   const prev=i=>v==='todo'?(i>0?X[i-1]:null):serie[i];
   const dif=(x,i,k)=>{const a=prev(i);return a&&a[k]!=null&&x[k]!=null?x[k]-a[k]:null;};
   liqChart(sec,`${p}-g-var`,{type:'bar',data:{labels:etq,datasets:[
-      {label:'BCRA',data:X.map((x,i)=>dif(x,i,'bcra')),backgroundColor:X.map(x=>alfa(LIQ_COL.bcra,x)),borderRadius:2,
+      {label:'BCRA',data:X.map((x,i)=>dif(x,i,'bcra')),backgroundColor:X.map(x=>alfa(pal.bcra,x)),borderRadius:3,
         datalabels:etiquetas(v=>v==null?'':licN(v,2),{anchor:c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start',align:c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start'})},
-      {label:'Resto',data:X.map((x,i)=>dif(x,i,'resto')),backgroundColor:X.map(x=>alfa(LIQ_COL.varResto,x)),borderRadius:2,
+      {label:'Resto',data:X.map((x,i)=>dif(x,i,'resto')),backgroundColor:X.map(x=>alfa(pal.resto,x)),borderRadius:3,
         datalabels:etiquetas(v=>v==null?'':licN(v,2),{anchor:c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start',align:c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start'})}]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:16,bottom:4}},
       plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12}},tooltip:{...tip(),callbacks:{...tip().callbacks,label:c=>`${c.dataset.label}: ${c.parsed.y>=0?'+':''}${liqB(c.parsed.y)} bill.`}}},
@@ -25229,9 +25262,9 @@ function liqRender(sec){
 
   // 4. Las dos tasas, y la del BCRA.
   liqChart(sec,`${p}-g-tasa`,{type:'line',data:{labels:etq,datasets:[
-      {label:'Todo el REPO',data:X.map(x=>x.t),borderColor:LIQ_COL.tasa,backgroundColor:LIQ_COL.tasa,borderWidth:2,pointRadius:pocos?2:0,tension:.2,datalabels:{display:false}},
-      {label:'Sin el BCRA',data:X.map(x=>x.n),borderColor:LIQ_COL.sin,backgroundColor:LIQ_COL.sin,borderWidth:2,pointRadius:pocos?2:0,tension:.2,datalabels:{display:false}},
-      {label:`BCRA, ${LIQ_TASA_BCRA}%`,data:X.map(()=>LIQ_TASA_BCRA),borderColor:col.tenue,borderDash:[5,4],borderWidth:1.5,pointRadius:0,datalabels:{display:false}}]},
+      {label:'Todo el REPO',data:X.map(x=>x.t),borderColor:pal.total,backgroundColor:pal.total,borderWidth:2,pointRadius:pocos?2:0,tension:.2,datalabels:{display:false}},
+      {label:'Sin el BCRA',data:X.map(x=>x.n),borderColor:pal.sin,backgroundColor:pal.sin,borderWidth:2,pointRadius:pocos?2:0,tension:.2,datalabels:{display:false}},
+      {label:`BCRA, ${LIQ_TASA_BCRA}%`,data:X.map(()=>LIQ_TASA_BCRA),borderColor:pal.bcraLinea,backgroundColor:pal.bcraLinea,borderDash:[5,4],borderWidth:1.5,pointRadius:0,datalabels:{display:false}}]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:col.texto,font:{size:10},boxWidth:12}},tooltip:{...tip(),callbacks:{...tip().callbacks,label:c=>`${c.dataset.label}: ${licN(c.parsed.y)}%`}}},
       scales:{x:ejeX,y:{ticks:{...tick,callback:v=>licN(v,1)+'%'},grid:grilla,title:{display:true,text:'TNA %',color:col.texto,font:{size:10}}}}}});

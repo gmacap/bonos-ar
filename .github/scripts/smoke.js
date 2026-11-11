@@ -4947,6 +4947,17 @@ const omitir = (label, motivo) =>
     liqSetVentana('ars', '66');
     out.barras66 = LIQ_CHARTS.ars['liq-g-bcra'] ? LIQ_CHARTS.ars['liq-g-bcra'].data.labels.length : 0;
     liqSetVentana('ars', '22');
+    // Los colores son los de la app: el celeste del BCRA en las barras, no el
+    // azul de antes.
+    const fondos = [].concat(...LIQ_CHARTS.ars['liq-g-mix'].data.datasets.filter(d => d.type !== 'line').map(d => d.backgroundColor));
+    out.paleta = fondos.every(c => /^rgba\((56,189,248|150,150,150),/.test(c));
+    // Ampliar deja sólo ese gráfico, más alto, y volver los muestra a todos.
+    const alto0 = document.getElementById('liq-g-tasa').getBoundingClientRect().height;
+    liqFoco('ars', 'g-tasa'); await espera(300);
+    const vis = () => LIQ_GRAFICOS.filter(id => getComputedStyle(document.getElementById('liq-c-' + id)).display !== 'none');
+    out.foco = vis().join() === 'g-tasa' && document.getElementById('liq-g-tasa').getBoundingClientRect().height > alto0 + 50;
+    liqFoco('ars', null); await espera(300);
+    out.vuelve = vis().length === 4;
     switchSection('usd'); switchUsdTab('usd-liquidez'); await espera(800);
     out.usd = ['uliq-g-bcra', 'uliq-g-mix', 'uliq-g-var', 'uliq-g-tasa'].filter(k => LIQ_CHARTS.usd[k]).length;
     switchSection('pesos'); switchTab('breakeven');
@@ -4963,6 +4974,9 @@ const omitir = (label, motivo) =>
     check(liq.graficos === 4 && liq.tarjetas >= 4 && liq.barras === 22 && liq.barras66 === Math.min(66, liq.n - 1) && liq.usd === 4,
           'la solapa Liquidez muestra las tarjetas y los cuatro gráficos, cambia de ventana, y está también en dólares',
           JSON.stringify({ g: liq.graficos, t: liq.tarjetas, b: liq.barras, b66: liq.barras66, usd: liq.usd }));
+    check(liq.paleta && liq.foco && liq.vuelve,
+          'los gráficos usan los colores de la app, y ampliar deja uno solo, más alto, y vuelve a los cuatro',
+          JSON.stringify({ paleta: liq.paleta, foco: liq.foco, vuelve: liq.vuelve }));
   }
 
   // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.
