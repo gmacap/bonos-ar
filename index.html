@@ -206,6 +206,33 @@ tr.calc-fuera:hover>td{opacity:.75;}
 .res-ev-items{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
 .res-ev .cal-ev{white-space:normal;}
 .res-ev-nota{font-family:var(--mono);font-size:var(--fs10);color:var(--text3);}
+/* Resumen: cada módulo se achica a su encabezado y los de al lado ocupan el
+   lugar; el que está solo en su columna se achica a una tira angosta. */
+.res-pleg-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left;}
+.res-pleg-btn:focus-visible,.res-pleg-tira:focus-visible{outline:1px solid var(--accent);outline-offset:2px;}
+.res-pleg-lab{font-family:var(--mono);font-size:var(--fs10);color:var(--text3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.plegado-res .res-pleg-btn .res-ev-chev{transform:rotate(-90deg);}
+[data-pleg].plegado-res>:not(:first-child){display:none !important;}
+[data-pleg].plegado-res{flex:0 0 auto !important;min-height:0 !important;}
+[data-pleg].plegado-res>:first-child{margin-bottom:0 !important;}
+.con-plegado>[data-pleg]:not(.plegado-res){flex:1 1 0 !important;}
+.con-plegado>.res-vdrag{display:none !important;}
+.res-pleg-tira{display:none;}
+[data-pleg-col].plegado-res{width:30px !important;min-width:30px !important;flex:0 0 30px !important;padding:0 !important;overflow:hidden !important;}
+[data-pleg-col].plegado-res>*{display:none !important;}
+[data-pleg-col].plegado-res>.res-pleg-tira{display:flex !important;}
+.res-pleg-tira{writing-mode:vertical-rl;align-items:center;gap:8px;width:100%;height:100%;padding:10px 0;border:none;background:var(--surface);color:var(--text2);font-family:var(--mono);font-size:var(--fs10);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;}
+.res-pleg-tira:hover{color:var(--accent);background:var(--surface2);}
+#be-col2.plegado-res+.col-resizer{display:none;}
+#ures-root.con-plegado>#ures-c2{flex:1 1 auto !important;width:auto !important;}
+#ures-root.con-plegado>#ures-drag2{display:none;}
+#ures-c2.con-plegado>#res-ev-usd{max-height:none !important;}
+#be-tablero-wrap{display:flex;align-items:stretch;}
+#be-tablero-wrap>.res-pleg-btn{flex:0 0 auto;justify-content:center;width:20px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);}
+#be-tablero-wrap>.res-pleg-btn .res-pleg-lab{display:none;}
+#be-tablero-wrap.plegado-res>.res-pleg-btn{width:auto;flex:1;justify-content:flex-start;gap:6px;height:22px;padding:0 8px;border-right:none;}
+#be-tablero-wrap.plegado-res>.res-pleg-btn .res-pleg-lab{display:inline;}
+#page-breakeven.con-plegado>#be-columns{height:calc(100% - 22px) !important;}
 .por-liquidar{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid var(--warn);border-radius:3px;color:var(--warn);font-size:var(--fs9);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;}
 .nav-tab.disabled{opacity:.3;cursor:not-allowed;}
 .proy-subtab{padding:5px 2px;font-size:var(--fs11);font-family:var(--mono);color:var(--text3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
@@ -1585,7 +1612,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <!-- TABLERO DEL DÍA -->
   <!-- El alto de la franja sigue al tamaño de letra: con A+ el tercer renglón
        quedaba cortado. -->
-  <div id="be-tablero" style="height:calc(60px*var(--esc));box-sizing:border-box;display:flex;align-items:stretch;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;"></div>
+  <div id="be-tablero-wrap" data-pleg="be-tablero">
+    <button type="button" class="res-pleg-btn" onclick="resPlegar('be-tablero')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span class="res-pleg-lab">Tablero</span></button>
+    <div id="be-tablero" style="flex:1;min-width:0;height:calc(60px*var(--esc));box-sizing:border-box;display:flex;align-items:stretch;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;"></div>
+  </div>
   <div id="be-columns" style="display:flex;height:calc(100% - 60px*var(--esc));gap:0;min-height:0;">
 
 
@@ -1596,9 +1626,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <div id="res-ev-ars" class="res-ev"></div>
 
       <!-- BE Inflación -->
-      <div>
+      <div data-pleg="be-infla">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
-          <div style="font-family:var(--serif);font-size:var(--fs13);font-weight:300;font-style:italic;color:var(--accent)">BE · Inflación</div>
+          <button type="button" class="res-pleg-btn" onclick="resPlegar('be-infla')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="font-family:var(--serif);font-size:var(--fs13);font-weight:300;font-style:italic;color:var(--accent)">BE · Inflación</span></button>
           <div style="display:flex;gap:3px;">
             <button class="btn" style="margin:0;padding:2px 6px;font-size:var(--fs10)" onclick="beToggleSelector()">+/−</button>
             <button class="btn primary" style="margin:0;padding:2px 6px;font-size:var(--fs10)" onclick="beRecalc()">↻</button>
@@ -1623,9 +1653,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       </div>
 
       <!-- BE TAMAR -->
-      <div>
+      <div data-pleg="be-tamar">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
-          <div style="font-family:var(--serif);font-size:var(--fs13);font-weight:300;font-style:italic;color:var(--accent)">BE · TAMAR</div>
+          <button type="button" class="res-pleg-btn" onclick="resPlegar('be-tamar')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="font-family:var(--serif);font-size:var(--fs13);font-weight:300;font-style:italic;color:var(--accent)">BE · TAMAR</span></button>
           <div style="display:flex;gap:3px;">
             <button class="btn" style="margin:0;padding:2px 6px;font-size:var(--fs10)" onclick="beTamarToggleSelector()">+/−</button>
             <button class="btn primary" style="margin:0;padding:2px 6px;font-size:var(--fs10)" onclick="beTamarRecalc()">↻</button>
@@ -1648,9 +1678,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       </div>
 
       <!-- BE DEVALUACIÓN -->
-      <div>
+      <div data-pleg="be-deval">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
-          <div style="font-family:var(--serif);font-size:var(--fs13);font-weight:300;font-style:italic;color:var(--accent)">BE · Devaluación</div>
+          <button type="button" class="res-pleg-btn" onclick="resPlegar('be-deval')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="font-family:var(--serif);font-size:var(--fs13);font-weight:300;font-style:italic;color:var(--accent)">BE · Devaluación</span></button>
           <button class="btn primary" style="margin:0;padding:2px 6px;font-size:var(--fs10)" onclick="beDevalRecalc()">↻</button>
         </div>
         <table class="be-table">
@@ -1671,9 +1701,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     <div class="col-resizer" onmousedown="beStartResize(event,'be-col1')"></div>
 
     <!-- COL 2: Pesos Corto Plazo (resizable) -->
-    <div id="be-col2" style="width:580px;min-width:200px;overflow-y:auto;overflow-x:auto;padding:1.25rem 1rem;border-right:1px solid var(--border);flex-shrink:0;">
+    <div id="be-col2" data-pleg="be-col2" data-pleg-col style="width:580px;min-width:200px;overflow-y:auto;overflow-x:auto;padding:1.25rem 1rem;border-right:1px solid var(--border);flex-shrink:0;">
+      <button type="button" class="res-pleg-tira" onclick="resPlegar('be-col2')" title="Mostrar el Resumen"><span>▸</span>Resumen</button>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
-        <div style="font-family:var(--serif);font-size:16px;font-weight:300;font-style:italic;color:var(--accent)">Resumen</div>
+        <button type="button" class="res-pleg-btn" onclick="resPlegar('be-col2')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="font-family:var(--serif);font-size:16px;font-weight:300;font-style:italic;color:var(--accent)">Resumen</span></button>
         <div style="display:flex;gap:6px;align-items:center;">
           <span data-proy-sel="infla"></span>
           <span data-proy-sel="tamar"></span>
@@ -1714,9 +1745,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     <div id="be-col3" style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;">
 
       <!-- Gráfico TF -->
-      <div style="flex:1;min-height:0;display:flex;flex-direction:column;border-bottom:1px solid var(--border);">
+      <div data-pleg="be-graf-tf" style="flex:1;min-height:0;display:flex;flex-direction:column;border-bottom:1px solid var(--border);">
         <div style="flex-shrink:0;border-bottom:1px solid var(--border);">
           <div style="display:flex;align-items:center;gap:5px;padding:.3rem .75rem;flex-wrap:wrap;">
+            <button type="button" class="res-pleg-btn" onclick="resPlegar('be-graf-tf')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span class="res-pleg-lab">Gráfico TF</span></button>
             <div id="be-chart-tf-tipos" style="display:flex;gap:3px;flex-wrap:wrap;"></div>
             <button class="btn" style="padding:1px 5px;font-size:var(--fs10)" onclick="beToggleChartSelector('tf')">bonos ▾</button>
             <button class="btn" style="padding:1px 5px;font-size:var(--fs10)" onclick="beToggleChartSintSelector()">sint ▾</button>
@@ -1743,9 +1775,10 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       </div>
 
       <!-- Gráfico CER -->
-      <div style="flex:1;min-height:0;display:flex;flex-direction:column;">
+      <div data-pleg="be-graf-cer" style="flex:1;min-height:0;display:flex;flex-direction:column;">
         <div style="flex-shrink:0;border-bottom:1px solid var(--border);">
           <div style="display:flex;align-items:center;gap:5px;padding:.3rem .75rem;flex-wrap:wrap;">
+            <button type="button" class="res-pleg-btn" onclick="resPlegar('be-graf-cer')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span class="res-pleg-lab">Gráfico CER</span></button>
             <div id="be-chart-cer-tipos" style="display:flex;gap:3px;flex-wrap:wrap;"></div>
             <button class="btn" style="padding:1px 5px;font-size:var(--fs10)" onclick="beToggleChartSelector('cer')">bonos ▾</button>
             <div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
@@ -3061,7 +3094,7 @@ async function authAction(){
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
-  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1'];
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
 
@@ -10133,6 +10166,7 @@ function beRefreshIfVisible(){
 }
 
 function beInit(){
+  resPlegAplicar();
   beLoadLs();
   // La elección de CER y de tasa fija de cada bono TAMAR viaja por usuario: al
   // iniciar sesión llega después de que el módulo se cargó, así que se relee acá.
@@ -12535,6 +12569,39 @@ function calLeyenda(){
     +`<span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono)">· tocá un tipo para ocultarlo</span>`;
   const f=document.getElementById('cal-fuentes');
   if(f)f.textContent=CAL_DATA&&CAL_DATA.generado?'Fechas oficiales al '+new Date(CAL_DATA.generado).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}):'';
+}
+
+// ── Resumen: módulos que se achican ─────────────────────────────────────────
+// Cada módulo del Resumen, en pesos y en dólares, se achica a su encabezado
+// (data-pleg); el que está solo en su columna se achica a una tira
+// (data-pleg-col). Se guarda por usuario. Los gráficos se vuelven a dibujar
+// con el lugar nuevo.
+function resPlegados(){
+  try{const o=JSON.parse(localStorage.getItem('bonosAR_res_plegados_v1')||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}
+  catch(e){return{};}
+}
+function resPlegAplicar(){
+  const o=resPlegados(),padres=new Set();
+  document.querySelectorAll('[data-pleg]').forEach(el=>{
+    const p=!!o[el.dataset.pleg];
+    el.classList.toggle('plegado-res',p);
+    el.querySelectorAll('.res-pleg-btn').forEach(b=>{
+      if(b.closest('[data-pleg]')!==el)return;
+      b.setAttribute('aria-expanded',String(!p));b.title=p?'Mostrar':'Achicar';
+    });
+    if(el.parentElement)padres.add(el.parentElement);
+  });
+  padres.forEach(pa=>pa.classList.toggle('con-plegado',[...pa.children].some(c=>c.classList.contains('plegado-res'))));
+}
+function resPlegar(id){
+  const o=resPlegados();
+  if(o[id])delete o[id];else o[id]=true;
+  try{localStorage.setItem('bonosAR_res_plegados_v1',JSON.stringify(o));}catch(e){}
+  resPlegAplicar();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    try{if(currentSection==='pesos'&&currentTab==='breakeven'){beRenderChartTF();beRenderChartCER();}}catch(e){console.warn('[achicar]',e.message);}
+    try{if(currentSection==='usd'&&usdResChart)usdResChart.resize();}catch(e){}
+  }));
 }
 
 // ── Resumen: próximos eventos ───────────────────────────────────────────────
@@ -19332,16 +19399,16 @@ function usdResumenRender(){
   pg.innerHTML=`<div id="ures-root" style="display:flex;height:100%;overflow:hidden">
   <!-- COL 1 -->
   <div id="ures-c1" style="width:${w1}px;min-width:80px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden">
-    <div id="ures-sleg-wrap" style="flex:${sp} 0 0;min-height:50px;display:flex;flex-direction:column;overflow:hidden">
+    <div id="ures-sleg-wrap" data-pleg="ures-sleg" style="flex:${sp} 0 0;min-height:50px;display:flex;flex-direction:column;overflow:hidden">
       <div style="padding:3px 6px;background:var(--surface2);border-bottom:1px solid var(--border2);flex-shrink:0">
-        <span style="${ttl}">Spread Leg.</span>
+        <button type="button" class="res-pleg-btn" onclick="resPlegar('ures-sleg')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="${ttl}">Spread Leg.</span></button>
       </div>
       <div id="ures-sleg-list" style="overflow-x:hidden;overflow-y:auto;flex:1"></div>
     </div>
-    <div style="${vdrag}" onmousedown="usdResVDragStart(event)" onmouseover="this.style.background='var(--accent)'" onmouseout="this.style.background='var(--border2)'"></div>
-    <div id="ures-fwd-wrap" style="flex:${1-sp} 0 0;min-height:50px;display:flex;flex-direction:column;overflow:hidden">
+    <div class="res-vdrag" style="${vdrag}" onmousedown="usdResVDragStart(event)" onmouseover="this.style.background='var(--accent)'" onmouseout="this.style.background='var(--border2)'"></div>
+    <div id="ures-fwd-wrap" data-pleg="ures-fwd" style="flex:${1-sp} 0 0;min-height:50px;display:flex;flex-direction:column;overflow:hidden">
       <div style="padding:3px 6px;display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-bottom:1px solid var(--border2);flex-shrink:0">
-        <span style="${ttl}">TF Fwds</span>
+        <button type="button" class="res-pleg-btn" onclick="resPlegar('ures-fwd')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="${ttl}">TF Fwds</span></button>
         <button class="btn" style="padding:1px 4px;font-size:var(--fs9)" onclick="usdResFwdAdd()">+</button>
       </div>
       <div id="ures-fwd-list" style="overflow-x:hidden;overflow-y:auto;flex:1"></div>
@@ -19352,8 +19419,9 @@ function usdResumenRender(){
   <!-- COL 2 -->
   <div id="ures-c2" style="width:${w2}px;min-width:200px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden">
     <div id="res-ev-usd" class="res-ev" style="flex:0 1 auto;max-height:42%;overflow-y:auto;padding:5px 10px 7px;border-bottom:1px solid var(--border2)"></div>
+    <div data-pleg="ures-cartera" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:5px 10px;display:flex;align-items:center;gap:10px;background:var(--surface2);border-bottom:1px solid var(--border2);flex-shrink:0;flex-wrap:wrap">
-      <span style="${ttl}">Cartera</span>
+      <button type="button" class="res-pleg-btn" onclick="resPlegar('ures-cartera')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="${ttl}">Cartera</span></button>
       <button class="btn" style="padding:2px 8px;font-size:var(--fs10)" onclick="usdResModalOpen()">+ Agregar</button>
       <span style="margin-left:auto;display:flex;gap:8px;align-items:center;font-size:var(--fs9);font-family:var(--mono)">
         <span style="color:#6baed6">■ GLO</span>
@@ -19375,13 +19443,15 @@ function usdResumenRender(){
         <tbody id="ures-sum-tbody"></tbody>
       </table>
     </div>
+    </div>
   </div>
   <!-- DRAG 2 -->
-  <div style="${drag}" onmousedown="usdResDragStart(event,'c2')" onmouseover="this.style.background='var(--accent)'" onmouseout="this.style.background='var(--border2)'"></div>
+  <div id="ures-drag2" style="${drag}" onmousedown="usdResDragStart(event,'c2')" onmouseover="this.style.background='var(--accent)'" onmouseout="this.style.background='var(--border2)'"></div>
   <!-- COL 3 chart -->
-  <div style="flex:1;min-width:200px;display:flex;flex-direction:column;overflow:hidden">
+  <div id="ures-c3" data-pleg="ures-curva" data-pleg-col style="flex:1;min-width:200px;display:flex;flex-direction:column;overflow:hidden">
+    <button type="button" class="res-pleg-tira" onclick="resPlegar('ures-curva')" title="Mostrar la curva"><span>▸</span>Curva de rendimientos</button>
     <div style="padding:5px 10px;background:var(--surface2);border-bottom:1px solid var(--border2);flex-shrink:0;display:flex;align-items:center;gap:8px">
-      <span style="${ttl}">Curva de rendimientos</span><span data-curva-sel style="margin-left:10px"></span>
+      <button type="button" class="res-pleg-btn" onclick="resPlegar('ures-curva')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="${ttl}">Curva de rendimientos</span></button><span data-curva-sel style="margin-left:10px"></span>
       <button class="btn" style="padding:1px 6px;font-size:var(--fs10)" onclick="usdResChartTogglePanel()">bonos ▾</button>
     </div>
     <div id="ures-chart-panel" style="display:none;padding:5px 10px;border-bottom:1px solid var(--border2);flex-shrink:0;overflow-x:auto">
@@ -19390,6 +19460,7 @@ function usdResumenRender(){
     <div style="flex:1;position:relative;min-height:0"><canvas id="ures-chart"></canvas></div>
   </div>
 </div>`;
+  resPlegAplicar();
   usdResRefresh();
   usdStartAutoRefresh();
 }

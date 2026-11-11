@@ -4879,6 +4879,45 @@ const omitir = (label, motivo) =>
         JSON.stringify(rev));
   check(rev.plegado && rev.ir, 'achicado esconde la lista, y un clic en un día abre el calendario en ese día', JSON.stringify(rev));
 
+  // Resumen: cada módulo se achica a su encabezado y el de al lado ocupa el
+  // lugar; la tabla Resumen y la curva en dólares, solas en su columna, quedan
+  // en una tira y las otras columnas se ensanchan.
+  const rpl = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const guardado = localStorage.getItem('bonosAR_res_plegados_v1');
+    const h = id => document.getElementById(id).getBoundingClientRect().height;
+    const w = id => document.getElementById(id).getBoundingClientRect().width;
+    const out = {};
+    switchSection('pesos'); switchTab('breakeven');
+    await espera(500);
+    const a = { col3: w('be-col3'), tf: h('be-chart-tf') };
+    resPlegar('be-col2'); resPlegar('be-graf-cer'); resPlegar('be-infla');
+    await espera(500);
+    out.col2 = Math.round(w('be-col2'));
+    out.col3Crece = w('be-col3') > a.col3 + 200;
+    out.tfCrece = h('be-chart-tf') > a.tf + 100;
+    out.inflaOculta = getComputedStyle(document.getElementById('be-tbody').closest('table')).display === 'none';
+    resPlegar('be-col2'); resPlegar('be-graf-cer'); resPlegar('be-infla');
+    await espera(300);
+    out.vuelve = w('be-col2') > 150 && getComputedStyle(document.getElementById('be-tbody').closest('table')).display !== 'none';
+    switchSection('usd'); switchUsdTab('usd-resumen');
+    await espera(500);
+    const f0 = h('ures-fwd-wrap'), c2 = w('ures-c2');
+    resPlegar('ures-sleg'); resPlegar('ures-curva');
+    await espera(500);
+    out.fwdCrece = h('ures-fwd-wrap') > f0 + 100;
+    out.c3 = Math.round(w('ures-c3'));
+    out.c2Crece = w('ures-c2') > c2 + 200;
+    resPlegar('ures-sleg'); resPlegar('ures-curva');
+    if (guardado == null) localStorage.removeItem('bonosAR_res_plegados_v1'); else localStorage.setItem('bonosAR_res_plegados_v1', guardado);
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  check(rpl.col2 <= 40 && rpl.col3Crece && rpl.tfCrece && rpl.inflaOculta && rpl.vuelve,
+        'en el Resumen de pesos los módulos se achican y el resto ocupa el lugar', JSON.stringify(rpl));
+  check(rpl.fwdCrece && rpl.c3 <= 40 && rpl.c2Crece,
+        'en el Resumen de dólares también', JSON.stringify(rpl));
+
   // Liquidez: liquidez.json con el REPO del MAE, la parte del BCRA estimada con
   // las dos tasas —contra lo que tomó el BCRA el 19/10 y el 27/10/2026— y la
   // página con sus cuatro gráficos, en pesos y en dólares.
