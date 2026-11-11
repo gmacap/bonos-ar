@@ -189,6 +189,23 @@ tr.calc-fuera:hover>td{opacity:.75;}
 .cal-ley{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--border2);border-radius:12px;background:var(--surface);color:var(--text2);font-family:var(--mono);font-size:var(--fs10);cursor:pointer;}
 .cal-ley.off{opacity:.38;text-decoration:line-through;}
 .cal-ley b{font-weight:500;color:var(--text3);}
+/* Resumen: los eventos del calendario de hoy a N días, con las mismas
+   etiquetas; cada día lleva al calendario. */
+.res-ev-cab{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+.res-ev-cab select{font-family:var(--mono);font-size:var(--fs10);padding:1px 4px;background:var(--surface);color:var(--text2);border:1px solid var(--border2);border-radius:3px;cursor:pointer;}
+.res-ev-plegar{display:inline-flex;align-items:center;gap:5px;background:none;border:none;padding:0;cursor:pointer;color:inherit;font:inherit;}
+.res-ev-chev{display:inline-block;font-size:var(--fs9);color:var(--text3);transition:transform .12s;}
+.res-ev.plegado .res-ev-chev{transform:rotate(-90deg);}
+.res-ev.plegado .res-ev-cab{margin-bottom:0;}
+.res-ev.plegado .res-ev-lista{display:none;}
+.res-ev-lista{display:flex;flex-direction:column;gap:3px;}
+.res-ev-dia{display:flex;gap:8px;align-items:flex-start;padding:2px 4px;margin:0 -4px;border-radius:3px;cursor:pointer;}
+.res-ev-dia:hover{background:var(--surface2);}
+.res-ev-fecha{flex:0 0 64px;font-family:var(--mono);font-size:var(--fs10);line-height:1.6;color:var(--text2);white-space:nowrap;}
+.res-ev-fecha.hoy{color:var(--accent);font-weight:600;}
+.res-ev-items{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.res-ev .cal-ev{white-space:normal;}
+.res-ev-nota{font-family:var(--mono);font-size:var(--fs10);color:var(--text3);}
 .por-liquidar{display:inline-block;margin-left:6px;padding:0 5px;border:1px solid var(--warn);border-radius:3px;color:var(--warn);font-size:var(--fs9);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;}
 .nav-tab.disabled{opacity:.3;cursor:not-allowed;}
 .proy-subtab{padding:5px 2px;font-size:var(--fs11);font-family:var(--mono);color:var(--text3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
@@ -1574,6 +1591,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 
     <!-- COL 1: Breakevens (resizable) -->
     <div id="be-col1" style="width:420px;min-width:140px;overflow-y:auto;overflow-x:hidden;padding:.75rem .75rem;display:flex;flex-direction:column;gap:1rem;border-right:1px solid var(--border);flex-shrink:0;">
+
+      <!-- Próximos eventos: los del calendario, de hoy a N días -->
+      <div id="res-ev-ars" class="res-ev"></div>
 
       <!-- BE Inflación -->
       <div>
@@ -3041,7 +3061,7 @@ async function authAction(){
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
-  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1'];
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
 
@@ -10104,6 +10124,7 @@ function beRefreshIfVisible(){
   beTamarRecalc();
   beDevalRecalc();
   beTableroRender();
+  try{resEvPintar('ars');}catch(e){console.warn('[eventos]',e.message);}
   beCPRecalc();
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     beRenderChartTF();
@@ -10126,6 +10147,8 @@ function beInit(){
   // arranque, beInit corre antes, y tocarla ahí cortaba la carga de toda la
   // página. Se pinta en cuanto termina de ejecutarse el script.
   setTimeout(()=>{try{beDevalRecalc();beTableroRender();}catch(e){console.warn('[tablero]',e.message);}},0);
+  // Los eventos usan el calendario, que también se declara más abajo.
+  setTimeout(()=>{try{resEvPintar('ars');}catch(e){console.warn('[eventos]',e.message);}},0);
   beCPRecalc();
   // double rAF ensures canvas has real layout dimensions before Chart.js renders
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
@@ -12444,9 +12467,7 @@ function calAutoEventos(){
   return ev;
 }
 
-function calFeriadosMes(y,m){
-  const desde=calFmtFecha(y,m,1);
-  const hasta=calFmtFecha(y,m,new Date(y,m+1,0).getDate());
+function calFeriadosRango(desde,hasta){
   return [...FERIADOS_BASE,..._FERIADOS_EXTRA]
     .filter(f=>f.fecha>=desde&&f.fecha<=hasta)
     .map(f=>({id:`feriado_${f.fecha}`,fecha:f.fecha,tipo:'feriado',titulo:f.desc||'Feriado Nacional',auto:true}));
@@ -12454,6 +12475,11 @@ function calFeriadosMes(y,m){
 
 function calEventosPorFecha(conOcultos){
   const y=CAL_MES.getFullYear(), m=CAL_MES.getMonth();
+  return calEventosRango(calFmtFecha(y,m,1),calFmtFecha(y,m,new Date(y,m+1,0).getDate()),conOcultos);
+}
+// Los eventos de un rango de fechas, día por día: el mes del calendario y los
+// próximos días del Resumen salen de acá.
+function calEventosRango(desde,hasta,conOcultos){
   const cub=calCubiertos(),ocultos=conOcultos?new Set():calOcultos();
   // Una corrección a mano de un IPC aproximado ya no va si ese mes tiene la
   // fecha oficial.
@@ -12465,9 +12491,8 @@ function calEventosPorFecha(conOcultos){
   // Una licitación cargada a mano tapa la automática del mismo día y tipo.
   const adminIds=new Set(admin.map(e=>e.id)),adminDia=new Set(admin.map(e=>e.tipo+'|'+e.fecha));
   const autoFiltrados=calAutoEventos().filter(e=>!adminIds.has(e.id)&&!(e.id.startsWith('lic_')&&adminDia.has(e.tipo+'|'+e.fecha)));
-  const desde=calFmtFecha(y,m,1),hasta=calFmtFecha(y,m,new Date(y,m+1,0).getDate());
   const map={};
-  [...autoFiltrados,...admin,...calFeriadosMes(y,m)].forEach(e=>{
+  [...autoFiltrados,...admin,...calFeriadosRango(desde,hasta)].forEach(e=>{
     if(!e.fecha||e.fecha<desde||e.fecha>hasta||ocultos.has(e.tipo))return;
     if(!map[e.fecha])map[e.fecha]=[];
     map[e.fecha].push(e);
@@ -12510,6 +12535,89 @@ function calLeyenda(){
     +`<span style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono)">· tocá un tipo para ocultarlo</span>`;
   const f=document.getElementById('cal-fuentes');
   if(f)f.textContent=CAL_DATA&&CAL_DATA.generado?'Fechas oficiales al '+new Date(CAL_DATA.generado).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}):'';
+}
+
+// ── Resumen: próximos eventos ───────────────────────────────────────────────
+// Los mismos eventos del calendario, de hoy a N días, en el Resumen de pesos y
+// en el de dólares. Cada sección guarda sus días y si está achicado; lo que se
+// oculta en la leyenda del calendario tampoco va acá. Un clic en un día abre el
+// calendario en ese día.
+function resEvEstado(sec){
+  let s={};
+  try{const o=JSON.parse(localStorage.getItem('bonosAR_res_eventos_v1')||'{}');s=(o&&o[sec])||{};}catch(e){}
+  const d=Math.round(+s.dias);
+  return{dias:Number.isFinite(d)&&d>=0?Math.min(d,90):7,plegado:!!s.plegado};
+}
+function resEvGuardar(sec,cambio){
+  let o={};
+  try{o=JSON.parse(localStorage.getItem('bonosAR_res_eventos_v1')||'{}')||{};}catch(e){}
+  o[sec]=Object.assign(resEvEstado(sec),cambio);
+  try{localStorage.setItem('bonosAR_res_eventos_v1',JSON.stringify(o));}catch(e){}
+}
+function resEvDias(sec,v){resEvGuardar(sec,{dias:+v});resEvPintar(sec,true);}
+function resEvPlegar(sec){resEvGuardar(sec,{plegado:!resEvEstado(sec).plegado});resEvPintar(sec,true);}
+function resEvIr(fecha){
+  if(fecha){CAL_MES=new Date(+fecha.slice(0,4),+fecha.slice(5,7)-1,1);CAL_SELECTED_DATE=fecha;}
+  else{CAL_MES=new Date(TODAY.getFullYear(),TODAY.getMonth(),1);CAL_SELECTED_DATE=null;}
+  if(currentSection!=='pesos'){currentTab='calendario';switchSection('pesos');}
+  else switchTab('calendario');
+}
+function resEvPintar(sec,forzar){
+  const el=document.getElementById('res-ev-'+sec);
+  if(!el)return;
+  // Las fechas oficiales y el cronograma de licitaciones llegan aparte: se
+  // piden una vez y, cuando llegan, se vuelve a pintar.
+  if(!resEvPintar.pedido){
+    resEvPintar.pedido=true;
+    const pend=[];
+    if(!CAL_DATA)pend.push(calCargar());
+    if(typeof licCargar==='function'&&!LIC_DATA)pend.push(licCargar().catch(()=>null));
+    if(pend.length){
+      resEvPintar.esperando=true;
+      Promise.all(pend).catch(()=>{}).then(()=>{resEvPintar.esperando=false;resEvPintar('ars');resEvPintar('usd');});
+    }
+  }
+  calLoadEventos();
+  const st=resEvEstado(sec),hoy=hoyAR();
+  const mas=n=>{const d=parseDate(hoy);d.setDate(d.getDate()+n);return fmtDate(d);};
+  const hasta=mas(st.dias),manana=mas(1);
+  const map=calEventosRango(hoy,hasta);
+  const dias=Object.keys(map).sort();
+  const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const etiqueta=f=>f===hoy?'Hoy':f===manana?'Mañana':CAL_DIAS_ABR[parseDate(f).getDay()]+' '+f.slice(8,10)+'/'+f.slice(5,7);
+  let n=0;
+  const filas=dias.map(f=>{
+    const items=calItemsDia(map[f]);
+    n+=items.length;
+    return`<div class="res-ev-dia" onclick="resEvIr('${f}')" title="Ver el ${f.slice(8,10)}/${f.slice(5,7)} en el calendario">
+      <span class="res-ev-fecha${f===hoy?' hoy':''}">${etiqueta(f)}</span>
+      <span class="res-ev-items">${items.map(it=>`<span class="cal-ev" style="--c:${(CAL_TIPOS[it.tipo]||CAL_TIPOS.custom).color}" title="${esc(it.title||it.txt)}">${esc(it.txt)}</span>`).join('')}</span>
+    </div>`;
+  }).join('');
+  const plazo=st.dias?`en los próximos ${st.dias} días`:'hoy';
+  const opciones=[[0,'hoy'],[3,'3 días'],[7,'7 días'],[15,'15 días'],[30,'30 días']];
+  if(!opciones.some(o=>o[0]===st.dias))opciones.push([st.dias,st.dias+' días']);
+  const titulo=sec==='usd'
+    ?`<span style="font-size:var(--fs11);font-weight:600;color:var(--text);letter-spacing:.03em;text-transform:uppercase">Próximos eventos</span>`
+    :`<span style="font-family:var(--serif);font-size:var(--fs13);font-weight:300;font-style:italic;color:var(--accent)">Próximos eventos</span>`;
+  const oc=[...calOcultos()].filter(t=>CAL_TIPOS[t]).map(t=>CAL_TIPOS[t].label.toLowerCase());
+  const html=`<div class="res-ev-cab">
+      <button type="button" class="res-ev-plegar" onclick="resEvPlegar('${sec}')" aria-expanded="${!st.plegado}" title="${st.plegado?'Mostrar los eventos':'Achicar'}"><span class="res-ev-chev">▾</span>${titulo}</button>
+      ${st.plegado?`<span class="res-ev-nota">${n} ${n===1?'evento':'eventos'} ${plazo}</span>`:''}
+      <span style="margin-left:auto;display:flex;gap:5px;align-items:center">
+        <select id="res-ev-dias-${sec}" onchange="resEvDias('${sec}',this.value)" title="Cuántos días para adelante" aria-label="Días para adelante">${opciones.map(([v,t])=>`<option value="${v}"${v===st.dias?' selected':''}>${t}</option>`).join('')}</select>
+        <button type="button" class="btn" style="margin:0;padding:1px 6px;font-size:var(--fs10)" onclick="resEvIr()" title="Abrir el calendario">calendario</button>
+      </span>
+    </div>
+    <div class="res-ev-lista">${filas||`<div class="res-ev-nota">Sin eventos ${plazo}.</div>`}
+      ${resEvPintar.esperando?`<div class="res-ev-nota">Cargando las fechas oficiales…</div>`:''}
+      ${oc.length?`<div class="res-ev-nota">Ocultos desde el calendario: ${esc(oc.join(', '))}.</div>`:''}
+    </div>`;
+  el.classList.toggle('plegado',st.plegado);
+  // Se repinta con cada refresco del Resumen: si no cambió nada, no se toca.
+  if(!forzar&&el._resEv===html)return;
+  el._resEv=html;
+  el.innerHTML=html;
 }
 
 function calInit(){
@@ -19243,6 +19351,7 @@ function usdResumenRender(){
   <div style="${drag}" onmousedown="usdResDragStart(event,'c1')" onmouseover="this.style.background='var(--accent)'" onmouseout="this.style.background='var(--border2)'"></div>
   <!-- COL 2 -->
   <div id="ures-c2" style="width:${w2}px;min-width:200px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden">
+    <div id="res-ev-usd" class="res-ev" style="flex:0 1 auto;max-height:42%;overflow-y:auto;padding:5px 10px 7px;border-bottom:1px solid var(--border2)"></div>
     <div style="padding:5px 10px;display:flex;align-items:center;gap:10px;background:var(--surface2);border-bottom:1px solid var(--border2);flex-shrink:0;flex-wrap:wrap">
       <span style="${ttl}">Cartera</span>
       <button class="btn" style="padding:2px 8px;font-size:var(--fs10)" onclick="usdResModalOpen()">+ Agregar</button>
@@ -19413,6 +19522,7 @@ function usdResRefresh(){
   usdResFwdRender();
   usdResSumRender();
   usdResChartRenderIndep();
+  setTimeout(()=>{try{resEvPintar('usd');}catch(e){console.warn('[eventos]',e.message);}},0);
 }
 
 function usdResSpreadRender(){

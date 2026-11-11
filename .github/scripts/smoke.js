@@ -4846,6 +4846,39 @@ const omitir = (label, motivo) =>
         'cada día muestra sus eventos con texto y la leyenda oculta y vuelve a mostrar un tipo',
         JSON.stringify({ chips: cal.chips, texto: cal.conTexto, ley: cal.leyenda, oculta: cal.oculta, vuelve: cal.vuelve }));
 
+  // Resumen: los eventos del calendario de hoy a N días, en pesos y en dólares.
+  // Más días traen al menos los mismos; achicado no muestra la lista; un clic
+  // en un día abre el calendario en ese día.
+  const rev = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const guardado = localStorage.getItem('bonosAR_res_eventos_v1');
+    const out = {};
+    switchSection('pesos'); switchTab('breakeven');
+    await espera(400);
+    const n = () => document.querySelectorAll('#res-ev-ars .res-ev-dia').length;
+    resEvDias('ars', 3); out.d3 = n();
+    resEvDias('ars', 30); out.d30 = n();
+    out.chips = document.querySelectorAll('#res-ev-ars .cal-ev').length;
+    resEvPlegar('ars');
+    out.plegado = document.getElementById('res-ev-ars').classList.contains('plegado')
+      && getComputedStyle(document.querySelector('#res-ev-ars .res-ev-lista')).display === 'none';
+    resEvPlegar('ars');
+    switchSection('usd'); switchUsdTab('usd-resumen');
+    await espera(400);
+    out.usd = document.querySelectorAll('#res-ev-usd .res-ev-dia').length;
+    const dia = document.querySelector('#res-ev-usd .res-ev-dia');
+    const f = dia && dia.getAttribute('onclick').match(/\d{4}-\d{2}-\d{2}/)[0];
+    if (dia) dia.click();
+    out.ir = currentSection === 'pesos' && currentTab === 'calendario' && CAL_SELECTED_DATE === f;
+    if (guardado == null) localStorage.removeItem('bonosAR_res_eventos_v1'); else localStorage.setItem('bonosAR_res_eventos_v1', guardado);
+    switchTab('breakeven');
+    return out;
+  });
+  check(rev.d30 >= rev.d3 && rev.d30 > 0 && rev.chips > 0 && rev.usd > 0,
+        'el Resumen de pesos y el de dólares muestran los eventos de los próximos días, y con más días no se pierde ninguno',
+        JSON.stringify(rev));
+  check(rev.plegado && rev.ir, 'achicado esconde la lista, y un clic en un día abre el calendario en ese día', JSON.stringify(rev));
+
   // Liquidez: liquidez.json con el REPO del MAE, la parte del BCRA estimada con
   // las dos tasas —contra lo que tomó el BCRA el 19/10 y el 27/10/2026— y la
   // página con sus cuatro gráficos, en pesos y en dólares.
