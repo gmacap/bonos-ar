@@ -3772,17 +3772,28 @@ const omitir = (label, motivo) =>
     const respuesta = (filas, total) => new Response(JSON.stringify({
       status: 200, metadata: { resultset: { count: total } }, results: [{ idVariable: 30, detalle: filas }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    const esCer = u => /workers\.dev\/cer\?id=30&/.test(String(u));
+    // La app pide primero directo a la API del BCRA y, si no contesta, por el
+    // Worker: el simulacro corta los dos caminos.
+    const esDirecto = u => /api\.bcra\.gob\.ar\/estadisticas\/v4\.0\/Monetarias\/30\?/.test(String(u));
+    const esWorker = u => /workers\.dev\/cer\?id=30&/.test(String(u));
+    const esCer = u => esDirecto(u) || esWorker(u);
     const url = `${WORKER_URL}?id=30&desde=2002-01-01&limit=3000&offset=0`;
     try {
-      // Dos fallas y a la tercera contesta; tres fallas y lanza.
-      let n = 0;
-      window.fetch = (u, o) => esCer(u) ? (++n < 3 ? Promise.reject(new TypeError('red')) : Promise.resolve(respuesta(copia, copia.length))) : fetchReal(u, o);
+      // Directo no contesta, y por el Worker dos fallas y a la tercera contesta;
+      // con todo caído, un intento directo y tres por el Worker, y lanza.
+      let n = 0, nd = 0;
+      window.fetch = (u, o) => esDirecto(u) ? (nd++, Promise.reject(new TypeError('red')))
+        : esWorker(u) ? (++n < 3 ? Promise.reject(new TypeError('red')) : Promise.resolve(respuesta(copia, copia.length))) : fetchReal(u, o);
       const p = await bcraPedirPagina(url);
-      out.reintenta = n === 3 && p.results.length === copia.length;
-      n = 0;
-      window.fetch = (u, o) => esCer(u) ? (n++, Promise.reject(new TypeError('red'))) : fetchReal(u, o);
-      try { await bcraPedirPagina(url); out.lanza = false; } catch (e) { out.lanza = n === 3 && /no respondió/.test(e.message); }
+      out.reintenta = nd === 1 && n === 3 && p.results.length === copia.length;
+      n = 0; nd = 0;
+      window.fetch = (u, o) => esDirecto(u) ? (nd++, Promise.reject(new TypeError('red'))) : esWorker(u) ? (n++, Promise.reject(new TypeError('red'))) : fetchReal(u, o);
+      try { await bcraPedirPagina(url); out.lanza = false; } catch (e) { out.lanza = nd === 1 && n === 3 && /no respondió/.test(e.message); }
+      // Si el directo contesta, el Worker ni se pide.
+      n = 0; nd = 0;
+      window.fetch = (u, o) => esDirecto(u) ? (nd++, Promise.resolve(respuesta(copia, copia.length))) : esWorker(u) ? (n++, Promise.reject(new TypeError('red'))) : fetchReal(u, o);
+      const pd = await bcraPedirPagina(url);
+      out.directo = nd === 1 && n === 0 && pd.results.length === copia.length;
 
       // La primera página llega y la segunda no: ni serie a medias ni guardada.
       window.fetch = (u, o) => esCer(u)
@@ -3822,6 +3833,7 @@ const omitir = (label, motivo) =>
   else {
     check(bcra.reintenta && bcra.lanza, 'cada página del BCRA se pide hasta tres veces, y si no contesta falla en vez de cortar la serie',
           JSON.stringify({ reintenta: bcra.reintenta, lanza: bcra.lanza }));
+    check(bcra.directo, 'la página se pide directo a la API del BCRA, y el Worker sólo si eso no contesta');
     check(bcra.sinMedias, 'una página que falta en el medio no deja la serie a medias ni la guarda');
     check(bcra.alAbrir && bcra.siguen && bcra.avisoFecha && bcra.reintento,
           'sin respuesta del BCRA queda la serie guardada aunque esté vencida, con el aviso de qué día es, y se reintenta sola',
@@ -3842,7 +3854,7 @@ const omitir = (label, motivo) =>
     const cacheReal = localStorage.getItem(TAMAR_CACHE_KEY), fetchReal = window.fetch;
     try {
       // Desde el BCRA: llega la serie con un 0 al final.
-      window.fetch = (u, o) => /workers\.dev\/cer\?id=44&/.test(String(u))
+      window.fetch = (u, o) => /workers\.dev\/cer\?id=44&|api\.bcra\.gob\.ar\/estadisticas\/v4\.0\/Monetarias\/44\?/.test(String(u))
         ? Promise.resolve(new Response(JSON.stringify({ status: 200, metadata: { resultset: { count: conCero.length } },
             results: [{ idVariable: 44, detalle: conCero.slice().reverse() }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
         : fetchReal(u, o);
@@ -3887,7 +3899,7 @@ const omitir = (label, motivo) =>
       localStorage.setItem(CER_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: copia.slice(0, -40) }));
       CER_INDEX = [];
       window.fetch = (u, o) => {
-        if (/workers\.dev\/cer\?id=30&/.test(String(u))) {
+        if (/workers\.dev\/cer\?id=30&|api\.bcra\.gob\.ar\/estadisticas\/v4\.0\/Monetarias\/30\?/.test(String(u))) {
           pidio = true;
           return Promise.resolve(new Response(JSON.stringify({ status: 200, metadata: { resultset: { count: copia.length } },
             results: [{ idVariable: 30, detalle: copia }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
@@ -4958,6 +4970,16 @@ const omitir = (label, motivo) =>
     out.foco = vis().join() === 'g-tasa' && document.getElementById('liq-g-tasa').getBoundingClientRect().height > alto0 + 50;
     liqFoco('ars', null); await espera(300);
     out.vuelve = vis().length === 4;
+    // El dato del BCRA (id 198, "Otros" del informe monetario diario) contra la
+    // estimación: el 27/10/2026 publicó 2,988 billones.
+    for (let k = 0; k < 60 && !LIQ_OFICIAL && LIQ_OFICIAL_PEDIDO; k++) await espera(250);
+    if (LIQ_OFICIAL) {
+      liqRender('ars');
+      const r27 = R.find(x => x[0] === '2026-10-27');
+      out.oficial = { dato: LIQ_OFICIAL.get('2026-10-27'), est: r27 ? liqEstimar(r27).bcra : null,
+        series: LIQ_CHARTS.ars['liq-g-bcra'].data.datasets.map(d => d.label).join(' + '),
+        tarjeta: [...document.querySelectorAll('#liq-tiles > div')].some(d => /Estimación vs\. BCRA/.test(d.textContent)) };
+    }
     switchSection('usd'); switchUsdTab('usd-liquidez'); await espera(800);
     out.usd = ['uliq-g-bcra', 'uliq-g-mix', 'uliq-g-var', 'uliq-g-tasa'].filter(k => LIQ_CHARTS.usd[k]).length;
     switchSection('pesos'); switchTab('breakeven');
@@ -4977,6 +4999,11 @@ const omitir = (label, motivo) =>
     check(liq.paleta && liq.foco && liq.vuelve,
           'los gráficos usan los colores de la app, y ampliar deja uno solo, más alto, y vuelve a los cuatro',
           JSON.stringify({ paleta: liq.paleta, foco: liq.foco, vuelve: liq.vuelve }));
+    if (!liq.oficial) omitir('liquidez: el dato del BCRA', 'el BCRA no respondió ahora');
+    else check(Math.abs(liq.oficial.dato - 2.988) < 0.005 && Math.abs(liq.oficial.est - liq.oficial.dato) < 0.05
+               && liq.oficial.series === 'Dato del BCRA + Nuestra estimación' && liq.oficial.tarjeta,
+          'el primer gráfico muestra el dato del BCRA con la estimación encima, y la tarjeta mide cuánto le erra',
+          JSON.stringify(liq.oficial));
   }
 
   // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.

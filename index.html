@@ -6641,7 +6641,29 @@ var BCRA_SERIES={
 
 // Una página de una serie del BCRA por el Worker. Lanza si no contesta en
 // ningún intento: una página que falta no puede pasar por el final de la serie.
+// El mismo pedido que el Worker le hace al BCRA, pero directo: la API abre
+// CORS y contesta en menos de un segundo, mientras que desde Cloudflare llegó a
+// tardar 20 segundos por pedido (11/11/2026). Mismos parámetros, misma
+// respuesta; si el pedido directo falla, va por el Worker como siempre.
+function bcraDirecto(url){
+  if(typeof url!=='string'||!url.startsWith(WORKER_URL+'?'))return null;
+  const q=new URLSearchParams(url.slice(WORKER_URL.length+1));
+  const id=q.get('id')||'30',desde=q.get('desde')||'2002-01-01',lim=q.get('limit')||'15000',off=q.get('offset')||'0';
+  if(!/^\d{1,7}$/.test(id)||!/^\d{4}-\d{2}-\d{2}$/.test(desde)||!/^\d{1,7}$/.test(lim)||!/^\d{1,7}$/.test(off))return null;
+  return`https://api.bcra.gob.ar/estadisticas/v4.0/Monetarias/${id}?desde=${desde}&limit=${Math.min(+lim,15000)}&offset=${+off}`;
+}
 async function bcraPedirPagina(url){
+  const directo=bcraDirecto(url);
+  if(directo){
+    try{
+      const res=await fetch(directo,{signal:AbortSignal.timeout(8000)});
+      if(res.ok){
+        const json=await res.json();
+        if(json.results&&json.results[0]&&json.results[0].detalle)
+          return{results:json.results[0].detalle,metadata:json.metadata};
+      }
+    }catch(e){}
+  }
   let motivo='';
   for(let i=0;i<BCRA_ESPERAS.length;i++){
     try{
@@ -7913,9 +7935,14 @@ let BANDA_INDEX=[]; // [{fecha,inf,sup}] ascendente, sólo lo publicado
 
 async function bandaFetchSerie(id){
   const url=`${WORKER_URL}?id=${id}&desde=2025-04-01&limit=3000&offset=0`;
-  const res=await fetch(url,{signal:AbortSignal.timeout(20000)});
-  if(!res.ok)throw new Error('HTTP '+res.status);
-  const j=await res.json();
+  // Directo al BCRA primero, y si no, por el Worker (ver bcraDirecto).
+  let j=null;
+  try{const r=await fetch(bcraDirecto(url),{signal:AbortSignal.timeout(8000)});if(r.ok)j=await r.json();}catch(e){}
+  if(!(j&&j.results&&j.results[0]&&j.results[0].detalle)){
+    const res=await fetch(url,{signal:AbortSignal.timeout(30000)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    j=await res.json();
+  }
   const det=(j.results&&j.results[0]&&j.results[0].detalle)||[];
   return det.filter(r=>r.fecha&&r.valor!=null)
     .map(r=>({fecha:(r.fecha||'').split('T')[0],valor:parseFloat(r.valor)}))
@@ -22066,10 +22093,9 @@ async function bcraSerieDiaria(id,desde){
   const hit=_bcraCache.get(clave);
   if(hit&&Date.now()-hit.ts<6*60*60*1000)return hit.data;
   const m=new Map();
-  try{
+  const pedir=async(url,ms)=>{
     for(let offset=0;offset<=15000;offset+=3000){
-      const res=await fetch(`${WORKER_URL}?id=${id}&desde=${desde}&limit=3000&offset=${offset}`,
-        {signal:AbortSignal.timeout(20000)});
+      const res=await fetch(url(offset),{signal:AbortSignal.timeout(ms)});
       if(!res.ok)throw new Error('BCRA HTTP '+res.status);
       const j=await res.json();
       const det=(j.results&&j.results[0]&&j.results[0].detalle)||[];
@@ -22079,7 +22105,16 @@ async function bcraSerieDiaria(id,desde){
       }
       if(det.length<3000)break;
     }
-  }catch(e){console.warn('[bcra '+id+']',e.message);return m;}
+  };
+  // Directo a la API del BCRA, que abre CORS y contesta en menos de un segundo;
+  // si no contesta, por el Worker. Desde Cloudflare el BCRA llegó a tardar 20
+  // segundos por pedido (11/11/2026), y con eso se cortaban las series.
+  try{await pedir(o=>`https://api.bcra.gob.ar/estadisticas/v4.0/Monetarias/${id}?desde=${desde}&limit=3000&offset=${o}`,8000);}
+  catch(e){
+    m.clear();
+    try{await pedir(o=>`${WORKER_URL}?id=${id}&desde=${desde}&limit=3000&offset=${o}`,30000);}
+    catch(e2){console.warn('[bcra '+id+']',e2.message);return m;}
+  }
   if(m.size)_bcraCache.set(clave,{ts:Date.now(),data:m});
   return m;
 }
@@ -25058,6 +25093,13 @@ var LIQ_TASA_BCRA=20;     // TNA a la que toma el BCRA en el REPO
 var LIQ_ERR_MAX=0.05;     // error de redondeo de su parte desde el que la rueda va atenuada
 var LIQ_LS='bonosAR_liquidez_v1';
 var LIQ_VENT=[['22','1 mes'],['66','3 meses'],['132','6 meses'],['todo','Desde enero']];
+// El dato del BCRA: su posición en operaciones de corto plazo a tasa de mercado
+// —"Otros" en la hoja de instrumentos del informe monetario diario, id 198 de
+// la API—, el saldo del pasivo neto del activo, en millones. Incluye las
+// simultáneas de BYMA, y es negativo cuando el BCRA presta. Sale con un día de
+// atraso: la última rueda va con la estimación hasta que se publica.
+var LIQ_ID_OFICIAL=198;
+var LIQ_OFICIAL=null,LIQ_OFICIAL_PEDIDO=false;   // Map fecha → billones
 var LIQ_FOCO={ars:null,usd:null};   // el gráfico ampliado de cada sección
 var LIQ_GRAFICOS=['g-bcra','g-mix','g-var','g-tasa'];
 // Los colores de la app, con un sentido fijo en los cuatro gráficos: el celeste
@@ -25067,7 +25109,19 @@ var LIQ_GRAFICOS=['g-bcra','g-mix','g-var','g-tasa'];
 function liqPaleta(){
   const cs=getComputedStyle(document.body),v=(k,d)=>cs.getPropertyValue(k).trim()||d;
   return{bcra:[56,189,248,.7],resto:[150,150,150,.45],bcraLinea:'rgba(56,189,248,0.75)',
-    total:v('--accent','#a8d5a2'),pct:v('--warn','#d4a96a'),sin:'rgba(150,150,150,0.95)'};
+    total:v('--accent','#a8d5a2'),pct:v('--warn','#d4a96a'),sin:'rgba(150,150,150,0.95)',est:v('--text','#e0e0e0')};
+}
+// El dato del BCRA se pide una vez por sesión; si no contesta, la página sigue
+// con la estimación y lo vuelve a pedir la próxima vez que se abre.
+function liqCargarOficial(){
+  if(LIQ_OFICIAL||LIQ_OFICIAL_PEDIDO)return;
+  LIQ_OFICIAL_PEDIDO=true;
+  bcraSerieDiaria(LIQ_ID_OFICIAL,'2025-12-01').then(m=>{
+    if(m&&m.size){
+      LIQ_OFICIAL=new Map([...m].map(([f,v])=>[f,v/1e6]));
+      ['ars','usd'].forEach(s=>{if(document.getElementById(LIQ_SEC[s].p+'-tiles'))liqRender(s);});
+    }else LIQ_OFICIAL_PEDIDO=false;
+  }).catch(()=>{LIQ_OFICIAL_PEDIDO=false;});
 }
 function liqFoco(sec,id){
   LIQ_FOCO[sec]=LIQ_GRAFICOS.includes(id)?id:null;
@@ -25133,6 +25187,7 @@ async function liqInit(sec){
   if(!pg.innerHTML.trim())pg.innerHTML=liqPaginaHTML(sec);
   const est=document.getElementById(S.p+'-estado');
   if(!LIQ_DATA&&est)est.textContent='Cargando el REPO…';
+  liqCargarOficial();
   await liqCargar();
   if(!LIQ_DATA){if(est)est.textContent='No se pudo leer el REPO: '+(LIQ_ERROR||'sin datos');return;}
   liqRender(sec);
@@ -25144,7 +25199,9 @@ function liqPaginaHTML(sec){
   const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px;min-width:0';
   const nota=`El REPO en pesos a un día del MAE, rueda por rueda. El MAE publica el volumen y la tasa promedio de todo el REPO y la misma sin el BCRA, pero no cuánto operó el BCRA: `
     +`se estima suponiendo que toma a ${LIQ_TASA_BCRA}% TNA. Así, la tasa de todo el REPO es el promedio de la del BCRA y la del resto, y la parte del BCRA es `
-    +`(tasa sin BCRA − tasa) / (tasa sin BCRA − ${LIQ_TASA_BCRA}). Contra lo que tomó el BCRA entre el 06/10 y el 04/11/2026 da dentro de 0,05 billones por rueda. `
+    +`(tasa sin BCRA − tasa) / (tasa sin BCRA − ${LIQ_TASA_BCRA}). `
+    +`El BCRA publica su posición con un día de atraso en el informe monetario diario: "Otros" en la hoja de instrumentos, el saldo de sus operaciones de corto plazo a tasa de mercado, que incluye las simultáneas de BYMA y es negativo cuando presta. `
+    +`El primer gráfico muestra ese dato, con la estimación encima para compararla; la rueda que el BCRA todavía no publicó va con la estimación, más tenue. La mezcla y la variación usan la estimación, que reparte el volumen del MAE. `
     +`Las tasas vienen con dos decimales: cuando el mercado opera cerca del ${LIQ_TASA_BCRA}% la cuenta pierde precisión, y esas ruedas van atenuadas. Si una rueda el BCRA además inyecta, a otra tasa, la estimación mezcla las dos puntas. `
     +`Lo intradía —las operaciones del día, la inyección acumulada del BCRA, lo de hoy contra los promedios— necesita las operaciones una por una, que el MAE no publica.`;
   const card=(id,titulo,bajada)=>`<section id="${p}-c-${id}" style="${caja}">
@@ -25159,7 +25216,7 @@ function liqPaginaHTML(sec){
     </div>
     <div id="${p}-tiles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px"></div>
     <div id="${p}-graficos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(520px,100%),1fr));gap:14px">
-      ${card('g-bcra','Pesos tomados por el BCRA en REPO','billones de $')}
+      ${card('g-bcra','Pesos tomados por el BCRA en REPO','billones de $ · dato del BCRA y nuestra estimación')}
       ${card('g-mix','Pesos tomados en REPO','billones de $ · BCRA y resto, y el % del BCRA')}
       ${card('g-var','Variación diaria: BCRA y resto','billones de $ contra la rueda anterior')}
       ${card('g-tasa','Tasa del REPO','TNA % · de todo el REPO y sin el BCRA')}
@@ -25183,21 +25240,37 @@ function liqRender(sec){
   const est=document.getElementById(p+'-estado');
   if(est){
     const g=LIQ_DATA.generado?new Date(LIQ_DATA.generado):null;
-    est.textContent=`Fuente: MAE${g?' · actualizado '+g.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})+' '+g.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):''}`;
+    const fo=LIQ_OFICIAL&&LIQ_OFICIAL.size?[...LIQ_OFICIAL.keys()].sort().pop():null;
+    est.textContent=`Fuente: MAE${g?' · actualizado '+g.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})+' '+g.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):''}`
+      +(fo?` · BCRA al ${liqDia(fo)}`:LIQ_OFICIAL_PEDIDO?' · pidiendo el dato del BCRA…':'');
   }
   const serie=liqSerie();
   if(serie.length<2)return;
   const X=v==='todo'?serie:serie.slice(1);
   const ult=X[X.length-1],ant=serie[serie.length-2];
+  // El dato del BCRA donde ya salió; val es lo que se muestra como "lo que tomó
+  // el BCRA": su dato, o la estimación en la rueda que todavía no publicó.
+  serie.forEach(x=>{x.of=LIQ_OFICIAL&&LIQ_OFICIAL.has(x.f)?LIQ_OFICIAL.get(x.f):null;x.val=x.of!=null?x.of:x.bcra;});
+  const hayOf=X.some(x=>x.of!=null);
+  const cmp=X.filter(x=>x.of!=null&&x.bcra!=null).map(x=>({f:x.f,d:x.bcra-x.of}));
+  const absD=cmp.map(c=>Math.abs(c.d)).sort((a,b)=>a-b);
+  const medD=absD.length?(absD.length%2?absD[(absD.length-1)/2]:(absD[absD.length/2-1]+absD[absD.length/2])/2):null;
+  const peor=cmp.reduce((m,c)=>!m||Math.abs(c.d)>Math.abs(m.d)?c:m,null);
 
   // Las tarjetas: la última rueda.
   const nota=liqNotaRueda(ult);
   const tiles=document.getElementById(p+'-tiles');
   tiles.innerHTML=licTile(`REPO total · ${liqDia(ult.f)}`,'$ '+liqB(ult.total)+' bill.',null,'Volumen del REPO en pesos a un día, todas las ruedas del MAE')
-    +licTile('Tomado por el BCRA',ult.bcra!=null?`$ ${liqB(ult.bcra)} bill. · ${licN(ult.pct,1)}%`:'—',null,nota||'Estimado con las dos tasas promedio del MAE')
-    +licTile('Resto del mercado',ult.resto!=null?'$ '+liqB(ult.resto)+' bill.':'—',null,nota||'')
+    +licTile(ult.of!=null?'Tomado por el BCRA · su dato':'Tomado por el BCRA · estimado',ult.val!=null?`$ ${liqB(ult.val)} bill. · ${licN(ult.val/ult.total*100,1)}%`:'—',null,
+      ult.of!=null?`Posición del BCRA en el informe monetario diario. Nuestra estimación: $ ${liqB(ult.bcra)} bill.`
+        :(nota||'Estimado con las dos tasas promedio del MAE')+(hayOf?' · El BCRA publica con un día de atraso: esta rueda todavía no salió.':''))
+    +licTile('Resto del mercado',ult.resto!=null?'$ '+liqB(ult.resto)+' bill.':'—',null,nota||'Estimado: el volumen del MAE menos lo estimado para el BCRA')
     +licTile('Tasa promedio',`${licN(ult.t)}% · sin BCRA ${licN(ult.n)}%`,null,`TNA promedio ponderada de todo el REPO y sin las operaciones del BCRA, que toma a ${LIQ_TASA_BCRA}%`)
-    +(ant&&ant.bcra!=null&&ult.bcra!=null?licTile('BCRA contra la rueda anterior',(ult.bcra-ant.bcra>=0?'+':'')+liqB(ult.bcra-ant.bcra)+' bill.',ult.bcra>=ant.bcra?'var(--accent2)':'var(--danger)',`El ${liqDia(ant.f)} tomó $ ${liqB(ant.bcra)} bill.`):'');
+    +(ant&&ant.val!=null&&ult.val!=null?licTile('BCRA contra la rueda anterior',(ult.val-ant.val>=0?'+':'')+liqB(ult.val-ant.val)+' bill.',ult.val>=ant.val?'var(--accent2)':'var(--danger)',`El ${liqDia(ant.f)} tomó $ ${liqB(ant.val)} bill.${ant.of!=null?'':' (estimado)'}`):'')
+    +(cmp.length?licTile(`Estimación vs. BCRA · ${cmp.length} ruedas`,`± ${liqB(medD)} bill. mediana`,null,
+      `En las ${cmp.length} ruedas de la ventana con dato del BCRA, la estimación le erra por ${liqB(medD)} billones de mediana; `
+      +`${absD.filter(a=>a<=0.05).length} quedan dentro de 0,05 billones, y la que más se aleja es la del ${liqDia(peor.f)}, por ${liqB(Math.abs(peor.d))}. `
+      +`Las que más se alejan suelen ser las atenuadas, con la tasa sin BCRA pegada al ${LIQ_TASA_BCRA}%.`):'');
 
   // Ampliado: queda sólo ese gráfico, con todo el alto de la pantalla.
   const foco=LIQ_GRAFICOS.includes(LIQ_FOCO[sec])?LIQ_FOCO[sec]:null;
@@ -25228,11 +25301,25 @@ function liqRender(sec){
   const etiquetas=(fmt,extra)=>({display:()=>pocos,anchor:'end',align:'end',offset:1,clamp:true,color:col.texto,
     textStrokeColor:fondo,textStrokeWidth:3,font:{size:9,family:'DM Mono, monospace'},formatter:fmt,...extra});
 
-  // 1. Lo que tomó el BCRA.
-  liqChart(sec,`${p}-g-bcra`,{type:'bar',data:{labels:etq,datasets:[{label:'BCRA',data:X.map(x=>x.bcra),backgroundColor:X.map(x=>alfa(pal.bcra,x)),borderRadius:3,
-      datalabels:etiquetas(v=>v==null?'':licN(v,2))}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:16}},
-      plugins:{legend:{display:false},tooltip:{...tip(x=>[`Total del REPO: $ ${liqB(x.total)} bill.`]),callbacks:{...tip().callbacks,label:c=>`BCRA: $ ${liqB(c.parsed.y)} bill. (${licN(X[c.dataIndex].pct,1)}% del REPO)`,afterBody:tip(x=>[`Total del REPO: $ ${liqB(x.total)} bill.`]).callbacks.afterBody}}},
+  // 1. Lo que tomó el BCRA: su dato en barras y nuestra estimación encima, una
+  // raya por rueda, para compararlas. La rueda que el BCRA todavía no publicó
+  // va con la estimación, tenue y con borde. Sin el dato del BCRA, como antes.
+  const signoAncla=c=>(c.dataset.data[c.dataIndex]||0)>=0?'end':'start';
+  const ds1=[{label:hayOf?'Dato del BCRA':'BCRA (estimado)',data:X.map(x=>x.val),
+      backgroundColor:X.map(x=>x.of!=null?rgba(pal.bcra,pal.bcra[3]):hayOf?rgba(pal.bcra,0.22):alfa(pal.bcra,x)),
+      borderColor:X.map(x=>x.of==null&&hayOf?pal.bcraLinea:'rgba(0,0,0,0)'),borderWidth:X.map(x=>x.of==null&&hayOf?1:0),
+      borderRadius:3,order:2,datalabels:etiquetas(v=>v==null?'':licN(v,2),{anchor:signoAncla,align:signoAncla})}];
+  if(hayOf)ds1.push({label:'Nuestra estimación',type:'line',data:X.map(x=>x.of!=null?x.bcra:null),showLine:false,
+      pointStyle:'line',pointRadius:pocos?9:4,pointHoverRadius:pocos?11:6,pointBorderWidth:2.5,pointHoverBorderWidth:3,
+      borderColor:pal.est,backgroundColor:pal.est,order:1,datalabels:{display:false}});
+  liqChart(sec,`${p}-g-bcra`,{type:'bar',data:{labels:etq,datasets:ds1},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:150},layout:{padding:{top:16}},interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:hayOf,labels:{color:col.texto,font:{size:10},boxWidth:12}},tooltip:{...tip(),callbacks:{...tip().callbacks,
+        label:c=>{const x=X[c.dataIndex];
+          if(c.datasetIndex===0)return x.of!=null?`Dato del BCRA: $ ${liqB(x.of)} bill. (${licN(x.of/x.total*100,1)}% del REPO del MAE)`
+            :`Estimado: $ ${liqB(x.bcra)} bill.${hayOf?' · el BCRA todavía no publicó esta rueda':''}`;
+          return`Nuestra estimación: $ ${liqB(x.bcra)} bill. · diferencia ${x.bcra-x.of>=0?'+':''}${liqB(x.bcra-x.of)}`;},
+        afterBody:tip(x=>[`Total del REPO del MAE: $ ${liqB(x.total)} bill.`]).callbacks.afterBody}}},
       scales:{x:ejeX,y:{beginAtZero:true,ticks:{...tick,callback:v=>licN(v,1)},grid:grilla,title:{display:true,text:'billones de $',color:col.texto,font:{size:10}}}}}});
 
   // 2. BCRA y resto, apilados, con el % del BCRA.
