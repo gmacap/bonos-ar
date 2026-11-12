@@ -167,6 +167,7 @@
   "fija|2026-10-16": {"clase": "fija", "vencimiento": "2026-10-16", "moneda": "ARS", "tem": 2.05},
   "fija|2026-11-13": {"clase": "fija", "vencimiento": "2026-11-13", "moneda": "ARS", "tem": 2.1},
   "fija|2027-01-29": {"clase": "fija", "vencimiento": "2027-01-29", "moneda": "ARS", "tem": 2.25},
+  "tamar|2027-04-30": {"clase": "tamar", "vencimiento": "2027-04-30", "margen": 2.5, "moneda": "ARS"},
   "tamar|2027-07-30": {"clase": "tamar", "vencimiento": "2027-07-30", "margen": 5.4, "moneda": "ARS"},
   "usd|2027-10-29": {"clase": "usd", "vencimiento": "2027-10-29", "moneda": "USD"},
   "usd|2028-10-31": {"clase": "usd", "vencimiento": "2028-10-31", "moneda": "USD"},
@@ -260,6 +261,7 @@
   "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-13": {"fecha": "2026-09-28", "ev": [["T15E7", "s", 12482247.0], ["TZXY7", "s", 4205599.0], ["TML27", "s", 6300226.26], ["D30O6", "s", 5348.0], ["D30N6", "s", 1344.0]]},
   "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-15": {"fecha": "2026-10-14", "ev": [["S29E7", "s", 4976326.0], ["TMG28", "s", 6449527.0], ["TXMD9", "s", 8774083.0], ["TMVE8", "s", 4194.0]]},
   "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-para-la-conversion-de-la-lelink-d30o6-en-el-marco-del-articulo": {"fecha": "2026-10-20", "ev": [["D30O6", "s", 5348.0], ["D30N6", "+", 2681.0], ["D15E7", "+", 1043.0], ["TZV27", "+", 206.0], ["D30O6", "-", 3896.0]]},
-  "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-16": {"fecha": "2026-10-28", "ev": [["S26F7", "s", 2078224.0], ["TZXM7", "s", 2479797.0], ["TZXO7", "s", 1323188.0], ["TMG27", "s", 2362006.0], ["TXMD8", "s", 7472631.0], ["D15E7", "s", 3620.0]]}
+  "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-16": {"fecha": "2026-10-28", "ev": [["S26F7", "s", 2078224.0], ["TZXM7", "s", 2479797.0], ["TZXO7", "s", 1323188.0], ["TMG27", "s", 2362006.0], ["TXMD8", "s", 7472631.0], ["D15E7", "s", 3620.0]]},
+  "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-17": {"fecha": "2026-11-11", "ev": [["S29E7", "s", 7008588.0], ["T30J7", "s", 10205798.0], ["TZX28", "s", 5423183.0], ["tamar|2027-04-30", "s", 3513769.0], ["D15E7", "s", 4388.0]]}
  }
 }
