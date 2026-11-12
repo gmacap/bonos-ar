@@ -1,5 +1,5 @@
 {
- "generado": "2026-11-06T17:48:28+00:00",
+ "generado": "2026-11-12T19:55:22+00:00",
  "fuente": "INDEC (calendario de difusión), Instituto de Estadística de la Ciudad (IPCBA) y Reserva Federal (FOMC)",
  "columnas": ["fecha", "hora", "tipo", "corto", "titulo", "fuente"],
  "eventos": [
@@ -56,7 +56,7 @@
   ["2027-02-23", "16:00", "indec", "EMAE dic", "Estimador mensual de actividad económica (EMAE). Diciembre de 2026", "INDEC"],
   ["2027-03-12", "16:00", "ipc_nacion", "IPC feb", "Índice de precios al consumidor (IPC). Cobertura nacional. Febrero de 2027", "INDEC"],
   ["2027-03-16", "16:00", "indec", "Salarios ene", "Índice de salarios. Enero de 2027", "INDEC"],
-  ["2027-03-17", "15:00", "fomc", "FOMC + proyecc.", "Fed: decisión de tasa del FOMC, con proyecciones económicas", "Fed"],
+  ["2027-03-17", "15:00", "fomc", "FOMC", "Fed: decisión de tasa del FOMC", "Fed"],
   ["2027-03-17", "16:00", "indec", "Mayoristas feb", "Sistema de índices de precios mayoristas (SIPM). Febrero de 2027", "INDEC"],
   ["2027-03-18", "16:00", "indec", "PBI 4T26", "Informe de avance del nivel de actividad. Cuarto trimestre de 2026", "INDEC"],
   ["2027-03-19", "16:00", "indec", "Comercio exterior feb", "Intercambio comercial argentino (ICA). Bienes. Febrero de 2027", "INDEC"],
@@ -74,7 +74,7 @@
   ["2027-05-18", "16:00", "indec", "Salarios mar", "Índice de salarios. Marzo de 2027", "INDEC"],
   ["2027-05-19", "16:00", "indec", "Comercio exterior abr", "Intercambio comercial argentino (ICA). Bienes. Abril de 2027", "INDEC"],
   ["2027-05-20", "16:00", "indec", "EMAE mar", "Estimador mensual de actividad económica (EMAE). Marzo de 2027", "INDEC"],
-  ["2027-06-09", "15:00", "fomc", "FOMC + proyecc.", "Fed: decisión de tasa del FOMC, con proyecciones económicas", "Fed"],
+  ["2027-06-09", "15:00", "fomc", "FOMC", "Fed: decisión de tasa del FOMC", "Fed"],
   ["2027-06-11", "16:00", "ipc_nacion", "IPC may", "Índice de precios al consumidor (IPC). Cobertura nacional. Mayo de 2027", "INDEC"],
   ["2027-06-16", "16:00", "indec", "Mayoristas may", "Sistema de índices de precios mayoristas (SIPM). Mayo de 2027", "INDEC"],
   ["2027-06-18", "16:00", "indec", "Salarios abr", "Índice de salarios. Abril de 2027", "INDEC"],
@@ -94,7 +94,7 @@
   ["2027-08-20", "16:00", "indec", "EMAE jun", "Estimador mensual de actividad económica (EMAE). Junio de 2027", "INDEC"],
   ["2027-08-20", "16:00", "indec", "Comercio exterior jul", "Intercambio comercial argentino (ICA). Bienes. Julio de 2027", "INDEC"],
   ["2027-09-14", "16:00", "ipc_nacion", "IPC ago", "Índice de precios al consumidor (IPC). Cobertura nacional. Agosto de 2027", "INDEC"],
-  ["2027-09-15", "15:00", "fomc", "FOMC + proyecc.", "Fed: decisión de tasa del FOMC, con proyecciones económicas", "Fed"],
+  ["2027-09-15", "15:00", "fomc", "FOMC", "Fed: decisión de tasa del FOMC", "Fed"],
   ["2027-09-16", "16:00", "indec", "Salarios jul", "Índice de salarios. Julio de 2027", "INDEC"],
   ["2027-09-17", "16:00", "indec", "PBI 2T27", "Informe de avance del nivel de actividad. Segundo trimestre de 2027", "INDEC"],
   ["2027-09-17", "16:00", "indec", "Mayoristas ago", "Sistema de índices de precios mayoristas (SIPM). Agosto de 2027", "INDEC"],
@@ -103,6 +103,6 @@
   ["2027-09-24", "16:00", "indec", "EMAE jul", "Estimador mensual de actividad económica (EMAE). Julio de 2027", "INDEC"],
   ["2027-09-30", "16:00", "indec", "Pobreza 1S27", "Incidencia de la pobreza y la indigencia en 31 aglomerados urbanos. Primer semestre de 2027", "INDEC"],
   ["2027-10-27", "15:00", "fomc", "FOMC", "Fed: decisión de tasa del FOMC", "Fed"],
-  ["2027-12-08", "15:00", "fomc", "FOMC + proyecc.", "Fed: decisión de tasa del FOMC, con proyecciones económicas", "Fed"]
+  ["2027-11-17", "15:00", "fomc", "FOMC", "Fed: decisión de tasa del FOMC", "Fed"]
  ]
 }
