@@ -1,5 +1,5 @@
 {
- "generado": "2026-11-06T02:35:53+00:00",
+ "generado": "2026-11-12T02:04:09+00:00",
  "fuente": "Secretaría de Finanzas (argentina.gob.ar) · respaldo: MAE",
  "cronograma": [
   ["2025-01-13", "2025-01-15", "2025-01-17"],
@@ -24,30 +24,7 @@
   ["2025-10-27", "2025-10-29", "2025-10-31"],
   ["2025-11-03", "2025-11-05", "2025-11-10"],
   ["2025-11-20", "2025-11-26", "2025-11-28"],
-  ["2025-12-09", "2025-12-11", "2025-12-15"],
-  ["2026-01-12", "2026-01-14", "2026-01-16"],
-  ["2026-01-26", "2026-01-28", "2026-01-30"],
-  ["2026-02-09", "2026-02-11", "2026-02-13"],
-  ["2026-02-23", "2026-02-25", "2026-02-27"],
-  ["2026-03-10", "2026-03-12", "2026-03-16"],
-  ["2026-03-25", "2026-03-27", "2026-03-31"],
-  ["2026-04-13", "2026-04-15", "2026-04-17"],
-  ["2026-04-24", "2026-04-28", "2026-04-30"],
-  ["2026-05-11", "2026-05-13", "2026-05-15"],
-  ["2026-05-22", "2026-05-27", "2026-05-29"],
-  ["2026-06-08", "2026-06-10", "2026-06-12"],
-  ["2026-06-24", "2026-06-26", "2026-06-30"],
-  ["2026-07-13", "2026-07-15", "2026-07-17"],
-  ["2026-07-27", "2026-07-29", "2026-07-31"],
-  ["2026-08-10", "2026-08-12", "2026-08-14"],
-  ["2026-08-25", "2026-08-27", "2026-08-31"],
-  ["2026-09-09", "2026-09-11", "2026-09-15"],
-  ["2026-09-24", "2026-09-28", "2026-09-30"],
-  ["2026-10-09", "2026-10-14", "2026-10-16"],
-  ["2026-10-26", "2026-10-28", "2026-10-30"],
-  ["2026-11-09", "2026-11-11", "2026-11-13"],
-  ["2026-11-24", "2026-11-26", "2026-11-30"],
-  ["2026-12-09", "2026-12-11", "2026-12-15"]
+  ["2025-12-09", "2025-12-11", "2025-12-15"]
  ],
  "llamado": {"fecha": "2026-11-11", "liquidacion": "2026-11-13", "publicado": "2026-11-05", "url": "https://www.argentina.gob.ar/noticias/llamado-licitacion-de-instrumentos-del-tesoro-nacional-denominados-en-pesos-y-en-dolares-16", "fuente": "Finanzas", "instrumentos": [
   {"ticker": "S29E7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 29 DE ENERO DE 2027", "clase": "fija", "estado": "reapertura", "vencimiento": "2027-01-29"},
@@ -462,20 +439,20 @@
    {"ticker": "D31M7", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 31 DE MARZO DE 2027", "clase": "dl", "estado": "reapertura", "vencimiento": "2027-03-31", "ronda": 1, "moneda": "USD", "vnoOfertado": 275.0, "vnoAdjudicado": 154.0, "circulacion": 941.0, "veAdjudicado": 224105.0, "veMoneda": "ARS", "precio": 961.0, "tirea": 7.58},
    {"ticker": "TZV27", "nombre": "BONO DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 30 DE JUNIO DE 2027", "clase": "dl", "estado": "reapertura", "vencimiento": "2027-06-30", "ronda": 1, "moneda": "USD", "vnoOfertado": 169.0, "vnoAdjudicado": 134.0, "circulacion": 864.0, "veAdjudicado": 194090.0, "veMoneda": "ARS", "precio": 960.35, "tirea": 5.24}
   ]},
-  {"ofertas": 3302, "ofertadoVE": 9770447.0, "adjudicadoVE": 8621926.0, "a3500": 1523.9662, "fecha": "2026-09-28", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-13", "fuente": "Finanzas", "liquidacion": "2026-09-30", "rolloverOficial": {"v": 100.08, "medio": "Agroempresario", "fuente": "https://agroempresario.com/publicacion/121917/el-tesoro-cerro-la-licitacion-con-una-renovacion-del-10008/"}, "vencEst": {"desde": "2026-09-15", "total": 8382852, "detalle": [["D30S6", 1100, 152300.0, 1675300, "BYMA 2026-09-29"], ["S30S6", 4591857, 117.466, 5393871, "BYMA 2026-09-29"], ["X30S6", 1117884, 117.515, 1313681, "BYMA 2026-09-29"]]}, "rolloverEst": 102.85, "instrumentos": [
+  {"ofertas": 3302, "ofertadoVE": 9770447.0, "adjudicadoVE": 8621926.0, "a3500": 1523.9662, "fecha": "2026-09-28", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-13", "fuente": "Finanzas", "liquidacion": "2026-09-30", "rolloverOficial": {"v": 100.08, "medio": "Agroempresario", "fuente": "https://agroempresario.com/publicacion/121917/el-tesoro-cerro-la-licitacion-con-una-renovacion-del-10008/"}, "instrumentos": [
    {"ticker": "T15E7", "nombre": "BONO DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 15 DE ENERO DE 2027", "clase": "fija", "estado": "reapertura", "vencimiento": "2027-01-15", "ronda": 1, "moneda": "ARS", "vnoOfertado": 2171556.0, "vnoAdjudicado": 1905831.0, "circulacion": 12482247.0, "veAdjudicado": 2848264.0, "veMoneda": "ARS", "precio": 1494.5, "tirea": 29.36},
    {"ticker": "TZXY7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 31 DE MAYO DE 2027", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-05-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 1102322.0, "vnoAdjudicado": 834572.0, "circulacion": 4205599.0, "veAdjudicado": 1023185.0, "veMoneda": "ARS", "precio": 1226.0, "tirea": 5.97},
    {"ticker": "TML27", "nombre": "BONO DEL TESORO NACIONAL EN PESOS A TASA TAMAR CON VENCIMIENTO 30 DE JULIO DE 2027", "clase": "tamar", "estado": "reapertura", "vencimiento": "2027-07-30", "ronda": 1, "moneda": "ARS", "vnoOfertado": 2813360.0, "vnoAdjudicado": 2681893.0, "circulacion": 6300226.26, "veAdjudicado": 2920581.0, "veMoneda": "ARS", "precio": 1089.0, "tirea": 30.84},
    {"ticker": "D30O6", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 30 DE OCTUBRE DE 2026", "clase": "dl", "estado": "reapertura", "vencimiento": "2026-10-30", "ronda": 1, "moneda": "USD", "vnoOfertado": 841.0, "vnoAdjudicado": 774.0, "circulacion": 5348.0, "veAdjudicado": 1171108.0, "veMoneda": "ARS", "precio": 992.8, "tirea": 9.06},
    {"ticker": "D30N6", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 30 DE NOVIEMBRE DE 2026", "clase": "dl", "estado": "reapertura", "vencimiento": "2026-11-30", "ronda": 1, "moneda": "USD", "vnoOfertado": 529.0, "vnoAdjudicado": 437.0, "circulacion": 1344.0, "veAdjudicado": 658787.0, "veMoneda": "ARS", "precio": 988.2, "tirea": 7.38}
   ]},
-  {"ofertas": 3360, "ofertadoVE": 9490251.0, "adjudicadoVE": 6610275.0, "a3500": 1515.8543, "fecha": "2026-10-14", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-15", "fuente": "Finanzas", "liquidacion": "2026-10-16", "rolloverOficial": {"v": 136.14, "medio": "Infobae", "fuente": "https://www.infobae.com/economia/2026/10/14/licitacion-clave-el-gobierno-renovo-todos-los-vencimientos-de-deuda-y-absorbio-175-billones-de-pesos/"}, "vencEst": {"desde": "2026-09-30", "total": 4852698, "detalle": [["S16O6", 4612305, 105.212, 4852698, "BYMA 2026-10-14"]]}, "rolloverEst": 136.22, "instrumentos": [
+  {"ofertas": 3360, "ofertadoVE": 9490251.0, "adjudicadoVE": 6610275.0, "a3500": 1515.8543, "fecha": "2026-10-14", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-15", "fuente": "Finanzas", "liquidacion": "2026-10-16", "rolloverOficial": {"v": 136.14, "medio": "Infobae", "fuente": "https://www.infobae.com/economia/2026/10/14/licitacion-clave-el-gobierno-renovo-todos-los-vencimientos-de-deuda-y-absorbio-175-billones-de-pesos/"}, "instrumentos": [
    {"ticker": "S29E7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 29 DE ENERO DE 2027", "clase": "fija", "estado": "reapertura", "vencimiento": "2027-01-29", "ronda": 1, "moneda": "ARS", "vnoOfertado": 4448291.0, "vnoAdjudicado": 2597093.0, "circulacion": 4976326.0, "veAdjudicado": 2705963.0, "veMoneda": "ARS", "precio": 1041.92, "tirea": 27.47},
    {"ticker": "TMG28", "nombre": "BONO DEL TESORO NACIONAL EN PESOS A TASA TAMAR CON VENCIMIENTO 31 DE AGOSTO DE 2028", "clase": "tamar", "estado": "reapertura", "vencimiento": "2028-08-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 1220204.0, "vnoAdjudicado": 1055629.0, "circulacion": 6449527.0, "veAdjudicado": 1156970.0, "veMoneda": "ARS", "precio": 1096.0, "tirea": 38.91},
    {"ticker": "TXMD9", "nombre": "BONO DEL TESORO NACIONAL EN PESOS DUAL CER / TAMAR CON VENCIMIENTO 14 DE DICIEMBRE DE 2029", "clase": "dual", "dual": "cer", "estado": "reapertura", "vencimiento": "2029-12-14", "ronda": 1, "moneda": "ARS", "vnoOfertado": 2322085.0, "vnoAdjudicado": 1941291.0, "circulacion": 8774083.0, "veAdjudicado": 1704454.0, "veMoneda": "ARS", "precio": 878.0, "tirea": 6.99, "tireaPata": "CER"},
    {"ticker": "TMVE8", "nombre": "BONO DEL TESORO NACIONAL EN MONEDA DUAL TAMAR / DÓLAR LINKED CON VENCIMIENTO 31 DE ENERO DE 2028", "clase": "dual", "dual": "dl", "estado": "reapertura", "vencimiento": "2028-01-31", "ronda": 1, "moneda": "USD", "vnoOfertado": 990.0, "vnoAdjudicado": 727.0, "circulacion": 4194.0, "veAdjudicado": 1042888.0, "veMoneda": "ARS", "precio": 946.46, "tirea": 4.35, "tireaPata": "DL"}
   ]},
-  {"ofertas": 4789, "ofertadoVE": 15787369.0, "adjudicadoVE": 11558649.0, "a3500": 1538.741, "fecha": "2026-10-28", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-16", "fuente": "Finanzas", "liquidacion": "2026-10-30", "rolloverOficial": {"v": 106.99, "medio": "Economis", "fuente": "https://economis.com.ar/finanzas-logro-un-rollover-del-10699-y-adjudico-1156-billones-en-una-nueva-licitacion-del-tesoro/"}, "vencEst": {"desde": "2026-10-16", "total": 10606786, "detalle": [["D30O6", 1452, 153780.0, 2232886, "BYMA 2026-10-28"], ["S30O6", 1492802, 135.21, 2018418, "BYMA 2026-10-28"], ["TZXO6", 3571218, 177.964, 6355482, "BYMA 2026-10-28"]]}, "rolloverEst": 108.97, "instrumentos": [
+  {"ofertas": 4789, "ofertadoVE": 15787369.0, "adjudicadoVE": 11558649.0, "a3500": 1538.741, "fecha": "2026-10-28", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-por-efectivo-de-instrumentos-del-tesoro-nacional-denominados-16", "fuente": "Finanzas", "liquidacion": "2026-10-30", "rolloverOficial": {"v": 106.99, "medio": "Economis", "fuente": "https://economis.com.ar/finanzas-logro-un-rollover-del-10699-y-adjudico-1156-billones-en-una-nueva-licitacion-del-tesoro/"}, "instrumentos": [
    {"ticker": "S26F7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 26 DE FEBRERO DE 2027", "clase": "fija", "estado": "nuevo", "vencimiento": "2027-02-26", "ronda": 1, "moneda": "ARS", "vnoOfertado": 3783368.0, "vnoAdjudicado": 2078224.0, "circulacion": 2078224.0, "veAdjudicado": 2078224.0, "veMoneda": "ARS", "tem": 2.1, "tirea": 28.32},
    {"ticker": "TZXM7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 31 DE MARZO DE 2027", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-03-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 762569.0, "vnoAdjudicado": 481373.0, "circulacion": 2479797.0, "veAdjudicado": 1124968.0, "veMoneda": "ARS", "precio": 2337.0, "tirea": 3.04},
    {"ticker": "TZXO7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 29 DE OCTUBRE DE 2027", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-10-29", "ronda": 1, "moneda": "ARS", "vnoOfertado": 991405.0, "vnoAdjudicado": 816940.0, "circulacion": 1323188.0, "veAdjudicado": 830828.0, "veMoneda": "ARS", "precio": 1017.0, "tirea": 6.23},
