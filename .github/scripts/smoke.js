@@ -4906,6 +4906,11 @@ const omitir = (label, motivo) =>
     beCPRemove('TY30P put', 'tf');
     out.resumen = ofrece.includes('TY30P put') && ofrece.includes('TY30P') && filasCP === 2 && CP_BONDS.length === 1;
     CP_BONDS = prevCP; beCPRecalc();
+    // Y en el gráfico de tasa fija del Resumen, con el del vencimiento fuera del ajuste.
+    beRenderChartTF();
+    const dsR = beChartTF && beChartTF.data.datasets.find(d => d.label === 'tf');
+    out.graficoResumen = !!dsR && ['TY30P put', 'TY30P'].every(t => dsR.data.some(q => q.ticker === t))
+      && beGetBondsForTipo('tf').some(x => x.ticker === 'TY30P put');
     TF_CUPON = guardado; renderTable();
     out.cal = calAutoEventos().some(e => e.id === 'put_TY30P' && e.fecha === '2027-05-27') && calAutoEventos().some(e => e.id === 'pago_TY30P_2026-11-30');
     return out;
@@ -4915,9 +4920,9 @@ const omitir = (label, motivo) =>
         'TY30P: corrido, limpio, TIR al put y al vencimiento y duration como en la planilla; el put deja de contar después del aviso', JSON.stringify(tfc.cuentas));
   check(tfc.dos && tfc.fila,
         'TY30P put y TY30P son dos bonos, con TNA semestral, en una tabla con el mismo formato que la de las letras', JSON.stringify({ dos: tfc.dos, fila: tfc.fila }));
-  check(tfc.enAjuste && tfc.aparte === 1 && tfc.sacaPut && tfc.excluye && tfc.resumen && tfc.cal,
-        'el del put entra al ajuste de la curva y el del vencimiento va aparte; se sacan por separado, se agregan y quitan en el Resumen, y van al calendario',
-        JSON.stringify({ ajuste: tfc.enAjuste, aparte: tfc.aparte, sacaPut: tfc.sacaPut, excluye: tfc.excluye, resumen: tfc.resumen, cal: tfc.cal }));
+  check(tfc.enAjuste && tfc.aparte === 1 && tfc.sacaPut && tfc.excluye && tfc.resumen && tfc.graficoResumen && tfc.cal,
+        'el del put entra al ajuste de la curva y el del vencimiento va aparte; se sacan por separado, están en la tabla y el gráfico del Resumen, y van al calendario',
+        JSON.stringify({ ajuste: tfc.enAjuste, aparte: tfc.aparte, sacaPut: tfc.sacaPut, excluye: tfc.excluye, resumen: tfc.resumen, graficoResumen: tfc.graficoResumen, cal: tfc.cal }));
 
   // Resumen: los eventos del calendario de hoy a N días, en pesos y en dólares.
   // Más días traen al menos los mismos; achicado no muestra la lista; un clic

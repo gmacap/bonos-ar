@@ -14152,19 +14152,23 @@ function beRenderChartTF(){
     const pts=bonds.filter(b=>!excluded.has(b.ticker)).map(b=>{
       const vctoDate=b.vcto?parseDate(b.vcto):null;
       if(!vctoDate)return null;
-      const dias=diasAlPago(liq,vctoDate);
-      if(dias<=0)return null;
+      // Un bono con cupón va por duration, como en la calculadora.
+      const dias=b.cupon?b.durDias:diasAlPago(liq,vctoDate);
+      if(!(dias>0))return null;
       const e=beEnrichForTipo(b,tipo);
       const val=beGetChartRate(e,tipo,beChartTFMode);
       if(val==null||isNaN(val))return null;
-      return{ticker:b.ticker,dias,val,precio:b.precio};
+      return{ticker:b.ticker,dias,val,precio:b.precio,cupon:!!b.cupon,aparte:!!(b.cupon&&!b.enCurva)};
     }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
     if(!pts.length)continue;
     const c=CHART_TIPO_COLORS[tipo];
-    const curva=curvaDatasets(curvaAjustar(pts.map(p=>({x:p.dias,y:p.val}))),pts.map(p=>p.dias),
+    // El BONTE al vencimiento se ve pero no entra al ajuste: es largo y no tiene comparables.
+    const ajuste=pts.filter(p=>!p.aparte);
+    const curva=curvaDatasets(curvaAjustar(ajuste.map(p=>({x:p.dias,y:p.val}))),ajuste.map(p=>p.dias),
       {color:c.trend,relleno:c.trend.replace(/[\d.]+\)$/,'0.07)'),label:'_trend_'+tipo,orden:tipoOrder,sufijo:'_'+tipo});
     if(curva.linea.data.length) datasets.push(...curva.lista);
-    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:c.point,borderColor:c.border,pointRadius:5,pointHoverRadius:7,order:10+tipoOrder});
+    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio,cupon:p.cupon})),backgroundColor:c.point,borderColor:c.border,
+      pointStyle:pts.map(p=>p.cupon?'rectRot':'circle'),pointRadius:pts.map(p=>p.cupon?6:5),pointHoverRadius:7,order:10+tipoOrder});
     tipoOrder++;
   }
 
@@ -14224,7 +14228,7 @@ function beRenderChartTF(){
         tooltip:{callbacks:{
           title:ctx=>ctx[0]?.raw.ticker||'',
           label:ctx=>{
-            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`];
+            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días${ctx.raw.cupon?' de duration':''}`];
             // La caución y los sintéticos no son un bono con precio: van sin la línea.
             if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
             return l;
@@ -14273,19 +14277,23 @@ function beRenderChartCER(){
     const pts=bonds.filter(b=>!excluded.has(b.ticker)).map(b=>{
       const vctoDate=b.vcto?parseDate(b.vcto):null;
       if(!vctoDate)return null;
-      const dias=diasAlPago(liq,vctoDate);
-      if(dias<=0)return null;
+      // Un bono con cupón va por duration, como en la calculadora.
+      const dias=b.cupon?b.durDias:diasAlPago(liq,vctoDate);
+      if(!(dias>0))return null;
       const e=beEnrichForTipo(b,tipo);
       const val=beGetChartRate(e,tipo,beChartCERMode);
       if(val==null||isNaN(val))return null;
-      return{ticker:b.ticker,dias,val,precio:b.precio};
+      return{ticker:b.ticker,dias,val,precio:b.precio,cupon:!!b.cupon,aparte:!!(b.cupon&&!b.enCurva)};
     }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
     if(!pts.length)continue;
     const c=CHART_TIPO_COLORS[tipo];
-    const curva=curvaDatasets(curvaAjustar(pts.map(p=>({x:p.dias,y:p.val}))),pts.map(p=>p.dias),
+    // El BONTE al vencimiento se ve pero no entra al ajuste: es largo y no tiene comparables.
+    const ajuste=pts.filter(p=>!p.aparte);
+    const curva=curvaDatasets(curvaAjustar(ajuste.map(p=>({x:p.dias,y:p.val}))),ajuste.map(p=>p.dias),
       {color:c.trend,relleno:c.trend.replace(/[\d.]+\)$/,'0.07)'),label:'_trend_'+tipo,orden:tipoOrder,sufijo:'_'+tipo});
     if(curva.linea.data.length) datasets.push(...curva.lista);
-    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:c.point,borderColor:c.border,pointRadius:5,pointHoverRadius:7,order:10+tipoOrder});
+    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio,cupon:p.cupon})),backgroundColor:c.point,borderColor:c.border,
+      pointStyle:pts.map(p=>p.cupon?'rectRot':'circle'),pointRadius:pts.map(p=>p.cupon?6:5),pointHoverRadius:7,order:10+tipoOrder});
     tipoOrder++;
   }
 
@@ -14306,7 +14314,7 @@ function beRenderChartCER(){
         tooltip:{callbacks:{
           title:ctx=>ctx[0]?.raw.ticker||'',
           label:ctx=>{
-            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`];
+            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días${ctx.raw.cupon?' de duration':''}`];
             // La caución y los sintéticos no son un bono con precio: van sin la línea.
             if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
             return l;
@@ -14350,7 +14358,7 @@ function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel,clave){
         tooltip:{callbacks:{
           title:ctx=>ctx[0]?.raw.ticker||'',
           label:ctx=>{
-            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días`];
+            const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días${ctx.raw.cupon?' de duration':''}`];
             // La caución y los sintéticos no son un bono con precio: van sin la línea.
             if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
             return l;
@@ -14383,7 +14391,8 @@ const CHART_TIPO_COLORS={
 // Los indexados que ya fijaron van con la tasa fija y no con su familia: ver
 // FIJADOS.
 function beGetBondsForTipo(tipo){
-  if(tipo==='tf')    return LECAPS.filter(r=>r.vcto&&r.precio).concat(fijBonos());
+  // Los BONTE van como bonos de tasa fija: "TY30P put" y "TY30P" (ver tfcVariantes).
+  if(tipo==='tf')    return LECAPS.filter(r=>r.vcto&&r.precio).concat(fijBonos()).concat(tfcVariantes().filter(v=>v.precio));
   if(tipo==='cer')   return CER_BONDS.filter(r=>r.vcto&&r.precio&&!fijTasas(r));
   if(tipo==='tamar') return TAMAR_BONDS.filter(r=>r.vcto&&r.precio&&!fijTasas(r));
   if(tipo==='dlk')   return DLK_BONDS.filter(r=>r.vcto&&r.precio&&!fijTasas(r));
@@ -14395,7 +14404,7 @@ function beGetExcludedForTipo(tipo, chartId='tf'){
 }
 
 function beEnrichForTipo(b,tipo){
-  if(tipo==='tf')    return(LECAPS.includes(b)?calcLecap(b):fijTasas(b))||{};
+  if(tipo==='tf')    return(b.cupon?b:LECAPS.includes(b)?calcLecap(b):fijTasas(b))||{};
   if(tipo==='cer')   return cerEnrich(b)||{};
   if(tipo==='tamar') return tamarVista(tamarEnrich(b))||{};
   if(tipo==='dlk')   return dlkEnrich(b)||{};
