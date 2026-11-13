@@ -4860,8 +4860,9 @@ const omitir = (label, motivo) =>
 
   // Tasa fija con cupón: el TY30P (BONTE 2030, 29,5% semestral 30/360, put a
   // la par el 27/05/2027 que paga capital más el cuarto cupón). Con precio y
-  // liquidación fijos, las cuentas dan lo que da la planilla; en la tabla y en
-  // el gráfico, dos puntos (put y vencimiento) fuera del ajuste de la curva.
+  // liquidación fijos, las cuentas dan lo que da la planilla. Se ve como dos
+  // bonos: "TY30P put", que entra al ajuste de la curva con las letras, y
+  // "TY30P", al vencimiento, aparte. TNA semestral, como el cupón.
   console.log('\nTasa fija con cupón');
   const tfc = await page.evaluate(async () => {
     const espera = ms => new Promise(r => setTimeout(r, ms));
@@ -4873,18 +4874,38 @@ const omitir = (label, motivo) =>
     const cs = tfcCupones(b);
     out.flujos = cs.length === 10 && cs[0].cupon.toFixed(2) === '14.42' && cs[0].pago === '2025-12-01' && cs[9].amort === 100 && tfcHabil(b.put.pago) === '2027-05-31';
     out.sinPut = tfcCalc(b, parseDate('2027-05-28')).conPut === false;
-    switchSection('pesos'); switchTab('lecap');
     const guardado = TF_CUPON.slice();
-    TF_CUPON = TF_CUPON.map(x => x.ticker === 'TY30P' ? { ...x, precio: x.precio > 0 ? x.precio : 114.2 } : x);
+    TF_CUPON = TF_CUPON.map(x => x.ticker === 'TY30P' ? { ...x, precio: 114.2 } : x);
+    const vs = tfcVariantes(parseDate('2026-11-16'));
+    const vp = vs.find(v => v.ticker === 'TY30P put'), vv = vs.find(v => v.ticker === 'TY30P');
+    out.dos = !!(vp && vv) && vp.enCurva && !vv.enCurva && vp.vcto === '2027-05-31' && vv.vcto === '2030-05-30'
+      && vp.tna.toFixed(2) === '28.19' && vv.tna.toFixed(2) === '29.20' && vp.tir.toFixed(2) === '30.18' && vv.tir.toFixed(2) === '31.33';
+    switchSection('pesos'); switchTab('lecap');
     renderTable(); await espera(300);
-    out.fila = /TY30P/.test((document.getElementById('tfc-wrap') || {}).innerText || '');
-    const ds = curveChart ? curveChart.data.datasets.find(d => d.tfc && d.label === 'TY30P') : null;
-    out.puntos = ds ? ds.data.length : 0;
-    const enAjuste = curveChart ? curveChart.data.datasets[0].data.length : -1;
-    out.ajusteSinTY30P = enAjuste === DATA.filter(r => r.dias > 0 && r.precio != null && !isNaN(r[chartMode]) && !calcExcl('tf').has(r.ticker)).length;
+    const tb = document.querySelector('#tfc-wrap tbody');
+    out.fila = !!tb && tb.querySelectorAll('tr').length === 2 && tb.closest('table').querySelectorAll('thead th').length === tb.querySelector('tr').querySelectorAll('td').length
+      && document.querySelector('#tfc-wrap thead').textContent.replace(/\s+/g, '') === document.querySelector('#table-body').closest('table').querySelector('thead').textContent.replace(/[↑↓\s]/g, '');
+    const letras = DATA.filter(r => r.dias > 0 && r.precio != null && !isNaN(r[chartMode]) && !calcExcl('tf').has(r.ticker)).length;
+    out.enAjuste = curveChart.data.datasets[0].data.length === letras + 1;
+    const ds = curveChart.data.datasets.find(d => d.tfc && d.label === 'TY30P');
+    out.aparte = ds ? ds.data.length : 0;
+    calcExcluir('tf', 'TY30P put', true); await espera(200);
+    out.sacaPut = curveChart.data.datasets[0].data.length === letras;
     calcExcluir('tf', 'TY30P', true); await espera(200);
     out.excluye = !curveChart.data.datasets.some(d => d.tfc);
-    calcExcluir('tf', 'TY30P', false);
+    calcExcluir('tf', 'TY30P put', false); calcExcluir('tf', 'TY30P', false);
+    // Resumen: los dos se agregan y se quitan como cualquier tasa fija.
+    switchTab('breakeven'); await espera(400);
+    document.getElementById('be-cp-tipo').value = 'tf';
+    beCPModalUpdateList();
+    const ofrece = [...document.getElementById('be-cp-ticker').options].map(o => o.value);
+    const prevCP = CP_BONDS.slice();
+    CP_BONDS = [{ ticker: 'TY30P put', tipo: 'tf' }, { ticker: 'TY30P', tipo: 'tf' }];
+    beCPRecalc();
+    const filasCP = [...document.querySelectorAll('#be-cp-tbody tr')].filter(tr => /TY30P/.test(tr.textContent) && /\d[.,]\d\d%/.test(tr.textContent)).length;
+    beCPRemove('TY30P put', 'tf');
+    out.resumen = ofrece.includes('TY30P put') && ofrece.includes('TY30P') && filasCP === 2 && CP_BONDS.length === 1;
+    CP_BONDS = prevCP; beCPRecalc();
     TF_CUPON = guardado; renderTable();
     out.cal = calAutoEventos().some(e => e.id === 'put_TY30P' && e.fecha === '2027-05-27') && calAutoEventos().some(e => e.id === 'pago_TY30P_2026-11-30');
     return out;
@@ -4892,9 +4913,11 @@ const omitir = (label, motivo) =>
   const k = tfc.cuentas;
   check(k.corrido === 13.6 && k.limpio === 100.6 && k.put === 30.18 && k.vto === 31.33 && k.durPut === 0.47 && k.durVto === 2.14 && k.mejor === 'vto' && tfc.flujos && tfc.sinPut,
         'TY30P: corrido, limpio, TIR al put y al vencimiento y duration como en la planilla; el put deja de contar después del aviso', JSON.stringify(tfc.cuentas));
-  check(tfc.fila && tfc.puntos === 2 && tfc.ajusteSinTY30P && tfc.excluye && tfc.cal,
-        'en la tabla y en el gráfico con dos puntos fuera del ajuste, se puede sacar, y sus cupones y el aviso del put van al calendario',
-        JSON.stringify({ fila: tfc.fila, puntos: tfc.puntos, ajuste: tfc.ajusteSinTY30P, excluye: tfc.excluye, cal: tfc.cal }));
+  check(tfc.dos && tfc.fila,
+        'TY30P put y TY30P son dos bonos, con TNA semestral, en una tabla con el mismo formato que la de las letras', JSON.stringify({ dos: tfc.dos, fila: tfc.fila }));
+  check(tfc.enAjuste && tfc.aparte === 1 && tfc.sacaPut && tfc.excluye && tfc.resumen && tfc.cal,
+        'el del put entra al ajuste de la curva y el del vencimiento va aparte; se sacan por separado, se agregan y quitan en el Resumen, y van al calendario',
+        JSON.stringify({ ajuste: tfc.enAjuste, aparte: tfc.aparte, sacaPut: tfc.sacaPut, excluye: tfc.excluye, resumen: tfc.resumen, cal: tfc.cal }));
 
   // Resumen: los eventos del calendario de hoy a N días, en pesos y en dólares.
   // Más días traen al menos los mismos; achicado no muestra la lista; un clic

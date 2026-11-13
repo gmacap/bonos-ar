@@ -193,8 +193,6 @@ tr.calc-fuera:hover>td{opacity:.75;}
 .tfc-cab{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 10px 4px;margin-top:8px;border-top:1px solid var(--border2);}
 .tfc-cab b{font-family:var(--mono);font-size:var(--fs10);letter-spacing:.06em;text-transform:uppercase;color:var(--text2);font-weight:500;}
 .tfc-cab span{font-family:var(--mono);font-size:var(--fs10);color:var(--text3);}
-#tfc-wrap td.tfc-mejor{font-weight:700;}
-#tfc-wrap td.tfc-peor{opacity:.55;}
 .tfc-nota{padding:6px 10px 12px;font-family:var(--mono);font-size:var(--fs10);line-height:1.55;color:var(--text3);max-width:900px;}
 .tfc-nota b{color:var(--text2);font-weight:500;}
 /* Resumen: los eventos del calendario de hoy a N días, con las mismas
@@ -723,14 +721,12 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <th onclick="sortBy('vcto')"   id="th-vcto"   class="sorted">Vto ↑</th>
           <th onclick="sortBy('dias')"   id="th-dias">Días</th>
           <th onclick="sortBy('modDuration')" id="th-modDuration">MD</th>
-          <th onclick="sortBy('precio')" id="th-precio">Precio $</th>
-          <th onclick="sortBy('pct_change')" id="th-pct_change">Var%</th>
+          <th onclick="sortBy('precio')" id="th-precio" title="Precio y variación del día">Precio $</th>
           <th onclick="sortBy('spread')" id="th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
           <th onclick="sortBy('monto')"  id="th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
           <th onclick="sortBy('tna')"    id="th-tna">TNA</th>
           <th onclick="sortBy('tir')"    id="th-tir">TIR</th>
           <th onclick="sortBy('tem')"    id="th-tem">TEM</th>
-          <th onclick="sortBy('vf')"     id="th-vf">VF $</th>
           <th style="cursor:default;width:40px;"></th>
         </tr></thead>
         <tbody id="table-body"></tbody>
@@ -911,8 +907,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="cerSortBy('vcto')"   id="cer-th-vcto" class="sorted">Vto ↑</th>
             <th onclick="cerSortBy('dias')"   id="cer-th-dias">Días</th>
             <th onclick="cerSortBy('modDuration')" id="cer-th-modDuration">MD</th>
-            <th onclick="cerSortBy('precio')" id="cer-th-precio">Precio $</th>
-            <th onclick="cerSortBy('pct_change')" id="cer-th-pct_change">Var%</th>
+            <th onclick="cerSortBy('precio')" id="cer-th-precio" title="Precio y variación del día">Precio $</th>
             <th onclick="cerSortBy('spread')" id="cer-th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
             <th onclick="cerSortBy('monto')"  id="cer-th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th onclick="cerSortBy('tir')"    id="cer-th-tir">TIR real</th>
@@ -1190,8 +1185,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="tamarSortBy('vcto')"   id="tamar-th-vcto" class="sorted">Vto ↑</th>
             <th onclick="tamarSortBy('dias')"   id="tamar-th-dias">Días</th>
             <th onclick="tamarSortBy('modDuration')" id="tamar-th-modDuration">MD</th>
-            <th onclick="tamarSortBy('precio')" id="tamar-th-precio">Precio $</th>
-            <th onclick="tamarSortBy('pct_change')" id="tamar-th-pct_change">Var%</th>
+            <th onclick="tamarSortBy('precio')" id="tamar-th-precio" title="Precio y variación del día">Precio $</th>
             <th onclick="tamarSortBy('spread')" id="tamar-th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
             <th onclick="tamarSortBy('monto')"  id="tamar-th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th onclick="tamarSortBy('margenTNA')" id="tamar-th-margenTNA">Margen TNA</th>
@@ -1357,8 +1351,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th style="text-align:left">Ticker</th>
             <th>Vto</th>
             <th>Días</th>
-            <th>Precio $</th>
-            <th>Var%</th>
+            <th title="Precio y variación del día">Precio $</th>
             <th title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
             <th title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th>Paridad</th>
@@ -4505,11 +4498,29 @@ function tfcCalc(b,liq){
   if(out.put&&out.vto&&isFinite(out.put.tir)&&isFinite(out.vto.tir))out.mejor=out.put.tir>out.vto.tir?'put':'vto';
   return out;
 }
-// La tasa de un camino en la unidad del gráfico, ubicada por duration: en una
-// letra sin cupón la duration es el plazo, así que el punto es comparable.
-function tfcEnModo(c,modo){
-  if(!c||!isFinite(c.tir))return NaN;
-  return modo==='tir'?c.tir:modo==='tem'?calcTEM(c.tir):tirToTNA(c.tir,c.dias);
+// TNA semestral, como el cupón: la convención de los bonos con cupón (la misma
+// que usa la app para los bonos en dólares), no la simple de las LECAP.
+function tfcTnaSem(tir,freq){const m=freq||2;return(Math.pow(1+tir/100,1/m)-1)*m*100;}
+// Cada BONTE se ve como bonos distintos: al put —cobra el capital más el cupón
+// el día del put— y al vencimiento. El del put va con las letras y entra al
+// ajuste de la curva; el del vencimiento, que es largo y no tiene comparables,
+// va aparte. Pasado el aviso del put queda sólo el del vencimiento.
+function tfcVariantes(liq){
+  liq=liq||G_LIQ||addHabiles(TODAY,1);
+  const out=[];
+  (typeof TF_CUPON!=='undefined'?TF_CUPON:[]).forEach(b=>{
+    if(!b||!b.vcto||b.vcto<=hoyAR())return;
+    let c=null;try{c=tfcCalc(b,liq);}catch(e){}
+    if(!c)return;
+    const fila=(ticker,tipo,vcto,x,enCurva)=>({ticker,tipo,vcto,base:b.ticker,cupon:true,enCurva,emision:b.emision,
+      dias:Math.max(0,diasACT(liq,parseDate(vcto))),durDias:x?x.dias:NaN,modDuration:x?x.md:NaN,
+      precio:b.precio>0?b.precio:null,pct_change:b.pct_change,bid:b.bid,ask:b.ask,monto:b.monto,ops:b.ops,manualOverride:!!b.manualOverride,
+      tir:x?x.tir:NaN,tna:x?tfcTnaSem(x.tir,b.freq):NaN,tem:x?calcTEM(x.tir):NaN,
+      corrido:c.corrido,limpio:c.limpio,paridad:c.paridad,prox:c.prox});
+    if(c.conPut)out.push(fila(b.ticker+' put','BONTE put',tfcHabil(b.put.pago),c.put,true));
+    out.push(fila(b.ticker,'BONTE',b.vcto,c.vto,false));
+  });
+  return out;
 }
 function tfcPrecios(map){
   TF_CUPON=TF_CUPON.map(b=>{const api=map.get(b.ticker),px=apiBestPrice(api);
@@ -4518,42 +4529,27 @@ function tfcPrecios(map){
 function tfcRender(){
   const el=document.getElementById('tfc-wrap');
   if(!el)return;
-  const q=(document.getElementById('search')||{}).value||'';
-  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('tf'),hoy=hoyAR();
-  const bonos=TF_CUPON.filter(b=>b.vcto>hoy&&(!q||b.ticker.toLowerCase().includes(q.toLowerCase())));
-  if(!bonos.length){el.innerHTML='';return;}
+  const q=((document.getElementById('search')||{}).value||'').toLowerCase();
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  const vs=tfcVariantes(liq).filter(v=>!q||v.ticker.toLowerCase().includes(q)).sort((a,b)=>a.vcto.localeCompare(b.vcto));
+  if(!vs.length){el.innerHTML='';return;}
   const f=s=>s?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
   const n=(v,d=2)=>v==null||!isFinite(v)?'—':v.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
-  const filas=[],notas=[];
-  bonos.forEach(b=>{
-    const c=tfcCalc(b,liq);
-    if(!c)return;
-    const chg=b.pct_change==null?'':`<span class="${b.pct_change>=0?'c-chg-pos':'c-chg-neg'}">${b.pct_change>=0?'+':''}${b.pct_change.toFixed(2)}%</span>`;
-    const tirCel=(x,cual)=>x&&isFinite(x.tir)?`<td class="c-blue${c.mejor?(c.mejor===cual?' tfc-mejor':' tfc-peor'):''}" title="Duration ${n(x.dur)} años · MD ${n(x.md)} · cobra hasta el ${f(x.hasta)}">${n(x.tir)}%</td>`:'<td class="c-muted">—</td>';
-    filas.push(`<tr class="${calcFilaCls('tf',b.ticker,ex).trim()}">
-      <td style="text-align:left">${calcCasilla('tf',b.ticker,ex)} <b>${b.ticker}</b> <span class="c-muted" style="font-size:var(--fs10)">${b.nombre||''}</span></td>
-      <td>${f(b.vcto)}</td>
-      <td class="c-green" title="Precio sucio por cada 100 de VN, con el cupón corrido adentro">${b.precio>0?n(b.precio):'—'} ${chg}</td>
-      <td title="Cupón corrido a la liquidación del ${f(fmtDate(liq))}, base ${b.base}">${n(c.corrido)}</td>
-      <td>${c.limpio!=null?n(c.limpio):'—'}</td>
-      <td>${c.paridad!=null?n(c.paridad,1)+'%':'—'}</td>
-      ${c.conPut?tirCel(c.put,'put'):'<td class="c-muted" title="El put ya venció">—</td>'}
-      ${tirCel(c.vto,'vto')}
-      <td>${c.vto?n(c.vto.md):'—'}</td>
-      <td title="Cupón por cada 100 de VN">${f(c.prox.fecha)} · ${n(c.prox.monto)}</td>
-    </tr>`);
-    if(c.conPut){
-      const lectura=!c.mejor?''
-        :c.mejor==='vto'?` Hoy rinde más quedarse hasta el vencimiento (<b>${n(c.vto.tir)}%</b> contra ${n(c.put.tir)}% al put): el limpio está arriba de la par.`
-        :` Hoy rinde más ejercerlo (<b>${n(c.put.tir)}%</b> contra ${n(c.vto.tir)}% al vencimiento): el limpio está abajo de la par.`;
-      notas.push(`<div class="tfc-nota"><b>${b.ticker} · put a la par.</b> Aviso hasta las 15 h del ${f(b.put.aviso)} por la entidad custodia; paga el capital más el cupón el ${f(tfcHabil(b.put.pago))}.${lectura} Las dos TIR se igualan con el limpio en 100.</div>`);
-    }
-  });
-  el.innerHTML=`<div class="tfc-cab"><b>Con cupón</b><span>precio sucio por 100 de VN · TIR efectiva · en el gráfico por duration, fuera del ajuste de la curva</span></div>
+  const filas=vs.map(v=>buildRow(v,{titulo:v.precio
+    ?`Precio sucio por cada 100 de VN, con ${n(v.corrido)} de cupón corrido: limpio ${n(v.limpio)}, paridad ${n(v.paridad,1)}%. Próximo cupón el ${f(v.prox.fecha)}, ${n(v.prox.monto)}.`
+    :'Sin precio'})).join('');
+  const notas=(TF_CUPON||[]).filter(b=>b.put&&vs.some(v=>v.base===b.ticker&&v.enCurva)).map(b=>{
+    const p=vs.find(v=>v.ticker===b.ticker+' put'),m=vs.find(v=>v.ticker===b.ticker);
+    const lectura=p&&m&&isFinite(p.tir)&&isFinite(m.tir)
+      ?(p.tir>m.tir?` Hoy rinde más ejercerlo (TIR ${n(p.tir)}% contra ${n(m.tir)}%).`:` Hoy rinde más quedarse hasta el vencimiento (TIR ${n(m.tir)}% contra ${n(p.tir)}% al put).`):'';
+    return`<div class="tfc-nota"><b>${b.ticker} put</b> es el ${b.ticker} ejerciendo el put: aviso hasta las 15 h del ${f(b.put.aviso)} por la entidad custodia, y cobra el capital más el cupón el ${f(tfcHabil(b.put.pago))}.${lectura} Las dos TIR se igualan con el limpio en 100.</div>`;
+  }).join('');
+  el.innerHTML=`<div class="tfc-cab"><b>Con cupón</b><span>precio sucio por 100 de VN · TNA semestral, como el cupón · en el gráfico por duration; el del vencimiento, fuera del ajuste de la curva</span></div>
     <table><thead><tr>
-      <th style="text-align:left">Ticker</th><th>Vto</th><th>Precio $</th><th>Corrido</th><th>Limpio</th><th>Paridad</th>
-      <th title="Cobrando capital y cupón el día del put">TIR al put</th><th>TIR al vto</th><th>MD</th><th>Próx. cupón</th>
-    </tr></thead><tbody>${filas.join('')}</tbody></table>${notas.join('')}`;
+      <th style="text-align:left">Ticker</th><th>Tipo</th><th>Vto</th><th>Días</th><th>MD</th><th title="Precio y variación del día">Precio $</th>
+      <th title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th><th title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
+      <th>TNA</th><th>TIR</th><th>TEM</th><th style="cursor:default;width:40px;"></th>
+    </tr></thead><tbody>${filas}</tbody></table>${notas}`;
 }
 
 // ── ENRICH ────────────────────────────────────────────────────────────────────
@@ -4643,6 +4639,13 @@ function libroMontoFmt(m){
 
 // Celda de spread: el número con el color del semáforo del monto, que es lo que
 // dice si ese spread se puede pagar. Sin monto, el número va en gris.
+// El precio y la variación del día en la misma celda: la variación va al lado
+// del precio, adentro de su caja, y no viaja cuando la celda se edita.
+function pxConVar(celda,chg){
+  if(chg==null||!isFinite(chg)||!/<\/div>\s*$/.test(celda))return celda;
+  const s=`<span class="${chg>=0?'c-chg-pos':'c-chg-neg'}" style="margin-left:6px">${chg>=0?'+':''}${chg.toFixed(2)}%</span>`;
+  return celda.replace(/<\/div>\s*$/,s+'</div>');
+}
 function libroSpreadHTML(spread,monto){
   if(spread==null)return '<span style="color:var(--text3)">—</span>';
   const c=LIQ_COLOR[libroSemaforo(monto)]||'var(--text2)';
@@ -4901,7 +4904,7 @@ async function fetchAllPrices(auto){
 // ── TABLA ─────────────────────────────────────────────────────────────────────
 let sortCol='vcto',sortAsc=true,selectedTicker=null,panelMode='precio',editingCell=null;
 
-const TH_COLS=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tna','tir','tem','vf'];
+const TH_COLS=['ticker','tipo','vcto','dias','modDuration','precio','spread','monto','tna','tir','tem'];
 function sortBy(col){
   sortAsc=sortCol===col?!sortAsc:(col==='vcto'||col==='ticker');
   sortCol=col;renderTable();
@@ -4937,7 +4940,7 @@ function renderTable(){
     th.classList.toggle('sorted',c===sortCol);
   });
   const tbody=document.getElementById('table-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="13" class="no-rows">Sin resultados. Agregá letras con + Nueva y actualizá precios.</td></tr>';set('st-count','0 letras');renderChart();return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="12" class="no-rows">Sin resultados. Agregá letras con + Nueva y actualizá precios.</td></tr>';set('st-count','0 letras');renderChart();return;}
   // cache heat ranges for visible rows
   window._heatRanges={
     tna:heatRange('tna'),
@@ -4964,7 +4967,7 @@ function heatFondo(r,g,b){
 // returns inline style string for heatmap cell background
 function heatStyle(val,range,col){
   if(!range||val==null||isNaN(val))return'';
-  const t=range.max===range.min?0.5:(val-range.min)/(range.max-range.min);
+  const t=range.max===range.min?0.5:Math.max(0,Math.min(1,(val-range.min)/(range.max-range.min)));
   // rojo (tasa baja) → verde (tasa alta)
   const r=Math.round(180*(1-t));
   const g=Math.round(160*t);
@@ -4972,7 +4975,9 @@ function heatStyle(val,range,col){
   return heatFondo(r,g,b);
 }
 
-function buildRow(r){
+// cup: una fila de bono con cupón (ver tfcRender), de sólo lectura, con el
+// detalle del precio en el globo.
+function buildRow(r,cup){
   const v=r.dias<=0;
   const sel=r.ticker===selectedTicker?'selected':'';
   const vctoStr=r.vcto?r.vcto.split('-').reverse().join('/'):'—';
@@ -4985,7 +4990,7 @@ function buildRow(r){
   const HR=window._heatRanges||{};
 
   function cellContent(col){
-    const key=editingCell&&editingCell.ticker===r.ticker&&editingCell.col===col;
+    const key=!cup&&editingCell&&editingCell.ticker===r.ticker&&editingCell.col===col;
     const val=r[col];
     const isRate=col!=='precio';
     const disp=!isRate?fmtARS(val):(val==null||isNaN(val)?'—':fmtP2(val));
@@ -4998,6 +5003,7 @@ function buildRow(r){
     }
     const hs=isRate&&!v?heatStyle(val,HR[col],col):'';
     // Un precio del cierre anterior va en otro color, con la marca.
+    if(cup)return `<div class="cv no-edit ${colorClass}" style="${hs}"${col==='precio'&&cup.titulo?` title="${cup.titulo.replace(/"/g,'&quot;')}"`:''}>${noPrice&&col!=='precio'?'—':disp}</div>`;
     if(col==='precio'&&!v&&r.precioCierre&&!isOverride){
       const ci=pesosEsCierre(r);
       return `<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${ci?'color:var(--info)':''}" onclick="startCell(event,'${r.ticker}','${col}')">${disp}${pesosCierreMarca(r)}</div>`;
@@ -5005,26 +5011,25 @@ function buildRow(r){
     return `<div class="cv editable ${colorClass} ${overrideCls}" style="${hs}" onclick="startCell(event,'${r.ticker}','${col}')">${noPrice&&col!=='precio'?'—':disp}</div>`;
   }
 
-  const tipoBadge=r.tipo==='LECAP'
+  const tipoBadge=cup?`<span style="font-size:var(--fs10);color:#c4a7e7">${r.tipo}</span>`
+    :r.tipo==='LECAP'
     ?'<span style="font-size:var(--fs10);color:var(--info)">LECAP</span>'
     :'<span style="font-size:var(--fs10);color:var(--accent)">BONCAP</span>';
 
-  return `<tr class="${sel}${calcFilaCls('tf',r.ticker)}" onclick="handleRowClick(event,'${r.ticker}')">
+  return `<tr class="${cup?'':sel}${calcFilaCls('tf',r.ticker)}"${cup?'':` onclick="handleRowClick(event,'${r.ticker}')"`}>
     <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('tf',r.ticker)}<span class="c-ticker">${r.ticker}</span>${altasMarca(r.emision)}</div></td>
     <td><div class="cv no-edit" style="justify-content:center">${tipoBadge}</div></td>
     <td><div class="cv no-edit c-date">${vctoStr}</div></td>
     <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
     <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
-    <td>${cellContent('precio')}</td>
-    <td><div class="cv no-edit" style="justify-content:flex-end">${chgStr}</div></td>
+    <td>${pxConVar(cellContent('precio'),r.pct_change)}</td>
     <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
     <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
     <td>${cellContent('tna')}</td>
     <td>${cellContent('tir')}</td>
     <td>${cellContent('tem')}</td>
-    <td><div class="cv no-edit c-muted">${fmtARS(r.vf)}</div></td>
     <td onclick="event.stopPropagation()"><div class="row-act">
-      <button class="rbtn del" title="Eliminar" onclick="deleteRow('${r.ticker}')" style="display:${isAdmin()?'':'none'}">✕</button>
+      ${cup?'':`<button class="rbtn del" title="Eliminar" onclick="deleteRow('${r.ticker}')" style="display:${isAdmin()?'':'none'}">✕</button>`}
     </div></td>
   </tr>`;
 }
@@ -5285,8 +5290,13 @@ function renderChart(){
   if(!canvas)return;
 
   const ex=calcExcl('tf');
+  // Los BONTE, por duration: el del put entra con las letras y al ajuste; el
+  // del vencimiento va aparte (dsCupon).
+  const liqC=G_LIQ||addHabiles(TODAY,1);
+  const cupVar=tfcVariantes(liqC).filter(v=>!ex.has(v.ticker)&&isFinite(v[chartMode])&&isFinite(v.durDias));
   const pts=DATA
     .filter(r=>r.dias>0&&r.precio!=null&&!isNaN(r[chartMode])&&!ex.has(r.ticker))
+    .concat(cupVar.filter(v=>v.enCurva).map(v=>({...v,dias:v.durDias})))
     .sort((a,b)=>a.dias-b.dias);
   calcBonosPintar('tf');
 
@@ -5306,27 +5316,15 @@ function renderChart(){
   const curva=curvaDatasets(curvaAjustar(xVals.map((x,i)=>({x,y:yVals[i]}))),xVals,
     {color:'rgba(122,179,212,0.55)',relleno:'rgba(122,179,212,0.10)',label:'Tendencia',clave:'tf'});
 
-  // Los bonos con cupón (BONTE): dos puntos por bono, ejerciendo el put y al
-  // vencimiento, ubicados por duration y unidos por una línea punteada. No
-  // entran al ajuste de la curva: la tendencia es la de las letras.
-  const liqC=G_LIQ||addHabiles(TODAY,1);
   const COL_CUPON='#c4a7e7';
-  const dsCupon=(typeof TF_CUPON!=='undefined'?TF_CUPON:[])
-    .filter(b=>b.vcto>hoyAR()&&!ex.has(b.ticker)).map(b=>({b,c:tfcCalc(b,liqC)}))
-    .filter(o=>o.c&&o.c.vto&&isFinite(o.c.vto.tir))
-    .map(({b,c})=>{
-      const caminos=[c.conPut&&c.put&&isFinite(c.put.tir)?{k:'put',x:c.put}:null,{k:'vto',x:c.vto}].filter(Boolean);
-      return{label:b.ticker,type:'line',tfc:{b,c,caminos},
-        data:caminos.map(o=>({x:o.x.dias,y:tfcEnModo(o.x,chartMode)})),
-        showLine:true,borderColor:COL_CUPON,borderDash:[4,4],borderWidth:1.2,fill:false,
-        pointStyle:'rectRot',pointRadius:7,pointHoverRadius:9,pointBackgroundColor:'rgba(196,167,231,0.25)',pointBorderColor:COL_CUPON,pointBorderWidth:1.5,
-        datalabels:{display:true,formatter:(_,ctx)=>b.ticker+(caminos[ctx.dataIndex].k==='put'?' · put':' · vto'),color:COL_CUPON,
-          font:{size:10,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:4,clip:false}};
-    });
+  const dsCupon=cupVar.filter(v=>!v.enCurva).map(v=>({label:v.ticker,tfc:{v},
+    data:[{x:v.durDias,y:v[chartMode]}],showLine:false,
+    pointStyle:'rectRot',pointRadius:7,pointHoverRadius:9,pointBackgroundColor:'rgba(196,167,231,0.25)',pointBorderColor:COL_CUPON,pointBorderWidth:1.5,
+    datalabels:{display:true,formatter:()=>v.ticker,color:COL_CUPON,font:{size:10,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:4,clip:false}}));
 
   const axisLabels={tna:'TNA (%)',tir:'TIR (%)',tem:'TEM (%)'};
-  const pointColors=pts.map(r=>r.manualOverride?'#d4a96a':'#a8d5a2');
-  const pointBorder=pts.map(r=>r.manualOverride?'#b8883a':'#6eb868');
+  const pointColors=pts.map(r=>r.cupon?'rgba(196,167,231,0.35)':r.manualOverride?'#d4a96a':'#a8d5a2');
+  const pointBorder=pts.map(r=>r.cupon?COL_CUPON:r.manualOverride?'#b8883a':'#6eb868');
 
   if(window.ChartDataLabels) Chart.register(ChartDataLabels);
 
@@ -5348,13 +5346,14 @@ function renderChart(){
           pointBackgroundColor:pointColors,
           pointBorderColor:pointBorder,
           pointBorderWidth:1.5,
-          pointRadius:6,
+          pointStyle:pts.map(r=>r.cupon?'rectRot':'circle'),
+          pointRadius:pts.map(r=>r.cupon?7:6),
           pointHoverRadius:9,
           showLine:false,
           datalabels:{
             display:true,
             formatter:(_,ctx)=>tickers[ctx.dataIndex],
-            color:ctx=>overrides[ctx.dataIndex]?'#d4a96a':'#8a9489',
+            color:ctx=>pts[ctx.dataIndex].cupon?COL_CUPON:overrides[ctx.dataIndex]?'#d4a96a':'#8a9489',
             font:{size:10,family:'DM Mono, monospace'},
             anchor:'end',
             align:'top',
@@ -5377,14 +5376,17 @@ function renderChart(){
           const dp=tooltip.dataPoints[0];
           const ds=chart.data.datasets[dp.datasetIndex];
           const dmy=s=>s?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
+          const cupTip=v=>
+              `<div style="color:${COL_CUPON};margin-bottom:3px">${v.ticker} · ${v.enCurva?'ejerciendo el put':'al vencimiento, fuera del ajuste'}</div>`+
+              `<div style="color:#8a9489">${chartMode.toUpperCase()}: <span style="color:#e8ede9">${v[chartMode].toFixed(4)}%</span>${chartMode==='tna'?' semestral':''}</div>`+
+              `<div style="color:#8a9489">Duration: <span style="color:#e8ede9">${(v.durDias/365).toFixed(2)} años</span> · cobra hasta el ${dmy(v.vcto)}</div>`+
+              `<div style="color:#8a9489">Precio: <span style="color:#e8ede9">${fmtPrecio(v.precio)}</span> sucio · ${v.limpio!=null?v.limpio.toFixed(2):'—'} limpio</div>`;
           if(ds&&ds.tfc){
-            const o=ds.tfc.caminos[dp.dataIndex],x=o.x,b=ds.tfc.b,c=ds.tfc.c;
-            tooltipEl.innerHTML=
-              `<div style="color:${COL_CUPON};margin-bottom:3px">${b.ticker} · ${o.k==='put'?'ejerciendo el put':'al vencimiento'}</div>`+
-              `<div style="color:#8a9489">${chartMode.toUpperCase()}: <span style="color:#e8ede9">${tfcEnModo(x,chartMode).toFixed(4)}%</span></div>`+
-              `<div style="color:#8a9489">Duration: <span style="color:#e8ede9">${x.dur.toFixed(2)} años</span> · cobra hasta el ${dmy(x.hasta)}</div>`+
-              `<div style="color:#8a9489">Precio: <span style="color:#e8ede9">${fmtPrecio(b.precio)}</span> sucio · ${c.limpio.toFixed(2)} limpio</div>`;
+            tooltipEl.innerHTML=cupTip(ds.tfc.v);
           }else if(dp.datasetIndex!==0){tooltipEl.style.display='none';return;}
+          else if(pts[dp.dataIndex]&&pts[dp.dataIndex].cupon){
+            tooltipEl.innerHTML=cupTip(pts[dp.dataIndex]);
+          }
           else{
           const i=dp.dataIndex;
           const rate=yVals[i].toFixed(4);
@@ -6245,7 +6247,7 @@ async function cerFetchPrices(){
 }
 
 // ── CER TABLE ─────────────────────────────────────────────────────────────────
-const CER_TH=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tir','tirProy','tnaProy','temProy'];
+const CER_TH=['ticker','tipo','vcto','dias','modDuration','precio','spread','monto','tir','tirProy','tnaProy','temProy'];
 function cerSortBy(col){
   cerSortAsc=cerSortCol===col?!cerSortAsc:(col==='vcto'||col==='ticker');
   cerSortCol=col;cerRenderTable();
@@ -6283,7 +6285,7 @@ function cerRenderTable(){
   });
   const tbody=document.getElementById('cer-table-body');
   const hasProy=CER_PROJ.size>0;
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="${hasProy?13:13}" class="no-rows">Agregá bonos CER con + Nueva y actualizá precios.</td></tr>`;set('st-count','0 bonos');return;}
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="12" class="no-rows">Agregá bonos CER con + Nueva y actualizá precios.</td></tr>`;set('st-count','0 bonos');return;}
 
   tbody.innerHTML=rows.map(r=>{
     const v=r.dias<=0;
@@ -6329,8 +6331,7 @@ function cerRenderTable(){
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
-      <td>${cerc('precio')}</td>
-      <td><div class="cv no-edit">${chgStr}</div></td>
+      <td>${pxConVar(cerc('precio'),r.pct_change)}</td>
       <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td>${cerc('tir')}</td>
@@ -9784,7 +9785,7 @@ const LS_TAMAR='bonosAR_tamar_bonds_v1';
 let TAMAR_BONDS=[];
 let TAMAR_DATA=[];
 let tamarSortCol='vcto', tamarSortAsc=true;
-const TAMAR_TH=['ticker','vcto','dias','modDuration','precio','pct_change','spread','monto','margenTNA','tir','tna','tem'];
+const TAMAR_TH=['ticker','vcto','dias','modDuration','precio','spread','monto','margenTNA','tir','tna','tem'];
 
 // ── TAMAR ENRICH ─────────────────────────────────────────────────────────────
 function tamarEnrich(r){
@@ -9943,7 +9944,7 @@ function tamarRenderTable(){
   });
   const tbody=document.getElementById('tamar-table-body');
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="13" class="no-rows">Agregá bonos TAMAR con + Nueva y actualizá precios.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="12" class="no-rows">Agregá bonos TAMAR con + Nueva y actualizá precios.</td></tr>`;
     document.getElementById('tamar-st-count').textContent='0 bonos';return;
   }
   tbody.innerHTML=rows.map(r=>{
@@ -9964,8 +9965,7 @@ function tamarRenderTable(){
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
-      <td>${pxCell}</td>
-      <td><div class="cv no-edit">${chgStr}</div></td>
+      <td>${pxConVar(pxCell,r.pct_change)}</td>
       <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td><div class="cv no-edit c-amber">${f(r.margenTNA,4)}</div></td>
@@ -13370,7 +13370,16 @@ function beCPEnrich(item){
 
   if(tipo==='tf'){
     const b=LECAPS.find(r=>r.ticker===ticker);
-    if(!b||!b.vcto)return null;
+    if(!b||!b.vcto){
+      // Un BONTE, al put o al vencimiento: con la TNA semestral, como en la
+      // calculadora. El del put desaparece pasado el aviso.
+      if(!(TF_CUPON||[]).some(x=>x.ticker===ticker||x.ticker+' put'===ticker))return null;
+      const v=tfcVariantes().find(x=>x.ticker===ticker);
+      if(!v)return{ticker,tipo,expired:true};
+      const ok=x=>x!=null&&isFinite(x)?x:null;
+      return{ticker,tipo,vctoStr:v.vcto.split('-').reverse().join('/'),fixing:'N/A',px:v.precio,tirReal:null,
+        tna:ok(v.tna),tir:ok(v.tir),tem:ok(v.tem),bg,ac};
+    }
     const liq=G_LIQ||addHabiles(TODAY,1);
     if(diasACT(liq,parseDate(b.vcto))<=0)return{ticker,tipo,expired:true};
     const calc=calcLecap(b);
@@ -13500,7 +13509,7 @@ function beCPRecalc(){
 
   const sorted=[...CP_BONDS].filter(b=>CP_FILTER.has(b.tipo)).sort((a,b)=>{
     let _dlk=[];try{_dlk=DLK_BONDS||[];}catch(e){}
-    const allBonds=[...LECAPS,...CER_BONDS,...TAMAR_BONDS,..._dlk];
+    const allBonds=[...LECAPS,...tfcVariantes(),...CER_BONDS,...TAMAR_BONDS,..._dlk];
     const bA=allBonds.find(r=>r.ticker===a.ticker);
     const bB=allBonds.find(r=>r.ticker===b.ticker);
     return(bA?.vcto||'').localeCompare(bB?.vcto||'');
@@ -13546,7 +13555,7 @@ const CP_PX_OVERRIDE={}; // {ticker: precio_manual}
 
 function beCPEditPx(td, ticker, tipo){
   const current=CP_PX_OVERRIDE[ticker]||
-    [...LECAPS,...CER_BONDS,...TAMAR_BONDS,...DLK_BONDS].find(r=>r.ticker===ticker)?.precio||'';
+    [...LECAPS,...tfcVariantes(),...CER_BONDS,...TAMAR_BONDS,...DLK_BONDS].find(r=>r.ticker===ticker)?.precio||'';
   td.innerHTML=`<input type="number" step="0.01" value="${current}"
     style="width:80px;background:var(--surface2);color:var(--text);border:1px solid var(--accent);border-radius:3px;padding:2px 4px;font-family:var(--mono);font-size:var(--fs12);text-align:right"
     onblur="beCPCommitPx(this,'${ticker}','${tipo}')"
@@ -13563,6 +13572,11 @@ function beCPCommitPx(input, ticker, tipo){
     if(tipo==='tf'){
       const idx=LECAPS.findIndex(r=>r.ticker===ticker);
       if(idx>=0) LECAPS[idx]={...LECAPS[idx],precio:val,manualOverride:true,precioCierre:null};
+      else{
+        // Un BONTE: el precio es el mismo para el del put y el del vencimiento.
+        const i=TF_CUPON.findIndex(x=>x.ticker===ticker||x.ticker+' put'===ticker);
+        if(i>=0)TF_CUPON[i]={...TF_CUPON[i],precio:val,manualOverride:true};
+      }
       DATA=LECAPS.map(enrich); // mantener DATA en sync para beFindTF
     } else if(tipo==='cer'){
       const idx=CER_BONDS.findIndex(r=>r.ticker===ticker);
@@ -13602,7 +13616,7 @@ function beCPModalUpdateList(){
   const already=new Set(CP_BONDS.filter(b=>b.tipo===tipo).map(b=>b.ticker));
   let options=[];
   if(tipo==='tf'||tipo==='cer'||tipo==='tamar'){
-    const src=tipo==='tf'?LECAPS:tipo==='cer'?CER_BONDS:TAMAR_BONDS;
+    const src=tipo==='tf'?LECAPS.concat(tfcVariantes()):tipo==='cer'?CER_BONDS:TAMAR_BONDS;
     const vigentes=src.filter(b=>b.vcto&&diasACT(liq,parseDate(b.vcto))>0).sort((a,b)=>a.vcto.localeCompare(b.vcto));
     options=vigentes.map(b=>b.ticker).filter(t=>!already.has(t)).map(t=>`<option value="${t}">${t}</option>`);
   } else if(tipo==='dlk'){
@@ -13943,7 +13957,7 @@ function altasMarca(emision){
 // Funciones y no variables: el gráfico de LECAP se dibuja al cargar, antes de
 // que el script llegue hasta acá.
 function calcClave(k){return({
-  tf:   {bonos:()=>(LECAPS||[]).concat(typeof TF_CUPON!=='undefined'?TF_CUPON:[]),vigente:b=>!b.vcto||b.vcto>hoyAR(),repintar:()=>renderTable()},
+  tf:   {bonos:()=>(LECAPS||[]).concat(tfcVariantes()),vigente:b=>!b.vcto||b.vcto>hoyAR(),repintar:()=>renderTable()},
   cer:  {bonos:()=>CER_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{cerRenderTable();cerRenderTabChart();}},
   tamar:{bonos:()=>TAMAR_BONDS||[], vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{tamarRenderTable();tamarRenderTabChart();}},
   dlk:  {bonos:()=>DLK_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>dlkRenderTable()},
@@ -14792,7 +14806,7 @@ function dlkRenderTable(){
   const tbody=document.getElementById('dlk-table-body');
   if(!tbody)return;
   if(!DLK_BONDS.length){
-    tbody.innerHTML=`<tr><td colspan="11" class="no-rows">Agregá bonos DLK con + Nueva.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="10" class="no-rows">Agregá bonos DLK con + Nueva.</td></tr>`;
     return;
   }
   const liq=G_LIQ||addHabiles(TODAY,1);
@@ -14814,8 +14828,7 @@ function dlkRenderTable(){
       <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('dlk',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}${altasMarca(r.emision)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${r.dias}</div></td>
-      <td>${pxCell}</td>
-      <td><div class="cv no-edit">${chgStr}</div></td>
+      <td>${pxConVar(pxCell,r.pct_change)}</td>
       <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td><div class="cv no-edit c-amber">${parStr}</div></td>
@@ -17216,7 +17229,6 @@ function equivInit(){
 const USD_SUM_COLS=[
   {key:'ticker',     label:'TICKER',  align:'left'},
   {key:'precio',     label:'PRECIO',  align:'right'},
-  {key:'var',        label:'VAR.',    align:'right'},
   {key:'spread',     label:'SPREAD',  align:'right'},
   {key:'monto',      label:'MONTO',   align:'right'},
   {key:'md',         label:'MD',      align:'right'},
@@ -17305,8 +17317,7 @@ function usdSumRowHtml(e,isSel,onClickFn,group){
   const pxColor=ovr?'var(--warn)':usdEsCierre(b)?'var(--info)':'var(--text)';
   return`<tr class="${calcFilaCls(g,b.ticker)}" style="cursor:pointer;border-bottom:1px solid var(--border);${bg}" onclick="${onClickFn}('${b.ticker}')" ${hov}>
     <td style="padding:9px 14px;color:var(--accent);font-weight:600;white-space:nowrap;text-align:left">${calcCasilla(g,b.ticker)}${b.ticker}${altasMarca(b.emision)}</td>
-    <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}</td>
-    <td style="padding:9px 12px;text-align:right;color:var(--text3)">${varStr}</td>
+    <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}${varStr!=='—'?`<span style="margin-left:6px">${varStr}</span>`:''}</td>
     <td style="padding:9px 12px;text-align:right">${libroSpreadHTML(libroSpread(b.lastBid,b.lastAsk),b.lastMonto)}</td>
     <td style="padding:9px 12px;text-align:right"${b.lastOps?` title="${b.lastOps} operaciones"`:''}>${libroMontoHTML(b.lastMonto)}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--warn);font-variant-numeric:tabular-nums">${mdStr}</td>
