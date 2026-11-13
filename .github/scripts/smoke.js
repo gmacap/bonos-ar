@@ -4858,6 +4858,44 @@ const omitir = (label, motivo) =>
         'cada día muestra sus eventos con texto y la leyenda oculta y vuelve a mostrar un tipo',
         JSON.stringify({ chips: cal.chips, texto: cal.conTexto, ley: cal.leyenda, oculta: cal.oculta, vuelve: cal.vuelve }));
 
+  // Tasa fija con cupón: el TY30P (BONTE 2030, 29,5% semestral 30/360, put a
+  // la par el 27/05/2027 que paga capital más el cuarto cupón). Con precio y
+  // liquidación fijos, las cuentas dan lo que da la planilla; en la tabla y en
+  // el gráfico, dos puntos (put y vencimiento) fuera del ajuste de la curva.
+  console.log('\nTasa fija con cupón');
+  const tfc = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const b = { ...TF_CUPON.find(x => x.ticker === 'TY30P'), precio: 114.2 };
+    const c = tfcCalc(b, parseDate('2026-11-16'));
+    out.cuentas = { corrido: +c.corrido.toFixed(2), limpio: +c.limpio.toFixed(2), put: +c.put.tir.toFixed(2), vto: +c.vto.tir.toFixed(2),
+      durPut: +c.put.dur.toFixed(2), durVto: +c.vto.dur.toFixed(2), mejor: c.mejor, prox: c.prox.fecha + ' ' + c.prox.monto.toFixed(2) };
+    const cs = tfcCupones(b);
+    out.flujos = cs.length === 10 && cs[0].cupon.toFixed(2) === '14.42' && cs[0].pago === '2025-12-01' && cs[9].amort === 100 && tfcHabil(b.put.pago) === '2027-05-31';
+    out.sinPut = tfcCalc(b, parseDate('2027-05-28')).conPut === false;
+    switchSection('pesos'); switchTab('lecap');
+    const guardado = TF_CUPON.slice();
+    TF_CUPON = TF_CUPON.map(x => x.ticker === 'TY30P' ? { ...x, precio: x.precio > 0 ? x.precio : 114.2 } : x);
+    renderTable(); await espera(300);
+    out.fila = /TY30P/.test((document.getElementById('tfc-wrap') || {}).innerText || '');
+    const ds = curveChart ? curveChart.data.datasets.find(d => d.tfc && d.label === 'TY30P') : null;
+    out.puntos = ds ? ds.data.length : 0;
+    const enAjuste = curveChart ? curveChart.data.datasets[0].data.length : -1;
+    out.ajusteSinTY30P = enAjuste === DATA.filter(r => r.dias > 0 && r.precio != null && !isNaN(r[chartMode]) && !calcExcl('tf').has(r.ticker)).length;
+    calcExcluir('tf', 'TY30P', true); await espera(200);
+    out.excluye = !curveChart.data.datasets.some(d => d.tfc);
+    calcExcluir('tf', 'TY30P', false);
+    TF_CUPON = guardado; renderTable();
+    out.cal = calAutoEventos().some(e => e.id === 'put_TY30P' && e.fecha === '2027-05-27') && calAutoEventos().some(e => e.id === 'pago_TY30P_2026-11-30');
+    return out;
+  });
+  const k = tfc.cuentas;
+  check(k.corrido === 13.6 && k.limpio === 100.6 && k.put === 30.18 && k.vto === 31.33 && k.durPut === 0.47 && k.durVto === 2.14 && k.mejor === 'vto' && tfc.flujos && tfc.sinPut,
+        'TY30P: corrido, limpio, TIR al put y al vencimiento y duration como en la planilla; el put deja de contar después del aviso', JSON.stringify(tfc.cuentas));
+  check(tfc.fila && tfc.puntos === 2 && tfc.ajusteSinTY30P && tfc.excluye && tfc.cal,
+        'en la tabla y en el gráfico con dos puntos fuera del ajuste, se puede sacar, y sus cupones y el aviso del put van al calendario',
+        JSON.stringify({ fila: tfc.fila, puntos: tfc.puntos, ajuste: tfc.ajusteSinTY30P, excluye: tfc.excluye, cal: tfc.cal }));
+
   // Resumen: los eventos del calendario de hoy a N días, en pesos y en dólares.
   // Más días traen al menos los mismos; achicado no muestra la lista; un clic
   // en un día abre el calendario en ese día.

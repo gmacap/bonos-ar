@@ -189,6 +189,14 @@ tr.calc-fuera:hover>td{opacity:.75;}
 .cal-ley{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--border2);border-radius:12px;background:var(--surface);color:var(--text2);font-family:var(--mono);font-size:var(--fs10);cursor:pointer;}
 .cal-ley.off{opacity:.38;text-decoration:line-through;}
 .cal-ley b{font-weight:500;color:var(--text3);}
+/* Tasa fija con cupón (BONTE): una tabla aparte, debajo de las letras. */
+.tfc-cab{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 10px 4px;margin-top:8px;border-top:1px solid var(--border2);}
+.tfc-cab b{font-family:var(--mono);font-size:var(--fs10);letter-spacing:.06em;text-transform:uppercase;color:var(--text2);font-weight:500;}
+.tfc-cab span{font-family:var(--mono);font-size:var(--fs10);color:var(--text3);}
+#tfc-wrap td.tfc-mejor{font-weight:700;}
+#tfc-wrap td.tfc-peor{opacity:.55;}
+.tfc-nota{padding:6px 10px 12px;font-family:var(--mono);font-size:var(--fs10);line-height:1.55;color:var(--text3);max-width:900px;}
+.tfc-nota b{color:var(--text2);font-weight:500;}
 /* Resumen: los eventos del calendario de hoy a N días, con las mismas
    etiquetas; cada día lleva al calendario. */
 .res-ev-cab{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
@@ -727,6 +735,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         </tr></thead>
         <tbody id="table-body"></tbody>
       </table>
+      <!-- Bonos con cupón (BONTE): tabla aparte, ver tfcRender -->
+      <div id="tfc-wrap"></div>
     </div>
   </div>
 
@@ -4421,6 +4431,131 @@ const tirToPrice=(tir,vf,dias)=>vf/Math.pow(1+tir/100,dias/365);
 // La tabla arranca vacía — usá ↻ Actualizar precios para seleccionar instrumentos
 let LECAPS=[];
 
+// ── TASA FIJA CON CUPÓN (BONTE) ───────────────────────────────────────────────
+// LECAPS modela sólo letras sin cupón —un único pago al vencimiento, que sale
+// de la TEM de emisión—, y la curva, los breakevens, los forwards, las
+// licitaciones y la cartera lo dan por hecho. Los BONTE pagan cupón y pueden
+// traer un put, así que van en una lista aparte: se ven en la calculadora de
+// tasa fija y en su gráfico, fuera del ajuste de la curva y de todo lo demás.
+//
+// Precio: el de data912 por cada 100 de VN, SUCIO, con el cupón corrido
+// adentro (el TY30P cayó de 103,57 a 91,92 al cortar el cupón de noviembre de
+// 2025). TIR efectiva anual con los días reales sobre 365, como las LECAP.
+//
+// TY30P, BONTE 2030 (Ministerio de Economía, llamado del 28/05/2025): emitido
+// el 04/06/2025, 29,50% anual pagadero el 30/05 y el 30/11 desde el 30/11/2025,
+// base 30/360, amortiza todo el 30/05/2030. Si el cupón cae en día no hábil se
+// paga el siguiente y devenga hasta la fecha original. Put por única vez,
+// total o parcial, a opción del tenedor: aviso hasta las 15 h del 27/05/2027,
+// y paga el capital más el cuarto cupón el día de ese cupón.
+var TF_CUPON=[
+  {ticker:'TY30P',nombre:'BONTE 2030',emision:'2025-06-04',vcto:'2030-05-30',tasa:29.5,freq:2,primer:'2025-11-30',base:'30/360',
+   put:{aviso:'2027-05-27',pago:'2027-05-30'},precio:null,pct_change:null},
+];
+function tfcSumarMeses(f,n){
+  const[y,m,d]=f.split('-').map(Number),t=new Date(y,m-1+n,1);
+  return fmtDate(new Date(t.getFullYear(),t.getMonth(),Math.min(d,new Date(t.getFullYear(),t.getMonth()+1,0).getDate())));
+}
+function tfcHabil(f){const d=parseDate(f);while(!esHabil(d))d.setDate(d.getDate()+1);return fmtDate(d);}
+// Los cupones por 100 de VN: fecha original (f0), de pago, monto y amortización.
+function tfcCupones(b){
+  const out=[],paso=12/(b.freq||2),tr=b.base==='30/360';
+  let prev=b.emision;
+  for(let k=0;k<400;k++){
+    const f=tfcSumarMeses(b.primer,paso*k);
+    if(f>b.vcto)break;
+    const dias=tr?dias360(parseDate(prev),parseDate(f)):diasACT(parseDate(prev),parseDate(f));
+    out.push({desde:prev,f0:f,pago:tfcHabil(f),cupon:b.tasa*dias/(tr?360:365),amort:f===b.vcto?100:0});
+    prev=f;
+  }
+  return out;
+}
+function tfcTir(fl,precio,liq){
+  const vp=y=>fl.reduce((s,x)=>s+x.monto/Math.pow(1+y,diasACT(liq,parseDate(x.pago))/365),0);
+  let lo=-0.9,hi=5;
+  if(!(vp(lo)>precio&&vp(hi)<precio))return NaN;
+  for(let i=0;i<200;i++){const m=(lo+hi)/2;if(vp(m)>precio)lo=m;else hi=m;}
+  const y=(lo+hi)/2;
+  const pv=fl.map(x=>{const t=diasACT(liq,parseDate(x.pago))/365;return{t,v:x.monto/Math.pow(1+y,t)};});
+  const tot=pv.reduce((s,x)=>s+x.v,0),dur=pv.reduce((s,x)=>s+x.v*x.t,0)/tot;
+  return{tir:y*100,dur,md:dur/(1+y),dias:Math.round(dur*365),hasta:fl[fl.length-1].pago};
+}
+// Lo que se ve de un BONTE a una liquidación: corrido, limpio, paridad, el
+// próximo cupón y la TIR por los dos caminos —ejercer el put o quedarse—. El
+// put rige hasta el día del aviso; después queda sólo el vencimiento.
+function tfcCalc(b,liq){
+  const L=fmtDate(liq),cs=tfcCupones(b),prox=cs.find(c=>c.pago>L);
+  if(!prox)return null;
+  const tr=b.base==='30/360';
+  const dc=Math.max(0,tr?dias360(parseDate(prox.desde),liq):diasACT(parseDate(prox.desde),liq));
+  const corrido=b.tasa*dc/(tr?360:365);
+  const out={corrido,prox:{fecha:prox.pago,monto:prox.cupon},put:null,vto:null,mejor:null};
+  const conPut=!!(b.put&&L<=b.put.aviso);
+  out.conPut=conPut;
+  if(!(b.precio>0))return out;
+  out.limpio=b.precio-corrido;
+  out.paridad=b.precio/(100+corrido)*100;
+  const flujos=hasta=>{
+    const fl=cs.filter(c=>c.pago>L&&c.f0<=hasta).map(c=>({pago:c.pago,monto:c.cupon+c.amort}));
+    if(hasta!==b.vcto&&fl.length)fl[fl.length-1].monto+=100;
+    return fl;
+  };
+  out.vto=tfcTir(flujos(b.vcto),b.precio,liq);
+  if(conPut)out.put=tfcTir(flujos(b.put.pago),b.precio,liq);
+  if(out.put&&out.vto&&isFinite(out.put.tir)&&isFinite(out.vto.tir))out.mejor=out.put.tir>out.vto.tir?'put':'vto';
+  return out;
+}
+// La tasa de un camino en la unidad del gráfico, ubicada por duration: en una
+// letra sin cupón la duration es el plazo, así que el punto es comparable.
+function tfcEnModo(c,modo){
+  if(!c||!isFinite(c.tir))return NaN;
+  return modo==='tir'?c.tir:modo==='tem'?calcTEM(c.tir):tirToTNA(c.tir,c.dias);
+}
+function tfcPrecios(map){
+  TF_CUPON=TF_CUPON.map(b=>{const api=map.get(b.ticker),px=apiBestPrice(api);
+    return px?{...b,precio:px,pct_change:api.pct_change??null,...libroDe(api)}:b;});
+}
+function tfcRender(){
+  const el=document.getElementById('tfc-wrap');
+  if(!el)return;
+  const q=(document.getElementById('search')||{}).value||'';
+  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('tf'),hoy=hoyAR();
+  const bonos=TF_CUPON.filter(b=>b.vcto>hoy&&(!q||b.ticker.toLowerCase().includes(q.toLowerCase())));
+  if(!bonos.length){el.innerHTML='';return;}
+  const f=s=>s?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
+  const n=(v,d=2)=>v==null||!isFinite(v)?'—':v.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
+  const filas=[],notas=[];
+  bonos.forEach(b=>{
+    const c=tfcCalc(b,liq);
+    if(!c)return;
+    const chg=b.pct_change==null?'':`<span class="${b.pct_change>=0?'c-chg-pos':'c-chg-neg'}">${b.pct_change>=0?'+':''}${b.pct_change.toFixed(2)}%</span>`;
+    const tirCel=(x,cual)=>x&&isFinite(x.tir)?`<td class="c-blue${c.mejor?(c.mejor===cual?' tfc-mejor':' tfc-peor'):''}" title="Duration ${n(x.dur)} años · MD ${n(x.md)} · cobra hasta el ${f(x.hasta)}">${n(x.tir)}%</td>`:'<td class="c-muted">—</td>';
+    filas.push(`<tr class="${calcFilaCls('tf',b.ticker,ex).trim()}">
+      <td style="text-align:left">${calcCasilla('tf',b.ticker,ex)} <b>${b.ticker}</b> <span class="c-muted" style="font-size:var(--fs10)">${b.nombre||''}</span></td>
+      <td>${f(b.vcto)}</td>
+      <td class="c-green" title="Precio sucio por cada 100 de VN, con el cupón corrido adentro">${b.precio>0?n(b.precio):'—'} ${chg}</td>
+      <td title="Cupón corrido a la liquidación del ${f(fmtDate(liq))}, base ${b.base}">${n(c.corrido)}</td>
+      <td>${c.limpio!=null?n(c.limpio):'—'}</td>
+      <td>${c.paridad!=null?n(c.paridad,1)+'%':'—'}</td>
+      ${c.conPut?tirCel(c.put,'put'):'<td class="c-muted" title="El put ya venció">—</td>'}
+      ${tirCel(c.vto,'vto')}
+      <td>${c.vto?n(c.vto.md):'—'}</td>
+      <td title="Cupón por cada 100 de VN">${f(c.prox.fecha)} · ${n(c.prox.monto)}</td>
+    </tr>`);
+    if(c.conPut){
+      const lectura=!c.mejor?''
+        :c.mejor==='vto'?` Hoy rinde más quedarse hasta el vencimiento (<b>${n(c.vto.tir)}%</b> contra ${n(c.put.tir)}% al put): el limpio está arriba de la par.`
+        :` Hoy rinde más ejercerlo (<b>${n(c.put.tir)}%</b> contra ${n(c.vto.tir)}% al vencimiento): el limpio está abajo de la par.`;
+      notas.push(`<div class="tfc-nota"><b>${b.ticker} · put a la par.</b> Aviso hasta las 15 h del ${f(b.put.aviso)} por la entidad custodia; paga el capital más el cupón el ${f(tfcHabil(b.put.pago))}.${lectura} Las dos TIR se igualan con el limpio en 100.</div>`);
+    }
+  });
+  el.innerHTML=`<div class="tfc-cab"><b>Con cupón</b><span>precio sucio por 100 de VN · TIR efectiva · en el gráfico por duration, fuera del ajuste de la curva</span></div>
+    <table><thead><tr>
+      <th style="text-align:left">Ticker</th><th>Vto</th><th>Precio $</th><th>Corrido</th><th>Limpio</th><th>Paridad</th>
+      <th title="Cobrando capital y cupón el día del put">TIR al put</th><th>TIR al vto</th><th>MD</th><th>Próx. cupón</th>
+    </tr></thead><tbody>${filas.join('')}</tbody></table>${notas.join('')}`;
+}
+
 // ── ENRICH ────────────────────────────────────────────────────────────────────
 function enrich(r){
   const em=parseDate(r.emision),vc=parseDate(r.vcto);
@@ -4648,6 +4783,7 @@ async function fetchPrices(){
       return pesosSinPrecioHoy(r,liq);
     });
     DATA=LECAPS.map(enrich);
+    tfcPrecios(apiMap);
     savePortfolio();
     renderTable();
     if(selectedTicker)recalcPanel();
@@ -4679,6 +4815,9 @@ async function fetchAllPrices(auto){
     const liq=G_LIQ||addHabiles(TODAY,1);
     let total=0, notFound=[];
 
+    // Tasa fija con cupón (BONTE): se pinta con la tabla de las letras.
+    tfcPrecios(map);
+    if(!LECAPS.length){try{tfcRender();}catch(e){}}
     // LECAPS (Tasa Fija)
     if(LECAPS.length){
       LECAPS=LECAPS.map(r=>{
@@ -4776,6 +4915,7 @@ function filaValor(r,col){
 }
 
 function renderTable(){
+  try{tfcRender();}catch(e){console.warn('[con cupón]',e.message);}
   const q=document.getElementById('search').value.toLowerCase();
   const showV=document.getElementById('show-vencidas').checked;
   let rows=DATA.filter(r=>(showV||r.dias>0)&&(!q||r.ticker.toLowerCase().includes(q)));
@@ -5166,6 +5306,24 @@ function renderChart(){
   const curva=curvaDatasets(curvaAjustar(xVals.map((x,i)=>({x,y:yVals[i]}))),xVals,
     {color:'rgba(122,179,212,0.55)',relleno:'rgba(122,179,212,0.10)',label:'Tendencia',clave:'tf'});
 
+  // Los bonos con cupón (BONTE): dos puntos por bono, ejerciendo el put y al
+  // vencimiento, ubicados por duration y unidos por una línea punteada. No
+  // entran al ajuste de la curva: la tendencia es la de las letras.
+  const liqC=G_LIQ||addHabiles(TODAY,1);
+  const COL_CUPON='#c4a7e7';
+  const dsCupon=(typeof TF_CUPON!=='undefined'?TF_CUPON:[])
+    .filter(b=>b.vcto>hoyAR()&&!ex.has(b.ticker)).map(b=>({b,c:tfcCalc(b,liqC)}))
+    .filter(o=>o.c&&o.c.vto&&isFinite(o.c.vto.tir))
+    .map(({b,c})=>{
+      const caminos=[c.conPut&&c.put&&isFinite(c.put.tir)?{k:'put',x:c.put}:null,{k:'vto',x:c.vto}].filter(Boolean);
+      return{label:b.ticker,type:'line',tfc:{b,c,caminos},
+        data:caminos.map(o=>({x:o.x.dias,y:tfcEnModo(o.x,chartMode)})),
+        showLine:true,borderColor:COL_CUPON,borderDash:[4,4],borderWidth:1.2,fill:false,
+        pointStyle:'rectRot',pointRadius:7,pointHoverRadius:9,pointBackgroundColor:'rgba(196,167,231,0.25)',pointBorderColor:COL_CUPON,pointBorderWidth:1.5,
+        datalabels:{display:true,formatter:(_,ctx)=>b.ticker+(caminos[ctx.dataIndex].k==='put'?' · put':' · vto'),color:COL_CUPON,
+          font:{size:10,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:4,clip:false}};
+    });
+
   const axisLabels={tna:'TNA (%)',tir:'TIR (%)',tem:'TEM (%)'};
   const pointColors=pts.map(r=>r.manualOverride?'#d4a96a':'#a8d5a2');
   const pointBorder=pts.map(r=>r.manualOverride?'#b8883a':'#6eb868');
@@ -5205,6 +5363,7 @@ function renderChart(){
           },
         },
         ...curva.lista,
+        ...dsCupon,
       ]
     },
     options:{
@@ -5215,8 +5374,18 @@ function renderChart(){
         legend:{display:false},
         tooltip:{enabled:false,external:({chart,tooltip})=>{
           if(tooltip.opacity===0){tooltipEl.style.display='none';return;}
-          if(tooltip.dataPoints[0].datasetIndex!==0){tooltipEl.style.display='none';return;}
           const dp=tooltip.dataPoints[0];
+          const ds=chart.data.datasets[dp.datasetIndex];
+          const dmy=s=>s?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
+          if(ds&&ds.tfc){
+            const o=ds.tfc.caminos[dp.dataIndex],x=o.x,b=ds.tfc.b,c=ds.tfc.c;
+            tooltipEl.innerHTML=
+              `<div style="color:${COL_CUPON};margin-bottom:3px">${b.ticker} · ${o.k==='put'?'ejerciendo el put':'al vencimiento'}</div>`+
+              `<div style="color:#8a9489">${chartMode.toUpperCase()}: <span style="color:#e8ede9">${tfcEnModo(x,chartMode).toFixed(4)}%</span></div>`+
+              `<div style="color:#8a9489">Duration: <span style="color:#e8ede9">${x.dur.toFixed(2)} años</span> · cobra hasta el ${dmy(x.hasta)}</div>`+
+              `<div style="color:#8a9489">Precio: <span style="color:#e8ede9">${fmtPrecio(b.precio)}</span> sucio · ${c.limpio.toFixed(2)} limpio</div>`;
+          }else if(dp.datasetIndex!==0){tooltipEl.style.display='none';return;}
+          else{
           const i=dp.dataIndex;
           const rate=yVals[i].toFixed(4);
           const ovr=overrides[i]?' <span style="color:#d4a96a">✎ manual</span>':'';
@@ -5224,6 +5393,7 @@ function renderChart(){
             `<div style="color:#a8d5a2;margin-bottom:3px">${tickers[i]} · ${xVals[i]} días</div>`+
             `<div style="color:#8a9489">${chartMode.toUpperCase()}: <span style="color:#e8ede9">${rate}%</span>${ovr}</div>`+
             `<div style="color:#8a9489">Precio: <span style="color:#e8ede9">${fmtPrecio(precios[i])}</span></div>`;
+          }
           // position near cursor using caretX/Y relative to canvas bounding rect
           const rect=chart.canvas.getBoundingClientRect();
           const x=rect.left+tooltip.caretX+12;
@@ -5236,7 +5406,7 @@ function renderChart(){
       },
       scales:{
         x:{
-          title:{display:true,text:'Días al vencimiento',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
+          title:{display:true,text:dsCupon.length?'Días al vencimiento · los bonos con cupón, por duration':'Días al vencimiento',color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
           ticks:{color:colGris(),font:{size:10,family:'DM Mono, monospace'}},
           grid:{color:'#252825'},
           type:'linear',
@@ -12504,6 +12674,20 @@ function calAutoEventos(){
       ev.push({id:`pago_${b.ticker}_${f}`,fecha:calHabilSig(f),tipo:'pago',ticker:b.ticker,corto:b.ticker,titulo:`Paga ${b.ticker}`,desc:'CER · renta'+(b.amort&&b.amort!=='bullet'?' y amortización':''),auto:true});
     });
   });}catch(e){}
+  // Los bonos de tasa fija con cupón (BONTE): cada cupón, el vencimiento y el
+  // último día para avisar el put.
+  try{(typeof TF_CUPON!=='undefined'?TF_CUPON:[]).forEach(b=>{
+    if(!b||!b.ticker||vistos.has(b.ticker))return;
+    vistos.add(b.ticker);
+    tfcCupones(b).forEach(c=>{
+      const fin=c.f0===b.vcto,put=b.put&&c.f0===b.put.pago;
+      ev.push({id:`${fin?'vto':'pago'}_${b.ticker}_${c.f0}`,fecha:c.pago,tipo:fin?'vencimiento':'pago',ticker:b.ticker,corto:b.ticker,
+        titulo:fin?`Vence ${b.ticker}`:`Paga ${b.ticker}`,desc:'Tasa fija · '+(fin?'renta y amortización':put?'renta, y el capital a quien ejerció el put':'renta'),auto:true});
+    });
+    if(b.put)ev.push({id:`put_${b.ticker}`,fecha:b.put.aviso,tipo:'custom',corto:`Aviso put ${b.ticker}`,hora:'15:00',
+      titulo:`${b.ticker}: último día para avisar el ejercicio del put`,
+      desc:`Hasta las 15 h, por la entidad custodia. Paga el capital más el cupón el ${tfcHabil(b.put.pago).split('-').reverse().join('/')}.`,auto:true});
+  });}catch(e){console.warn('[calendario] con cupón:',e.message);}
   // Los bonos en dólares: cada flujo, con renta, amortización o las dos.
   try{
     if(typeof BON_BONDS!=='undefined'&&!BON_BONDS.length&&typeof bonLoad==='function')bonLoad();
@@ -13759,7 +13943,7 @@ function altasMarca(emision){
 // Funciones y no variables: el gráfico de LECAP se dibuja al cargar, antes de
 // que el script llegue hasta acá.
 function calcClave(k){return({
-  tf:   {bonos:()=>LECAPS||[],      vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>renderTable()},
+  tf:   {bonos:()=>(LECAPS||[]).concat(typeof TF_CUPON!=='undefined'?TF_CUPON:[]),vigente:b=>!b.vcto||b.vcto>hoyAR(),repintar:()=>renderTable()},
   cer:  {bonos:()=>CER_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{cerRenderTable();cerRenderTabChart();}},
   tamar:{bonos:()=>TAMAR_BONDS||[], vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{tamarRenderTable();tamarRenderTabChart();}},
   dlk:  {bonos:()=>DLK_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>dlkRenderTable()},
