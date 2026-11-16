@@ -6,7 +6,13 @@
 <title>bonosAR — Instrumentos Soberanos ARS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<!-- Las librerías externas van con versión exacta y huella (integrity): si el
+     CDN sirviera otro archivo, el navegador no lo ejecuta. Antes supabase-js
+     iba como "@2", que toma sola cada versión nueva. Para actualizar una:
+     cambiar la versión en la URL y recalcular la huella con
+       curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A
+     Las fuentes de Google no llevan huella: su CSS cambia según el navegador. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous"></script>
 <style>
 :root{
   /* La letra chica, en una escala. Es lo de 8 a 13 px de antes, un escalón más
@@ -2704,9 +2710,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <span style="margin-left:auto;color:var(--text3)">bonosAR v0.6</span>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.2.0/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" integrity="sha384-y49Zu59jZHJL/PLKgZPv3k2WI9c0Yp3pWB76V8OBVCb0QBKS8l4Ff3YslzHVX76Y" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.2.0/chartjs-plugin-zoom.min.js" integrity="sha384-dwwI6ICEN/0ZQlS5owhUa/6ZzvwUPmjH45bFVCAcjgjTulbHJvlE+TGU3g1k0N3R" crossorigin="anonymous"></script>
 <script>
 // ══════════════════════════════════════════════════ GRÁFICOS INTERACTIVOS
 // Zoom y desplazamiento en todos los gráficos de la app, sin tocar las catorce
@@ -13094,12 +13100,16 @@ function calRenderSide(evMap){
       const isEditableIpc=e.aprox&&(e.tipo==='ipc_nacion'||e.tipo==='ipc_caba');
       const editBtn=(isAdmin()&&(!e.auto||isEditableIpc))?`<button class="btn" style="font-size:var(--fs9);padding:1px 6px;margin-left:auto;flex-shrink:0;line-height:1.5" onclick="calEditEvento('${e.id}')">✎</button>`:'';
       const aprox=e.aprox?` <span style="font-size:var(--fs9);color:var(--text3);font-style:italic">aprox.</span>`:'';
-      const extra=[e.hora?e.hora+' h':'',e.fuente||''].filter(Boolean).join(' · ');
+      // El título, la descripción y la fuente vienen de afuera —calendario.json
+      // sale de páginas del INDEC, la Ciudad y la Fed— o se cargan a mano: van
+      // como texto, nunca como HTML.
+      const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      const extra=esc([e.hora?e.hora+' h':'',e.fuente||''].filter(Boolean).join(' · '));
       html+=`<div style="display:flex;align-items:flex-start;gap:4px;border-left:3px solid ${t.color};padding-left:7px;margin-bottom:5px">
         <div style="flex:1;min-width:0">
           <div style="font-size:var(--fs9);color:var(--text3);text-transform:uppercase;letter-spacing:.04em">${t.label}${aprox}${extra?` <span style="text-transform:none;letter-spacing:0">· ${extra}</span>`:''}</div>
-          <div style="font-size:var(--fs11);color:var(--text)">${e.titulo||''}</div>
-          ${e.desc&&!e.aprox?`<div style="font-size:var(--fs10);color:var(--text3)">${e.desc}</div>`:''}
+          <div style="font-size:var(--fs11);color:var(--text)">${esc(e.titulo||'')}</div>
+          ${e.desc&&!e.aprox?`<div style="font-size:var(--fs10);color:var(--text3)">${esc(e.desc)}</div>`:''}
         </div>
         ${editBtn}
       </div>`;
