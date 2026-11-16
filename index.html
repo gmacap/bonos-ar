@@ -695,7 +695,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
   <span id="usd-brecha-ask" style="color:var(--danger)">—</span>
   <span style="width:1px;background:var(--border);height:16px;margin:0 12px;flex-shrink:0;"></span>
   <span id="usd-ts" style="color:var(--text3);font-size:var(--fs10)">—</span>
-  <button onclick="usdFetch()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:var(--fs11);margin-left:6px;padding:0">↻</button>
+  <button onclick="usdFetch(true)" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:var(--fs11);margin-left:6px;padding:0">↻</button>
   <span style="width:1px;background:var(--border);height:16px;margin:0 12px;flex-shrink:0;"></span>
   <!-- A3500 editable -->
   <span style="color:var(--text3);margin-right:5px;font-size:var(--fs10);text-transform:uppercase;letter-spacing:.04em">A3500</span>
@@ -4042,10 +4042,25 @@ function curvaRepintar(){
 }
 setTimeout(curvaPintarSelectores,0);
 
-function fetchData912(endpoint){
-  return fetch(`https://data912.com/live/${endpoint}?_=${Date.now()}`,
-    {cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)})
-    .then(r=>{if(!r.ok)throw new Error('data912 HTTP '+r.status);return r.json();});
+// Los precios de data912, una vez por tanda. Al abrir, cada calculadora y la
+// barra de dólares los piden por separado: eran 7 pedidos de bonos y 4 de
+// letras en el arranque (14/11/2026), todos por lo mismo. Los pedidos que caen
+// en la misma tanda —10 segundos— comparten una sola respuesta, y cada uno
+// recibe su propia copia, así ninguno puede tocar los datos de otro. Con
+// `fresco` se pide siempre de nuevo: es lo que hacen el botón ↻ Precios y la
+// tecla R, que para eso están. Una tanda que falla no se guarda.
+function fetchData912(endpoint,fresco){
+  const tandas=fetchData912.tandas||(fetchData912.tandas={});
+  const ahora=Date.now(),t=tandas[endpoint];
+  let p=t&&!fresco&&ahora-t.ts<10000?t.p:null;
+  if(!p){
+    p=fetch(`https://data912.com/live/${endpoint}?_=${ahora}`,
+      {cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)})
+      .then(r=>{if(!r.ok)throw new Error('data912 HTTP '+r.status);return r.text();});
+    tandas[endpoint]={ts:ahora,p};
+    p.catch(()=>{if(tandas[endpoint]&&tandas[endpoint].p===p)delete tandas[endpoint];});
+  }
+  return p.then(txt=>JSON.parse(txt));
 }
 
 // Distingue que se cayo el proveedor de que falle la conexion del usuario:
@@ -4851,8 +4866,8 @@ async function fetchAllPrices(auto){
   try{
     const ts=Date.now();
     const[rN,rB]=await Promise.all([
-      fetchData912('arg_notes'),
-      fetchData912('arg_bonds'),
+      fetchData912('arg_notes',!auto),
+      fetchData912('arg_bonds',!auto),
     ]);
     const map=new Map([...rN,...rB].map(x=>[x.symbol,x]));
     const liq=G_LIQ||addHabiles(TODAY,1);
@@ -13289,10 +13304,10 @@ function brechaPintar(){
   bid.textContent=f(_usdMep.bid);
   ask.textContent=f(_usdMep.ask);
 }
-async function usdFetch(){
+async function usdFetch(fresco){
   try{
     const ts=Date.now();
-    const data=await fetchData912('arg_bonds');
+    const data=await fetchData912('arg_bonds',fresco===true);
     const bySymbol=new Map(data.map(x=>[x.symbol,x]));
     const al30  = bySymbol.get('AL30');
     const al30d = bySymbol.get('AL30D');
