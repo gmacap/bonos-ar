@@ -3912,6 +3912,35 @@ function curvaAjustarModelo(pts,modelo){
     sigma:n>k?Math.sqrt(r.sse/(n-k)):null,r2:sst>0?1-r.sse/sst:null};
 }
 
+// ── Duales en las curvas ─────────────────────────────────────────────────────
+// Un dual paga la mejor de dos patas —TAMAR contra CER, o contra dólar linked—
+// y su precio incluye esa opción. Medido sólo por la pata CER o por la de dólar
+// linked rinde menos que un bono puro del mismo plazo (14/11/2026: TXMJ8 5,8%
+// real contra 10,2% del TZX28, que vence el mismo día), y adentro del ajuste
+// tiraba la curva de la familia hacia abajo: el TZX28 quedaba "275 pb arriba
+// de la curva" sin estar barato. En esas dos familias el dual se ve en los
+// gráficos, hueco, pero no entra al ajuste. En TAMAR sigue entrando: ahí cotiza
+// en línea con los TAMAR puros, y Licitaciones ya los separa.
+//
+// Sale de tres lados: las listas de hoy, las filas de la rueda cuando traen el
+// sector TAMAR, y los conocidos, para que las ruedas viejas los sigan dejando
+// afuera cuando venzan y salgan de las listas.
+var DUALES_CONOCIDOS={CER:['TXMJ8','TXMJ9','TXMD8','TXMD9','TXMJ0'],DLK:['TMVE8']};
+function dualesDe(sec,filas){
+  const s=new Set();
+  if(sec!=='CER'&&sec!=='DLK')return s;
+  ((typeof DUALES_CONOCIDOS!=='undefined'&&DUALES_CONOCIDOS&&DUALES_CONOCIDOS[sec])||[]).forEach(t=>s.add(t));
+  try{
+    const lista=sec==='CER'?CER_BONDS:DLK_BONDS;
+    (TAMAR_BONDS||[]).forEach(t=>{if((lista||[]).some(b=>b.ticker===t.ticker))s.add(t.ticker);});
+  }catch(e){}
+  if(filas&&filas.length){
+    const tam=new Set(filas.filter(r=>r&&r.sector==='TAMAR').map(r=>r.ticker));
+    if(tam.size)filas.forEach(r=>{if(r&&r.sector===sec&&tam.has(r.ticker))s.add(r.ticker);});
+  }
+  return s;
+}
+
 // El ajuste con el modelo del selector, o el que se pida. pts: [{x,y}] con x>0.
 function curvaAjustar(pts,modelo){
   const ps=(pts||[]).filter(p=>p&&isFinite(p.x)&&isFinite(p.y)&&p.x>0);
@@ -12166,6 +12195,7 @@ function dualRenderChart(filas){
           label:ctx=>{
             const l=[`${ctx.raw.y.toFixed(2)}%  ·  ${Math.round(ctx.raw.x)} días`,`${DUAL_TIPOS[ctx.raw.tipo].nombre} / TAMAR`];
             if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
+            if(ctx.raw.dual)l.push('Dual: fuera del ajuste de la curva');
             return l;
           }}},
         datalabels:{display:ctx=>!!ctx.dataset.esPunto,
@@ -13957,10 +13987,13 @@ function altasMarca(emision){
 // Funciones y no variables: el gráfico de LECAP se dibuja al cargar, antes de
 // que el script llegue hasta acá.
 function calcClave(k){return({
-  tf:   {bonos:()=>(LECAPS||[]).concat(tfcVariantes()),vigente:b=>!b.vcto||b.vcto>hoyAR(),repintar:()=>renderTable()},
-  cer:  {bonos:()=>CER_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{cerRenderTable();cerRenderTabChart();}},
+  tf:   {bonos:()=>(LECAPS||[]).concat(tfcVariantes()),vigente:b=>!b.vcto||b.vcto>hoyAR(),repintar:()=>renderTable(),
+         aparte:b=>!!(b.cupon&&!b.enCurva)},
+  cer:  {bonos:()=>CER_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{cerRenderTable();cerRenderTabChart();},
+         aparte:b=>dualesDe('CER').has(b.ticker)},
   tamar:{bonos:()=>TAMAR_BONDS||[], vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>{tamarRenderTable();tamarRenderTabChart();}},
-  dlk:  {bonos:()=>DLK_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>dlkRenderTable()},
+  dlk:  {bonos:()=>DLK_BONDS||[],   vigente:b=>!b.vcto||b.vcto>hoyAR(),        repintar:()=>dlkRenderTable(),
+         aparte:b=>dualesDe('DLK').has(b.ticker)},
   bon:  {bonos:()=>BON_BONDS||[],   vigente:b=>!b.vencimiento||b.vencimiento>hoyAR(), repintar:()=>bonRenderSummaryRows()},
   glo:  {bonos:()=>GLO_BONDS||[],   vigente:b=>!b.vencimiento||b.vencimiento>hoyAR(), repintar:()=>gloRenderSummaryRows()},
   bop:  {bonos:()=>BOP_BONDS||[],   vigente:b=>!b.vencimiento||b.vencimiento>hoyAR(), repintar:()=>bopRenderSummaryRows()},
@@ -13987,9 +14020,15 @@ function calcRepintar(clave){
   calcBonosPintar(clave);
 }
 // La casilla de la fila y la clase que la atenúa.
+// Si el bono se ve pero no entra al ajuste de la curva (un dual en CER o en
+// dólar linked, el BONTE al vencimiento), el globo lo dice.
+function calcAparte(clave,ticker){
+  try{const C=calcClave(clave);if(!C||!C.aparte)return false;const b=C.bonos().find(x=>x.ticker===ticker);return!!(b&&C.aparte(b));}
+  catch(e){return false;}
+}
 function calcCasilla(clave,ticker,ex){
   const fuera=(ex||calcExcl(clave)).has(ticker);
-  return`<input type="checkbox" class="calc-incl" ${fuera?'':'checked'} title="${fuera?'Fuera del gráfico y de la curva: tildá para incluirlo':'En el gráfico y en la curva: destildá para sacarlo'}" onclick="event.stopPropagation()" onchange="calcExcluir('${clave}','${ticker}',!this.checked)">`;
+  return`<input type="checkbox" class="calc-incl" ${fuera?'':'checked'} title="${fuera?'Fuera del gráfico y de la curva: tildá para incluirlo':calcAparte(clave,ticker)?'En el gráfico, fuera del ajuste de la curva: destildá para sacarlo':'En el gráfico y en la curva: destildá para sacarlo'}" onclick="event.stopPropagation()" onchange="calcExcluir('${clave}','${ticker}',!this.checked)">`;
 }
 function calcFilaCls(clave,ticker,ex){return(ex||calcExcl(clave)).has(ticker)?' calc-fuera':'';}
 function calcBonosPintar(clave){
@@ -13998,10 +14037,15 @@ function calcBonosPintar(clave){
   const ex=calcExcl(clave),bonos=C.bonos().filter(C.vigente);
   const vto=b=>{const v=b.vcto||b.vencimiento||'';return v?v.slice(8,10)+'/'+v.slice(5,7)+'/'+v.slice(2,4):'';};
   const dentro=bonos.filter(b=>!ex.has(b.ticker)).length;
+  // Los que se ven pero no entran al ajuste de la curva van en su propio grupo.
+  const ap=b=>{try{return!!(C.aparte&&C.aparte(b));}catch(e){return false;}};
+  const orden=(a,b)=>(a.vcto||a.vencimiento||'').localeCompare(b.vcto||b.vencimiento||'');
+  const item=b=>({l:b.ticker,v:b.ticker,on:!ex.has(b.ticker),nota:vto(b),fn:`calcExcluir('${clave}','${b.ticker}',!this.checked)`});
+  const enCurva=bonos.filter(b=>!ap(b)).sort(orden),aparte=bonos.filter(ap).sort(orden);
   mselPintar('calc-bonos-'+clave,{titulo:'Bonos',resumen:`${dentro}/${bonos.length}`,vacio:'Sin bonos',
     acciones:[{l:'Todos',fn:`calcTodos('${clave}',true)`},{l:'Ninguno',fn:`calcTodos('${clave}',false)`}],
-    grupos:[{l:'En el gráfico y en la curva',items:bonos.slice().sort((a,b)=>(a.vcto||a.vencimiento||'').localeCompare(b.vcto||b.vencimiento||''))
-      .map(b=>({l:b.ticker,v:b.ticker,on:!ex.has(b.ticker),nota:vto(b),fn:`calcExcluir('${clave}','${b.ticker}',!this.checked)`}))}]});
+    grupos:[{l:'En el gráfico y en la curva',items:enCurva.map(item)}]
+      .concat(aparte.length?[{l:'En el gráfico, fuera del ajuste de la curva',items:aparte.map(item)}]:[])});
 }
 
 // ── CER TAB CHART ─────────────────────────────────────────────────────────────
@@ -14013,7 +14057,7 @@ function cerRenderTabChart(){
   altasPintar('cer');
   if(!CER_INDEX.length){if(status)status.textContent='(sin índice CER)';return;}
   if(status)status.textContent='';
-  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('cer');
+  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('cer'),du=dualesDe('CER');
   const pts=CER_BONDS.map(r=>{
     if(!r.vcto||!r.precio||ex.has(r.ticker))return null;
     const vctoDate=parseDate(r.vcto);
@@ -14022,7 +14066,7 @@ function cerRenderTabChart(){
     if(dias<=0)return null;
     const e=cerEnrich(r);
     if(isNaN(e.tir))return null;
-    return{ticker:r.ticker,dias,val:e.tir,precio:r.precio};
+    return{ticker:r.ticker,dias,val:e.tir,precio:r.precio,aparte:du.has(r.ticker)};
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
   if(cerTabChart){cerTabChart.destroy();cerTabChart=null;}
   if(!pts.length){if(status)status.textContent='(sin datos)';return;}
@@ -14149,6 +14193,7 @@ function beRenderChartTF(){
   for(const tipo of beChartTFSelectedTipos){
     const bonds=beGetBondsForTipo(tipo);
     const excluded=beGetExcludedForTipo(tipo,'tf');
+    const du=tipo==='cer'?dualesDe('CER'):tipo==='dlk'?dualesDe('DLK'):null;
     const pts=bonds.filter(b=>!excluded.has(b.ticker)).map(b=>{
       const vctoDate=b.vcto?parseDate(b.vcto):null;
       if(!vctoDate)return null;
@@ -14158,16 +14203,19 @@ function beRenderChartTF(){
       const e=beEnrichForTipo(b,tipo);
       const val=beGetChartRate(e,tipo,beChartTFMode);
       if(val==null||isNaN(val))return null;
-      return{ticker:b.ticker,dias,val,precio:b.precio,cupon:!!b.cupon,aparte:!!(b.cupon&&!b.enCurva)};
+      const dual=!!(du&&du.has(b.ticker));
+      return{ticker:b.ticker,dias,val,precio:b.precio,cupon:!!b.cupon,dual,aparte:dual||!!(b.cupon&&!b.enCurva)};
     }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
     if(!pts.length)continue;
     const c=CHART_TIPO_COLORS[tipo];
-    // El BONTE al vencimiento se ve pero no entra al ajuste: es largo y no tiene comparables.
+    // Se ven pero no entran al ajuste: el BONTE al vencimiento, que es largo y no
+    // tiene comparables, y los duales en CER y en dólar linked (ver dualesDe).
     const ajuste=pts.filter(p=>!p.aparte);
     const curva=curvaDatasets(curvaAjustar(ajuste.map(p=>({x:p.dias,y:p.val}))),ajuste.map(p=>p.dias),
       {color:c.trend,relleno:c.trend.replace(/[\d.]+\)$/,'0.07)'),label:'_trend_'+tipo,orden:tipoOrder,sufijo:'_'+tipo});
     if(curva.linea.data.length) datasets.push(...curva.lista);
-    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio,cupon:p.cupon})),backgroundColor:c.point,borderColor:c.border,
+    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio,cupon:p.cupon,dual:p.dual})),backgroundColor:c.point,borderColor:c.border,
+      pointBackgroundColor:pts.map(p=>p.dual?'transparent':c.point),pointBorderWidth:pts.map(p=>p.dual?1.5:1),
       pointStyle:pts.map(p=>p.cupon?'rectRot':'circle'),pointRadius:pts.map(p=>p.cupon?6:5),pointHoverRadius:7,order:10+tipoOrder});
     tipoOrder++;
   }
@@ -14231,6 +14279,7 @@ function beRenderChartTF(){
             const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días${ctx.raw.cupon?' de duration':''}`];
             // La caución y los sintéticos no son un bono con precio: van sin la línea.
             if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
+            if(ctx.raw.dual)l.push('Dual: fuera del ajuste de la curva');
             return l;
           }
         }},
@@ -14274,6 +14323,7 @@ function beRenderChartCER(){
   for(const tipo of beChartCERSelectedTipos){
     const bonds=beGetBondsForTipo(tipo);
     const excluded=beGetExcludedForTipo(tipo,'cer');
+    const du=tipo==='cer'?dualesDe('CER'):tipo==='dlk'?dualesDe('DLK'):null;
     const pts=bonds.filter(b=>!excluded.has(b.ticker)).map(b=>{
       const vctoDate=b.vcto?parseDate(b.vcto):null;
       if(!vctoDate)return null;
@@ -14283,16 +14333,19 @@ function beRenderChartCER(){
       const e=beEnrichForTipo(b,tipo);
       const val=beGetChartRate(e,tipo,beChartCERMode);
       if(val==null||isNaN(val))return null;
-      return{ticker:b.ticker,dias,val,precio:b.precio,cupon:!!b.cupon,aparte:!!(b.cupon&&!b.enCurva)};
+      const dual=!!(du&&du.has(b.ticker));
+      return{ticker:b.ticker,dias,val,precio:b.precio,cupon:!!b.cupon,dual,aparte:dual||!!(b.cupon&&!b.enCurva)};
     }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
     if(!pts.length)continue;
     const c=CHART_TIPO_COLORS[tipo];
-    // El BONTE al vencimiento se ve pero no entra al ajuste: es largo y no tiene comparables.
+    // Se ven pero no entran al ajuste: el BONTE al vencimiento, que es largo y no
+    // tiene comparables, y los duales en CER y en dólar linked (ver dualesDe).
     const ajuste=pts.filter(p=>!p.aparte);
     const curva=curvaDatasets(curvaAjustar(ajuste.map(p=>({x:p.dias,y:p.val}))),ajuste.map(p=>p.dias),
       {color:c.trend,relleno:c.trend.replace(/[\d.]+\)$/,'0.07)'),label:'_trend_'+tipo,orden:tipoOrder,sufijo:'_'+tipo});
     if(curva.linea.data.length) datasets.push(...curva.lista);
-    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio,cupon:p.cupon})),backgroundColor:c.point,borderColor:c.border,
+    datasets.push({label:tipo,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio,cupon:p.cupon,dual:p.dual})),backgroundColor:c.point,borderColor:c.border,
+      pointBackgroundColor:pts.map(p=>p.dual?'transparent':c.point),pointBorderWidth:pts.map(p=>p.dual?1.5:1),
       pointStyle:pts.map(p=>p.cupon?'rectRot':'circle'),pointRadius:pts.map(p=>p.cupon?6:5),pointHoverRadius:7,order:10+tipoOrder});
     tipoOrder++;
   }
@@ -14317,6 +14370,7 @@ function beRenderChartCER(){
             const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días${ctx.raw.cupon?' de duration':''}`];
             // La caución y los sintéticos no son un bono con precio: van sin la línea.
             if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
+            if(ctx.raw.dual)l.push('Dual: fuera del ajuste de la curva');
             return l;
           }
         }},
@@ -14338,7 +14392,10 @@ function beRenderChartCER(){
 }
 
 function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel,clave){
-  const xVals=pts.map(p=>p.dias),yVals=pts.map(p=>p.val);
+  // Los puntos marcados aparte —los duales, en CER y en dólar linked— se
+  // dibujan huecos y no entran al ajuste de la curva: ver dualesDe.
+  const enCurva=pts.filter(p=>!p.aparte);
+  const xVals=enCurva.map(p=>p.dias),yVals=enCurva.map(p=>p.val);
   // La curva va primero y los puntos segundos: las etiquetas se pintan sobre el
   // dataset 1. La banda, al final.
   const curva=curvaDatasets(curvaAjustar(xVals.map((x,i)=>({x,y:yVals[i]}))),xVals,
@@ -14348,7 +14405,8 @@ function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel,clave){
     type:'scatter',
     data:{datasets:[
       curva.linea,
-      {label:yLabel,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio})),backgroundColor:ptColor,borderColor:ptBorder,pointRadius:5,pointHoverRadius:7,order:2},
+      {label:yLabel,data:pts.map(p=>({x:p.dias,y:p.val,ticker:p.ticker,precio:p.precio,dual:!!p.aparte})),backgroundColor:ptColor,borderColor:ptBorder,
+        pointBackgroundColor:pts.map(p=>p.aparte?'transparent':ptColor),pointBorderWidth:pts.map(p=>p.aparte?1.5:1),pointRadius:5,pointHoverRadius:7,order:2},
       ...curva.banda,
     ]},
     options:{
@@ -14361,6 +14419,7 @@ function beDrawScatter(canvas,pts,ptColor,ptBorder,yLabel,clave){
             const l=[`${ctx.raw.y.toFixed(4)}%  ·  ${Math.round(ctx.raw.x)} días${ctx.raw.cupon?' de duration':''}`];
             // La caución y los sintéticos no son un bono con precio: van sin la línea.
             if(ctx.raw.precio!=null)l.push(`Precio ${fmtPrecio(ctx.raw.precio)}`);
+            if(ctx.raw.dual)l.push('Dual: fuera del ajuste de la curva');
             return l;
           }
         }},
@@ -14509,13 +14568,13 @@ function dlkRenderTabChart(){
   if(!canvas)return;
   calcBonosPintar('dlk');
   altasPintar('dlk');
-  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('dlk');
+  const liq=G_LIQ||addHabiles(TODAY,1),ex=calcExcl('dlk'),du=dualesDe('DLK');
   if(!DLK_DATA.length&&DLK_BONDS.length) DLK_DATA=DLK_BONDS.map(dlkEnrich);
   const pts=DLK_DATA.map(r=>{
     if(!r.vcto||!r.precio||r.tir==null||isNaN(r.tir)||ex.has(r.ticker))return null;
     const dias=diasAlPago(liq,parseDate(r.vcto));
     if(dias<=0)return null;
-    return{ticker:r.ticker,dias,val:r.tir,precio:r.precio};
+    return{ticker:r.ticker,dias,val:r.tir,precio:r.precio,aparte:du.has(r.ticker)};
   }).filter(Boolean).sort((a,b)=>a.dias-b.dias);
   if(dlkTabChart){dlkTabChart.destroy();dlkTabChart=null;}
   if(!pts.length)return;
@@ -18283,12 +18342,15 @@ function desvModelo(){
   const m=(typeof CURVA_PREF!=='undefined'&&CURVA_PREF.modelo)||'log';
   return m==='auto'?'log':m;
 }
-// Desvío de cada bono contra la curva ajustada a esas filas, en pb.
-function desvDeRueda(filas,eje,modelo){
+// Desvío de cada bono contra la curva ajustada a esas filas, en pb. Los de
+// `fuera` —los duales, en CER y en dólar linked— se miden contra la curva pero
+// no entran a su ajuste.
+function desvDeRueda(filas,eje,modelo,fuera){
   const pts=filas.filter(r=>r.tir!=null&&isFinite(r.tir)&&r[eje]>0&&(eje!=='dias'||r.dias>=CURVAS_DIAS_MIN))
     .map(r=>({x:+r[eje],y:+r.tir,ticker:r.ticker}));
-  if(pts.length<DESV_MIN_PUNTOS)return null;
-  const aj=curvaAjustar(pts.map(q=>({x:q.x,y:q.y})),modelo);
+  const base=fuera&&fuera.size?pts.filter(q=>!fuera.has(q.ticker)):pts;
+  if(base.length<DESV_MIN_PUNTOS)return null;
+  const aj=curvaAjustar(base.map(q=>({x:q.x,y:q.y})),modelo);
   if(!aj)return null;
   const m=new Map();
   for(const q of pts){const f=aj.f(q.x);if(isFinite(f))m.set(q.ticker,{d:(q.y-f)*100,x:q.x});}
@@ -18319,12 +18381,13 @@ async function desvCalcular(sec,sector,rango){
   const r=DESV_RANGOS[rango]||182;
   const desde=r==='max'?'2020-01-01':fmtDate(new Date(parseDate(hoy).getTime()-r*86400000));
   const porFecha=await desvTraer(sector,desde,hoy);
-  const vivo=desvDeRueda(curvasSnapshotFromMemory(sector)||[],c.eje,modelo);
+  const fuera=dualesDe(sector);
+  const vivo=desvDeRueda(curvasSnapshotFromMemory(sector)||[],c.eje,modelo,fuera);
   const fechas=[...porFecha.keys()].sort().filter(f=>!vivo||f<hoy);
   const serie=new Map();   // ticker -> [{fecha, d}]
   let ultimo=null;
   for(const f of fechas){
-    const m=desvDeRueda(porFecha.get(f),c.eje,modelo);
+    const m=desvDeRueda(porFecha.get(f),c.eje,modelo,fuera);
     if(!m)continue;
     ultimo={fecha:f,m};
     for(const[t,v]of m){if(!serie.has(t))serie.set(t,[]);serie.get(t).push({fecha:f,d:v.d});}
@@ -18338,7 +18401,7 @@ async function desvCalcular(sec,sector,rango){
   const filas=[];
   if(actual)for(const[t,v]of actual){
     const hist=(serie.get(t)||[]).map(q=>q.d);
-    filas.push({ticker:t,x:v.x,actual:v.d,hist:serie.get(t)||[],
+    filas.push({ticker:t,x:v.x,actual:v.d,dual:fuera.has(t),hist:serie.get(t)||[],
       st:hist.length>=DESV_MIN_RUEDAS?slegStats(hist,v.d):null});
   }
   filas.sort((a,z)=>a.x-z.x);
@@ -18391,7 +18454,7 @@ async function desvRender(sec){
     const zc=z==null?'':z>=1?'background:rgba(74,222,128,0.25)':z<=-1?'background:rgba(248,113,113,0.25)':'';
     const act=sel&&f.ticker===sel.ticker;
     return`<tr onclick="desvSet('${sec}','bono','${f.ticker}')" style="cursor:pointer;${act?'background:var(--surface2)':''}">
-      <td style="${td};text-align:left;color:var(--accent2);font-weight:600">${f.ticker}</td>
+      <td style="${td};text-align:left;color:var(--accent2);font-weight:600">${f.ticker}${f.dual?'<span title="Dual: se mide contra la curva de la familia, pero no entra a su ajuste" style="color:var(--info);font-weight:400"> d</span>':''}</td>
       <td style="${td};color:var(--text3)">${c.eje==='dias'?Math.round(f.x):desvN(f.x,2)}</td>
       <td style="${td};color:${f.actual>=0?'var(--accent)':'var(--danger)'}">${f.actual>=0?'+':''}${Math.round(f.actual)}</td>
       <td style="${td}">${st?Math.round(st.media):'—'}</td><td style="${td}">${st?Math.round(st.sd):'—'}</td>
@@ -20929,7 +20992,11 @@ function _curvasArsDraw(){
   const bondsDiv=document.getElementById('curvas-ars-bonds');
   const enc=k=>!curvasArsFilter||curvasArsFilter.has(k);
 
-  const toAll=(rows,sec)=>rows.filter(r=>r.sector===sec&&r.dias>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.dias,y:r.tir,ticker:r.ticker,precio:r.price,k:sec+':'+r.ticker})).sort((a,b)=>a.x-b.x);
+  // Los duales, en CER y en dólar linked, se ven huecos y no entran al ajuste.
+  const toAll=(rows,sec)=>{
+    const du=dualesDe(sec,rows);
+    return rows.filter(r=>r.sector===sec&&r.dias>0&&r.tir!=null&&!isNaN(r.tir)).map(r=>({x:r.dias,y:r.tir,ticker:r.ticker,precio:r.price,k:sec+':'+r.ticker,dual:du.has(r.ticker)})).sort((a,b)=>a.x-b.x);
+  };
   const grupos=tipos.map(sec=>{
     const p1=toAll(snap1,sec),p2=toAll(snap2,sec);
     const dias=new Map([...p1,...p2].map(p=>[p.ticker,p.x]));
@@ -20956,16 +21023,18 @@ function _curvasArsDraw(){
     const suf=varios?'_'+g.sec:'';
     if(pts1.length){
       const t1=pts1.map(p=>p.ticker);
-      datasets.push({label:nom(d1),_u:u,data:pts1.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col2,pointBorderColor:col2,pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
+      datasets.push({label:nom(d1),_u:u,data:pts1.map(p=>({x:p.x,y:p.y,precio:p.precio,dual:p.dual})),pointBackgroundColor:pts1.map(p=>p.dual?'transparent':col2),pointBorderColor:col2,pointBorderWidth:pts1.map(p=>p.dual?1.5:1),pointRadius:4,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t1[ctx.dataIndex]||'',color:col2,font:{size:8,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:2}});
       // La de la fecha 1 va sin banda: dos bandas superpuestas no se leen.
-      const c1=curvaDatasets(curvaAjustar(pts1),pts1.map(p=>p.x),{color:col2,ancho:1.5,guion:[4,3],label:'_t1'+suf,banda:false});
+      const a1=pts1.filter(p=>!p.dual);
+      const c1=curvaDatasets(curvaAjustar(a1),a1.map(p=>p.x),{color:col2,ancho:1.5,guion:[4,3],label:'_t1'+suf,banda:false});
       if(c1.linea.data.length)datasets.push(c1.linea);
     }
     if(pts2.length){
       const t2=pts2.map(p=>p.ticker);
-      datasets.push({label:nom(d2),_u:u,data:pts2.map(p=>({x:p.x,y:p.y,precio:p.precio})),pointBackgroundColor:col,pointBorderColor:col,pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
+      datasets.push({label:nom(d2),_u:u,data:pts2.map(p=>({x:p.x,y:p.y,precio:p.precio,dual:p.dual})),pointBackgroundColor:pts2.map(p=>p.dual?'transparent':col),pointBorderColor:col,pointBorderWidth:pts2.map(p=>p.dual?1.5:1),pointRadius:5,showLine:false,datalabels:{display:true,formatter:(_,ctx)=>t2[ctx.dataIndex]||'',color:col,font:{size:9,family:'DM Mono, monospace',weight:'bold'},anchor:'end',align:'top',offset:3}});
       // El texto del ajuste, junto al selector de curva, es el del primer tipo.
-      const c2=curvaDatasets(curvaAjustar(pts2),pts2.map(p=>p.x),{color:col,relleno:col+'1a',ancho:2,label:'_t2'+suf,sufijo:'_2'+suf,...(i===0?{clave:'curvas-ars'}:{})});
+      const a2=pts2.filter(p=>!p.dual);
+      const c2=curvaDatasets(curvaAjustar(a2),a2.map(p=>p.x),{color:col,relleno:col+'1a',ancho:2,label:'_t2'+suf,sufijo:'_2'+suf,...(i===0?{clave:'curvas-ars'}:{})});
       if(c2.linea.data.length)datasets.push(...c2.lista);
     }
   });
@@ -20986,7 +21055,7 @@ function _curvasArsDraw(){
     :({TF:'TNA (%)',CER:'TIR real (%)',TAMAR:'Margen TNA (%)',DLK:'TNA (%)'}[tipos[0]]||'Tasa (%)');
   const textColor=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#e0e0e0';
   const gridColor=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#2a302a';
-  curvasArsChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — ${i.parsed.x}d, ${i.parsed.y.toFixed(2)}%${mixto&&i.dataset._u?' '+i.dataset._u:''}`+curvasPxTip(i.raw,'$')}}},scales:{x:{type:'linear',title:{display:true,text:'Días al vencimiento',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:yLabel,color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
+  curvasArsChart=new Chart(canvas,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},plugins:{legend:{display:true,labels:{color:textColor,font:{size:10},filter:i=>!i.text.startsWith('_'),boxWidth:12,padding:12}},datalabels:{display:false},tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:i=>`${i.dataset.label} — ${i.parsed.x}d, ${i.parsed.y.toFixed(2)}%${mixto&&i.dataset._u?' '+i.dataset._u:''}`+curvasPxTip(i.raw,'$')+(i.raw&&i.raw.dual?' · dual, fuera del ajuste':'')}}},scales:{x:{type:'linear',title:{display:true,text:'Días al vencimiento',color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10}}},y:{title:{display:true,text:yLabel,color:textColor,font:{size:10}},grid:{color:gridColor},ticks:{color:textColor,font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}});
 }
 
 // ── Desplegable de selección múltiple ────────────────────────────────────────
@@ -23863,14 +23932,17 @@ function licCorte(i,sec,liq,tc,dias,m){
 }
 
 // La curva de una familia el día de referencia. En TAMAR los duales van aparte:
-// tienen otra pata y su margen no se lee contra el de un TAMAR puro.
+// tienen otra pata y su margen no se lee contra el de un TAMAR puro. En CER y
+// en dólar linked no entran: ver dualesDe.
 function licCurva(ref,sec,duales){
   const k=ref.fecha+'|'+sec+'|'+(duales?1:0)+'|'+(CURVA_PREF.modelo||'');
   if(!ref.vivo&&LIC_CURVA.has(k))return LIC_CURVA.get(k);
   const eje=sec==='BON'?'md':'dias';
   const otros=new Set(ref.filas.filter(r=>r.sector!=='TAMAR').map(r=>r.ticker));
+  const du=dualesDe(sec,ref.filas);
   const pts=ref.filas.filter(r=>r.sector===sec&&r.tir!=null&&isFinite(r.tir)&&r[eje]>0&&(eje!=='dias'||r.dias>=CURVAS_DIAS_MIN))
     .filter(r=>sec!=='TAMAR'||duales===otros.has(r.ticker))
+    .filter(r=>!du.has(r.ticker))
     .map(r=>({x:+r[eje],y:+r.tir,ticker:r.ticker}));
   let out=null;
   if(pts.length>=LIC_CURVA_MIN){
