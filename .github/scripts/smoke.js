@@ -5741,8 +5741,16 @@ const omitir = (label, motivo) =>
     });
     // El IPC publicado tiene que coincidir con el último mes que el sendero marca
     // como publicado, que se detecta por otro camino.
-    const pub = [...PROJ_INFLACION].filter(r => r.tipo === 'publicado').pop();
-    out.ipc = { serie: ult('IPC publicado'), sendero: pub && pub.infla };
+    // Una rueda pasada sigue la convención del 15: del día en que sale el IPC
+    // al 15, y mientras no haya rueda nueva (un fin de semana), la última de la
+    // serie muestra todavía el IPC del mes anterior. Sólo la de hoy tiene que
+    // coincidir con el último publicado.
+    const pubs = [...PROJ_INFLACION].filter(r => r.tipo === 'publicado').map(r => r.infla);
+    const pub = pubs.length ? { infla: pubs[pubs.length - 1] } : null;
+    const mIpc = serie.porBono.get('IPC publicado');
+    const ultF = mIpc ? [...mIpc.keys()].sort().pop() : null;
+    out.ipc = { serie: ult('IPC publicado'), sendero: pub && pub.infla, anterior: pubs.length > 1 ? pubs[pubs.length - 2] : null,
+                deHoy: !!ultF && ultF >= hoyAR() };
     out.series = [...serie.porBono.keys()];
     out.ruedas = serie.fechas.length;
     out.conIpc = !!ipc;
@@ -5770,9 +5778,10 @@ const omitir = (label, motivo) =>
     else check(comparables.every(x => x.serie > 0.3 && x.serie < 6 && Math.abs(x.serie - x.panel) < 0.5),
                'el último punto de la serie coincide con la tabla del Resumen',
                comparables.map(fmt).join(' · '));
-    check(serieBE.ipc.sendero == null || Math.abs(serieBE.ipc.serie - serieBE.ipc.sendero) < 0.06,
-          'el IPC publicado de la serie es el último mes publicado',
-          `serie ${serieBE.ipc.serie} · sendero ${serieBE.ipc.sendero}`);
+    const cercaIpc = v => v != null && Math.abs(serieBE.ipc.serie - v) < 0.06;
+    check(serieBE.ipc.sendero == null || cercaIpc(serieBE.ipc.sendero) || (!serieBE.ipc.deHoy && cercaIpc(serieBE.ipc.anterior)),
+          'el IPC publicado de la serie es el último mes publicado (o el anterior, si la última rueda no es la de hoy)',
+          `serie ${serieBE.ipc.serie} · sendero ${serieBE.ipc.sendero} · anterior ${serieBE.ipc.anterior} · rueda de hoy ${serieBE.ipc.deHoy}`);
     check(serieBE.orden && serieBE.orden.length > 1
           && serieBE.orden.every((v, i) => i === 0 || serieBE.orden[i - 1] <= v),
           'las líneas van por vencimiento aunque los bonos se elijan al revés',
@@ -6264,6 +6273,166 @@ const omitir = (label, motivo) =>
   check(ses.tema, 'lo que no es personal, como el tema, se sigue guardando');
   check(ses.mismaCuenta && ses.otraCuenta, 'la misma cuenta conserva lo suyo; otra cuenta en el navegador no ve lo de la anterior',
         JSON.stringify({ misma: ses.mismaCuenta, otra: ses.otraCuenta }));
+
+  // ── Arreglos de la auditoría del 14/11/2026 ───────────────────────────────
+  // 1. Un dual paga la mejor de dos patas: medido como CER o como dólar linked
+  //    rinde menos que un bono puro, así que se ve pero no entra al ajuste de
+  //    esas dos curvas.
+  console.log('\nDuales fuera del ajuste de las curvas');
+  const audDuales = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    // Los conocidos están siempre; el resto tiene que estar hoy en TAMAR y en la
+    // otra lista (un dual nuevo entra solo, sin tocar esta prueba).
+    const enDos = (t, lista) => TAMAR_BONDS.some(b => b.ticker === t) && lista.some(b => b.ticker === t);
+    const cer = dualesDe('CER'), dlk = dualesDe('DLK');
+    out.cer = [...cer].sort().join();
+    out.dlk = [...dlk].sort().join();
+    out.conocidos = ['TXMJ8', 'TXMJ9', 'TXMD8', 'TXMD9', 'TXMJ0'].every(t => cer.has(t)) && dlk.has('TMVE8')
+      && [...cer].every(t => DUALES_CONOCIDOS.CER.includes(t) || enDos(t, CER_BONDS))
+      && [...dlk].every(t => DUALES_CONOCIDOS.DLK.includes(t) || enDos(t, DLK_BONDS));
+    out.otros = dualesDe('TF').size + dualesDe('TAMAR').size + dualesDe('BON').size;
+    // Por las filas de una rueda: el ticker que está en CER y también en TAMAR.
+    out.porFilas = dualesDe('CER', [{ sector: 'CER', ticker: 'ZZDUAL' }, { sector: 'TAMAR', ticker: 'ZZDUAL' }, { sector: 'CER', ticker: 'ZZPURO' }]).has('ZZDUAL')
+      && !dualesDe('CER', [{ sector: 'CER', ticker: 'ZZPURO' }]).has('ZZPURO');
+    // El desvío: seis bonos sobre una recta y dos, fuera del ajuste, lejos de ella.
+    const filas = [100, 200, 300, 400, 500, 600].map((d, i) => ({ ticker: 'P' + i, tir: 5 + d / 100, dias: d }))
+      .concat([{ ticker: 'D1', tir: 1, dias: 250 }, { ticker: 'D2', tir: 2, dias: 450 }]);
+    const con = desvDeRueda(filas, 'dias', 'lineal'), sin = desvDeRueda(filas, 'dias', 'lineal', new Set(['D1', 'D2']));
+    const maxPuros = m => Math.max(...[0, 1, 2, 3, 4, 5].map(i => Math.abs(m.get('P' + i).d)));
+    out.desvio = { sin: +maxPuros(sin).toFixed(3), con: +maxPuros(con).toFixed(1), d1: Math.round(sin.get('D1').d) };
+    // La curva de Licitaciones, con una rueda armada a mano.
+    const ref = { fecha: '2099-01-01', vivo: true, filas: [100, 200, 300, 400, 500].map((d, i) => ({ sector: 'CER', ticker: 'C' + i, tir: 8, dias: d }))
+      .concat([{ sector: 'CER', ticker: 'ZZDUAL', tir: 3, dias: 350 }, { sector: 'TAMAR', ticker: 'ZZDUAL', tir: 5, dias: 350 }]) };
+    const cu = licCurva(ref, 'CER', false);
+    out.lic = !!cu && cu.pts.length === 5 && !cu.pts.some(q => q.ticker === 'ZZDUAL') && Math.abs(cu.aj.f(350) - 8) < 0.01;
+    // En la calculadora de CER: huecos, fuera del ajuste y en su propio grupo.
+    switchSection('pesos'); switchTab('cer');
+    await espera(1500);
+    if (!cerTabChart) return { ...out, sinGrafico: true };
+    const ds = cerTabChart.data.datasets, pts = ds[1].data, du = dualesDe('CER');
+    const huecos = pts.filter((q, i) => ds[1].pointBackgroundColor[i] === 'transparent').map(q => q.ticker);
+    const puros = pts.filter(q => !du.has(q.ticker));
+    const aj = curvaAjustar(puros.map(q => ({ x: q.x, y: q.y })));
+    const linea = ds[0].data, fin = linea[linea.length - 1];
+    out.calc = { duales: pts.filter(q => du.has(q.ticker)).length, huecos: huecos.length, soloDuales: huecos.every(t => du.has(t)),
+      ajuste: !!(aj && fin) && Math.abs(aj.f(fin.x) - fin.y) < 0.01 && Math.abs(fin.x - Math.max(...puros.map(q => q.x))) < 1,
+      grupos: document.querySelectorAll('#calc-bonos-cer .msel-grupo').length };
+    switchTab('breakeven');
+    return out;
+  });
+  check(audDuales.conocidos && audDuales.otros === 0 && audDuales.porFilas,
+        'los duales de CER y de dólar linked se reconocen por las listas, por las filas de la rueda y por los conocidos',
+        JSON.stringify({ cer: audDuales.cer, dlk: audDuales.dlk, otros: audDuales.otros, porFilas: audDuales.porFilas }));
+  check(audDuales.desvio.sin < 0.01 && audDuales.desvio.con > 5 && audDuales.desvio.d1 === -650 && audDuales.lic,
+        'la curva se ajusta sin los duales —en el desvío histórico y en Licitaciones— y el dual se mide contra ella',
+        JSON.stringify({ ...dua.desvio, lic: audDuales.lic }));
+  if (audDuales.sinGrafico) omitir('los duales en la calculadora de CER', 'el gráfico de CER no se dibujó (sin índice o sin precios)');
+  else check(audDuales.calc.huecos === audDuales.calc.duales && audDuales.calc.soloDuales && audDuales.calc.ajuste && audDuales.calc.grupos === (audDuales.calc.duales ? 2 : 1),
+             'en la calculadora de CER los duales van huecos, fuera del ajuste y en su propio grupo del selector', JSON.stringify(audDuales.calc));
+
+  // 2. Tema claro: los gráficos van con un filtro de CSS que los oscurece, así
+  //    que el borde claro de las etiquetas salía como una mancha y la grilla,
+  //    casi negra; y los colores vivos usados como texto quedaban pálidos.
+  console.log('\nTema claro');
+  const audTema = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const guardado = localStorage.getItem('bonosAR_theme');
+    const out = {};
+    switchSection('pesos'); switchTab('lecap');
+    await espera(1200);
+    if (!curveChart) return { sinGrafico: true };
+    const halo = () => curveChart.data.datasets[0].datalabels.textStrokeWidth;
+    const grilla = () => curveChart.options.scales.x.grid.color;
+    const ticks = () => curveChart.options.scales.x.ticks.color;
+    const colorDe = c => { const s = document.createElement('span'); s.style.color = colVar(c); document.body.appendChild(s); const v = getComputedStyle(s).color; s.remove(); return v; };
+    try {
+      setTheme('dark'); renderChart(); await espera(300);
+      out.oscuro = { halo: halo(), grilla: grilla(), verde: colorDe('#4ade80'), ticks: ticks() };
+      setTheme('light'); await espera(300);
+      out.alCambiar = { halo: halo(), ticks: ticks() };   // sin volver a dibujar
+      renderChart(); await espera(300);
+      out.claro = { halo: halo(), grilla: grilla(), verde: colorDe('#4ade80'), ticks: ticks() };
+      out.semaforo = /var\(--v-4ade80/.test(libroMontoHTML(5e9)) && /var\(--v-f87171/.test(libroMontoHTML(1e6));
+      out.sinVariable = colVar('var(--accent)') === 'var(--accent)' && colVar(null) === null;
+    } finally {
+      setTheme(guardado === 'mid' || guardado === 'light' ? guardado : 'dark');
+      if (guardado == null) localStorage.removeItem('bonosAR_theme');
+      renderChart();
+      switchTab('breakeven');
+    }
+    return out;
+  });
+  if (audTema.sinGrafico) omitir('el tema claro en los gráficos', 'el gráfico de tasa fija no se dibujó');
+  else {
+    check(audTema.oscuro.halo === 3 && audTema.claro.halo === 0 && audTema.alCambiar.halo === 0,
+          'las etiquetas de los gráficos llevan borde en el tema oscuro y van sin borde en el claro, también al cambiar de tema',
+          JSON.stringify({ oscuro: audTema.oscuro.halo, alCambiar: audTema.alCambiar.halo, claro: audTema.claro.halo }));
+    check(/^rgba\(128,128,128/.test(audTema.claro.grilla) && audTema.claro.grilla === audTema.oscuro.grilla
+          && audTema.alCambiar.ticks === audTema.claro.ticks && audTema.claro.ticks !== audTema.oscuro.ticks,
+          'la grilla es un gris neutro en los dos temas, y los ejes ya dibujados toman el color del tema nuevo',
+          JSON.stringify({ grilla: audTema.claro.grilla, ticks: [audTema.oscuro.ticks, audTema.alCambiar.ticks, audTema.claro.ticks] }));
+    check(audTema.oscuro.verde === 'rgb(74, 222, 128)' && audTema.claro.verde === 'rgb(22, 101, 52)' && audTema.semaforo && audTema.sinVariable,
+          'los colores vivos usados como texto (el semáforo de Spread y Monto, los chips) tienen su versión oscura en el tema claro',
+          JSON.stringify({ oscuro: audTema.oscuro.verde, claro: audTema.claro.verde, semaforo: audTema.semaforo }));
+  }
+
+  // 3. Al abrir, cada calculadora y la barra de dólares pedían los precios por
+  //    separado: 11 pedidos a data912. Ahora comparten una tanda.
+  console.log('\nLos precios se piden una vez por tanda');
+  const audTanda = await page.evaluate(async () => {
+    try { await fetchData912('arg_bonds', true); } catch (e) { return { sinRed: e.message }; }
+    const real = window.fetch; let n = 0;
+    window.fetch = (u, o) => { if (/data912\.com\/live\//.test(String(u))) n++; return real(u, o); };
+    const out = {};
+    try {
+      await fetchAllPrices();                     // el botón ↻ Precios: pide de nuevo
+      out.boton = n; n = 0;
+      await Promise.all([fetchPrices(), cerFetchPrices(), tamarFetchPrices(), dlkFetchPrices(), usdFetch()]);
+      out.juntos = n; n = 0;
+      await usdFetch(true);                       // el ↻ de la barra de dólares
+      out.barra = n; n = 0;
+      const a = await fetchData912('arg_bonds'), b = await fetchData912('arg_bonds');
+      const sym = b[0] && b[0].symbol;
+      if (a[0]) a[0].symbol = 'ROTO';
+      out.copias = a !== b && (!b[0] || b[0].symbol === sym) && n === 0;
+    } catch (e) { out.error = e.message; }
+    finally { window.fetch = real; }
+    return out;
+  });
+  if (audTanda.sinRed) omitir('la tanda de precios', 'data912 no responde: ' + audTanda.sinRed);
+  else check(!audTanda.error && audTanda.boton === 2 && audTanda.juntos <= 2 && audTanda.barra === 1 && audTanda.copias,
+             'el botón pide las dos listas de nuevo, cinco pedidos juntos comparten una tanda y cada uno recibe su copia',
+             JSON.stringify(audTanda));
+
+  // 4. Las librerías externas, con versión exacta y huella. 5. El panel del
+  //    calendario escribe como texto lo que viene de afuera.
+  console.log('\nLibrerías con huella y texto de afuera sin ejecutar');
+  const audSeg = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    out.scripts = [...document.querySelectorAll('script[src]')].map(s => {
+      const src = s.getAttribute('src');
+      return { src: src.replace(/^https:\/\/[^/]+\//, '').slice(0, 44), huella: /^sha(384|512)-/.test(s.integrity || '') && s.crossOrigin === 'anonymous',
+               fija: /\d+\.\d+\.\d+/.test(src) && !/@\d+\//.test(src) };
+    });
+    switchSection('pesos'); switchTab('calendario');
+    await espera(1500);
+    const eventos = CAL_EVENTOS_ADMIN.slice(), mes = CAL_MES, hoy = hoyAR();
+    try {
+      CAL_MES = new Date(+hoy.slice(0, 4), +hoy.slice(5, 7) - 1, 1);
+      CAL_EVENTOS_ADMIN = eventos.concat([{ id: 'smoke_x', fecha: hoy, tipo: 'custom', titulo: '<img src=x onerror="window.__smokeXss=1"><b>negrita</b>', desc: '<i>cursiva</i>' }]);
+      calRender(); await espera(500);
+      const side = document.getElementById('cal-side');
+      out.cal = { ejecutado: !!window.__smokeXss, img: side.querySelectorAll('img').length, b: side.querySelectorAll('b').length,
+                  texto: side.textContent.includes('<b>negrita</b>') && side.textContent.includes('<i>cursiva</i>') };
+    } finally { CAL_EVENTOS_ADMIN = eventos; CAL_MES = mes; calRender(); switchTab('breakeven'); }
+    return out;
+  });
+  check(audSeg.scripts.length >= 4 && audSeg.scripts.every(s => s.huella && s.fija),
+        'las librerías externas se cargan con versión exacta y huella', JSON.stringify(audSeg.scripts.filter(s => !(s.huella && s.fija))));
+  check(!audSeg.cal.ejecutado && audSeg.cal.img === 0 && audSeg.cal.b === 0 && audSeg.cal.texto,
+        'el panel del calendario escribe títulos y descripciones como texto, no como HTML', JSON.stringify(audSeg.cal));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
