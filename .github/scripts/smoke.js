@@ -6275,10 +6275,10 @@ const omitir = (label, motivo) =>
         JSON.stringify({ misma: ses.mismaCuenta, otra: ses.otraCuenta }));
 
   // ── Arreglos de la auditoría del 14/11/2026 ───────────────────────────────
-  // 1. Un dual paga la mejor de dos patas: medido como CER o como dólar linked
-  //    rinde menos que un bono puro, así que se ve pero no entra al ajuste de
-  //    esas dos curvas.
-  console.log('\nDuales fuera del ajuste de las curvas');
+  // 1. Un dual paga la mejor de dos patas: medido como CER, como dólar linked o
+  //    como TAMAR no se compara con un bono puro, así que se ve pero no entra al
+  //    ajuste de esas curvas. Los de una misma combinación tienen su curva.
+  console.log('\nDuales fuera del ajuste, con su curva por combinación');
   const audDuales = await page.evaluate(async () => {
     const espera = ms => new Promise(r => setTimeout(r, ms));
     const out = {};
@@ -6291,21 +6291,52 @@ const omitir = (label, motivo) =>
     out.conocidos = ['TXMJ8', 'TXMJ9', 'TXMD8', 'TXMD9', 'TXMJ0'].every(t => cer.has(t)) && dlk.has('TMVE8')
       && [...cer].every(t => DUALES_CONOCIDOS.CER.includes(t) || enDos(t, CER_BONDS))
       && [...dlk].every(t => DUALES_CONOCIDOS.DLK.includes(t) || enDos(t, DLK_BONDS));
-    out.otros = dualesDe('TF').size + dualesDe('TAMAR').size + dualesDe('BON').size;
+    out.otros = dualesDe('TF').size + dualesDe('BON').size;
+    // En TAMAR están todos, cada uno con su combinación.
+    const ta = dualCombos('TAMAR');
+    out.tamar = ta.get('TXMJ8') === 'cer' && ta.get('TMVE8') === 'dlk' && ta.get('TTD26') === 'tf'
+      && [...cer].every(t => ta.get(t) === 'cer') && [...dlk].every(t => ta.get(t) === 'dlk');
     // Por las filas de una rueda: el ticker que está en CER y también en TAMAR.
     out.porFilas = dualesDe('CER', [{ sector: 'CER', ticker: 'ZZDUAL' }, { sector: 'TAMAR', ticker: 'ZZDUAL' }, { sector: 'CER', ticker: 'ZZPURO' }]).has('ZZDUAL')
       && !dualesDe('CER', [{ sector: 'CER', ticker: 'ZZPURO' }]).has('ZZPURO');
+    const fc = dualCombos('TAMAR', [{ sector: 'CER', ticker: 'ZZ1' }, { sector: 'TAMAR', ticker: 'ZZ1' }, { sector: 'DLK', ticker: 'ZZ2' }, { sector: 'TAMAR', ticker: 'ZZ2' }]);
+    out.porFilasCombo = fc.get('ZZ1') === 'cer' && fc.get('ZZ2') === 'dlk';
     // El desvío: seis bonos sobre una recta y dos, fuera del ajuste, lejos de ella.
     const filas = [100, 200, 300, 400, 500, 600].map((d, i) => ({ ticker: 'P' + i, tir: 5 + d / 100, dias: d }))
       .concat([{ ticker: 'D1', tir: 1, dias: 250 }, { ticker: 'D2', tir: 2, dias: 450 }]);
     const con = desvDeRueda(filas, 'dias', 'lineal'), sin = desvDeRueda(filas, 'dias', 'lineal', new Set(['D1', 'D2']));
     const maxPuros = m => Math.max(...[0, 1, 2, 3, 4, 5].map(i => Math.abs(m.get('P' + i).d)));
     out.desvio = { sin: +maxPuros(sin).toFixed(3), con: +maxPuros(con).toFixed(1), d1: Math.round(sin.get('D1').d) };
+    // Con su combinación: cuatro TAMAR/CER sobre su propia recta se miden contra
+    // ella; el TAMAR/tasa fija, solo, contra la de los puros; con tres TAMAR/CER
+    // no alcanza para su curva y esa rueda no se miden.
+    const cerD = [150, 250, 350, 450].map((d, i) => ({ ticker: 'C' + i, tir: 1 + d / 200, dias: d }));
+    const base6 = filas.slice(0, 6), comb = new Map([['C0', 'cer'], ['C1', 'cer'], ['C2', 'cer'], ['C3', 'cer'], ['T1', 'tf']]);
+    const pr = desvDeRueda(base6.concat(cerD, [{ ticker: 'T1', tir: 2, dias: 300 }]), 'dias', 'lineal', comb, new Set(['cer']));
+    const pr3 = desvDeRueda(base6.concat(cerD.slice(0, 3)), 'dias', 'lineal', comb, new Set(['cer']));
+    out.propia = {
+      cer: +Math.max(...[0, 1, 2, 3].map(i => Math.abs(pr.get('C' + i).d))).toFixed(3),
+      vs: [0, 1, 2, 3].every(i => pr.get('C' + i).vs === 'propia'),
+      tf: pr.get('T1').vs + ' ' + Math.round(pr.get('T1').d),
+      puros: +maxPuros(pr).toFixed(3),
+      tres: !pr3.has('C0') && pr3.has('P0'),
+    };
     // La curva de Licitaciones, con una rueda armada a mano.
     const ref = { fecha: '2099-01-01', vivo: true, filas: [100, 200, 300, 400, 500].map((d, i) => ({ sector: 'CER', ticker: 'C' + i, tir: 8, dias: d }))
       .concat([{ sector: 'CER', ticker: 'ZZDUAL', tir: 3, dias: 350 }, { sector: 'TAMAR', ticker: 'ZZDUAL', tir: 5, dias: 350 }]) };
     const cu = licCurva(ref, 'CER', false);
     out.lic = !!cu && cu.pts.length === 5 && !cu.pts.some(q => q.ticker === 'ZZDUAL') && Math.abs(cu.aj.f(350) - 8) < 0.01;
+    // En TAMAR, la curva de los puros y la de cada combinación por separado.
+    const ref2 = { fecha: '2099-01-02', vivo: true, filas: [100, 200, 300, 400, 500].map((d, i) => ({ sector: 'TAMAR', ticker: 'M' + i, tir: 6, dias: d }))
+      .concat([150, 250, 350, 450].map((d, i) => ({ sector: 'TAMAR', ticker: 'ZC' + i, tir: 9, dias: d })),
+              [150, 250, 350, 450].map((d, i) => ({ sector: 'CER', ticker: 'ZC' + i, tir: 3, dias: d }))) };
+    const lp = licCurva(ref2, 'TAMAR', null), lc = licCurva(ref2, 'TAMAR', 'cer');
+    out.licCombo = {
+      puros: lp ? lp.pts.map(q => q.ticker).join() : null,
+      cer: lc ? lc.pts.map(q => q.ticker).join() + ' ' + lc.aj.f(300).toFixed(2) : null,
+      dlk: licCurva(ref2, 'TAMAR', 'dlk'),
+      combo: [licCombo({ clase: 'dual', dual: 'cer' }), licCombo({ clase: 'dual', dual: 'dl' }), licCombo({ clase: 'dual', dual: 'fija' }), licCombo({ clase: 'fija' })].join(),
+    };
     // En la calculadora de CER: huecos, fuera del ajuste y en su propio grupo.
     switchSection('pesos'); switchTab('cer');
     await espera(1500);
@@ -6315,21 +6346,68 @@ const omitir = (label, motivo) =>
     const puros = pts.filter(q => !du.has(q.ticker));
     const aj = curvaAjustar(puros.map(q => ({ x: q.x, y: q.y })));
     const linea = ds[0].data, fin = linea[linea.length - 1];
-    out.calc = { duales: pts.filter(q => du.has(q.ticker)).length, huecos: huecos.length, soloDuales: huecos.every(t => du.has(t)),
+    // La curva de los duales: la de los TAMAR/CER, ajustada sólo con ellos.
+    const enCurva = pts.filter(q => du.has(q.ticker));
+    const dc = ds.find(d => d.dualCombo === 'cer'), dfin = dc && dc.data[dc.data.length - 1];
+    const ajD = enCurva.length >= DUAL_CURVA_MIN ? curvaAjustar(enCurva.map(q => ({ x: q.x, y: q.y }))) : null;
+    out.calc = { duales: enCurva.length, huecos: huecos.length, soloDuales: huecos.every(t => du.has(t)),
       ajuste: !!(aj && fin) && Math.abs(aj.f(fin.x) - fin.y) < 0.01 && Math.abs(fin.x - Math.max(...puros.map(q => q.x))) < 1,
-      grupos: document.querySelectorAll('#calc-bonos-cer .msel-grupo').length };
+      grupos: document.querySelectorAll('#calc-bonos-cer .msel-grupo').length,
+      curvaDual: enCurva.length < DUAL_CURVA_MIN ? !dc : !!(ajD && dfin) && Math.abs(ajD.f(dfin.x) - dfin.y) < 0.01,
+      otrasCurvas: ds.filter(d => d.dualCombo && d.dualCombo !== 'cer').length };
+    // En la calculadora de TAMAR van huecos todos los duales, de las tres combinaciones.
+    switchTab('tamar');
+    await espera(1500);
+    if (tamarTabChart) {
+      const dt = tamarTabChart.data.datasets, pt = dt[1].data, dut = dualCombos('TAMAR');
+      const hu = pt.filter((q, i) => dt[1].pointBackgroundColor[i] === 'transparent').map(q => q.ticker);
+      const pu = pt.filter(q => !dut.has(q.ticker)), ajT = curvaAjustar(pu.map(q => ({ x: q.x, y: q.y })));
+      const lt = dt[0].data, ft = lt[lt.length - 1];
+      const porCombo = {}; pt.filter(q => dut.has(q.ticker)).forEach(q => { const k = dut.get(q.ticker); porCombo[k] = (porCombo[k] || 0) + 1; });
+      out.tamarCalc = { duales: pt.filter(q => dut.has(q.ticker)).length, huecos: hu.length, soloDuales: hu.every(t => dut.has(t)),
+        ajuste: !!(ajT && ft) && Math.abs(ajT.f(ft.x) - ft.y) < 0.01,
+        curvas: dt.filter(d => d.dualCombo).map(d => d.dualCombo).sort().join(),
+        esperadas: Object.keys(porCombo).filter(k => porCombo[k] >= DUAL_CURVA_MIN).sort().join() };
+    }
+    // La solapa Duales: una curva por combinación con DUAL_CURVA_MIN bonos.
+    switchTab('dual');
+    await espera(2000);
+    if (dualChart) {
+      const tea = DUAL_PREF.metrica === 'tea', tope = +DUAL_PREF.plazoMax || 0, cuenta = {};
+      DUAL_DATA.filter(r => !r.error && r.dias > 0 && (!tope || r.dias <= tope)).forEach(r => {
+        const y = tea ? r.tea : r.margenTNA;
+        if (y != null && isFinite(y)) cuenta[r.tipo] = (cuenta[r.tipo] || 0) + 1;
+      });
+      out.solapa = { esperadas: Object.keys(cuenta).filter(k => cuenta[k] >= DUAL_CURVA_MIN).sort().join(),
+        dibujadas: dualChart.data.datasets.filter(d => /^Tendencia /.test(d.label)).map(d => d.label.slice(10)).sort().join() };
+    }
     switchTab('breakeven');
     return out;
   });
-  check(audDuales.conocidos && audDuales.otros === 0 && audDuales.porFilas,
-        'los duales de CER y de dólar linked se reconocen por las listas, por las filas de la rueda y por los conocidos',
-        JSON.stringify({ cer: audDuales.cer, dlk: audDuales.dlk, otros: audDuales.otros, porFilas: audDuales.porFilas }));
+  check(audDuales.conocidos && audDuales.otros === 0 && audDuales.porFilas && audDuales.tamar && audDuales.porFilasCombo,
+        'los duales se reconocen con su combinación por las listas, por las filas de la rueda y por los conocidos; en TAMAR, los de las tres',
+        JSON.stringify({ cer: audDuales.cer, dlk: audDuales.dlk, otros: audDuales.otros, porFilas: audDuales.porFilas, tamar: audDuales.tamar, porFilasCombo: audDuales.porFilasCombo }));
   check(audDuales.desvio.sin < 0.01 && audDuales.desvio.con > 5 && audDuales.desvio.d1 === -650 && audDuales.lic,
         'la curva se ajusta sin los duales —en el desvío histórico y en Licitaciones— y el dual se mide contra ella',
-        JSON.stringify({ ...dua.desvio, lic: audDuales.lic }));
+        JSON.stringify({ ...audDuales.desvio, lic: audDuales.lic }));
+  const audPr = audDuales.propia;
+  check(audPr.cer < 0.01 && audPr.vs && audPr.tf === 'familia -600' && audPr.puros < 0.01 && audPr.tres,
+        'en el desvío, los duales de una combinación con curva se miden contra la suya, y el que está solo, contra la de los puros',
+        JSON.stringify(audPr));
+  const audLc = audDuales.licCombo;
+  check(audLc.puros === 'M0,M1,M2,M3,M4' && audLc.cer === 'ZC0,ZC1,ZC2,ZC3 9.00' && audLc.dlk === null && audLc.combo === 'cer,dlk,tf,',
+        'en Licitaciones, TAMAR tiene la curva de los puros y una por combinación de duales', JSON.stringify(audLc));
   if (audDuales.sinGrafico) omitir('los duales en la calculadora de CER', 'el gráfico de CER no se dibujó (sin índice o sin precios)');
-  else check(audDuales.calc.huecos === audDuales.calc.duales && audDuales.calc.soloDuales && audDuales.calc.ajuste && audDuales.calc.grupos === (audDuales.calc.duales ? 2 : 1),
-             'en la calculadora de CER los duales van huecos, fuera del ajuste y en su propio grupo del selector', JSON.stringify(audDuales.calc));
+  else check(audDuales.calc.huecos === audDuales.calc.duales && audDuales.calc.soloDuales && audDuales.calc.ajuste && audDuales.calc.grupos === (audDuales.calc.duales ? 2 : 1)
+             && audDuales.calc.curvaDual && audDuales.calc.otrasCurvas === 0,
+             'en la calculadora de CER los duales van huecos, fuera del ajuste, en su propio grupo del selector y con su curva', JSON.stringify(audDuales.calc));
+  const audTc = audDuales.tamarCalc;
+  if (!audTc) omitir('los duales en la calculadora de TAMAR', 'el gráfico de TAMAR no se dibujó');
+  else check(audTc.huecos === audTc.duales && audTc.soloDuales && audTc.ajuste && audTc.curvas === audTc.esperadas,
+             'en la calculadora de TAMAR los duales van huecos, fuera del ajuste, y cada combinación con bonos suficientes tiene su curva', JSON.stringify(audTc));
+  if (!audDuales.solapa) omitir('las curvas de la solapa Duales', 'el gráfico de Duales no se dibujó');
+  else check(audDuales.solapa.esperadas === audDuales.solapa.dibujadas && audDuales.solapa.dibujadas.length > 0,
+             'en la solapa Duales hay una curva por combinación', JSON.stringify(audDuales.solapa));
 
   // 2. Tema claro: los gráficos van con un filtro de CSS que los oscurece, así
   //    que el borde claro de las etiquetas salía como una mancha y la grilla,
