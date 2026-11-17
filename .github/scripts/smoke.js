@@ -6130,13 +6130,14 @@ const omitir = (label, motivo) =>
     const gUsd = document.getElementById('nav-usd-curvas').closest('.nav-grupo').querySelector('.nav-grupo-btn');
     out.usdActivo = gUsd.classList.contains('active') && /Curvas/i.test(gUsd.textContent);
     switchSection('pesos'); switchTab('breakeven');
-    out.sinEsc = !document.getElementById('nav-escenarios') && !document.getElementById('page-escenarios') && typeof escInit === 'undefined';
+    // Escenarios (el mapa de qué paga más) compara bonos en pesos: va sólo en Análisis de pesos.
+    out.escPesos = !!document.querySelector('#nav-pesos .nav-menu #nav-escenarios') && !document.querySelector('#nav-usd [onclick*="escenarios"]');
     return out;
   });
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
         'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-liquidez,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
@@ -6144,7 +6145,7 @@ const omitir = (label, motivo) =>
   check(nav.abre && nav.navega && nav.escape && nav.afuera,
         'la lista se abre sin que la barra la corte, elegir navega y la cierra, y Escape o un clic afuera también', JSON.stringify(nav));
   check(nav.cambia && nav.usdActivo, 'el grupo de la solapa abierta queda marcado y dice cuál es, en pesos y en dólares');
-  check(nav.sinEsc, 'la solapa Escenarios ya no está');
+  check(nav.escPesos, 'Escenarios va en Análisis de pesos y no en dólares: compara bonos en pesos');
 
   console.log('\nSolapas en desarrollo: sólo para admins');
   const dev = await page.evaluate(() => {
@@ -6511,6 +6512,122 @@ const omitir = (label, motivo) =>
         'las librerías externas se cargan con versión exacta y huella', JSON.stringify(audSeg.scripts.filter(s => !(s.huella && s.fija))));
   check(!audSeg.cal.ejecutado && audSeg.cal.img === 0 && audSeg.cal.b === 0 && audSeg.cal.texto,
         'el panel del calendario escribe títulos y descripciones como texto, no como HTML', JSON.stringify(audSeg.cal));
+
+  // ── Escenarios ────────────────────────────────────────────────────────────
+  // Cada bono del mes se valúa con la cuenta de su calculadora y sólo cambia el
+  // sendero: el cruce de los dos senderos tiene que dar lo mismo que las
+  // calculadoras, y lo de afuera de la solapa no puede enterarse del escenario.
+  console.log('\nEscenarios');
+  const escn = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    if (!CER_PROJ.size && PROJ_INFLACION.length) projCalcularCER();
+    // El CER rápido es el de projCalcularCER.
+    const sv = { infl: PROJ_INFLACION, cer: CER_PROJ, ft: PROJ_FUENTE.tamar, st: _proySendero.tamar };
+    PROJ_INFLACION = sv.infl.map(r => r.tipo === 'publicado' ? r : { ...r, infla: 2.5 });
+    projCalcularCER();
+    const ref = CER_PROJ;
+    PROJ_INFLACION = sv.infl; CER_PROJ = sv.cer;
+    const rap = escCerProj(2.5);
+    let maxRel = 0, faltan = 0;
+    ref.forEach((v, f) => { const w = rap.get(f); if (w == null) faltan++; else maxRel = Math.max(maxRel, Math.abs(w / v - 1)); });
+    out.cer = { n: ref.size, faltan, maxRel, conDatos: ref.size > 0 };
+    // escCon deja todo como estaba, aunque la cuenta falle.
+    try { escCon({ ipc: 3, tamar: 40 }, () => { throw new Error('a propósito'); }); } catch (e) {}
+    out.restaura = CER_PROJ === sv.cer && PROJ_INFLACION === sv.infl && PROJ_FUENTE.tamar === sv.ft && _proySendero.tamar === sv.st;
+    const c = escCalcular();
+    out.restaura = out.restaura && CER_PROJ === sv.cer && PROJ_INFLACION === sv.infl && PROJ_FUENTE.tamar === sv.ft && _proySendero.tamar === sv.st;
+    out.n = c.ins.length;
+    // Un dual va una sola vez, como dual.
+    const tk = c.ins.map(x => x.ticker);
+    out.repetidos = tk.filter((t, i) => tk.indexOf(t) !== i);
+    out.dualesFuera = c.ins.filter(x => x.fam !== 'dual' && dualCombos('TAMAR').has(x.ticker)).map(x => x.ticker);
+    // El cruce de los senderos contra las calculadoras.
+    const nI = c.ejes.ipc.length - 1, nT = c.ejes.tamar.length - 1;
+    out.distintos = []; out.comparados = 0;
+    c.ins.forEach((x, k) => {
+      const r = c.v[nI][nT][k];
+      let calc = null;
+      if (x.fam === 'tf') calc = x.b.tem;
+      if (x.fam === 'cer') calc = cerEnrich(x.b).temProy;
+      if (x.fam === 'tamar') calc = tamarVista(tamarEnrich(x.b)).tem;
+      if (x.fam === 'dual') { const d = dualCalcular(x.b); calc = d.tea != null ? calcTEM(d.tea) : null; }
+      if (x.fam === 'dlk') { const e = dlkEnrich(x.b); calc = e.tirPesos != null ? calcTEM(e.tirPesos) : null; }
+      if (calc == null || !isFinite(calc)) return;
+      out.comparados++;
+      if (!r || Math.abs(r.tem - calc) > 1e-6) out.distintos.push(`${x.ticker}: ${r ? r.tem : null} vs ${calc}`);
+    });
+    // Fuera del sendero: un CER con 3% mensual contra projCalcularCER con 3%, y
+    // un dual contra dualCalcular con el mismo escenario puesto.
+    const iI = c.ejes.ipc.findIndex(v => v === 3), jT = c.ejes.tamar.findIndex(v => v === 25);
+    const kc = c.ins.findIndex((x, k) => x.fam === 'cer' && c.v[0][0][k] && c.v[nI][0][k] && Math.abs(c.v[0][0][k].tem - c.v[nI - 1][0][k].tem) > 1e-4);
+    if (kc >= 0 && iI >= 0) {
+      PROJ_INFLACION = sv.infl.map(r => r.tipo === 'publicado' ? r : { ...r, infla: 3 });
+      projCalcularCER();
+      const t = cerEnrich(c.ins[kc].b).temProy;
+      PROJ_INFLACION = sv.infl; CER_PROJ = sv.cer;
+      out.cerFila = { ticker: c.ins[kc].ticker, dif: Math.abs(c.v[iI][0][kc].tem - t) };
+      // Más inflación, más TEM.
+      out.cerCrece = c.ejes.ipc.slice(0, nI).every((_, i) => i === 0 || c.v[i][0][kc].tem > c.v[i - 1][0][kc].tem);
+    }
+    const kd = c.ins.findIndex((x, k) => x.fam === 'dual' && c.v[0][0][k]);
+    if (kd >= 0 && iI >= 0 && jT >= 0) {
+      const d = escCon({ ipc: 3 }, () => escCon({ tamar: 25 }, () => dualCalcular(c.ins[kd].b)));
+      out.dualCelda = { ticker: c.ins[kd].ticker, dif: d.tea != null && c.v[iI][jT][kd] ? Math.abs(c.v[iI][jT][kd].tem - calcTEM(d.tea)) : null };
+    }
+    const kt = c.ins.findIndex((x, k) => x.fam === 'tamar' && c.v[0][0][k] && c.v[0][nT - 1][k] && c.v[0][nT - 1][k].tem - c.v[0][0][k].tem > 1e-4);
+    if (kt >= 0) out.tamarCrece = c.ejes.tamar.slice(0, nT).every((_, j) => j === 0 || c.v[0][j][kt].tem > c.v[0][j - 1][kt].tem);
+    // La indiferencia: con esa inflación, el CER rinde lo mismo que su rival.
+    c.meses = escMeses(c);
+    const conInd = c.meses.map(g => ({ g, o: (escIndiferencias(c, g).cer || {}) })).find(z => z.o.vs && z.o.vs.valor != null);
+    if (conInd) {
+      const o = conInd.o, tem = escCon({ ipc: o.vs.valor, hasta: c.ins[o.k].vcto }, () => escValuar(c.ins[o.k]).tem);
+      out.indif = { mes: conInd.g.mes, cer: o.ticker, rival: o.vs.ticker, dif: Math.abs(tem - c.v[nI][nT][o.vs.k].tem) };
+    }
+    // La solapa: desde Análisis, con la tabla, el mapa y el detalle.
+    out.boton = !!document.querySelector('#nav-pesos .nav-menu #nav-escenarios');
+    switchSection('pesos'); switchTab('escenarios');
+    await espera(1500);
+    out.visible = getComputedStyle(document.getElementById('page-escenarios')).display !== 'none';
+    out.filas = document.querySelectorAll('#esc-tabla tbody tr').length;
+    out.meses = ESC_CACHE ? ESC_CACHE.meses.length : -1;
+    out.celdas = document.querySelectorAll('#esc-mapa [role=button]').length;
+    out.detalle = /Con .*:/.test((document.querySelector('#esc-mapa') || {}).textContent || '');
+    // Cambiar el sendero repinta solo, y prender una familia se guarda.
+    const c0 = ESC_CACHE, fuente = PROJ_FUENTE.infla;
+    proySetFuente('infla', fuente === 'rem' ? 'manual' : 'rem');
+    await espera(700);
+    out.repinta = ESC_CACHE !== c0;
+    proySetFuente('infla', fuente);
+    await espera(700);
+    const dlk0 = escFamOn('dlk');
+    escToggleFam('dlk');
+    out.guarda = (JSON.parse(localStorage.getItem('bonosAR_escenarios_v1') || '{}').fams || {}).dlk === (dlk0 ? 0 : 1);
+    escToggleFam('dlk');
+    switchTab('cer');
+    await espera(300);
+    out.seEsconde = getComputedStyle(document.getElementById('page-escenarios')).display === 'none';
+    switchTab('breakeven');
+    return out;
+  });
+  check(escn.cer.conDatos && escn.cer.faltan === 0 && escn.cer.maxRel < 1e-12,
+        'el CER con inflación constante de Escenarios es el mismo que arma Proyecciones, día por día', JSON.stringify(escn.cer));
+  check(escn.restaura && !escn.repetidos.length && !escn.dualesFuera.length,
+        'el escenario no se filtra afuera de la cuenta, y cada dual entra una sola vez, como dual',
+        JSON.stringify({ restaura: escn.restaura, repetidos: escn.repetidos, dualesFuera: escn.dualesFuera }));
+  check(escn.comparados > 0 && !escn.distintos.length,
+        'con los dos senderos, cada bono rinde lo mismo que en su calculadora', JSON.stringify({ comparados: escn.comparados, distintos: escn.distintos.slice(0, 5) }));
+  if (!escn.cerFila || !escn.dualCelda) omitir('Escenarios fuera del sendero', 'no hay un CER que dependa de la inflación o un dual con precio');
+  else check(escn.cerFila.dif < 1e-6 && escn.dualCelda.dif != null && escn.dualCelda.dif < 1e-6 && escn.cerCrece && escn.tamarCrece !== false,
+             'fuera del sendero, el CER y el dual dan lo mismo que sus calculadoras con ese escenario, y más inflación o más TAMAR rinden más',
+             JSON.stringify({ cer: escn.cerFila, dual: escn.dualCelda, cerCrece: escn.cerCrece, tamarCrece: escn.tamarCrece }));
+  if (!escn.indif) omitir('la inflación de indiferencia', 'ningún mes tiene un CER que dependa de la inflación y un rival');
+  else check(escn.indif.dif < 1e-3, 'con la inflación de indiferencia, el CER rinde lo mismo que su rival', JSON.stringify(escn.indif));
+  check(escn.boton && escn.visible && escn.filas === escn.meses && escn.meses > 0 && escn.celdas > 0 && escn.detalle && escn.seEsconde,
+        'la solapa Escenarios se abre desde Análisis con la tabla por vencimiento, el mapa y el detalle, y se esconde al cambiar de solapa',
+        JSON.stringify({ boton: escn.boton, visible: escn.visible, filas: escn.filas, meses: escn.meses, celdas: escn.celdas, detalle: escn.detalle, seEsconde: escn.seEsconde }));
+  check(escn.repinta && escn.guarda, 'Escenarios se repinta solo al cambiar un sendero y guarda las familias elegidas',
+        JSON.stringify({ repinta: escn.repinta, guarda: escn.guarda }));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));

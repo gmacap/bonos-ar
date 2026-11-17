@@ -578,6 +578,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-retornos" onclick="switchTab('retornos')">Retornos</button>
       <button class="nav-tab" role="menuitem" id="nav-cartera" onclick="switchTab('cartera')">Cartera</button>
       <button class="nav-tab" role="menuitem" id="nav-dual" onclick="switchTab('dual')">Dual</button>
+      <button class="nav-tab" role="menuitem" id="nav-escenarios" onclick="switchTab('escenarios')">Escenarios</button>
       <button class="nav-tab" role="menuitem" id="nav-licitaciones" onclick="switchTab('licitaciones')">Licitaciones</button>
       <button class="nav-tab" role="menuitem" id="nav-futuros" onclick="switchTab('futuros')">Futuros</button>
       <button class="nav-tab" role="menuitem" id="nav-liquidez" onclick="switchTab('liquidez')">Liquidez</button>
@@ -1308,6 +1309,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     </div>
   </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════ ESCENARIOS PAGE -->
+<div id="page-escenarios" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 
 <!-- ═══════════════════════════════════════════════════════ DLK PAGE -->
 <div id="page-dlk" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
@@ -3114,7 +3118,7 @@ async function authAction(){
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
-  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1'];
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1','bonosAR_escenarios_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
 
@@ -5620,7 +5624,7 @@ function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-comentario','page-dual','page-retornos','page-cartera','page-licitaciones','page-futuros','page-liquidez','page-sintusd'];
+    'page-comentario','page-dual','page-escenarios','page-retornos','page-cartera','page-licitaciones','page-futuros','page-liquidez','page-sintusd'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -5793,6 +5797,10 @@ function switchTab(tab){
     document.getElementById('page-dual').style.display='flex';
     updateIndexBanners();
     dualInit();
+  } else if(tab==='escenarios'){
+    document.getElementById('page-escenarios').style.display='block';
+    updateIndexBanners();
+    escInit();
   } else if(tab==='sintetico'){
     document.getElementById('page-sintetico').style.display='flex';
     updateIndexBanners();
@@ -10444,6 +10452,7 @@ function beTamarExclSaveLs(){
 
 function beRefreshIfVisible(){
   if(currentTab==='dual'){try{dualRender();}catch(e){console.warn('[dual]',e.message);}return;}
+  if(currentTab==='escenarios'){escProgramar();return;}
   if(currentTab==='retornos'){try{retRender('ars');}catch(e){console.warn('[retornos]',e.message);}return;}
   if(currentTab==='cartera'){try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}return;}
   if(currentTab==='licitaciones'){licRefrescar();return;}
@@ -11379,6 +11388,8 @@ function tabSetN(k,v){
 function tabProgramar(){
   try{clearTimeout(TAB_TIMER);}catch(e){}
   TAB_TIMER=setTimeout(()=>{try{if(currentTab==='breakeven')beTableroRender();}catch(e){}},80);
+  // Escenarios cuelga de los mismos senderos e índices.
+  try{if(currentTab==='escenarios')escProgramar();}catch(e){}
 }
 
 // La misma fecha n meses antes o después; si ese mes es más corto, su último día.
@@ -12654,6 +12665,542 @@ cerFetchIndex();
 tamarFetchIndex();
 dlkFetchIndex();
 dlkLoadBonds();
+// ══════════════════════════════════════════════════════════════ ESCENARIOS
+// Qué paga más en cada mes de vencimiento según la inflación y la TAMAR. Para
+// cada mes se juntan los bonos en pesos que pagan ahí —tasa fija, CER, TAMAR,
+// duales y, si se prende, dólar linked— y se valúan con la misma cuenta que las
+// calculadoras, cambiando sólo el sendero: inflación mensual constante en los
+// meses que el INDEC todavía no publicó y TAMAR constante en las ruedas que
+// faltan. El dólar queda en el sendero elegido.
+//
+// Se comparan las TEM hasta el pago de cada bono, no los rendimientos totales:
+// dentro de un mes los plazos difieren hasta en 30 días, y el total le da
+// ventaja al que dura más sólo por durar más.
+var ESC_LS='bonosAR_escenarios_v1';
+var ESC_PREF={ipcDesde:1,ipcPaso:0.5,tamarDesde:15,tamarPaso:5,fams:{tf:1,cer:1,tamar:1,dual:1,dlk:0},mes:null};
+var ESC_N_IPC=7,ESC_N_TAMAR=6;
+var ESC_EMPATE=0.005;      // pp de TEM: por debajo, con dos decimales se ven iguales
+var ESC_FAM={
+  tf:   {nombre:'Tasa fija',   corto:'TF',   color:'#fbbf24'},
+  cer:  {nombre:'CER',         corto:'CER',  color:'#4ade80'},
+  tamar:{nombre:'TAMAR',       corto:'TAMAR',color:'#38bdf8'},
+  dual: {nombre:'Dual',        corto:'Dual', color:'#f472b6'},
+  dlk:  {nombre:'Dólar linked',corto:'DLK',  color:'#a855f7'},
+};
+var ESC_FAM_ORDEN=['tf','cer','tamar','dual','dlk'];
+var ESC_CACHE=null;        // la última cuenta: {ins,ejes,v,ind}
+var ESC_SEL={celda:null};  // la celda elegida del mapa, [i,j]
+var ESC_TIMER=null;
+var ESC_CER_PLAN=null;
+
+function escLoadLs(){
+  try{const r=localStorage.getItem(ESC_LS);if(r){const o=JSON.parse(r)||{};ESC_PREF={...ESC_PREF,...o,fams:{...ESC_PREF.fams,...(o.fams||{})}};}}catch(e){}
+}
+function escSaveLs(){try{localStorage.setItem(ESC_LS,JSON.stringify(ESC_PREF));}catch(e){}}
+function escFamOn(f){return!!(ESC_PREF.fams&&ESC_PREF.fams[f]);}
+
+// Siete inflaciones y seis TAMAR, más el sendero activo (null).
+function escEjes(){
+  const r=(d,p,n)=>Array.from({length:n},(_,i)=>Math.round((d+p*i)*1000)/1000);
+  const pI=+ESC_PREF.ipcPaso>0?+ESC_PREF.ipcPaso:0.5,pT=+ESC_PREF.tamarPaso>0?+ESC_PREF.tamarPaso:5;
+  return{ipc:r(isFinite(+ESC_PREF.ipcDesde)?+ESC_PREF.ipcDesde:1,pI,ESC_N_IPC).concat([null]),
+         tamar:r(isFinite(+ESC_PREF.tamarDesde)?+ESC_PREF.tamarDesde:15,pT,ESC_N_TAMAR).concat([null])};
+}
+
+// ── El CER con inflación constante ──────────────────────────────────────────
+// La misma cuenta que projCalcularCER —cada mes de inflación vale entre el 16
+// del mes siguiente y el 15 del otro, y se encadena día por día desde el último
+// CER publicado—, pero el calendario de vigencias se arma una vez: para otra
+// inflación sólo cambian los coeficientes. Rehacer los diez años con la búsqueda
+// lineal de projCalcularCER llevaba 90 ms por inflación.
+function escCerPlan(){
+  const last=projGetLastCerReal();
+  if(!last||!PROJ_INFLACION.length)return null;
+  const clave=[last.fecha,last.valor,PROJ_INFLACION.length,PROJ_INFLACION[0].mes,fmtDate(TODAY)].join('|');
+  if(ESC_CER_PLAN&&ESC_CER_PLAN.clave===clave)return ESC_CER_PLAN;
+  const orden=PROJ_INFLACION.map((r,i)=>({i,mes:r.mes,desde:projFechaInicioVigencia(r.mes),hasta:projFechaFinVigencia(r.mes),aplica:projMesAplica(r.mes)}))
+    .sort((a,b)=>a.desde.localeCompare(b.desde));
+  const dias=[],idx=[];
+  const fecha=new Date(last.fecha+'T00:00:00');fecha.setDate(fecha.getDate()+1);
+  const fin=new Date(TODAY.getFullYear()+PROJ_HORIZONTE_AÑOS,TODAY.getMonth(),TODAY.getDate());
+  while(fecha<=fin){
+    const fs=fmtDate(fecha);
+    let k=-1;
+    for(let j=0;j<orden.length;j++){if(fs>=orden[j].desde&&fs<orden[j].hasta){k=j;break;}}
+    dias.push(fs);idx.push(k<0?orden.length-1:k);
+    fecha.setDate(fecha.getDate()+1);
+  }
+  ESC_CER_PLAN={clave,base:last.valor,orden,dias,idx};
+  return ESC_CER_PLAN;
+}
+// CER_PROJ con la inflación ipc en los meses sin publicar, hasta la fecha hasta.
+function escCerProj(ipc,hasta){
+  const P=escCerPlan(),m=new Map();
+  if(!P)return m;
+  const coef=P.orden.map(o=>{
+    const r=PROJ_INFLACION[o.i];
+    const inf=r&&r.mes===o.mes&&r.tipo==='publicado'&&r.infla!=null?r.infla:ipc;
+    return projCoefDiario(inf,o.aplica);
+  });
+  let v=P.base;
+  for(let d=0;d<P.dias.length;d++){
+    if(hasta&&P.dias[d]>hasta)break;
+    v*=coef[P.idx[d]];m.set(P.dias[d],v);
+  }
+  return m;
+}
+
+// Corre fn con el escenario puesto y deja todo como estaba. ipc: inflación
+// mensual constante para los meses sin publicar; tamar: TNA constante para las
+// ruedas sin publicar; null deja el sendero activo. hasta acota el CER que se
+// arma a la fecha más lejana que se va a pedir. Es sincrónico: nada más ve el
+// escenario mientras dura.
+function escCon(esc,fn){
+  const sv={infl:PROJ_INFLACION,cer:CER_PROJ,ft:PROJ_FUENTE.tamar,st:_proySendero.tamar};
+  try{
+    if(esc&&esc.ipc!=null&&isFinite(esc.ipc)){
+      PROJ_INFLACION=sv.infl.map(r=>r.tipo==='publicado'?r:{...r,infla:+esc.ipc});
+      CER_PROJ=escCerProj(+esc.ipc,esc.hasta||null);
+    }
+    if(esc&&esc.tamar!=null&&isFinite(esc.tamar)){
+      // tamarEnrich sólo mira el sendero con una fuente distinta de 5 días.
+      PROJ_FUENTE.tamar='manual';
+      const hoy=proyMesHoy(),lista=[];
+      for(let k=0;k<=PROY_MESES;k++)lista.push({mes:proyMesAdd(hoy,k),v:+esc.tamar,origen:'esc'});
+      _proySendero.tamar={lista,mapa:new Map(lista.map(p=>[p.mes,p])),min:lista[0].mes,max:lista[lista.length-1].mes};
+    }
+    return fn();
+  }finally{
+    PROJ_INFLACION=sv.infl;CER_PROJ=sv.cer;PROJ_FUENTE.tamar=sv.ft;_proySendero.tamar=sv.st;
+  }
+}
+
+// ── Los bonos ────────────────────────────────────────────────────────────────
+// Todos los bonos en pesos con precio. Un dual va sólo como dual: está también
+// en la lista de CER, de TAMAR o de dólar linked, pero paga la mejor de dos
+// patas y no es ninguno de esos. Del BONTE va la versión al put, como en la
+// curva de tasa fija.
+function escInstrumentos(){
+  const liq=G_LIQ||addHabiles(TODAY,1);
+  const du=dualCombos('TAMAR');
+  const out=[];
+  const poner=(fam,b,extra)=>{
+    if(!b||!(b.precio>0)||!b.vcto)return;
+    const pago=(extra&&extra.pago)||b.vcto;
+    const dias=diasAlPago(liq,parseDate(pago));
+    if(!(dias>=CURVAS_DIAS_MIN))return;
+    out.push({fam,ticker:b.ticker,vcto:b.vcto,pago,mes:pago.substring(0,7),dias,precio:b.precio,b,...(extra||{})});
+  };
+  (DATA||[]).forEach(r=>poner('tf',r));
+  try{tfcVariantes(liq).filter(v=>v.enCurva).forEach(v=>poner('tf',v,{cupon:true}));}catch(e){}
+  (CER_BONDS||[]).filter(b=>!du.has(b.ticker)).forEach(b=>poner('cer',b));
+  (TAMAR_BONDS||[]).filter(b=>!du.has(b.ticker)).forEach(b=>poner('tamar',b));
+  try{dualBonos().forEach(t=>poner('dual',t,{combo:du.get(t.ticker)||dualTipo(t)}));}catch(e){}
+  (DLK_BONDS||[]).filter(b=>!du.has(b.ticker)).forEach(b=>poner('dlk',b));
+  return out.sort((a,b)=>a.pago.localeCompare(b.pago)||ESC_FAM_ORDEN.indexOf(a.fam)-ESC_FAM_ORDEN.indexOf(b.fam));
+}
+
+// Las dos patas de un dual con el escenario puesto, por 100 de nominal y en
+// pesos: la A (fija, CER o dólar) y la B (TAMAR + margen). Es la cuenta de
+// dualCalcular, separada: la A depende sólo de la inflación y la B sólo de la
+// TAMAR, y así no se rehace la B en cada fila del mapa.
+function escDualA(x){
+  const t=x.b,tc0=t.tcInicial||1,vto=parseDate(t.vcto),tipo=dualTipo(t);
+  if(tipo==='tf'){const tem=dualTemFija(t);return tem?calcVF(tem,parseDate(t.emision),vto)*tc0:null;}
+  if(tipo==='cer'){
+    const em=cerGetValorCer(parseDate(t.emision)),v=cerGetValorCerProyectado(vto);
+    return em>0&&v>0?100*v/em:null;
+  }
+  if(tipo==='dlk'){
+    const db=DLK_BONDS.find(b=>b.ticker===t.ticker);
+    const ff=db?dlkBuildFF(db,G_LIQ||addHabiles(TODAY,1)).ff:[];
+    if(ff.length!==1)return null;
+    const tc=dlkTCProy(ff[0].fecha);
+    return tc>0?ff[0].cf*tc:null;
+  }
+  return null;
+}
+function escDualB(x){
+  const t=x.b,tc0=t.tcInicial||1;
+  const e=tamarEnrich({...t,precio:t.precio>0?t.precio:100*tc0});
+  return e&&e.vpvProy>0?e.vpvProy*tc0:null;
+}
+function escDualValor(x,A,B){
+  if(!(A>0)||!(B>0)||!(x.dias>0))return null;
+  const cobro=Math.max(A,B);
+  const tea=(Math.pow(cobro/x.precio,365/x.dias)-1)*100;
+  return{tea,tem:calcTEM(tea),total:(cobro/x.precio-1)*100,cobro,gana:A>B?dualTipo(x.b):'tamar'};
+}
+
+// Lo que rinde un bono con el escenario que esté puesto: TEA, TEM y el
+// rendimiento total sin reinversión. null si no se puede valuar.
+function escValuar(x){
+  const de=(tea,total,extra)=>tea!=null&&isFinite(tea)?{tea,tem:calcTEM(tea),total,...(extra||{})}:null;
+  try{
+    if(x.fam==='tf'){
+      if(x.cupon)return de(x.b.tir,null);
+      const vf=calcVF(x.b.tem_emision,parseDate(x.b.emision),parseDate(x.b.vcto));
+      return de(x.b.tir,(vf/x.precio-1)*100);
+    }
+    if(x.fam==='cer'){
+      const factor=cerFactor(x.b.emision);
+      const fl=factor?cerBuildFlujosProy(x.b,x.precio,factor):null;
+      if(!fl)return null;
+      const cobro=fl.slice(1).reduce((s,f)=>s+f.monto,0);
+      return de(xirr(fl,0.3),(cobro/x.precio-1)*100);
+    }
+    if(x.fam==='tamar'){
+      const e=tamarEnrich(x.b);
+      if(!(e.vpvProy>0))return null;
+      return de(e.tirProy,(e.vpvProy*(x.b.tcInicial||1)/x.precio-1)*100);
+    }
+    if(x.fam==='dual')return escDualValor(x,escDualA(x),escDualB(x));
+    if(x.fam==='dlk'){const e=dlkEnrich(x.b);return de(e.tirPesos,null);}
+  }catch(e){}
+  return null;
+}
+
+// La grilla entera: v[i][j][k] es la valuación del bono k con la inflación
+// ipc[i] y la TAMAR tamar[j]. Cada familia se valúa sólo con lo que la mueve:
+// la tasa fija y el dólar linked una vez, el CER por fila, la TAMAR por columna,
+// y en los duales la pata A por fila y la B por columna.
+function escCalcular(){
+  const ins=escInstrumentos(),ej=escEjes();
+  const nI=ej.ipc.length,nT=ej.tamar.length;
+  const v=Array.from({length:nI},()=>Array.from({length:nT},()=>new Array(ins.length).fill(null)));
+  const idx=f=>ins.map((x,k)=>x.fam===f?k:-1).filter(k=>k>=0);
+  const fijos=idx('tf').concat(idx('dlk')),cer=idx('cer'),tam=idx('tamar'),dua=idx('dual');
+  const hasta=ins.filter(x=>x.fam==='cer'||x.fam==='dual').reduce((m,x)=>x.vcto>m?x.vcto:m,'')||null;
+  const fijo=new Map(fijos.map(k=>[k,escValuar(ins[k])]));
+  const porT=ej.tamar.map(t=>escCon({tamar:t},()=>({
+    tam:new Map(tam.map(k=>[k,escValuar(ins[k])])),
+    B:new Map(dua.map(k=>{let b=null;try{b=escDualB(ins[k]);}catch(e){}return[k,b];})),
+  })));
+  ej.ipc.forEach((ipc,i)=>escCon({ipc,hasta},()=>{
+    const porI=new Map(cer.map(k=>[k,escValuar(ins[k])]));
+    const A=new Map(dua.map(k=>{let a=null;try{a=escDualA(ins[k]);}catch(e){}return[k,a];}));
+    ej.tamar.forEach((t,j)=>{
+      const fila=v[i][j];
+      fijo.forEach((r,k)=>{fila[k]=r;});
+      porI.forEach((r,k)=>{fila[k]=r;});
+      porT[j].tam.forEach((r,k)=>{fila[k]=r;});
+      dua.forEach(k=>{fila[k]=escDualValor(ins[k],A.get(k),porT[j].B.get(k));});
+    });
+  }));
+  return{ins,ejes:ej,v,hasta};
+}
+
+// Los meses de pago con bonos de al menos dos de las familias prendidas.
+function escMeses(c){
+  const m=new Map();
+  c.ins.forEach((x,k)=>{if(!escFamOn(x.fam))return;if(!m.has(x.mes))m.set(x.mes,[]);m.get(x.mes).push(k);});
+  return[...m.entries()].map(([mes,ks])=>({mes,ks,fams:[...new Set(ks.map(k=>c.ins[k].fam))]}))
+    .filter(g=>g.fams.length>=2).sort((a,b)=>a.mes.localeCompare(b.mes));
+}
+
+// Una celda: el mejor de cada familia, el ganador y por cuánto le gana a la
+// segunda familia, en pb de TEM. Empate si con dos decimales se ven iguales.
+function escCelda(c,g,i,j){
+  const fila=c.v[i][j],mejor={};
+  g.ks.forEach(k=>{
+    const r=fila[k];if(!r)return;
+    const f=c.ins[k].fam;
+    if(!mejor[f]||r.tem>mejor[f].r.tem)mejor[f]={k,r};
+  });
+  const orden=Object.keys(mejor).sort((a,b)=>mejor[b].r.tem-mejor[a].r.tem);
+  if(!orden.length)return null;
+  const p=mejor[orden[0]],s=orden.length>1?mejor[orden[1]]:null;
+  return{gana:orden[0],k:p.k,r:p.r,mejor,orden,
+    ventaja:s?(p.r.tem-s.r.tem)*100:null,
+    empate:s&&p.r.tem-s.r.tem<ESC_EMPATE?orden[1]:null};
+}
+
+// La raíz de f en [a,b] por bisección, o null si no cambia de signo.
+function escRaiz(f,a,b,tol){
+  let fa=f(a);const fb=f(b);
+  if(fa==null||fb==null||!isFinite(fa)||!isFinite(fb)||fa*fb>0)return null;
+  for(let n=0;n<60&&b-a>(tol||1e-4);n++){
+    const m=(a+b)/2,fm=f(m);
+    if(fm==null||!isFinite(fm))return null;
+    if(fa*fm<=0)b=m;else{a=m;fa=fm;}
+  }
+  return(a+b)/2;
+}
+
+// Los puntos de indiferencia de un mes. Para el mejor CER: la inflación
+// mensual constante con la que empata al mejor de lo que no depende de la
+// inflación (tasa fija, TAMAR y dólar linked con sus senderos). Para el mejor
+// TAMAR: la TAMAR constante con la que empata al mejor de lo que no depende de
+// la TAMAR. Al lado, la constante que reproduce el sendero activo en ese mismo
+// bono, para leerlas juntas. Los duales no entran: dependen de las dos cosas.
+var ESC_IPC_RANGO=[-1,10],ESC_TAMAR_RANGO=[0,150];
+function escIndiferencias(c,g){
+  const nI=c.ejes.ipc.length-1,nT=c.ejes.tamar.length-1;
+  const cel=escCelda(c,g,nI,nT);
+  if(!cel)return{};
+  const out={};
+  const rival=fams=>fams.map(f=>cel.mejor[f]).filter(Boolean).sort((a,b)=>b.r.tem-a.r.tem)[0]||null;
+  const temDe=(k,esc)=>{const r=escCon(esc,()=>escValuar(c.ins[k]));return r?r.tem:null;};
+  const cer=cel.mejor.cer,tam=cel.mejor.tamar;
+  if(cer){
+    const x=c.ins[cer.k],h=x.vcto,[lo,hi]=ESC_IPC_RANGO;
+    const f=i=>temDe(cer.k,{ipc:i,hasta:h});
+    const fijado=Math.abs(f(lo)-f(hi))<1e-6;
+    const o={k:cer.k,ticker:x.ticker,fijado};
+    if(!fijado){
+      o.sendero=escRaiz(i=>f(i)-cer.r.tem,lo,hi);
+      const r=rival(['tf','tamar','dlk']);
+      if(r)o.vs={k:r.k,ticker:c.ins[r.k].ticker,fam:c.ins[r.k].fam,valor:escRaiz(i=>f(i)-r.r.tem,lo,hi)};
+    }
+    out.cer=o;
+  }
+  if(tam){
+    const x=c.ins[tam.k],[lo,hi]=ESC_TAMAR_RANGO;
+    const f=t=>temDe(tam.k,{tamar:t});
+    const fijado=Math.abs(f(lo)-f(hi))<1e-6;
+    const o={k:tam.k,ticker:x.ticker,fijado};
+    if(!fijado){
+      o.sendero=escRaiz(t=>f(t)-tam.r.tem,lo,hi,1e-3);
+      const r=rival(['tf','cer','dlk']);
+      if(r)o.vs={k:r.k,ticker:c.ins[r.k].ticker,fam:c.ins[r.k].fam,valor:escRaiz(t=>f(t)-r.r.tem,lo,hi,1e-3)};
+    }
+    out.tamar=o;
+  }
+  return out;
+}
+
+// ── Pantalla ─────────────────────────────────────────────────────────────────
+function escProgramar(){
+  clearTimeout(ESC_TIMER);
+  ESC_TIMER=setTimeout(()=>{try{if(currentTab==='escenarios')escRender();}catch(e){console.warn('[escenarios]',e.message);}},120);
+}
+function escInit(){
+  escLoadLs();
+  const pg=document.getElementById('page-escenarios');
+  if(!pg)return;
+  if(!pg.innerHTML.trim())pg.innerHTML=escPaginaHTML();
+  proyPintarSelectores();
+  if(!TAMAR_INDEX.length)tamarFetchIndex();
+  if(!CER_INDEX.length)cerFetchIndex();
+  if(!CER_PROJ.size&&PROJ_INFLACION.length){try{projCalcularCER();}catch(e){}}
+  escRender();
+}
+function escRender(){
+  if(!document.getElementById('esc-tabla'))return;
+  const t0=performance.now();
+  const c=escCalcular();
+  c.meses=escMeses(c);
+  c.ind=new Map(c.meses.map(g=>[g.mes,escIndiferencias(c,g)]));
+  c.ms=Math.round(performance.now()-t0);
+  ESC_CACHE=c;
+  if(!c.meses.some(g=>g.mes===ESC_PREF.mes))ESC_PREF.mes=c.meses.length?c.meses[0].mes:null;
+  escPintar();
+}
+// Repinta sin recalcular: al elegir un mes o una celda.
+function escPintar(){
+  const c=ESC_CACHE;
+  if(!c)return;
+  const ctl=document.getElementById('esc-controles');
+  if(ctl)ctl.innerHTML=escControlesHTML();
+  const est=document.getElementById('esc-estado');
+  if(est)est.textContent=`${c.ins.length} bonos · ${c.meses.length} meses con dos familias o más`;
+  const tb=document.getElementById('esc-tabla');
+  if(tb)tb.innerHTML=escTablaHTML(c);
+  const mp=document.getElementById('esc-mapa');
+  if(mp)mp.innerHTML=escMapaHTML(c);
+}
+function escElegirMes(mes){ESC_PREF.mes=mes;ESC_SEL.celda=null;escSaveLs();escPintar();}
+function escElegirCelda(i,j){ESC_SEL.celda=[i,j];escPintar();}
+function escToggleFam(f){
+  ESC_PREF.fams={...ESC_PREF.fams,[f]:escFamOn(f)?0:1};
+  escSaveLs();
+  // Prender o apagar una familia no cambia ninguna valuación, sí qué meses hay
+  // y contra quién se mide cada indiferencia.
+  const c=ESC_CACHE;
+  if(c){
+    c.meses=escMeses(c);
+    c.ind=new Map(c.meses.map(g=>[g.mes,escIndiferencias(c,g)]));
+    if(!c.meses.some(g=>g.mes===ESC_PREF.mes))ESC_PREF.mes=c.meses.length?c.meses[0].mes:null;
+    escPintar();
+  }else escRender();
+}
+function escSetEje(k,v){
+  const n=parseFloat(String(v).replace(',','.'));
+  if(!isFinite(n))return;
+  if(/Paso$/.test(k)&&!(n>0))return;
+  ESC_PREF[k]=n;escSaveLs();ESC_SEL.celda=null;escRender();
+}
+
+// Formatos
+function escP(v,d){return v==null||!isFinite(v)?'—':licN(v,d==null?2:d)+'%';}
+function escMesLargo(mes){
+  const[y,m]=mes.split('-').map(Number);
+  const n=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][m-1];
+  return n.charAt(0).toUpperCase()+n.slice(1)+' '+y;
+}
+function escMesCorto(mes){const[y,m]=mes.split('-').map(Number);return MESES_ES[m-1].toLowerCase()+' '+String(y).slice(-2);}
+function escAlfa(hex,a){
+  const n=parseInt(hex.slice(1),16);
+  return`rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+}
+function escPunto(f,on){return`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ESC_FAM[f].color};opacity:${on===false?.3:1};flex-shrink:0"></span>`;}
+function escFuenteEje(serie){return proyFuenteLabel(serie);}
+
+function escPaginaHTML(){
+  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+  const caja='border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:12px 14px;min-width:0';
+  const nota='Cada bono se valúa hasta su pago con la misma cuenta que su calculadora; lo único que cambia es el sendero. '
+    +'Inflación: variación mensual constante en todos los meses que el INDEC todavía no publicó; los publicados quedan como están, y por el rezago del CER los vencimientos cercanos pueden no depender de ella. '
+    +'TAMAR: TNA constante en las ruedas que faltan publicar; lo ya publicado se conserva. '
+    +'El dólar linked y la pata dólar de los duales usan el sendero del dólar elegido arriba. '
+    +'Los duales cobran la mejor de sus dos patas. '
+    +'Se comparan TEM hasta el pago de cada bono, que es lo que permite comparar plazos distintos dentro de un mes; el rendimiento total, sin reinversión, está en el detalle de cada celda. '
+    +'La fila y la columna "Sendero" son los senderos activos: su cruce da lo mismo que las calculadoras.';
+  return`<div style="display:flex;flex-direction:column;gap:14px;padding:12px 18px 28px">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <span style="${tit};font-size:17px">Escenarios · qué paga más en cada vencimiento</span>${ayuda(nota,'Cómo se calcula')}
+      <span id="esc-estado" style="${LIC_SUB}"></span>
+      <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span style="${LIC_SUB};text-transform:uppercase;letter-spacing:.04em" title="Los senderos de la fila y la columna Sendero, y el del dólar para todo el mapa. Son los mismos de Proyecciones y valen para toda la app">Senderos</span>
+        <span data-proy-sel="infla"></span><span data-proy-sel="tamar"></span><span data-proy-sel="tcn"></span>
+        <button class="btn" onclick="fetchAllPrices()">↻ Precios</button>
+      </div>
+    </div>
+    <div id="esc-controles" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center"></div>
+    <section style="${caja}">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px"><span style="${tit}">Por vencimiento</span><span style="${LIC_SUB}">el mejor de cada familia con los senderos, en TEM · elegí un mes para ver su mapa</span></div>
+      <div id="esc-tabla" style="overflow-x:auto"></div>
+    </section>
+    <section style="${caja}"><div id="esc-mapa"></div></section>
+  </div>`;
+}
+
+function escControlesHTML(){
+  const lab=t=>`<span style="${LIC_SUB};text-transform:uppercase;letter-spacing:.04em">${t}</span>`;
+  const inp=(k,paso,tit)=>`<input id="esc-${k}" type="number" step="${paso}" value="${ESC_PREF[k]}" onchange="escSetEje('${k}',this.value)" title="${tit}" aria-label="${tit}"
+    style="width:60px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 5px;font-family:var(--mono);font-size:var(--fs11);color:var(--text);text-align:right">`;
+  const fams=ESC_FAM_ORDEN.map(f=>{
+    const on=escFamOn(f);
+    const tip=f==='dlk'?'El dólar linked no depende de la inflación ni de la TAMAR: queda en el sendero del dólar en todo el mapa':
+      f==='dual'?'Los duales cobran la mejor de sus dos patas: dependen de la TAMAR y de la otra pata':`${ESC_FAM[f].nombre}: ${on?'apagar':'prender'}`;
+    return`<button type="button" class="mode-btn${on?' active':''}" aria-pressed="${on}" title="${betrEsc(tip)}" onclick="escToggleFam('${f}')"
+      style="padding:4px 10px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap">${escPunto(f,on)}${ESC_FAM[f].nombre}</button>`;
+  }).join('');
+  return`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${lab('Familias')}<div class="mode-row" style="margin-bottom:0;width:auto">${fams}</div></div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${lab('Inflación mensual')}<span style="${LIC_SUB}">desde</span>${inp('ipcDesde','0.1','Primera fila del mapa, en % mensual')}<span style="${LIC_SUB}">% · paso</span>${inp('ipcPaso','0.1','Diferencia entre filas, en puntos')}</div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${lab('TAMAR TNA')}<span style="${LIC_SUB}">desde</span>${inp('tamarDesde','1','Primera columna del mapa, en % TNA')}<span style="${LIC_SUB}">% · paso</span>${inp('tamarPaso','1','Diferencia entre columnas, en puntos')}</div>`;
+}
+
+// La tabla de arriba: un renglón por mes con el mejor de cada familia, quién
+// gana con los senderos y los dos puntos de indiferencia.
+function escTablaHTML(c){
+  if(!c.meses.length)return`<div style="${LIC_SUB};padding:8px 0">No hay meses con bonos de dos familias prendidas y precio. Revisá que estén los precios (↻ Precios) y las familias.</div>`;
+  const nI=c.ejes.ipc.length-1,nT=c.ejes.tamar.length-1;
+  const fams=ESC_FAM_ORDEN.filter(escFamOn);
+  const th=(t,tip,izq)=>`<th style="${LIC_TH}${izq?';text-align:left':''}"${tip?` title="${betrEsc(tip)}"`:''}>${t}</th>`;
+  const cab=th('Mes',null,true)+fams.map(f=>th(`<span style="display:inline-flex;align-items:center;gap:5px">${escPunto(f)}${ESC_FAM[f].corto}</span>`,`El ${ESC_FAM[f].nombre} que más rinde ese mes con los senderos, y su TEM`)).join('')
+    +th('Con los senderos','El que más rinde con los senderos activos, y por cuánto le gana a la segunda familia',true)
+    +th('Inflación de indiferencia','Inflación mensual constante con la que el mejor CER rinde lo mismo que el mejor de lo que no depende de la inflación. Abajo, la constante que equivale al sendero activo en ese CER')
+    +th('TAMAR de indiferencia','TAMAR constante con la que el mejor TAMAR rinde lo mismo que el mejor de lo que no depende de la TAMAR. Abajo, la constante que equivale al sendero activo en ese bono');
+  const filas=c.meses.map(g=>{
+    const cel=escCelda(c,g,nI,nT),ind=c.ind.get(g.mes)||{};
+    const sel=g.mes===ESC_PREF.mes;
+    const td=(h,izq,extra)=>`<td style="${LIC_TD}${izq?';text-align:left':''}${extra||''}">${h}</td>`;
+    const celdasFam=fams.map(f=>{
+      const m=cel&&cel.mejor[f];
+      if(!m)return td('<span style="color:var(--text3)">—</span>');
+      const gana=cel.gana===f||cel.empate===f;
+      return td(`<span style="font-weight:${gana?600:400};color:${gana?'var(--text)':'var(--text2)'}">${escP(m.r.tem)}</span><span style="${LIC_CHICO}">${betrEsc(c.ins[m.k].ticker)}</span>`,false,gana?`;background:${escAlfa(ESC_FAM[f].color,.13)}`:'');
+    }).join('');
+    const ganador=!cel?'—':cel.empate
+      ?`<span style="display:inline-flex;align-items:center;gap:5px">${escPunto(cel.gana)}${escPunto(cel.empate)}empate</span><span style="${LIC_CHICO}">${betrEsc(c.ins[cel.k].ticker)} y ${betrEsc(c.ins[cel.mejor[cel.empate].k].ticker)}</span>`
+      :`<span style="display:inline-flex;align-items:center;gap:5px">${escPunto(cel.gana)}${betrEsc(c.ins[cel.k].ticker)}</span><span style="${LIC_CHICO}">${cel.ventaja!=null?'+'+licN(cel.ventaja,0)+' pb de TEM':'sola'}</span>`;
+    const indTxt=(o,uni,fijadoTxt)=>{
+      if(!o)return'<span style="color:var(--text3)">—</span>';
+      if(o.fijado)return`<span style="color:var(--text3)">${fijadoTxt}</span><span style="${LIC_CHICO}">${betrEsc(o.ticker)}</span>`;
+      const v=o.vs&&o.vs.valor!=null?`${escP(o.vs.valor,2)}${uni}`:'<span style="color:var(--text3)">fuera de rango</span>';
+      return`${o.vs?v:'<span style="color:var(--text3)" title="En este mes no hay tasa fija ni TAMAR contra quien medirlo">—</span>'}<span style="${LIC_CHICO}">${betrEsc(o.ticker)}${o.vs?' vs '+betrEsc(o.vs.ticker):''} · sendero ${escP(o.sendero,2)}</span>`;
+    };
+    return`<tr onclick="escElegirMes('${g.mes}')" style="cursor:pointer${sel?';background:var(--surface2);box-shadow:inset 3px 0 0 var(--accent)':''}" title="Ver el mapa de ${escMesLargo(g.mes)}">
+      ${td(`<span style="font-weight:${sel?600:400}">${escMesCorto(g.mes)}</span>`,true)}${celdasFam}${td(ganador,true)}
+      ${td(indTxt(ind.cer,' /mes','CER ya publicado'))}${td(indTxt(ind.tamar,' TNA','TAMAR ya publicada'))}</tr>`;
+  }).join('');
+  return`<table style="width:100%;border-collapse:collapse;font-size:var(--fs12)"><thead><tr>${cab}</tr></thead><tbody>${filas}</tbody></table>`;
+}
+
+// El mapa de un mes: filas de inflación y columnas de TAMAR. Si nada del mes
+// depende de una de las dos, ese eje se junta en una sola fila o columna.
+function escMapaHTML(c){
+  const g=c.meses.find(x=>x.mes===ESC_PREF.mes);
+  if(!g)return`<div style="${LIC_SUB}">Elegí un mes en la tabla.</div>`;
+  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+  const E=c.ejes,nI=E.ipc.length,nT=E.tamar.length;
+  const celdas=E.ipc.map((_,i)=>E.tamar.map((_,j)=>escCelda(c,g,i,j)));
+  const firma=z=>z?z.gana+'|'+z.k+'|'+z.r.tem.toFixed(6)+'|'+(z.empate||''):'';
+  let filas=E.ipc.map((_,i)=>i),cols=E.tamar.map((_,j)=>j);
+  const filasIguales=E.ipc.every((_,i)=>E.tamar.every((_,j)=>firma(celdas[i][j])===firma(celdas[0][j])));
+  const colsIguales=E.tamar.every((_,j)=>E.ipc.every((_,i)=>firma(celdas[i][j])===firma(celdas[i][0])));
+  if(filasIguales)filas=[nI-1];
+  if(colsIguales)cols=[nT-1];
+  const ind=c.ind.get(g.mes)||{};
+  const sel=ESC_SEL.celda&&filas.includes(ESC_SEL.celda[0])&&cols.includes(ESC_SEL.celda[1])?ESC_SEL.celda:[filas[filas.length-1],cols[cols.length-1]];
+  // Los bonos del mes, por familia.
+  const lista=ESC_FAM_ORDEN.filter(f=>g.fams.includes(f)).map(f=>`<span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap">${escPunto(f)}<span style="color:var(--text2)">${ESC_FAM[f].nombre}:</span> ${
+    g.ks.filter(k=>c.ins[k].fam===f).map(k=>`${betrEsc(c.ins[k].ticker)} <span style="color:var(--text3)">${c.ins[k].pago.slice(8,10)}/${c.ins[k].pago.slice(5,7)}</span>`).join(', ')}</span>`).join('<span style="color:var(--text3)"> · </span>');
+  const etqI=i=>E.ipc[i]==null?`Sendero<span style="${LIC_CHICO}">${escFuenteEje('infla')}${ind.cer&&ind.cer.sendero!=null?' ≈ '+escP(ind.cer.sendero,2):''}</span>`:escP(E.ipc[i],2);
+  const etqT=j=>E.tamar[j]==null?`Sendero<span style="${LIC_CHICO};text-transform:none">${escFuenteEje('tamar')}${ind.tamar&&ind.tamar.sendero!=null?' ≈ '+escP(ind.tamar.sendero,2):''}</span>`:escP(E.tamar[j],1);
+  const th=`padding:6px 8px;font-size:var(--fs10);color:var(--text3);font-weight:500;text-align:center;white-space:nowrap;letter-spacing:.03em`;
+  const cab=`<th style="${th};text-align:left">${filasIguales?'':'Inflación ↓ '}${colsIguales?'':'· TAMAR →'}</th>`+cols.map(j=>`<th style="${th}">${colsIguales?'Cualquier TAMAR':etqT(j)}</th>`).join('');
+  const cuerpo=filas.map(i=>`<tr><th style="${th};text-align:left">${filasIguales?'Cualquier inflación':etqI(i)}</th>${cols.map(j=>{
+    const z=celdas[i][j];
+    const esSel=sel[0]===i&&sel[1]===j,esSend=i===nI-1&&j===nT-1;
+    if(!z)return`<td style="padding:3px"><div style="padding:8px;text-align:center;color:var(--text3)">—</div></td>`;
+    const col=ESC_FAM[z.gana].color;
+    const fondo=z.empate?`linear-gradient(135deg,${escAlfa(col,.28)} 50%,${escAlfa(ESC_FAM[z.empate].color,.28)} 50%)`:escAlfa(col,.24);
+    const borde=esSel?'outline:2px solid var(--text);outline-offset:-2px':esSend?'outline:1px dashed var(--text2);outline-offset:-3px':'';
+    const tip=z.orden.map(f=>`${ESC_FAM[f].nombre}: ${c.ins[z.mejor[f].k].ticker} ${escP(z.mejor[f].r.tem)}`).join('\n');
+    const pie=z.empate?`empate · ${betrEsc(c.ins[z.mejor[z.empate].k].ticker)}`:(z.ventaja!=null?'+'+licN(z.ventaja,0)+' pb':'');
+    return`<td style="padding:3px"><div role="button" tabindex="0" onclick="escElegirCelda(${i},${j})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();escElegirCelda(${i},${j})}" title="${betrEsc(tip)}"
+      style="background:${fondo};border-radius:3px;padding:7px 6px;text-align:center;cursor:pointer;min-width:84px;${borde}">
+      <div style="font-family:var(--mono);font-size:var(--fs12);font-weight:600;color:var(--text)">${escP(z.r.tem)}</div>
+      <div style="font-size:var(--fs10);color:var(--text2);white-space:nowrap">${betrEsc(c.ins[z.k].ticker)}${pie?` <span style="color:var(--text3)">${pie}</span>`:''}</div></div></td>`;
+  }).join('')}</tr>`).join('');
+  // Qué se juntó y por qué.
+  const avisos=[];
+  if(filasIguales){
+    const cer=g.ks.some(k=>c.ins[k].fam==='cer'||(c.ins[k].fam==='dual'&&dualTipo(c.ins[k].b)==='cer'));
+    avisos.push(cer?'La inflación no cambia nada en este mes: el CER de estos vencimientos ya está publicado.':'La inflación no cambia nada en este mes: no hay bonos CER.');
+  }
+  if(colsIguales)avisos.push(g.ks.some(k=>c.ins[k].fam==='tamar'||c.ins[k].fam==='dual')?'La TAMAR no cambia nada en este mes: ya está publicada para estos vencimientos.':'La TAMAR no cambia nada en este mes: no hay bonos TAMAR ni duales.');
+  const leyenda=ESC_FAM_ORDEN.filter(f=>g.fams.includes(f)).map(f=>`<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:10px;border-radius:2px;background:${escAlfa(ESC_FAM[f].color,.5)}"></span>${ESC_FAM[f].nombre}</span>`).join('')
+    +`<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:10px;border-radius:2px;outline:1px dashed var(--text2);outline-offset:-1px"></span>los dos senderos: lo mismo que las calculadoras</span>`;
+  return`<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><span style="${tit}">${escMesLargo(g.mes)}</span><span style="${LIC_SUB}">quién rinde más en cada escenario · TEM hasta el pago de cada bono · la diferencia es contra la segunda familia</span></div>
+    <div style="font-size:var(--fs11);display:flex;flex-wrap:wrap;gap:4px 8px;margin-bottom:10px">${lista}</div>
+    ${avisos.length?`<div style="${LIC_SUB};margin-bottom:8px">${avisos.join(' ')}</div>`:''}
+    <div style="overflow-x:auto"><table style="width:auto;border-collapse:separate;border-spacing:0">${'<thead><tr>'+cab+'</tr></thead>'}<tbody>${cuerpo}</tbody></table></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:var(--fs10);color:var(--text3)">${leyenda}</div>
+    ${escDetalleHTML(c,g,sel[0],sel[1],filasIguales,colsIguales)}`;
+}
+
+// Todos los bonos del mes en la celda elegida.
+function escDetalleHTML(c,g,i,j,filasIguales,colsIguales){
+  const E=c.ejes,nI=E.ipc.length,nT=E.tamar.length;
+  const descI=filasIguales?null:E.ipc[i]==null?`inflación del sendero (${escFuenteEje('infla')})`:`inflación de ${escP(E.ipc[i],2)} mensual`;
+  const descT=colsIguales?null:E.tamar[j]==null?`TAMAR del sendero (${escFuenteEje('tamar')})`:`TAMAR de ${escP(E.tamar[j],1)} TNA`;
+  const esc=[descI,descT].filter(Boolean).join(' y ')||'cualquier escenario';
+  const fila=c.v[i][j];
+  const xs=g.ks.map(k=>({x:c.ins[k],r:fila[k]})).sort((a,b)=>(b.r?b.r.tem:-1e9)-(a.r?a.r.tem:-1e9));
+  const pata={tf:'la fija',cer:'la CER',dlk:'la dólar',tamar:'la TAMAR'};
+  const td=(h,izq)=>`<td style="${LIC_TD}${izq?';text-align:left':''}">${h}</td>`;
+  const filas=xs.map(({x,r})=>`<tr>${td(`<span style="display:inline-flex;align-items:center;gap:5px">${escPunto(x.fam)}${betrEsc(x.ticker)}</span>`,true)}
+    ${td(`${x.pago.slice(8,10)}/${x.pago.slice(5,7)}/${x.pago.slice(0,4)}`)}${td(x.dias)}${td(r?`<b>${escP(r.tem)}</b>`:'—')}${td(r?escP(r.tea):'—')}${td(r&&r.total!=null?escP(r.total):'—')}
+    ${td(x.fam==='dual'&&r?`cobra ${pata[r.gana]||r.gana}`:x.fam==='tf'&&x.cupon?'al put, con cupones':'',true)}</tr>`).join('');
+  const th=(t,izq)=>`<th style="${LIC_TH}${izq?';text-align:left':''}">${t}</th>`;
+  return`<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
+    <div style="font-size:var(--fs11);color:var(--text2);margin-bottom:6px">Con ${esc}:</div>
+    <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:var(--fs12)"><thead><tr>${th('Bono',true)}${th('Paga')}${th('Días')}${th('TEM')}${th('TEA')}${th('Rend. total')}${th('',true)}</tr></thead><tbody>${filas}</tbody></table></div></div>`;
+}
+
 // ══════════════════════════════════════════════════════════════ CALENDARIO
 const CAL_LS_KEY='bonosAR_calendario_v1';
 let CAL_EVENTOS_ADMIN=[];
