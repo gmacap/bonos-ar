@@ -5539,7 +5539,10 @@ const omitir = (label, motivo) =>
     out.monto = Math.abs(c.pos[0].vn - 1000000 / tf.precio * 100) < 1e-6;
     c.pos.push({ inst: 'BON|' + usd.ticker, vn: 10000 });
     cartGuardar();
+    // El MEP llega de data912 cuando la cartera se repinta: en las máquinas de
+    // GitHub a veces tarda más de un segundo y medio. Se espera hasta 8.
     await new Promise(r => setTimeout(r, 1500));
+    for (let k = 0; k < 26 && !(_cartMep > 0); k++) await new Promise(r => setTimeout(r, 250));
     const mep = _cartMep;
     out.mep = mep > 0;
     for (const vista of ['ARS', 'USD']) {
