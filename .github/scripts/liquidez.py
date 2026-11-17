@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Liquidez: el REPO en pesos del MAE, rueda por rueda, con y sin el BCRA.
+"""Liquidez: el REPO en pesos del MAE, rueda por rueda, con y sin el BCRA, y la
+caución en pesos a un día hábil.
 
 Escribe liquidez.json en la raíz del repo, que la solapa Liquidez lee como lee
 futuros.json.
@@ -9,6 +10,11 @@ sitio para la pantalla de REPO. Por rueda trae el volumen operado en millones
 de pesos, la tasa promedio ponderada de todo el REPO a un día y la misma sin
 las operaciones del BCRA. No manda CORS, así que la app no la puede pedir
 directo: la baja este script.
+
+Del mismo MAE sale la caución en pesos (CAARS): por día, la tasa promedio
+ponderada y el monto del plazo con más monto, que es el de un día hábil: tres
+días corridos los viernes, y más antes de un feriado (el 05/11/2026 operó 2,88
+billones a 6 días y 0,01 a uno). Va en las mismas filas, para comparar tasas.
 
 Lo que el MAE no publica es cuánto puso o tomó el BCRA. La app lo estima con
 esas dos tasas: si el BCRA toma a una tasa fija, la tasa de todo el REPO es el
@@ -35,6 +41,7 @@ RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 SALIDA = os.path.join(RAIZ, 'liquidez.json')
 
 API = 'https://api.marketdata.mae.com.ar/api/mercado/repo/titulosfecha'
+API_CAU = 'https://api.marketdata.mae.com.ar/api/mercado/titulo/historicocauciones'
 DESDE_HIST = '2026-01-01'   # desde acá el BCRA toma en el REPO a una tasa fija
 VENTANA = 40                # días corridos que se piden en cada pasada diaria
 
@@ -43,11 +50,11 @@ def log(*a):
     print(*a, file=sys.stderr)
 
 
-def pedir(desde, hasta, intentos=3):
-    q = urllib.parse.quote(json.dumps({'fechaDesde': desde, 'fechaHasta': hasta, 'unit': 'USD'}))
+def pedir(url, o, intentos=3):
+    q = urllib.parse.quote(json.dumps(o))
     for i in range(intentos):
         try:
-            req = urllib.request.Request(API + '?oTitulo=' + q, headers={'User-Agent': 'Mozilla/5.0 (bonos-ar)', 'Accept': 'application/json'})
+            req = urllib.request.Request(url + '?oTitulo=' + q, headers={'User-Agent': 'Mozilla/5.0 (bonos-ar)', 'Accept': 'application/json'})
             with urllib.request.urlopen(req, timeout=60) as r:
                 return json.loads(r.read())
         except Exception as e:
@@ -68,12 +75,33 @@ def num(v):
 def ruedas(desde, hasta):
     """[fecha, volumen en millones, tasa PP, tasa PP sin BCRA] por rueda."""
     out = {}
-    for x in pedir(desde, hasta) or []:
+    for x in pedir(API, {'fechaDesde': desde, 'fechaHasta': hasta, 'unit': 'USD'}) or []:
         d = x.get('details') or {}
         f = str(x.get('fecha') or d.get('fecha') or '')[:10]
         v, t, n = num(d.get('volumen', x.get('volumen'))), num(d.get('tPP')), num(d.get('tPPnBCRA'))
         if len(f) == 10 and v and v > 0 and t is not None:
             out[f] = [f, round(v, 3), round(t, 4), round(n, 4) if n is not None else None]
+    return out
+
+
+def cauciones(desde, hasta):
+    """{fecha: [tasa PP, monto en millones]} de la caución en pesos al plazo de
+    un día hábil: el de más monto entre los de hasta diez días. Se pide de a un
+    mes: el día trae todos los plazos."""
+    out = {}
+    d0, fin = dt.date.fromisoformat(desde), dt.date.fromisoformat(hasta)
+    while d0 <= fin:
+        d1 = min(fin, d0 + dt.timedelta(days=30))
+        for d in pedir(API_CAU, {'fechaDesde': d0.isoformat(), 'fechaHasta': d1.isoformat()}) or []:
+            f = str(d.get('fecha') or '')[:10]
+            cand = [x for x in d.get('details') or []
+                    if x.get('ticker') == 'CAARS' and x.get('moneda') == '$'
+                    and (num(x.get('tasaPP')) or 0) > 0 and (num(x.get('montoConcertado')) or 0) > 0
+                    and str(x.get('plazo') or '').isdigit() and int(x['plazo']) <= 10]
+            if len(f) == 10 and cand:
+                x = max(cand, key=lambda x: num(x['montoConcertado']))
+                out[f] = [round(num(x['tasaPP']), 4), round(num(x['montoConcertado']) / 1e6, 3)]
+        d0 = d1 + dt.timedelta(days=1)
     return out
 
 
@@ -109,9 +137,21 @@ def main():
     por = {r[0]: r for r in previo.get('ruedas', []) if r and r[0] >= DESDE_HIST}
     nuevas = ruedas(desde, hoy.isoformat())
     log('ruedas del MAE desde', desde, ':', len(nuevas))
+    # La caución va en la misma fila; las ruedas que no se volvieron a pedir
+    # conservan la suya.
+    try:
+        cau = cauciones(desde, hoy.isoformat())
+    except Exception as e:
+        log('  sin cauciones:', e)
+        cau = {}
+    log('cauciones del MAE desde', desde, ':', len(cau))
+    for f, r in nuevas.items():
+        viejo = por.get(f) or []
+        r += cau.get(f) or (viejo[4:6] if len(viejo) >= 6 else [None, None])
     por.update({f: r for f, r in nuevas.items() if f >= DESDE_HIST})
-    datos = {'fuente': 'MAE · REPO en pesos a un día: volumen (millones de $) y tasa promedio ponderada, con y sin el BCRA',
-             'columnas': ['fecha', 'volumen', 'tasa', 'tasaSinBCRA'],
+    por = {f: (r + [None] * 6)[:6] for f, r in por.items()}
+    datos = {'fuente': 'MAE · REPO en pesos a un día: volumen (millones de $) y tasa promedio ponderada, con y sin el BCRA; caución en pesos a un día hábil: tasa promedio ponderada y monto (millones de $)',
+             'columnas': ['fecha', 'volumen', 'tasa', 'tasaSinBCRA', 'caucion', 'montoCaucion'],
              'ruedas': [por[f] for f in sorted(por)]}
     sin_sello = lambda d: {k: v for k, v in d.items() if k != 'generado'}
     if sin_sello(previo) == datos:

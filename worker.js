@@ -17,7 +17,8 @@
 //
 // Seguridad (ver ALLOWED_ORIGINS / MAE_ALLOWED_PATHS más abajo):
 //   · CORS restringido a los orígenes de la app (antes era '*')
-//   · /mae sólo acepta paths de una allowlist, no una URL del llamador
+//   · /mae sólo acepta paths de una allowlist, no una URL del llamador; el REPO
+//     del día (/repo-hoy) lo arma el Worker con la fecha de hoy
 //   · /test-snapshot exige X-Snapshot-Token (antes: sin autenticación)
 //   · Los parámetros del proxy BCRA se validan antes de interpolarse
 //
@@ -164,6 +165,20 @@ const MAE_ALLOWED_PATHS = [
   '/api/mercado/resumen/FOR',   // FOREX mayorista — UST$T plazo 000 es el contado
   '/api/mercado/resumen/DDF',   // Dólar Diferido a Fix — curva de futuros
 ];
+// El REPO en pesos del día, por rueda (REPO, REPX, simultáneas…): volumen y tasa
+// promedio acumulados, apertura, última, máxima y mínima. La consulta del MAE
+// lleva la fecha, así que la arma el Worker con la de hoy en Buenos Aires: el
+// llamador sólo nombra la ruta y no pasa nada que se interpole.
+const MAE_REPO_HOY = '/repo-hoy';
+function maeDestino(path) {
+  if (MAE_ALLOWED_PATHS.includes(path)) return MAE_BASE + path;
+  if (path === MAE_REPO_HOY) {
+    const hoy = todayAR();
+    return MAE_BASE + '/api/mercado/titulo/historicorepo?oTitulo=' +
+      encodeURIComponent(JSON.stringify({ fechaDesde: hoy, fechaHasta: hoy }));
+  }
+  return null;
+}
 
 function corsHeaders(request) {
   const origin = request.headers.get('Origin') || '';
@@ -216,16 +231,17 @@ export default {
     }
 
     // ── Proxy MAE ──────────────────────────────────────────────────────────────
-    // GET /mae?path=/api/mercado/resumen/DDF
-    // El path tiene que estar en la allowlist tal cual: no se arma por
-    // concatenación ni se aceptan querystrings del llamador.
+    // GET /mae?path=/api/mercado/resumen/DDF · GET /mae?path=/repo-hoy
+    // El path tiene que estar en la allowlist tal cual, o ser /repo-hoy: no se
+    // arma por concatenación ni se aceptan querystrings del llamador.
     if (url.pathname === '/mae') {
       if (request.method !== 'GET') return jsonError('GET required', 405, cors);
       const path = url.searchParams.get('path') || '';
-      if (!MAE_ALLOWED_PATHS.includes(path))
+      const destino = maeDestino(path);
+      if (!destino)
         return jsonError(`Path no permitido: ${path}`, 400, cors);
 
-      const maeRes = await fetch(MAE_BASE + path, {
+      const maeRes = await fetch(destino, {
         headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
       });
       const body = await maeRes.text();

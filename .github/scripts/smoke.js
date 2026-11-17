@@ -4996,9 +4996,10 @@ const omitir = (label, motivo) =>
   check(rpl.fwdCrece && rpl.c3 <= 40 && rpl.c2Crece,
         'en el Resumen de dólares también', JSON.stringify(rpl));
 
-  // Liquidez: liquidez.json con el REPO del MAE, la parte del BCRA estimada con
-  // las dos tasas —contra lo que tomó el BCRA el 19/10 y el 27/10/2026— y la
-  // página con sus cuatro gráficos, en pesos y en dólares.
+  // Liquidez: liquidez.json con el REPO y la caución del MAE, la parte del BCRA
+  // estimada con las dos tasas —contra lo que tomó el BCRA el 19/10 y el
+  // 27/10/2026—, las series del BCRA de alrededor, las licitaciones y la página
+  // con sus seis gráficos, en pesos y en dólares.
   console.log('\nLiquidez');
   const liq = await page.evaluate(async () => {
     const espera = ms => new Promise(r => setTimeout(r, ms));
@@ -5010,6 +5011,10 @@ const omitir = (label, motivo) =>
     const R = LIQ_DATA.ruedas;
     out.n = R.length;
     out.forma = R.every((r, k) => /^\d{4}-\d{2}-\d{2}$/.test(r[0]) && r[1] > 0 && (!k || R[k - 1][0] < r[0]));
+    // La caución a un día hábil: el 05/11/2026 operó 2,88 billones a 6 días y
+    // casi nada a uno, y la que vale es la de 6.
+    const cau = f => { const r = R.find(x => x[0] === f); return r ? liqEstimar(r).c : null; };
+    out.caucion = { conDato: R.filter(r => r[4] != null).length, n: R.length, '2026-11-05': cau('2026-11-05'), '2026-11-16': cau('2026-11-16') };
     const de = f => { const r = R.find(x => x[0] === f); return r ? +liqEstimar(r).bcra.toFixed(3) : null; };
     out.bcra = { '2026-10-19': de('2026-10-19'), '2026-10-27': de('2026-10-27') };
     // Sin diferencia entre las tasas, el BCRA no operó; con la tasa sin BCRA casi
@@ -5019,7 +5024,7 @@ const omitir = (label, motivo) =>
     out.imprecisa = liqEstimar(['x', 1e6, 20.05, 20.15]).imprecisa === true && !liqEstimar(['x', 1e6, 20.4, 20.85]).imprecisa;
     await espera(500);
     const ch = LIQ_CHARTS.ars;
-    out.graficos = ['liq-g-bcra', 'liq-g-mix', 'liq-g-var', 'liq-g-tasa'].filter(k => ch[k]).length;
+    out.graficos = ['liq-g-puntas', 'liq-g-bcra', 'liq-g-mix', 'liq-g-var', 'liq-g-tasa', 'liq-g-colchon'].filter(k => ch[k]).length;
     out.tarjetas = document.querySelectorAll('#liq-tiles > div').length;
     out.barras = ch['liq-g-bcra'] ? ch['liq-g-bcra'].data.labels.length : 0;
     liqSetVentana('ars', '66');
@@ -5035,7 +5040,7 @@ const omitir = (label, motivo) =>
     const vis = () => LIQ_GRAFICOS.filter(id => getComputedStyle(document.getElementById('liq-c-' + id)).display !== 'none');
     out.foco = vis().join() === 'g-tasa' && document.getElementById('liq-g-tasa').getBoundingClientRect().height > alto0 + 50;
     liqFoco('ars', null); await espera(300);
-    out.vuelve = vis().length === 4;
+    out.vuelve = vis().length === LIQ_GRAFICOS.length && LIQ_GRAFICOS.length === 6;
     // El dato del BCRA (id 198, "Otros" del informe monetario diario) contra la
     // estimación: el 27/10/2026 publicó 2,988 billones.
     for (let k = 0; k < 60 && !LIQ_OFICIAL && LIQ_OFICIAL_PEDIDO; k++) await espera(250);
@@ -5046,8 +5051,53 @@ const omitir = (label, motivo) =>
         series: LIQ_CHARTS.ars['liq-g-bcra'].data.datasets.map(d => d.label).join(' + '),
         tarjeta: [...document.querySelectorAll('#liq-tiles > div')].some(d => /Estimación vs\. BCRA/.test(d.textContent)) };
     }
+    // Las series del BCRA de alrededor, con datos que ya publicó.
+    for (let k = 0; k < 60 && LIQ_OFICIAL_PEDIDO; k++) await espera(250);
+    await espera(200);
+    if (['tesoro', 'bancos', 'liquidez', 'baibar'].every(k => LIQ_BCRA[k])) {
+      liqRender('ars'); await espera(200);
+      const lbl = id => LIQ_CHARTS.ars[id] ? LIQ_CHARTS.ars[id].data.datasets.map(d => d.label) : [];
+      out.alrededor = { tesoro: liqDeBCRA('tesoro', '2026-11-12'), bancos: liqDeBCRA('bancos', '2026-11-12'),
+        liquidez: liqDeBCRA('liquidez', '2026-11-11'), baibar: liqDeBCRA('baibar', '2026-11-13'),
+        puntas: lbl('liq-g-puntas').length === 3 && LIQ_CHARTS.ars['liq-g-puntas'].data.datasets.every(d => d.data.some(v => v != null)),
+        tasas: ['Caución a un día', 'BAIBAR'].every(l => lbl('liq-g-tasa').includes(l)),
+        colchon: (LIQ_CHARTS.ars['liq-g-colchon'] || { data: { datasets: [{ data: [] }] } }).data.datasets[0].data.some(v => v != null),
+        tarjetas: ['Tesoro en el BCRA', 'Bancos en el BCRA', 'Liquidez de los bancos', 'Caución · BAIBAR'].every(t => [...document.querySelectorAll('#liq-tiles > div')].some(d => d.textContent.includes(t))) };
+    }
+    // Las licitaciones: la del 14/10 renovó 136,14% de 6,61 billones y absorbió
+    // 1,75 billones al liquidar el 16/10.
+    for (let k = 0; k < 40 && !LIC_DATA && LIC_PROMESA; k++) await espera(250);
+    if (LIC_DATA) {
+      const L = liqLicitaciones().get('2026-10-16');
+      const cfg = (LIQ_CHARTS.ars['liq-g-puntas'] || {}).config || {};
+      out.lic = { neto: L && L.neto != null ? +L.neto.toFixed(3) : null, plugin: (cfg.plugins || []).some(x => x.id === 'liqMarcas') };
+    }
+    // El REPO de hoy, con respuestas armadas: lo acumulado por rueda, sin las de
+    // tasa simbólica; sin la ruta en el Worker, no insiste.
+    const hoyAr = liqHoraAR().f;
+    const fx = [{ fecha: hoyAr + 'T00:00:00', details: [
+      { rueda: 'REPO', moneda: '$', plazo: '001', volumen: 1.5e12, tasaPP: 20.53, tasaApertura: 20.75, ultimaTasa: 20.25, tasaMaximo: 23.1, tasaMinimo: 16.5, cantOperaciones: 132 },
+      { rueda: 'REPX', moneda: '$', plazo: '001', volumen: 2.6e11, tasaPP: 20.24, tasaApertura: 20.25, ultimaTasa: 20.25, tasaMaximo: 20.25, tasaMinimo: 20.1, cantOperaciones: 22 },
+      { rueda: 'REPI', moneda: '$', plazo: '000', volumen: 1.9e11, tasaPP: 0.74, tasaApertura: 0.5, ultimaTasa: 0.5, tasaMaximo: 3, tasaMinimo: 0.5, cantOperaciones: 4 }] }];
+    const leido = liqVivoLeer(fx);
+    const maeOrig = maeGet, vivoOrig = { ...LIQ_VIVO }, lsOrig = localStorage.getItem(LIQ_VIVO_LS);
+    try {
+      maeGet = async () => { throw new Error('MAE HTTP 400'); };
+      await liqVivoPedir();
+      const sinRuta = LIQ_VIVO.sinRuta && !LIQ_VIVO.data;
+      maeGet = async () => fx;
+      localStorage.removeItem(LIQ_VIVO_LS);
+      await liqVivoPedir(); await liqVivoPedir();
+      const html = liqVivoHTML('ars', LIQ_VIVO.data, 'abierta');
+      out.vivo = { repo: !!leido.repo && leido.repo.vol === 1.5 && leido.repo.tasa === 20.53, ruedas: leido.ruedas.map(x => x.rueda).join(), sinRuta,
+        dato: !!LIQ_VIVO.data && !LIQ_VIVO.sinRuta, puntos: liqVivoPuntos(hoyAr).length,
+        html: ['Volumen acumulado', 'Tasa promedio', 'Apertura', 'Operaciones', 'REPX'].every(t => html.includes(t)) };
+    } finally {
+      maeGet = maeOrig; Object.assign(LIQ_VIVO, vivoOrig);
+      if (lsOrig == null) localStorage.removeItem(LIQ_VIVO_LS); else localStorage.setItem(LIQ_VIVO_LS, lsOrig);
+    }
     switchSection('usd'); switchUsdTab('usd-liquidez'); await espera(800);
-    out.usd = ['uliq-g-bcra', 'uliq-g-mix', 'uliq-g-var', 'uliq-g-tasa'].filter(k => LIQ_CHARTS.usd[k]).length;
+    out.usd = ['uliq-g-puntas', 'uliq-g-bcra', 'uliq-g-mix', 'uliq-g-var', 'uliq-g-tasa', 'uliq-g-colchon'].filter(k => LIQ_CHARTS.usd[k]).length;
     switchSection('pesos'); switchTab('breakeven');
     return out;
   });
@@ -5059,17 +5109,33 @@ const omitir = (label, motivo) =>
           'la parte del BCRA, despejada de las dos tasas con el BCRA a 20%, da lo que tomó el 19/10 y el 27/10', JSON.stringify(liq.bcra));
     check(liq.cero && liq.indet && liq.imprecisa,
           'sin diferencia de tasas el BCRA no operó; con la tasa sin BCRA casi en 20% no se estima, y cerca va marcada', JSON.stringify({ cero: liq.cero, indet: liq.indet, imprecisa: liq.imprecisa }));
-    check(liq.graficos === 4 && liq.tarjetas >= 4 && liq.barras === 22 && liq.barras66 === Math.min(66, liq.n - 1) && liq.usd === 4,
-          'la solapa Liquidez muestra las tarjetas y los cuatro gráficos, cambia de ventana, y está también en dólares',
+    check(liq.graficos === 6 && liq.tarjetas >= 4 && liq.barras === 22 && liq.barras66 === Math.min(66, liq.n - 1) && liq.usd === 6,
+          'la solapa Liquidez muestra las tarjetas y los seis gráficos, cambia de ventana, y está también en dólares',
           JSON.stringify({ g: liq.graficos, t: liq.tarjetas, b: liq.barras, b66: liq.barras66, usd: liq.usd }));
     check(liq.paleta && liq.foco && liq.vuelve,
-          'los gráficos usan los colores de la app, y ampliar deja uno solo, más alto, y vuelve a los cuatro',
+          'los gráficos usan los colores de la app, y ampliar deja uno solo, más alto, y vuelve a los seis',
           JSON.stringify({ paleta: liq.paleta, foco: liq.foco, vuelve: liq.vuelve }));
     if (!liq.oficial) omitir('liquidez: el dato del BCRA', 'el BCRA no respondió ahora');
     else check(Math.abs(liq.oficial.dato - 2.988) < 0.005 && Math.abs(liq.oficial.est - liq.oficial.dato) < 0.05
                && liq.oficial.series === 'Dato del BCRA + Nuestra estimación' && liq.oficial.tarjeta,
-          'el primer gráfico muestra el dato del BCRA con la estimación encima, y la tarjeta mide cuánto le erra',
+          'el gráfico del BCRA muestra su dato con la estimación encima, y la tarjeta mide cuánto le erra',
           JSON.stringify(liq.oficial));
+    const cc = liq.caucion;
+    check(cc.conDato === cc.n && Math.abs(cc['2026-11-05'] - 24.71) < 0.01 && Math.abs(cc['2026-11-16'] - 20.33) < 0.01,
+          'liquidez.json trae la caución en pesos a un día hábil en cada rueda, también a 6 días antes de un feriado', JSON.stringify(cc));
+    const al = liq.alrededor;
+    if (!al) omitir('liquidez: Tesoro, bancos, liquidez y BAIBAR', 'el BCRA no respondió ahora');
+    else check(Math.abs(al.tesoro - 4.505) < 0.005 && Math.abs(al.bancos - 20.208) < 0.005 && Math.abs(al.liquidez - 49.79) < 0.005
+               && Math.abs(al.baibar - 21.24) < 0.005 && al.puntas && al.tasas && al.colchon && al.tarjetas,
+          'Tesoro, bancos y BCRA en un gráfico, caución y BAIBAR con el REPO, la liquidez de los bancos y sus tarjetas, con datos del BCRA',
+          JSON.stringify(al));
+    if (!liq.lic) omitir('liquidez: las licitaciones', 'no se pudo leer licitaciones.json');
+    else check(liq.lic.neto != null && Math.abs(liq.lic.neto - 1.755) < 0.01 && liq.lic.plugin,
+          'cada liquidación de licitación marca lo que el Tesoro absorbió o devolvió: 1,75 billones el 16/10', JSON.stringify(liq.lic));
+    const vv = liq.vivo || {};
+    check(vv.repo && vv.ruedas === 'REPO,REPX' && vv.sinRuta && vv.dato && vv.puntos === 1 && vv.html,
+          'el REPO de hoy se lee por rueda sin las de tasa simbólica, guarda un punto por cambio, y sin la ruta del Worker no insiste',
+          JSON.stringify(vv));
   }
 
   // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.
