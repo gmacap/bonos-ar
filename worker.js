@@ -147,9 +147,6 @@ async function takeDailySnapshot(env) {
 // Si algún día servís la app desde otro dominio, agregalo acá.
 const ALLOWED_ORIGINS = [
   'https://gmacap.github.io',
-  // El origen viejo queda mientras dure la mudanza: sacarlo antes de que todo
-  // esté verde dejaría la app sin API justo en el medio del cambio.
-  'https://santosechezarreta5.github.io',
   'http://localhost:8000',
   'http://localhost:5500',
   'http://127.0.0.1:8000',
