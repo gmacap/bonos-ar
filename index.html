@@ -26279,6 +26279,7 @@ function liqPaginaHTML(sec){
       <div class="mode-row" style="margin-bottom:0;width:auto">${LIQ_VENT.map(([v,l])=>`<button class="mode-btn" style="white-space:nowrap;padding:5px 10px" id="${p}-v-${v}" onclick="liqSetVentana('${sec}','${v}')">${l}</button>`).join('')}</div>
       <span id="${p}-estado" style="${LIC_SUB};margin-left:auto"></span>
     </div>
+    <section id="${p}-sem" style="${caja};display:none"></section>
     <section id="${p}-vivo" style="${caja};display:none"></section>
     <div id="${p}-tiles" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px"></div>
     <div id="${p}-graficos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(520px,100%),1fr));gap:14px">
@@ -26475,6 +26476,7 @@ function liqRender(sec){
       scales:{x:ejeX,y:{ticks:{...tick,callback:v=>licN(v,1)+'%'},grid:grilla,title:{display:true,text:'% de los depósitos',color:col.texto,font:{size:10}}}}}});
 
   liqVivoPintar(sec);
+  liqSemPintar(sec);
 }
 
 // Una tarjeta con el último dato de una serie del BCRA hasta la última rueda,
@@ -26619,6 +26621,196 @@ function liqVivoHTML(sec,v,e){
     ${ps.length>=2?`<div style="position:relative;height:170px;margin-top:10px;min-width:0"><canvas id="${p}-g-vivo"></canvas></div>`
       :`<div style="${LIC_SUB};margin-top:6px">El gráfico del día se arma con cada lectura mientras la solapa está abierta.</div>`}`;
 }
+// ── Semáforo: ¿se puede estresar la tasa a un día? ──────────────────────────
+// "Estrés" es el REPO sin el BCRA LIQ_SEM_ESTRES puntos o más sobre el piso al
+// que toma el BCRA (22,5% con el piso en 20%). Tres señales, medidas de marzo a
+// noviembre de 2026 (172 ruedas, 24 con estrés):
+//   · la tasa sin el BCRA de la rueda anterior ya arriba del piso: con 1,5
+//     puntos o más, la siguiente tuvo estrés 22 de 49 veces;
+//   · lo que absorbió el BCRA la rueda anterior, que es lo que le sobra al
+//     mercado: con menos de 1 billón, 9 de 14;
+//   · el calendario de la rueda: fin o principio de mes, liquidación de una
+//     licitación o un plazo largo antes de un feriado, 9 de 40.
+// La cuenta corriente de los bancos y su liquidez en % de los depósitos no
+// anticiparon nada en ese período (1 de 44 y 6 de 44 en su cuartil bajo), así
+// que no entran.
+// Verde: ninguna señal (0 de 87 con estrés). Amarillo: alguna. Rojo: la tasa
+// ya 1,5 puntos arriba y además el BCRA bajo 1,5 billones o un día de
+// calendario (20 de 40). Los umbrales se eligieron mirando esos mismos datos:
+// por eso el panel muestra las frecuencias, recalculadas con cada rueda desde
+// LIQ_SEM_DESDE, y no promete nada. Enero y febrero quedan afuera: las tasas
+// estaban entre 25% y 48%, otro régimen.
+var LIQ_SEM_DESDE='2026-03-01';
+var LIQ_SEM_ESTRES=2.5;          // puntos sobre el piso desde los que hay estrés
+var LIQ_SEM_TASA=[1,1.5];        // tasa sin el BCRA sobre el piso: atención · fuerte
+var LIQ_SEM_BCRA=[1,1.5];        // lo que absorbió el BCRA, en billones: poco · algo
+var LIQ_SEM_COL={verde:'#4ade80',amarillo:'#fbbf24',rojo:'#f87171'};
+var LIQ_SEM_NOMBRE={verde:'Sin señales de estrés',amarillo:'Atención',rojo:'Riesgo alto de estrés'};
+var LIQ_SEM_DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
+
+function liqSemHabilSig(f){return fmtDate(addHabiles(parseDate(f),1));}
+// Las liquidaciones de licitaciones que se conocen: las hechas y las del
+// cronograma, que trae las que vienen.
+function liqSemLiquidaciones(){
+  const s=new Set();
+  if(typeof LIC_DATA==='undefined'||!LIC_DATA)return s;
+  (LIC_DATA.licitaciones||[]).forEach(l=>{if(l&&l.liquidacion)s.add(l.liquidacion);});
+  (LIC_DATA.cronograma||[]).forEach(c=>{if(c&&c[2])s.add(c[2]);});
+  return s;
+}
+// El calendario de una rueda f, con la anterior, la siguiente y la que sigue a
+// esa: el último, el anteúltimo y el primer día hábil del mes, la liquidación
+// de una licitación, y un REPO a más de un día hábil antes de un feriado.
+function liqSemCal(f,ant,sig,sig2,liqs){
+  const out=[],mes=x=>x?x.slice(0,7):null;
+  if(sig&&mes(sig)!==mes(f))out.push({k:'fin',t:'es el último día hábil del mes'});
+  else if(sig2&&mes(sig2)!==mes(f))out.push({k:'fin',t:'es el anteúltimo día hábil del mes'});
+  if(ant&&mes(ant)!==mes(f))out.push({k:'fin',t:'es el primer día hábil del mes'});
+  if(liqs&&liqs.has(f))out.push({k:'lic',t:'liquida una licitación del Tesoro'});
+  if(sig){
+    const g=Math.round((parseDate(sig)-parseDate(f))/864e5);
+    if(g>3||(g>1&&parseDate(f).getDay()!==5))out.push({k:'plazo',t:`el REPO va a ${g} días, hasta el ${liqDia(sig)}`});
+  }
+  return out;
+}
+function liqSemNivel(tasa,bcra,cal){
+  const fuerte=tasa!=null&&tasa>=LIQ_SEM_TASA[1];
+  if(fuerte&&((bcra!=null&&bcra<LIQ_SEM_BCRA[1])||cal.length))return'rojo';
+  if((tasa!=null&&tasa>=LIQ_SEM_TASA[0])||(bcra!=null&&bcra<LIQ_SEM_BCRA[0])||cal.length)return'amarillo';
+  return'verde';
+}
+// Lo que absorbió el BCRA en una rueda: su dato y, si todavía no salió, la
+// estimación. Sin estimación es porque la tasa sin el BCRA quedó pegada al
+// piso: sobra, y no hay señal.
+function liqSemAbsorbio(x){const of=liqDeBCRA('otros',x.f);return{v:of!=null?of:x.bcra,oficial:of!=null};}
+
+// Cada rueda desde LIQ_SEM_DESDE, con el nivel que le daban las señales de la
+// anterior y si terminó con estrés. Para las ruedas que ya pasaron, la
+// siguiente es la que operó el mercado (los días sin liquidación no cuentan).
+function liqSemHistoria(hasta){
+  const R=((LIQ_DATA&&LIQ_DATA.ruedas)||[]).map(liqEstimar).filter(x=>!hasta||x.f<=hasta);
+  const liqs=liqSemLiquidaciones(),piso=LIQ_TASA_BCRA;
+  const h={};['total','verde','amarillo','rojo','tasa','bcra','cal'].forEach(k=>{h[k]={n:0,k:0};});
+  for(let i=1;i<R.length;i++){
+    const x=R[i],u=R[i-1];
+    if(x.f<LIQ_SEM_DESDE||x.n==null||u.n==null)continue;
+    const b=liqSemAbsorbio(u).v,tasa=u.n-piso;
+    const cal=liqSemCal(x.f,u.f,R[i+1]&&R[i+1].f,R[i+2]&&R[i+2].f,liqs);
+    const est=x.n-piso>=LIQ_SEM_ESTRES;
+    const sumar=k=>{h[k].n++;if(est)h[k].k++;};
+    sumar('total');sumar(liqSemNivel(tasa,b,cal));
+    if(tasa>=LIQ_SEM_TASA[1])sumar('tasa');
+    if(b!=null&&b<LIQ_SEM_BCRA[0])sumar('bcra');
+    if(cal.length)sumar('cal');
+  }
+  return h;
+}
+
+// El semáforo de la próxima rueda: las señales de la última publicada y el
+// calendario de la que sigue. Si esa es hoy y está el REPO en vivo, lo que va
+// del día también cuenta: con la tasa del día en estrés pasa a rojo, y 1,5
+// puntos arriba lo saca del verde.
+function liqSemaforo(){
+  if(!LIQ_DATA||!LIQ_DATA.ruedas.length)return null;
+  const R=LIQ_DATA.ruedas.map(liqEstimar),piso=LIQ_TASA_BCRA;
+  const u=R[R.length-1];
+  if(u.n==null)return null;
+  const ab=liqSemAbsorbio(u),liqs=liqSemLiquidaciones();
+  const T=liqSemHabilSig(u.f),sig=liqSemHabilSig(T),sig2=liqSemHabilSig(sig);
+  const cal=liqSemCal(T,u.f,sig,sig2,liqs),tasa=u.n-piso;
+  let nivel=liqSemNivel(tasa,ab.v,cal);
+  const hoy=liqHoraAR().f;
+  let vivo=null;
+  const V=typeof LIQ_VIVO!=='undefined'?LIQ_VIVO:null;
+  if(T===hoy&&V&&V.data&&V.data.repo&&V.data.fecha===hoy){
+    vivo={tasa:V.data.repo.tasa,vol:V.data.repo.vol,hora:V.hora};
+    const sv=vivo.tasa-piso;
+    if(sv>=LIQ_SEM_ESTRES)nivel='rojo';
+    else if(sv>=LIQ_SEM_TASA[1]&&nivel==='verde')nivel='amarillo';
+  }
+  // Si la rueda no tiene calendario, lo próximo que viene en una semana hábil.
+  let prox=null;
+  if(!cal.length){
+    let a=T,f=sig;
+    for(let k=0;k<5&&!prox;k++){
+      const s1=liqSemHabilSig(f),c=liqSemCal(f,a,s1,liqSemHabilSig(s1),liqs);
+      if(c.length)prox={f,cal:c};
+      a=f;f=s1;
+    }
+  }
+  return{nivel,u,T,hoy,atrasado:T<hoy,tasa,bcra:ab.v,bcraOficial:ab.oficial,cal,vivo,prox,hist:liqSemHistoria()};
+}
+
+function liqSemDia(f,hoy){
+  const n=Math.round((parseDate(f)-parseDate(hoy))/864e5);
+  if(n===0)return'hoy';
+  if(n===1)return'mañana';
+  return`el ${LIQ_SEM_DIAS[parseDate(f).getDay()]} ${liqDia(f)}`;
+}
+// El comentario: qué dice cada señal, con su número, y qué pasó en 2026 en
+// ruedas como esta. Sin causas ni pronósticos.
+function liqSemTexto(S){
+  const piso=LIQ_TASA_BCRA,h=S.hist,dia=liqSemDia(S.T,S.hoy);
+  const veces=o=>o&&o.n?`${o.k} de ${o.n}`:null;
+  const cerraron=k=>k===0?'ninguna cerró':k===1?'una cerró':`${k} cerraron`;
+  const may=t=>t.charAt(0).toUpperCase()+t.slice(1);
+  const calTxt=c=>c.map(x=>x.t).join(' y ');
+  const frases=[];
+  // La última rueda: la tasa sin el BCRA y lo que absorbió, con lo que dice
+  // cada una cuando es señal.
+  let tasa=`el REPO sin el BCRA cerró en ${licN(S.u.n)}%, ${S.tasa>=0?'':'−'}${licN(Math.abs(S.tasa))} puntos ${S.tasa>=0?'sobre':'bajo'} el piso del ${piso}%`;
+  if(S.tasa>=LIQ_SEM_TASA[1]&&h.tasa.n)tasa+=` (con 1,5 puntos o más, la rueda siguiente tuvo estrés ${veces(h.tasa)} veces)`;
+  let bcra=S.bcra==null?'la tasa quedó pegada al piso: sobran pesos'
+    :`el BCRA absorbió ${liqB(S.bcra)} billones${S.bcraOficial?'':' (estimado)'}`;
+  if(S.bcra!=null&&S.bcra<LIQ_SEM_BCRA[0])bcra+=`: queda poco excedente${h.bcra.n?` (con menos de 1 billón, la rueda siguiente tuvo estrés ${veces(h.bcra)} veces)`:''}`;
+  else if(S.bcra!=null&&S.nivel==='verde')bcra+=': queda excedente';
+  frases.push(`El ${liqDia(S.u.f)} ${tasa}, y ${bcra}.`);
+  if(S.cal.length)frases.push(`${may(dia)} ${calTxt(S.cal)}${h.cal.n?`: hasta ahora, días así tuvieron estrés ${veces(h.cal)} veces`:''}.`);
+  const o=h[S.nivel];
+  if(o&&o.n)frases.push(S.nivel==='verde'
+    ?`En 2026, de ${o.n} ruedas sin señales, ${cerraron(o.k)} con estrés.`
+    :`En 2026, de ${o.n} ruedas que arrancaron en ${S.nivel}, ${cerraron(o.k)} con el REPO sin el BCRA en ${licN(piso+LIQ_SEM_ESTRES,1)}% o más.`);
+  if(S.vivo){
+    const sv=S.vivo.tasa-piso;
+    frases.push(`Hoy${S.vivo.hora?', hasta las '+S.vivo.hora:''}, el REPO promedia ${licN(S.vivo.tasa)}% con el BCRA adentro${sv>=LIQ_SEM_ESTRES?': la rueda ya opera en niveles de estrés':''}.`);
+  }
+  if(S.prox)frases.push(`Lo próximo a mirar: ${liqSemDia(S.prox.f,S.hoy)} ${calTxt(S.prox.cal)}${h.cal.n?`; en 2026, días así tuvieron estrés ${veces(h.cal)} veces`:''}.`);
+  return frases.join(' ');
+}
+
+function liqSemPintar(sec){
+  const p=LIQ_SEC[sec].p,box=document.getElementById(p+'-sem');
+  if(!box)return;
+  let S=null;try{S=liqSemaforo();}catch(e){console.warn('[semáforo]',e.message);}
+  if(!S){box.style.display='none';box.innerHTML='';return;}
+  box.style.display='';
+  const col=LIQ_SEM_COL[S.nivel],piso=LIQ_TASA_BCRA,h=S.hist;
+  const alfa=(c,a)=>typeof escAlfa==='function'?escAlfa(c,a):c;
+  box.style.borderColor=alfa(col,.45);
+  const tit='font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--accent)';
+  const fila=(n,o)=>`${n}: ${o.n?`${o.k} de ${o.n} con estrés (${licN(o.k/o.n*100,0)}%)`:'sin casos'}`;
+  const nota=`Si la tasa a un día puede estresarse en la próxima rueda. Estrés es el REPO sin el BCRA en ${licN(piso+LIQ_SEM_ESTRES,1)}% o más, ${licN(LIQ_SEM_ESTRES,1)} puntos sobre el ${piso}% al que toma el BCRA. `
+    +`Tres señales, de la última rueda publicada: la tasa sin el BCRA (atención con 1 punto sobre el piso, fuerte con 1,5); lo que absorbió el BCRA, que es lo que le sobra al mercado (su dato o, si no salió, la estimación; poco, menos de 1 billón); y el calendario de la rueda que viene: fin o principio de mes, liquidación de una licitación, o el REPO a más de un día hábil antes de un feriado. `
+    +`Verde: ninguna señal. Amarillo: alguna. Rojo: la tasa 1,5 puntos arriba y además el BCRA bajo 1,5 billones o un día de calendario. Con el REPO de hoy en vivo, si lo que va del día ya está en estrés pasa a rojo. `
+    +`Lo que pasó desde el ${betrF(LIQ_SEM_DESDE)} en la rueda siguiente — ${fila('verde',h.verde)}; ${fila('amarillo',h.amarillo)}; ${fila('rojo',h.rojo)}; ${fila('todas',h.total)}. `
+    +`La cuenta corriente de los bancos y su liquidez en % de los depósitos no anticiparon nada en 2026, así que no entran. Los umbrales se eligieron mirando estos mismos datos: es una lectura de condiciones, no un pronóstico.`;
+  const estado=(v,a,b,inv)=>v==null?'var(--text3)':(inv?(v<a?LIQ_SEM_COL.rojo:v<b?LIQ_SEM_COL.amarillo:LIQ_SEM_COL.verde):(v>=b?LIQ_SEM_COL.rojo:v>=a?LIQ_SEM_COL.amarillo:LIQ_SEM_COL.verde));
+  const chips=licTile(`Tasa sin el BCRA · ${liqDia(S.u.f)}`,`${licN(S.u.n)}% · ${S.tasa>=0?'+':'−'}${licN(Math.abs(S.tasa))}`,estado(S.tasa,LIQ_SEM_TASA[0],LIQ_SEM_TASA[1]),
+      `Puntos sobre el ${piso}% al que toma el BCRA: atención desde ${licN(LIQ_SEM_TASA[0],1)}, fuerte desde ${licN(LIQ_SEM_TASA[1],1)}`)
+    +licTile(`BCRA absorbió · ${liqDia(S.u.f)}`,S.bcra==null?'tasa en el piso':`$ ${liqB(S.bcra)} bill.${S.bcraOficial?'':' (est.)'}`,S.bcra==null?LIQ_SEM_COL.verde:estado(S.bcra,LIQ_SEM_BCRA[0],LIQ_SEM_BCRA[1],true),
+      `Lo que le sobra al mercado: poco con menos de ${licN(LIQ_SEM_BCRA[0],0)} billón`)
+    +licTile(`Calendario · ${liqSemDia(S.T,S.hoy)}`,S.cal.length?S.cal.map(c=>({fin:'fin de mes',lic:'licitación',plazo:'plazo largo'})[c.k]).filter((v,i,a)=>a.indexOf(v)===i).join(' · '):'nada',
+      S.cal.length?LIQ_SEM_COL.amarillo:LIQ_SEM_COL.verde,S.cal.length?S.cal.map(c=>c.t).join('; '):'Ni fin de mes, ni licitación, ni plazo largo')
+    +(S.vivo?licTile(`REPO de hoy · ${S.vivo.hora||''}`,`${licN(S.vivo.tasa)}%`,estado(S.vivo.tasa-piso,LIQ_SEM_TASA[1],LIQ_SEM_ESTRES),'Tasa promedio de lo que va del día en la rueda REPO, con el BCRA adentro'):'');
+  box.innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;background:${alfa(col,.16)};color:${colVar(col)};font-size:var(--fs11);font-weight:600;letter-spacing:.04em;text-transform:uppercase"><span style="width:8px;height:8px;border-radius:50%;background:${col}"></span>${LIQ_SEM_NOMBRE[S.nivel]}</span>
+      <span style="${tit}">Tasa a un día · ${liqSemDia(S.T,S.hoy)}</span>${ayuda(nota,'Cómo se arma el semáforo')}
+      ${S.atrasado?`<span style="${LIC_SUB};margin-left:auto">con la última rueda publicada, del ${liqDia(S.u.f)}</span>`:''}
+    </div>
+    <div style="font-size:var(--fs12);color:var(--text);line-height:1.55;max-width:120ch">${liqSemTexto(S)}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-top:10px">${chips}</div>`;
+}
+
 // ═══════════════════════════════════════════════════════════════════ FUTUROS
 // Futuros de dólar y de caución de A3: la curva de tasas implícitas, cada
 // contrato con su volumen e interés abierto, las tasas forward, la historia de

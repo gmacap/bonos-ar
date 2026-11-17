@@ -5080,9 +5080,15 @@ const omitir = (label, motivo) =>
       { rueda: 'REPX', moneda: '$', plazo: '001', volumen: 2.6e11, tasaPP: 20.24, tasaApertura: 20.25, ultimaTasa: 20.25, tasaMaximo: 20.25, tasaMinimo: 20.1, cantOperaciones: 22 },
       { rueda: 'REPI', moneda: '$', plazo: '000', volumen: 1.9e11, tasaPP: 0.74, tasaApertura: 0.5, ultimaTasa: 0.5, tasaMaximo: 3, tasaMinimo: 0.5, cantOperaciones: 4 }] }];
     const leido = liqVivoLeer(fx);
+    // Con la rueda abierta o recién cerrada, la solapa ya está leyendo el REPO
+    // real: se espera a que termine y se frena la próxima lectura, para que la
+    // prueba no choque con ella.
+    clearTimeout(LIQ_VIVO.timer); LIQ_VIVO.timer = null;
+    for (let k = 0; k < 60 && LIQ_VIVO.pidiendo; k++) await espera(250);
     const maeOrig = maeGet, vivoOrig = { ...LIQ_VIVO }, lsOrig = localStorage.getItem(LIQ_VIVO_LS);
     try {
       maeGet = async () => { throw new Error('MAE HTTP 400'); };
+      LIQ_VIVO.data = null; LIQ_VIVO.ts = 0;   // sin lo que haya leído del REPO real
       await liqVivoPedir();
       const sinRuta = LIQ_VIVO.sinRuta && !LIQ_VIVO.data;
       maeGet = async () => fx;
@@ -5096,6 +5102,28 @@ const omitir = (label, motivo) =>
       maeGet = maeOrig; Object.assign(LIQ_VIVO, vivoOrig);
       if (lsOrig == null) localStorage.removeItem(LIQ_VIVO_LS); else localStorage.setItem(LIQ_VIVO_LS, lsOrig);
     }
+    // El semáforo de la tasa a un día: las reglas, el calendario, la historia
+    // de 2026 hasta el 16/11 y cómo se leía antes del 05/11 (rojo) y del 21/10
+    // (verde).
+    const N = liqSemNivel, x = [{ k: 'fin' }];
+    out.sem = { reglas: N(0.5, 3, []) === 'verde' && N(1.2, 3, []) === 'amarillo' && N(0.5, 0.8, []) === 'amarillo' && N(0.5, 3, x) === 'amarillo'
+        && N(1.6, 1.2, []) === 'rojo' && N(1.6, 3, x) === 'rojo' && N(1.6, 3, []) === 'amarillo' && N(0.2, null, []) === 'verde',
+      plazo: liqSemCal('2026-11-05', '2026-11-04', '2026-11-11', '2026-11-12', new Set()).map(c => c.k).join(),
+      finLic: liqSemCal('2026-11-30', '2026-11-27', '2026-12-01', '2026-12-02', new Set(['2026-11-30'])).map(c => c.k).join(),
+      viernes: liqSemCal('2026-11-13', '2026-11-12', '2026-11-16', '2026-11-17', new Set()).length };
+    const hs = liqSemHistoria('2026-11-16');
+    out.sem.hist = Object.fromEntries(Object.entries(hs).map(([k, o]) => [k, o.k + '/' + o.n]));
+    const R0 = LIQ_DATA.ruedas;
+    try {
+      LIQ_DATA.ruedas = R0.filter(r => r[0] <= '2026-11-04'); const a = liqSemaforo();
+      LIQ_DATA.ruedas = R0.filter(r => r[0] <= '2026-10-20'); const v = liqSemaforo();
+      out.sem.antes = { '05/11': a.nivel + ' ' + a.T, '21/10': v.nivel + ' ' + v.T };
+      out.sem.texto = /REPO sin el BCRA cerró en 22,06%/.test(liqSemTexto(a)) && !/\.\./.test(liqSemTexto(a)) && /ninguna cerró con estrés/.test(liqSemTexto(v));
+    } finally { LIQ_DATA.ruedas = R0; }
+    liqRender('ars'); await espera(200);
+    const caja = document.getElementById('liq-sem');
+    out.sem.caja = !!caja && getComputedStyle(caja).display !== 'none' && caja.querySelectorAll('div[title]').length >= 3
+      && /Sin señales de estrés|Atención|Riesgo alto de estrés/.test(caja.textContent);
     switchSection('usd'); switchUsdTab('usd-liquidez'); await espera(800);
     out.usd = ['uliq-g-puntas', 'uliq-g-bcra', 'uliq-g-mix', 'uliq-g-var', 'uliq-g-tasa', 'uliq-g-colchon'].filter(k => LIQ_CHARTS.usd[k]).length;
     switchSection('pesos'); switchTab('breakeven');
@@ -5136,6 +5164,16 @@ const omitir = (label, motivo) =>
     check(vv.repo && vv.ruedas === 'REPO,REPX' && vv.sinRuta && vv.dato && vv.puntos === 1 && vv.html,
           'el REPO de hoy se lee por rueda sin las de tasa simbólica, guarda un punto por cambio, y sin la ruta del Worker no insiste',
           JSON.stringify(vv));
+    const se = liq.sem || {};
+    check(se.reglas && se.plazo === 'plazo' && se.finLic === 'fin,lic' && se.viernes === 0,
+          'el semáforo: verde sin señales, amarillo con alguna, rojo con la tasa arriba y poco excedente o calendario; fin de mes, licitación y plazo largo',
+          JSON.stringify({ reglas: se.reglas, plazo: se.plazo, finLic: se.finLic, viernes: se.viernes }));
+    const hv = se.hist || {};
+    check(hv.total === '24/172' && /^0\//.test(hv.verde || '') && +String(hv.rojo).split('/')[0] >= 15,
+          'en 2026 (hasta el 16/11) ninguna rueda en verde terminó con estrés, y la mitad de las rojas sí', JSON.stringify(hv));
+    check(se.antes && se.antes['05/11'] === 'rojo 2026-11-05' && se.antes['21/10'] === 'verde 2026-10-21' && se.texto && se.caja,
+          'el semáforo daba rojo antes del 05/11 y verde antes del 21/10, y el comentario dice los números sin inventar',
+          JSON.stringify({ antes: se.antes, texto: se.texto, caja: se.caja }));
   }
 
   // Futuros de A3: futuros.json, las tasas con el spot de A3 y la página entera.
