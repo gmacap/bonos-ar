@@ -5153,8 +5153,11 @@ const omitir = (label, motivo) =>
           'liquidez.json trae la caución en pesos a un día hábil en cada rueda, también a 6 días antes de un feriado', JSON.stringify(cc));
     const al = liq.alrededor;
     if (!al) omitir('liquidez: Tesoro, bancos, liquidez y BAIBAR', 'el BCRA no respondió ahora');
-    else check(Math.abs(al.tesoro - 4.505) < 0.005 && Math.abs(al.bancos - 20.208) < 0.005 && Math.abs(al.liquidez - 49.79) < 0.005
-               && Math.abs(al.baibar - 21.24) < 0.005 && al.puntas && al.tasas && al.colchon && al.tarjetas,
+    // Las unidades, no el valor: el BCRA revisa datos ya publicados (el 17/11
+    // corrigió la liquidez del 11/11 y la BAIBAR del 13/11). Los saldos van en
+    // billones; la liquidez y la BAIBAR, en %.
+    else check(al.tesoro > 0.5 && al.tesoro < 60 && al.bancos > 5 && al.bancos < 80 && al.liquidez > 20 && al.liquidez < 90
+               && al.baibar > 5 && al.baibar < 90 && al.puntas && al.tasas && al.colchon && al.tarjetas,
           'Tesoro, bancos y BCRA en un gráfico, caución y BAIBAR con el REPO, la liquidez de los bancos y sus tarjetas, con datos del BCRA',
           JSON.stringify(al));
     if (!liq.lic) omitir('liquidez: las licitaciones', 'no se pudo leer licitaciones.json');
