@@ -169,6 +169,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .msel-nota{color:var(--text3);font-size:var(--fs10);margin-left:auto;padding-left:8px;}
 .msel details>summary{cursor:pointer;list-style:none;}
 .msel details>summary::-webkit-details-marker{display:none;}
+/* Calculadoras: las subsolapas para pasar de una a otra con un clic, el panel
+   de abajo (curva o forwards, y achicable a una tira) y las columnas. */
+.calc-barra{display:flex;align-items:center;gap:10px;padding:4px 1.5rem;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;flex-wrap:wrap;row-gap:4px;}
+.calc-nav{display:flex;flex-wrap:wrap;gap:2px;}
+.calc-nav button{background:none;border:1px solid transparent;border-radius:3px;color:var(--text3);font-family:var(--mono);font-size:var(--fs10);text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;cursor:pointer;white-space:nowrap;}
+.calc-nav button:hover{color:var(--text);background:var(--surface2);}
+.calc-nav button[aria-current="page"]{color:var(--accent);background:var(--accent-dim);border-color:var(--accent-dim);cursor:default;}
+.calc-barra-der{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.calc-ctl{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;}
+.calc-seg{display:inline-flex;gap:1px;background:var(--border);border-radius:4px;padding:1px;}
+.calc-seg button{background:var(--bg);border:0;color:var(--text3);font-family:var(--mono);font-size:var(--fs10);padding:2px 8px;border-radius:3px;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;}
+.calc-seg button.on{background:var(--surface2);color:var(--accent);}
+.calc-achicar{background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text3);font-family:var(--mono);font-size:var(--fs10);padding:1px 7px;cursor:pointer;line-height:1.4;}
+.calc-achicar:hover{color:var(--text);}
+.calc-nav button:focus-visible,.calc-seg button:focus-visible,.calc-achicar:focus-visible,.calc-min-bar:focus-visible{outline:1px solid var(--accent);outline-offset:1px;}
+.calc-panel-min{height:var(--calc-min,18px)!important;min-height:var(--calc-min,18px)!important;overflow:hidden!important;}
+.calc-panel-min>*{display:none!important;}
+.calc-panel-min>.calc-min-bar{display:flex!important;}
+.calc-min-bar{display:none;align-items:center;justify-content:center;gap:6px;width:100%;height:18px;border:0;border-top:1px solid var(--border);background:var(--surface);color:var(--text3);font-family:var(--mono);font-size:var(--fs9);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;padding:0;}
+.calc-min-bar:hover{color:var(--text);background:var(--surface2);}
+.calc-fwd{flex:1;min-height:0;overflow:auto;padding:.4rem 1rem calc(.6rem + 26px);}
 /* Calculadoras: un bono fuera del gráfico y de la curva queda atenuado en la
    tabla, con su casilla para volver a incluirlo. */
 .calc-incl{margin:0 6px 0 0;accent-color:var(--accent);cursor:pointer;vertical-align:middle;flex-shrink:0;}
@@ -3118,7 +3139,7 @@ async function authAction(){
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
-  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1','bonosAR_escenarios_v1'];
+  'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1','bonosAR_escenarios_v1','bonosAR_calc_vista_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
 
@@ -5690,6 +5711,7 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('scroll',navMenu
 function switchUsdTab(tab){
   currentUsdTab=tab;
   navMenuCerrar();
+  setTimeout(()=>{try{calcMontar(tab);}catch(e){console.warn('[calculadoras]',e);}},0);
   setTimeout(ajustarAltos,0);   // después de que la página se muestre
   USD_TABS.forEach(t=>{
     const b=document.getElementById('nav-'+t);
@@ -5719,6 +5741,7 @@ function switchUsdTab(tab){
 
 function switchTab(tab){
   setTimeout(ajustarAltos,0);
+  setTimeout(()=>{try{calcMontar(tab);}catch(e){console.warn('[calculadoras]',e);}},0);
   currentTab=tab;
   navMenuCerrar();
   document.querySelectorAll('.nav-tab:not(.disabled)').forEach(b=>{
@@ -14695,6 +14718,7 @@ function calcCasilla(clave,ticker,ex){
 }
 function calcFilaCls(clave,ticker,ex){return(ex||calcExcl(clave)).has(ticker)?' calc-fuera':'';}
 function calcBonosPintar(clave){
+  try{calcAlRepintar(clave);}catch(e){}
   const C=calcClave(clave);
   if(!C||!document.getElementById('calc-bonos-'+clave))return;
   const ex=calcExcl(clave),bonos=C.bonos().filter(C.vigente);
@@ -14710,6 +14734,225 @@ function calcBonosPintar(clave){
     grupos:[{l:'En el gráfico y en la curva',items:enCurva.map(item)}]
       .concat(aparte.length?[{l:'En el gráfico, fuera del ajuste de la curva',items:aparte.map(item)}]:[])});
 }
+
+// ── CALCULADORAS: SUBSOLAPAS, PANEL DE ABAJO Y COLUMNAS ──────────────────────
+// Tres cosas iguales en todas las calculadoras, en pesos y en dólares:
+//   · una fila de subsolapas para pasar de una calculadora a otra con un clic;
+//   · el panel de abajo muestra la curva o los forwards entre los bonos del
+//     gráfico (los mismos que elige "Bonos"), y se achica a una tira;
+//   · el desplegable "Columnas" elige qué columnas de la tabla se ven.
+// Se monta al abrir la solapa, sobre el HTML de cada una, y lo elegido se guarda
+// por calculadora como lo personal. Estado en var: calcBonosPintar lo consulta
+// desde el arranque, antes de que el script llegue hasta acá.
+var CALC_LS='bonosAR_calc_vista_v1';
+var CALC_SUBSOLAPAS={
+  pesos:[['lecap','Tasa fija'],['cer','CER'],['tamar','TAMAR'],['dlk','DLK'],['sintetico','Sint. ARS'],['sintusd','Sint. USD']],
+  usd:[['usd-bonares','Bonares'],['usd-globales','Globales'],['usd-bopreales','Bopreales'],['usd-equiv','Equivalencias'],['usd-sintusd','Sint. USD']],
+};
+// raiz: dónde va la fila de subsolapas (barra: en la barra de arriba que ya
+// tiene la página, en lugar del título); area: el panel de abajo; tabla: la
+// tabla cuyas columnas se eligen; fwd: qué forwards hay; clave: la de "Bonos".
+var CALC_DEF={
+  lecap:{sec:'pesos',raiz:'lecap-workspace',area:'chart-area',tabla:'#left-pane .table-scroll table',fwd:'tf',clave:'tf',chart:()=>curveChart},
+  cer:{sec:'pesos',raiz:'page-cer',area:'cer-chart-area',tabla:'#cer-left-pane .table-scroll table',fwd:'cer',clave:'cer',chart:()=>cerTabChart},
+  tamar:{sec:'pesos',raiz:'page-tamar',area:'tamar-chart-area',tabla:'#page-tamar .table-scroll table',fwd:'tamar',clave:'tamar',chart:()=>tamarTabChart},
+  dlk:{sec:'pesos',raiz:'page-dlk',area:'dlk-chart-area',tabla:'#dlk-left-pane .table-scroll table',fwd:'dlk',clave:'dlk',chart:()=>dlkTabChart},
+  sintetico:{sec:'pesos',raiz:'page-sintetico',area:'sint-chart-area',tabla:'#sint-left-pane .table-scroll table',chart:()=>sintChart},
+  sintusd:{sec:'pesos',raiz:'page-sintusd',area:'sus-chart-area',tabla:'#page-sintusd .table-scroll table',chart:()=>SUS_CHARTS.ars},
+  'usd-bonares':{sec:'usd',raiz:'page-usd-bonares',barra:true,area:'bon-chart-area',tabla:'#bon-summary-table',fwd:'bon',clave:'bon',chart:()=>bonYieldChart},
+  'usd-globales':{sec:'usd',raiz:'page-usd-globales',barra:true,area:'glo-chart-area',tabla:'#glo-summary-table',fwd:'glo',clave:'glo',chart:()=>gloYieldChart},
+  'usd-bopreales':{sec:'usd',raiz:'page-usd-bopreales',barra:true,area:'bop-chart-area',tabla:'#bop-summary-table',fwd:'bop',clave:'bop',chart:()=>bopYieldChart},
+  'usd-equiv':{sec:'usd',raiz:'page-usd-equiv',barra:true},
+  'usd-sintusd':{sec:'usd',raiz:'page-usd-sintusd',area:'usus-chart-area',tabla:'#page-usd-sintusd .table-scroll table',chart:()=>SUS_CHARTS.usd},
+};
+var CALC_POR_CLAVE={tf:'lecap',cer:'cer',tamar:'tamar',dlk:'dlk',bon:'usd-bonares',glo:'usd-globales',bop:'usd-bopreales'};
+var CALC_FWD_NOTA={
+  tf:'Tasa forward entre cada par de vencimientos, en la tasa elegida arriba (TNA, TIR o TEM)',
+  cer:'Tasa forward real entre cada par de vencimientos, sobre la TIR real',
+  tamar:'Margen forward sobre TAMAR entre cada par de vencimientos',
+  dlk:'Tasa forward en dólares entre cada par de vencimientos, sobre la TIR en dólares',
+  bon:'Tasa forward entre cada par de bonos, sobre la TIR y la duration',
+  glo:'Tasa forward entre cada par de bonos, sobre la TIR y la duration',
+  bop:'Tasa forward entre cada par de bonos, sobre la TIR y la duration',
+};
+
+function calcEstadoTodo(){try{const o=JSON.parse(localStorage.getItem(CALC_LS)||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
+function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'?'fwd':'curva',min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[]};}
+function calcEstadoGuardar(k,cambio){
+  const o=calcEstadoTodo();
+  o[k]={...calcEstado(k),...cambio};
+  try{localStorage.setItem(CALC_LS,JSON.stringify(o));}catch(e){}
+}
+
+// Monta lo que falte de la calculadora k y le aplica lo guardado.
+function calcMontar(k){
+  if(!CALC_DEF||!CALC_DEF[k])return;
+  calcSubsolapas(k);
+  calcPanelMontar(k);
+  calcPanelAplicar(k);
+  calcColsAplicar(k);
+  // Las tablas que se arman con los precios pueden llegar después.
+  setTimeout(()=>{try{calcColsAplicar(k);}catch(e){}},600);
+}
+function calcAlRepintar(clave){
+  if(typeof CALC_DEF==='undefined'||!CALC_DEF)return;
+  const k=CALC_POR_CLAVE[clave];
+  if(!k)return;
+  if(calcEstado(k).vista==='fwd')setTimeout(()=>{try{calcFwdRender(k);}catch(e){}},0);
+  setTimeout(()=>{try{calcColsAplicar(k);}catch(e){}},0);
+}
+
+// ── Subsolapas ──
+function calcNavHTML(k){
+  const D=CALC_DEF[k],ir=D.sec==='usd'?'switchUsdTab':'switchTab';
+  return`<nav class="calc-nav" aria-label="Calculadoras">${CALC_SUBSOLAPAS[D.sec].map(([t,l])=>
+    `<button type="button"${t===k?' aria-current="page"':''} onclick="${ir}('${t}')">${l}</button>`).join('')}</nav>`;
+}
+function calcSubsolapas(k){
+  const D=CALC_DEF[k],raiz=document.getElementById(D.raiz);
+  if(!raiz||raiz.querySelector('.calc-nav'))return;
+  const cols=D.tabla?`<span id="calc-cols-${k}"></span>`:'';
+  if(D.barra){
+    // Las de dólares ya tienen una barra arriba con el título: las subsolapas
+    // van en su lugar y "Columnas", antes del botón de agregar.
+    const barra=raiz.firstElementChild&&raiz.firstElementChild.firstElementChild;
+    if(!barra)return;
+    const tit=barra.firstElementChild;
+    tit.insertAdjacentHTML('beforebegin',calcNavHTML(k));
+    tit.remove();
+    if(cols){
+      const esp=[...barra.children].find(c=>c.style.flex==='1'||c.style.flex==='1 1 0%');
+      if(esp)esp.insertAdjacentHTML('afterend',cols);else barra.insertAdjacentHTML('beforeend',cols);
+    }
+  }else{
+    raiz.insertAdjacentHTML('afterbegin',`<div class="calc-barra">${calcNavHTML(k)}<span class="calc-barra-der">${cols}</span></div>`);
+  }
+}
+
+// ── El panel de abajo ──
+function calcPanelMontar(k){
+  const D=CALC_DEF[k],area=D.area&&document.getElementById(D.area);
+  if(!area||area.querySelector('.calc-ctl'))return;
+  const barra=area.children[1];
+  if(!barra)return;
+  const ctl=document.createElement('span');
+  ctl.className='calc-ctl';
+  ctl.innerHTML=(D.fwd?`<span class="calc-seg" role="group" aria-label="Qué mostrar abajo">
+      <button type="button" data-v="curva" onclick="calcPanelVista('${k}','curva')">Curva</button>
+      <button type="button" data-v="fwd" onclick="calcPanelVista('${k}','fwd')">Forwards</button></span>`:'')
+    +`<button type="button" class="calc-achicar" onclick="calcPanelMin('${k}',true)" title="Achicar el panel a una tira, para que la tabla ocupe la pantalla">▾ achicar</button>`;
+  // Lo de control va a la derecha: si la barra tiene un título que empuja todo,
+  // al lado de lo demás; si no, empujado al borde. Lo que ya iba al borde queda
+  // a su lado.
+  if(barra.querySelector('.chart-title')){
+    ctl.style.marginLeft='8px';
+    const modo=barra.querySelector('.chart-mode-row');
+    if(modo)barra.insertBefore(ctl,modo);else barra.appendChild(ctl);
+  }else{
+    ctl.style.marginLeft='auto';
+    const ref=[...barra.children].find(c=>c.style&&c.style.marginLeft==='auto');
+    if(ref){ref.style.marginLeft='8px';barra.insertBefore(ctl,ref);}else barra.appendChild(ctl);
+  }
+  if(D.fwd){
+    const caja=document.createElement('div');
+    caja.className='calc-fwd';caja.style.display='none';
+    caja.innerHTML=`<div style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin-bottom:6px">${CALC_FWD_NOTA[D.fwd]}: fila, desde el vencimiento de ese bono; columna, hasta el de ese otro. Los bonos son los del gráfico (elegilos en "Bonos").</div><div id="calc-fwd-${k}"></div>`;
+    area.appendChild(caja);
+  }
+  const min=document.createElement('button');
+  min.type='button';min.className='calc-min-bar';
+  min.innerHTML=`▴ ${D.fwd?'curva y forwards':'gráfico'}`;
+  min.title='Volver a mostrar el panel';
+  min.setAttribute('onclick',`calcPanelMin('${k}',false)`);
+  area.appendChild(min);
+}
+// El contenedor del gráfico: lo que queda después de la barra y no es nuestro.
+function calcPanelGrafico(area){
+  return[...area.children].slice(2).find(c=>!c.classList.contains('calc-fwd')&&!c.classList.contains('calc-min-bar'));
+}
+function calcPanelAplicar(k){
+  const D=CALC_DEF[k],area=D.area&&document.getElementById(D.area);
+  if(!area)return;
+  const E=calcEstado(k),fwd=!!D.fwd&&E.vista==='fwd';
+  // La barra de estado de abajo es fija y tapa el borde inferior de la página:
+  // achicado, el panel mide la tira más esa barra, y la tira queda a la vista.
+  const sb=[...document.querySelectorAll('.status-bar')].find(x=>x.offsetHeight>0);
+  area.style.setProperty('--calc-min',(18+(sb?sb.offsetHeight:0))+'px');
+  area.classList.toggle('calc-panel-min',E.min);
+  const g=calcPanelGrafico(area),caja=area.querySelector('.calc-fwd');
+  if(g)g.style.display=fwd?'none':'';
+  if(caja)caja.style.display=fwd?'':'none';
+  area.querySelectorAll('.calc-seg button').forEach(b=>{b.classList.toggle('on',b.dataset.v===(fwd?'fwd':'curva'));b.setAttribute('aria-pressed',String(b.dataset.v===(fwd?'fwd':'curva')));});
+  if(fwd&&!E.min)calcFwdRender(k);
+  // Al volver a la curva el lienzo cambia de tamaño. Un gráfico que se destruyó
+  // y se volvió a crear deja el viejo sin lienzo: a ese no se le pide nada.
+  if(!fwd&&!E.min)setTimeout(()=>{try{const c=D.chart&&D.chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
+}
+function calcPanelVista(k,v){calcEstadoGuardar(k,{vista:v==='fwd'?'fwd':'curva'});calcPanelAplicar(k);}
+function calcPanelMin(k,min){calcEstadoGuardar(k,{min:!!min});calcPanelAplicar(k);}
+
+// Los forwards entre los bonos del gráfico: los que no se sacaron con "Bonos",
+// sin los que van fuera del ajuste (duales, el BONTE al vencimiento), vigentes y
+// con precio. El precio se edita en la tabla de arriba, no acá.
+function calcFwdRender(k){
+  const D=CALC_DEF[k],el=document.getElementById('calc-fwd-'+k);
+  if(!D||!D.fwd||!el)return;
+  const ex=calcExcl(D.clave),hoy=hoyAR();
+  const sirve=b=>b&&b.ticker&&!ex.has(b.ticker)&&!calcAparte(D.clave,b.ticker);
+  if(D.fwd==='bon'||D.fwd==='glo'||D.fwd==='bop'){
+    const arr={bon:BON_BONDS,glo:GLO_BONDS,bop:BOP_BONDS}[D.fwd]||[];
+    const bonos=arr.filter(b=>sirve(b)&&b.vencimiento&&b.vencimiento>hoy).sort((a,b)=>a.vencimiento.localeCompare(b.vencimiento));
+    usdFwdBuildTable(bonos,'calc-fwd-'+k);
+  }else{
+    const arr={tf:LECAPS,cer:CER_BONDS,tamar:TAMAR_BONDS,dlk:DLK_BONDS}[D.fwd]||[];
+    const bonos=arr.filter(b=>sirve(b)&&b.vcto&&b.vcto>hoy&&b.precio>0).sort((a,b)=>a.vcto.localeCompare(b.vcto));
+    const antes=fwdMode;
+    if(D.fwd==='tf'&&typeof chartMode!=='undefined')fwdMode=chartMode;
+    try{fwdBuildTable(bonos,D.fwd,'calc-fwd-'+k);}finally{fwdMode=antes;}
+  }
+  el.querySelectorAll('td[onclick]').forEach(td=>{td.removeAttribute('onclick');td.removeAttribute('title');td.style.cursor='default';});
+}
+
+// ── Columnas ──
+// Se esconden por su lugar en la fila, con una regla de CSS por calculadora: así
+// valen para las filas que se vuelvan a armar. Se guardan por el texto del
+// encabezado, sin la flecha del orden. La primera columna (el ticker) y las que
+// no tienen título (las de los botones) no se pueden esconder.
+function calcColsLista(k){
+  const D=CALC_DEF[k],t=D&&D.tabla&&document.querySelector(D.tabla);
+  if(!t)return[];
+  const fila=t.querySelector('thead tr:last-child');
+  if(!fila)return[];
+  return[...fila.children].map((th,i)=>({i,clave:th.textContent.replace(/[↑↓▲▼]/g,'').replace(/\s+/g,' ').trim()}))
+    .filter(c=>c.i>0&&c.clave);
+}
+function calcColsAplicar(k){
+  const D=CALC_DEF[k];
+  if(!D||!D.tabla)return;
+  const lista=calcColsLista(k);
+  if(!lista.length)return;
+  const ocultas=new Set(calcEstado(k).cols);
+  let st=document.getElementById('calc-cols-css-'+k);
+  if(!st){st=document.createElement('style');st.id='calc-cols-css-'+k;document.head.appendChild(st);}
+  st.textContent=lista.filter(c=>ocultas.has(c.clave)).map(c=>`${D.tabla} tr>:nth-child(${c.i+1}){display:none}`).join('\n');
+  calcColsPintar(k,lista,ocultas);
+}
+function calcColsPintar(k,lista,ocultas){
+  if(!document.getElementById('calc-cols-'+k))return;
+  const vis=lista.filter(c=>!ocultas.has(c.clave)).length;
+  const esc=x=>String(x).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  mselPintar('calc-cols-'+k,{titulo:'Columnas',resumen:`${vis}/${lista.length}`,
+    acciones:[{l:'Todas',fn:`calcColsTodas('${k}')`}],
+    grupos:[{l:'Qué se ve en la tabla',items:lista.map(c=>({l:c.clave,v:c.clave,on:!ocultas.has(c.clave),
+      fn:`calcColsVer('${k}','${esc(c.clave)}',this.checked)`}))}]});
+}
+function calcColsVer(k,clave,ver){
+  const s=new Set(calcEstado(k).cols);
+  if(ver)s.delete(clave);else s.add(clave);
+  calcEstadoGuardar(k,{cols:[...s]});
+  calcColsAplicar(k);
+}
+function calcColsTodas(k){calcEstadoGuardar(k,{cols:[]});calcColsAplicar(k);}
 
 // ── CER TAB CHART ─────────────────────────────────────────────────────────────
 function cerRenderTabChart(){
@@ -15975,6 +16218,7 @@ function fwdToggleTAMAR(ticker){
 
 function fwdTasa(bond, tipo){
   if(tipo==='cer') return fwdGetCERTasa(bond);
+  if(tipo==='dlk'){const e=dlkEnrich(bond);return e&&e.tir!=null&&isFinite(e.tir)?e.tir:null;}
   if(tipo==='tamar'){
     if(!TAMAR_INDEX.length)return null;
     const e=tamarVista(tamarEnrich(bond));

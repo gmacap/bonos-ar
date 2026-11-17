@@ -6736,6 +6736,77 @@ const omitir = (label, motivo) =>
   check(escn.repinta && escn.guarda, 'Escenarios se repinta solo al cambiar un sendero y guarda las familias elegidas',
         JSON.stringify({ repinta: escn.repinta, guarda: escn.guarda }));
 
+  // ── Calculadoras: subsolapas, panel de abajo y columnas ──────────────────
+  // Una fila para pasar de una calculadora a otra con un clic; abajo, la curva
+  // o los forwards entre los mismos bonos del gráfico, achicable a una tira que
+  // queda a la vista; y las columnas de la tabla a elección. Todo se guarda.
+  console.log('\nCalculadoras: subsolapas, panel y columnas');
+  const cvista = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, lsAntes = localStorage.getItem(CALC_LS);
+    try {
+      switchSection('pesos'); switchTab('cer'); await espera(1500);
+      const nav = [...document.querySelectorAll('#page-cer .calc-nav button')];
+      out.navPesos = nav.map(b => b.textContent).join('|') + ' · ' + (nav.find(b => b.getAttribute('aria-current')) || {}).textContent;
+      nav[0].click(); await espera(1200);
+      out.irTF = currentTab === 'lecap' && !!document.querySelector('#lecap-workspace .calc-nav button[aria-current]');
+      // Forwards en CER, con los bonos del gráfico
+      switchTab('cer'); await espera(1200);
+      calcPanelVista('cer', 'fwd'); await espera(300);
+      const cab = () => [...document.querySelectorAll('#calc-fwd-cer thead th')].map(t => t.textContent);
+      const antes = cab(), saco = antes[3];
+      calcExcluir('cer', saco, true); await espera(400);
+      out.fwd = { filas: document.querySelectorAll('#calc-fwd-cer tbody tr').length, sinElSacado: !cab().includes(saco),
+        grafico: getComputedStyle(calcPanelGrafico(document.getElementById('cer-chart-area'))).display, editable: !!document.querySelector('#calc-fwd-cer td[onclick]') };
+      calcExcluir('cer', saco, false);
+      calcPanelVista('cer', 'curva'); await espera(200);
+      // Achicar: la tira queda arriba de la barra de estado y vuelve con un clic
+      calcPanelMin('cer', true); await espera(300);
+      const area = document.getElementById('cer-chart-area'), tira = area.querySelector('.calc-min-bar').getBoundingClientRect();
+      const sb = [...document.querySelectorAll('.status-bar')].find(x => x.offsetHeight > 0);
+      out.min = { alto: Math.round(area.getBoundingClientRect().height), visible: tira.height > 10 && (!sb || tira.top < sb.getBoundingClientRect().top) };
+      area.querySelector('.calc-min-bar').click(); await espera(300);
+      out.min.vuelve = Math.round(area.getBoundingClientRect().height);
+      // Columnas: Spread fuera y de vuelta
+      calcColsVer('cer', 'Spread', false); await espera(100);
+      const th = [...document.querySelectorAll('#cer-left-pane thead th')].find(t => /Spread/.test(t.textContent));
+      out.cols = { fuera: getComputedStyle(th).display === 'none', guardado: calcEstado('cer').cols.includes('Spread'), boton: !!document.querySelector('#calc-cols-cer .msel-btn') };
+      calcColsVer('cer', 'Spread', true); await espera(100);
+      out.cols.vuelve = getComputedStyle(th).display !== 'none';
+      // Tasa fija: los forwards siguen la tasa del gráfico sin tocar la solapa Forwards
+      switchTab('lecap'); await espera(1200);
+      const fm = fwdMode, cm = chartMode;
+      chartMode = 'tem'; calcPanelVista('lecap', 'fwd'); await espera(300);
+      const celda = document.querySelector('#calc-fwd-lecap tbody tr td:nth-child(3)');
+      out.tf = { tem: celda ? celda.textContent : null, fwdMode: fwdMode === fm };
+      chartMode = cm; calcPanelVista('lecap', 'curva');
+      // Dólares: las subsolapas van en la barra de arriba
+      switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1500);
+      const navU = [...document.querySelectorAll('#page-usd-bonares .calc-nav button')];
+      out.navUsd = navU.map(b => b.textContent).join('|');
+      calcPanelVista('usd-bonares', 'fwd'); await espera(400);
+      out.fwdUsd = document.querySelectorAll('#calc-fwd-usd-bonares tbody tr').length;
+      calcPanelVista('usd-bonares', 'curva');
+      navU[1].click(); await espera(800);
+      out.irGlo = currentUsdTab === 'usd-globales';
+      switchSection('pesos'); switchTab('breakeven');
+    } finally {
+      if (lsAntes == null) localStorage.removeItem(CALC_LS); else localStorage.setItem(CALC_LS, lsAntes);
+    }
+    return out;
+  });
+  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD · CER' && cvista.irTF
+        && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD' && cvista.irGlo,
+        'cada calculadora tiene las subsolapas de su sección, marca la abierta y lleva a la otra con un clic', JSON.stringify(cvista));
+  check(cvista.fwd && cvista.fwd.filas >= 3 && cvista.fwd.sinElSacado && cvista.fwd.grafico === 'none' && !cvista.fwd.editable && cvista.fwdUsd >= 3
+        && cvista.tf && /%$/.test(cvista.tf.tem || '') && cvista.tf.fwdMode,
+        'abajo se cambia la curva por los forwards entre los mismos bonos del gráfico, en pesos y en dólares, sin tocar la solapa Forwards',
+        JSON.stringify({ fwd: cvista.fwd, fwdUsd: cvista.fwdUsd, tf: cvista.tf }));
+  check(cvista.min && cvista.min.alto <= 50 && cvista.min.visible && cvista.min.vuelve > 100,
+        'el panel de abajo se achica a una tira que queda a la vista y vuelve con un clic', JSON.stringify(cvista.min));
+  check(cvista.cols && cvista.cols.fuera && cvista.cols.guardado && cvista.cols.boton && cvista.cols.vuelve,
+        'las columnas de la tabla se eligen a mano y se guardan', JSON.stringify(cvista.cols));
+
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
   check(undef.length === 0, 'sin peticiones a /undefined', undef.join(', '));
