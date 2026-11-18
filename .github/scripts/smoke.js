@@ -6981,6 +6981,13 @@ const omitir = (label, motivo) =>
       const celda = document.querySelector('#calc-fwd-lecap tbody tr td:nth-child(4)');
       const esquina = document.querySelector('#calc-fwd-lecap thead th');
       out.tf = { tem: celda ? celda.textContent : null, fwdMode: fwdMode === fm, esquina: esquina ? esquina.textContent : null };
+      // Los dos TY30P (al put y al vencimiento) entran, por duration y sin editar su precio
+      const cup = tfcVariantes().filter(v => v.precio > 0 && isFinite(v.tem) && v.durDias > 0).map(v => v.ticker);
+      const filasTF = [...document.querySelectorAll('#calc-fwd-lecap tbody tr')];
+      const anios = filasTF.map(tr => parseFloat(tr.children[2].textContent));
+      out.tfCupon = { cup, filas: filasTF.map(tr => tr.children[0].textContent.trim()), ordenado: anios.every((a, i) => i === 0 || a >= anios[i - 1]),
+        sinEditar: cup.every(tk => { const tr = filasTF.find(r => r.children[0].textContent.trim() === tk); return !!tr && !tr.children[1].hasAttribute('onclick'); }),
+        tasa: cup.every(tk => { const tr = filasTF.find(r => r.children[0].textContent.trim() === tk); const i = tr ? filasTF.indexOf(tr) : -1; return i >= 0 && /%$/.test(tr.children[3 + i].textContent); }) };
       chartMode = cm; calcPanelVista('lecap', 'curva');
       // Dólares: las subsolapas van en la barra de arriba
       switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1500);
@@ -7073,6 +7080,10 @@ const omitir = (label, motivo) =>
   if (!anF) omitir('ancho de las columnas de la matriz de forwards', 'menos de tres bonos');
   else check(Math.abs(anF.m1 - (anF.m0 - 15)) <= 2 && anF.iguales && Math.abs(anF.guardado - anF.m1) <= 1 && anF.vuelve,
         'en la matriz de forwards las columnas van con el mismo ancho, que se arrastra, se guarda y vuelve con doble clic', JSON.stringify(anF));
+  const tcu = cvista.tfCupon;
+  if (!tcu || !tcu.cup.length) omitir('los bonos con cupón en los forwards de tasa fija', 'el TY30P sin precio');
+  else check(tcu.cup.every(tk => tcu.filas.includes(tk)) && tcu.ordenado && tcu.sinEditar && tcu.tasa,
+        'los forwards de tasa fija suman el TY30P al put y al vencimiento, por duration y con su precio de pantalla', JSON.stringify(tcu));
   const la = cvista.lado || {};
   check(la.env && la.costado && Math.abs(la.alto - la.altoTabla) <= 2 && /abajo/.test(la.boton || '') && la.guardado && la.vuelve,
         'la curva va al costado de la tabla, a toda la altura, y vuelve abajo', JSON.stringify(la));

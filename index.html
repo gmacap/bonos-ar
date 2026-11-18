@@ -15027,8 +15027,12 @@ function calcFwdRender(k){
     usdFwdPxOverrides={};
     try{usdFwdBuildTable(bonos,'calc-fwd-'+k);}finally{usdFwdPxOverrides=pxAntes;}
   }else{
-    const arr={tf:LECAPS,cer:CER_BONDS,tamar:TAMAR_BONDS,dlk:DLK_BONDS}[D.fwd]||[];
-    const bonos=arr.filter(b=>sirve(b)&&b.vcto&&b.vcto>hoy&&b.precio>0).sort((a,b)=>a.vcto.localeCompare(b.vcto));
+    // En tasa fija van también los bonos con cupón (el TY30P al put y al
+    // vencimiento): el del vencimiento queda fuera del ajuste de la curva por no
+    // tener comparables, pero su forward contra los demás sí se lee.
+    const arr=D.fwd==='tf'?(LECAPS||[]).concat(tfcVariantes()):({cer:CER_BONDS,tamar:TAMAR_BONDS,dlk:DLK_BONDS}[D.fwd]||[]);
+    const usa=b=>b&&b.ticker&&!ex.has(b.ticker)&&(D.fwd==='tf'||!calcAparte(D.clave,b.ticker));
+    const bonos=arr.filter(b=>usa(b)&&b.vcto&&b.vcto>hoy&&b.precio>0).sort((a,b)=>a.vcto.localeCompare(b.vcto));
     const antes=fwdMode;
     if(D.fwd==='tf'&&typeof chartMode!=='undefined')fwdMode=chartMode;
     try{fwdBuildTable(bonos,D.fwd,'calc-fwd-'+k);}finally{fwdMode=antes;}
@@ -16981,7 +16985,7 @@ function fwdToggleTF(ticker){
   else fwdTFExcluded.add(ticker);
   fwdSaveLs();
   const liq=G_LIQ||addHabiles(TODAY,1);
-  const allTF=LECAPS.filter(r=>{if(!r.vcto)return false;const v=parseDate(r.vcto);return v&&diasACT(liq,v)>0;}).sort((a,b)=>a.vcto.localeCompare(b.vcto));
+  const allTF=LECAPS.filter(r=>{if(!r.vcto)return false;const v=parseDate(r.vcto);return v&&diasACT(liq,v)>0;}).concat(tfcVariantes(liq).filter(v=>v.precio>0)).sort((a,b)=>a.vcto.localeCompare(b.vcto));
   fwdRenderChips(allTF,fwdTFExcluded,'fwd-tf-chips','fwdToggleTF');
   fwdBuildTable(allTF.filter(r=>!fwdTFExcluded.has(r.ticker)),'tf','fwd-tf-wrap');
 }
@@ -17005,6 +17009,9 @@ function fwdToggleTAMAR(ticker){
 }
 
 function fwdTasa(bond, tipo){
+  // Los bonos con cupón de tasa fija (el TY30P al put y al vencimiento) traen
+  // sus tasas calculadas, como en el gráfico; la cuenta de una LECAP no sirve.
+  if(tipo==='tf'&&bond&&bond.cupon){const v=bond[fwdMode];return isFinite(v)?v:null;}
   if(tipo==='cer') return fwdGetCERTasa(bond);
   if(tipo==='dlk'){const e=dlkEnrich(bond);return e&&e.tir!=null&&isFinite(e.tir)?e.tir:null;}
   if(tipo==='tamar'){
@@ -17021,6 +17028,8 @@ function fwdTasa(bond, tipo){
 }
 
 function fwdDuration(bond, tipo){
+  // Un bono con cupón va por su duration, que es lo que va en la cuenta.
+  if(tipo==='tf'&&bond&&bond.cupon)return bond.durDias>0?bond.durDias/365:null;
   const liq=G_LIQ||addHabiles(TODAY,1);
   let vctoDate;
   if(tipo==='cer'){
@@ -17090,7 +17099,8 @@ function fwdBuildTable(bonds, tipo, wrapId){
   }
 
   const rows=bonds.map(b=>({bond:b,tasa:fwdTasa(b,tipo),dur:fwdDuration(b,tipo),precio:b.precio||null}))
-    .filter(r=>r.dur!==null&&r.dur>0);
+    .filter(r=>r.dur!==null&&r.dur>0)
+    .sort((a,b)=>a.dur-b.dur);
 
   if(!rows.length){wrap.innerHTML=`<div style="color:var(--text3);font-size:var(--fs12);padding:.5rem">Sin datos de tasa/duration.</div>`;return;}
 
@@ -17109,7 +17119,7 @@ function fwdBuildTable(bonds, tipo, wrapId){
 
   let html=`<table style="border-collapse:collapse;font-size:var(--fs11);"><thead><tr>`;
   html+=`<th style="${th}text-align:left;color:var(--accent);font-weight:700" title="La tasa de la matriz">${fwdMedida(tipo)}</th><th style="${th}text-align:right">Px</th>`;
-  html+=`<th style="${th}text-align:right" title="Años al vencimiento: con ellos se calcula el forward">Años</th>`;
+  html+=`<th style="${th}text-align:right" title="Años al vencimiento, con los que se calcula el forward; en un bono con cupón, su duration">Años</th>`;
   rows.forEach(r=>{html+=`<th style="${thB}">${r.bond.ticker}</th>`;});
   html+=`</tr></thead><tbody>`;
 
@@ -17117,9 +17127,12 @@ function fwdBuildTable(bonds, tipo, wrapId){
     const tasaLabel=ri.tasa!=null?fmtP2(ri.tasa):'—';   // fmtP2 ya trae el %
     const pxDisplay=ri.precio!=null?fmtPx(ri.precio):'—';
     html+=`<tr><td style="${td}text-align:left;color:var(--accent);font-weight:500">${ri.bond.ticker}</td>`;
-    html+=`<td style="${td}text-align:right;color:var(--text2);cursor:pointer" title="Click para editar precio" data-px="${betrEsc(ri.bond.ticker)}"
+    // El precio de un bono con cupón es el de pantalla: no se edita acá.
+    html+=ri.bond.cupon
+      ?`<td style="${td}text-align:right;color:var(--text2)" title="Precio sucio por cada 100 de nominal, de pantalla">${pxDisplay}</td>`
+      :`<td style="${td}text-align:right;color:var(--text2);cursor:pointer" title="Click para editar precio" data-px="${betrEsc(ri.bond.ticker)}"
       onclick="fwdEditPx(this,'${ri.bond.ticker}','${tipo}')">${pxDisplay}</td>`;
-    html+=`<td style="${td}text-align:right;color:var(--text3)">${fmtN(ri.dur,2)}</td>`;
+    html+=`<td style="${td}text-align:right;color:var(--text3)"${ri.bond.cupon?' title="Duration en años: con cupón, es la que va en la cuenta"':''}>${fmtN(ri.dur,2)}</td>`;
     rows.forEach((rj,j)=>{
       if(j<i){html+=`<td style="${td}background:var(--bg);"></td>`;}
       else if(j===i){const st=fwdCeldaEstilo(ri.tasa,esc,true);html+=`<td style="${td}${st}">${tasaLabel}</td>`;}
@@ -17170,7 +17183,7 @@ function fwdGetCERTasa(bond){
 function fwdRecalc(){
   fwdLoadLs();
   const liq=G_LIQ||addHabiles(TODAY,1);
-  const allTF=LECAPS.filter(r=>{if(!r.vcto)return false;const v=parseDate(r.vcto);return v&&diasACT(liq,v)>0;}).sort((a,b)=>a.vcto.localeCompare(b.vcto));
+  const allTF=LECAPS.filter(r=>{if(!r.vcto)return false;const v=parseDate(r.vcto);return v&&diasACT(liq,v)>0;}).concat(tfcVariantes(liq).filter(v=>v.precio>0)).sort((a,b)=>a.vcto.localeCompare(b.vcto));
   const allCER=CER_BONDS.filter(r=>r.vcto).sort((a,b)=>a.vcto.localeCompare(b.vcto));
   const allTAMAR=TAMAR_BONDS.filter(r=>{if(!r.vcto)return false;const v=parseDate(r.vcto);return v&&diasACT(liq,v)>0;}).sort((a,b)=>a.vcto.localeCompare(b.vcto));
   fwdRenderChips(allTF,fwdTFExcluded,'fwd-tf-chips','fwdToggleTF');
