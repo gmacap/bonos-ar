@@ -4712,9 +4712,18 @@ const omitir = (label, motivo) =>
       const casilla = fila().querySelector('.calc-incl');
       casilla.checked = false; casilla.dispatchEvent(new Event('change', { bubbles: true }));
       out.fuera = { n0, n1: ch().data.datasets[1].data.length, sinPunto: punto(t) == null, atenuada: fila().classList.contains('calc-fuera'),
+        oculta: getComputedStyle(fila()).display === 'none',
         boton: (document.querySelector('#calc-bonos-cer .msel-btn') || {}).textContent || '', guardado: calcExcl('cer').has(t) };
       calcTodos('cer', true);
-      out.fuera.vuelve = ch().data.datasets[1].data.length === n0 && !fila().classList.contains('calc-fuera');
+      out.fuera.vuelve = ch().data.datasets[1].data.length === n0 && !fila().classList.contains('calc-fuera') && getComputedStyle(fila()).display !== 'none';
+      // Uno que ya fijó se queda en la tabla, atenuado
+      const fj = CER_BONDS.find(b => b.precio > 0 && b.vcto > hoyAR() && fijTasas(b));
+      if (fj) {
+        calcExcluir('cer', fj.ticker, true); await espera(200);
+        const ff = [...document.querySelectorAll('#cer-table-body tr')].find(tr => (tr.querySelector('.c-ticker') || {}).textContent === fj.ticker);
+        out.fuera.fijado = { t: fj.ticker, visible: !!ff && getComputedStyle(ff).display !== 'none' && ff.classList.contains('calc-fijado') };
+        calcExcluir('cer', fj.ticker, false);
+      }
     }
     // LECAP y Bonares, desde el desplegable.
     switchTab('lecap'); await espera(1000);
@@ -4742,11 +4751,46 @@ const omitir = (label, motivo) =>
           `${sec.toUpperCase()}: el precio escrito en la tabla mueve el bono en el gráfico`, JSON.stringify(c));
   }
   const fu = calc.fuera;
-  if (!fu) omitir('un bono destildado sale del gráfico y de la curva, queda atenuado y el desplegable lo cuenta', 'sin gráfico CER');
-  else check(fu.n1 === fu.n0 - 1 && fu.sinPunto && fu.atenuada && fu.guardado && /Bonos · \d+\/\d+/.test(fu.boton) && fu.vuelve,
-        'un bono destildado sale del gráfico y de la curva, queda atenuado y el desplegable lo cuenta', JSON.stringify(fu));
+  if (!fu) omitir('un bono destildado sale del gráfico y de la curva, de la tabla, y el desplegable lo cuenta', 'sin gráfico CER');
+  else check(fu.n1 === fu.n0 - 1 && fu.sinPunto && fu.atenuada && fu.oculta && fu.guardado && /Bonos · \d+\/\d+/.test(fu.boton) && fu.vuelve,
+        'un bono destildado sale del gráfico y de la curva, se oculta en la tabla, y el desplegable lo cuenta', JSON.stringify(fu));
+  if (fu && fu.fijado) check(fu.fijado.visible, 'uno que ya fijó, destildado, se queda en la tabla atenuado', JSON.stringify(fu.fijado));
+  else omitir('un indexado fijado destildado sigue en la tabla', 'ningún CER fijado hoy');
   check(calc.lecap && calc.lecap.n1 === calc.lecap.n0 - 1 && calc.bon && calc.bon.n1 === calc.bon.n0 - 1 && /Bonos/.test(calc.bon.boton),
         'en LECAP y en Bonares también: el desplegable saca el bono del gráfico', JSON.stringify({ lecap: calc.lecap, bon: calc.bon }));
+
+  // RUN: las puntas de todos los bonos en pesos, por tipo, con sus cantidades.
+  console.log('\nRUN');
+  const run = await page.evaluate(async () => {
+    switchSection('pesos'); switchTab('run');
+    await new Promise(r => setTimeout(r, 600));
+    const out = {};
+    out.fmt = [runCant(4992952926), runCant(15e6), runCant(508550), runCant(2111784), runCant(0), runPx(129.043), runPx(103.5), runPx(null)].join('|');
+    const tablas = [...document.querySelectorAll('#page-run .run-tabla')];
+    out.tipos = tablas.map(x => x.querySelector('.run-tipo').textContent).join('|');
+    out.cols = tablas.every(x => [...x.querySelectorAll('thead tr:last-child th')].map(h => h.textContent).join('|') === 'Ticker|Bid Size|Bid Px|Offer Px|Offer Size');
+    const G = runGrupos();
+    out.filas = tablas.reduce((s, x) => s + x.querySelectorAll('tbody tr').length, 0) === G.reduce((s, g) => s + g[1].length, 0);
+    const duales = dualCombos('TAMAR');
+    out.dualesAparte = G.filter(g => g[0] !== 'DUALES').every(g => g[1].every(b => !duales.has(b.ticker)));
+    out.sinPeso = !/\$/.test(document.getElementById('page-run').textContent);
+    // Un bono con las dos puntas: la fila muestra lo del libro
+    const b = G.flatMap(g => g[1]).find(x => x.bid > 0 && x.ask > 0 && x.bidQ > 0 && x.askQ > 0);
+    if (b) {
+      const tr = [...document.querySelectorAll('#page-run tbody tr')].find(r => r.children[0].textContent === b.ticker);
+      const num = s => parseFloat(s.replace(/\./g, '').replace(',', '.'));
+      const c = tr ? [...tr.children].map(x => x.textContent) : [];
+      out.fila = !!tr && c[1] === runCant(b.bidQ) && Math.abs(num(c[2]) - b.bid) < 1e-6 && Math.abs(num(c[3]) - b.ask) < 1e-6 && c[4] === runCant(b.askQ);
+    }
+    out.nav = !!document.querySelector('#page-run .calc-nav button[aria-current]');
+    switchTab('breakeven');
+    return out;
+  });
+  check(run.fmt === '5B|15M|509k|2,1M||129,043|103,50|', 'RUN: las cantidades en k, M y B, y los precios sin "$"', run.fmt);
+  check(/^TASA FIJA\|CER\|TAMAR(\|DUALES)?(\|DLK)?$/.test(run.tipos) && run.cols && run.filas && run.dualesAparte && run.sinPeso && run.nav,
+        'RUN: todos los bonos en pesos por tipo, con Ticker, Bid Size, Bid Px, Offer Px y Offer Size, y los duales aparte', JSON.stringify(run));
+  if (run.fila === undefined) omitir('RUN: una fila con las dos puntas', 'sin libro');
+  else check(run.fila, 'RUN: la fila muestra las puntas y sus cantidades del libro', JSON.stringify(run));
 
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
   // lo del comunicado (un dual, en las dos de sus patas); el formulario de alta
@@ -6248,7 +6292,7 @@ const omitir = (label, motivo) =>
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd,run',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
         'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-liquidez,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
@@ -6813,7 +6857,7 @@ const omitir = (label, motivo) =>
         const filaT = [...document.querySelectorAll('#cer-table-body tr')].find(tr => tr.querySelector('.c-ticker') && tr.querySelector('.c-ticker').textContent === tk);
         const pxM = document.querySelector(`#calc-fwd-cer td[data-px="${tk}"]`);
         out.fwd.edita = { input: !!inp, bono: CER_BONDS[i].precio === nuevo && CER_BONDS[i].manualOverride === true,
-          tabla: !!filaT && filaT.textContent.includes(fmtARS(nuevo)), matriz: !!pxM && pxM.textContent.trim() === fmtARS(nuevo) };
+          tabla: !!filaT && filaT.textContent.includes(fmtPx(nuevo)) && !/\$/.test(filaT.textContent), matriz: !!pxM && pxM.textContent.trim() === fmtPx(nuevo) };
         // Escape no cambia nada
         const pxM2 = document.querySelector(`#calc-fwd-cer td[data-px="${tk}"]`);
         pxM2.click();
@@ -6848,7 +6892,7 @@ const omitir = (label, motivo) =>
       const iTir = movida.indexOf('TIR real'), iPx = movida.indexOf('Precio $');
       out.orden = { natural: natural.join('|'), movida: movida.join('|'), guardado: calcEstado('cer').orden.join('|'),
         filaTir: fila1 && fila1.children[iTir] ? /%$/.test(fila1.children[iTir].textContent.trim()) : null,
-        filaPx: fila1 && fila1.children[iPx] ? /^\$/.test(fila1.children[iPx].textContent.trim()) : null };
+        filaPx: fila1 && fila1.children[iPx] ? /^\d/.test(fila1.children[iPx].textContent.trim()) : null };
       // Escondida y movida a la vez: se esconde la que corresponde
       calcColsVer('cer', 'Spread', false); await espera(100);
       const thS = thsCER().find(x => calcClaveTh(x) === 'Spread');
@@ -6925,7 +6969,7 @@ const omitir = (label, motivo) =>
     }
     return out;
   });
-  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD · CER' && cvista.irTF
+  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD|RUN · CER' && cvista.irTF
         && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD' && cvista.irGlo,
         'cada calculadora tiene las subsolapas de su sección, marca la abierta y lleva a la otra con un clic', JSON.stringify(cvista));
   check(cvista.fwd && cvista.fwd.filas >= 3 && cvista.fwd.sinElSacado && cvista.fwd.grafico === 'none' && cvista.fwdUsd >= 3
