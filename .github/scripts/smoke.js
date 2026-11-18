@@ -6792,6 +6792,30 @@ const omitir = (label, motivo) =>
       out.cols = { fuera: getComputedStyle(th).display === 'none', guardado: calcEstado('cer').cols.includes('Spread'), boton: !!document.querySelector('#calc-cols-cer .msel-btn') };
       calcColsVer('cer', 'Spread', true); await espera(100);
       out.cols.vuelve = getComputedStyle(th).display !== 'none';
+      // Orden: TIR real antes que el precio, con las filas que se vuelven a armar
+      const thsCER = () => [...document.getElementById('cer-table-body').closest('table').querySelectorAll('thead th')];
+      const cabCER = () => thsCER().map(calcClaveTh);
+      const natural = cabCER();
+      calcColsMoverA('cer', 'TIR real', 'Precio $', true); await espera(100);
+      const movida = cabCER();
+      cerRenderTable(); await espera(100);
+      const fila1 = document.querySelector('#cer-table-body tr');
+      const iTir = movida.indexOf('TIR real'), iPx = movida.indexOf('Precio $');
+      out.orden = { natural: natural.join('|'), movida: movida.join('|'), guardado: calcEstado('cer').orden.join('|'),
+        filaTir: fila1 && fila1.children[iTir] ? /%$/.test(fila1.children[iTir].textContent.trim()) : null,
+        filaPx: fila1 && fila1.children[iPx] ? /^\$/.test(fila1.children[iPx].textContent.trim()) : null };
+      // Escondida y movida a la vez: se esconde la que corresponde
+      calcColsVer('cer', 'Spread', false); await espera(100);
+      const thS = thsCER().find(x => calcClaveTh(x) === 'Spread');
+      out.orden.ocultaBien = getComputedStyle(thS).display === 'none' && thsCER().filter(x => getComputedStyle(x).display === 'none').length === 1;
+      calcColsVer('cer', 'Spread', true);
+      calcColsMover('cer', 'TIR real', 1); await espera(100);
+      out.orden.flecha = cabCER().indexOf('TIR real') === iTir + 1;
+      calcColsOrdenOriginal('cer'); await espera(100);
+      out.orden.vuelve = cabCER().join('|') === natural.join('|');
+      // La variación, en su columna al lado del precio
+      const fv = document.querySelector('#cer-table-body tr');
+      out.orden.var = natural[natural.indexOf('Precio $') + 1] === 'Var%' && !!fv && !/%/.test(fv.children[natural.indexOf('Precio $')].textContent);
       // Tasa fija: los forwards siguen la tasa del gráfico sin tocar la solapa Forwards
       switchTab('lecap'); await espera(1200);
       const fm = fwdMode, cm = chartMode;
@@ -6841,10 +6865,10 @@ const omitir = (label, motivo) =>
     const out = {}, e = escala3([1, 2, 3]);
     out.f = { rojo: escala3Estilo(1, e), amarillo: escala3Estilo(2, e), verde: escala3Estilo(3, e), fuera: escala3Estilo(9, e), nada: escala3Estilo(null, e) };
     switchSection('pesos');
-    for (const [tab, tb, i] of [['lecap', 'table-body', 9], ['cer', 'cer-table-body', 8], ['tamar', 'tamar-table-body', 8], ['dlk', 'dlk-table-body', 7]]) {
+    for (const [tab, tb, i] of [['lecap', 'table-body', 10], ['cer', 'cer-table-body', 9], ['tamar', 'tamar-table-body', 9], ['dlk', 'dlk-table-body', 8]]) {
       switchTab(tab); await espera(1200); out[tab] = col(tb, i);
     }
-    switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1500); out.bon = col('bon-summary-tbody', 7);
+    switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1500); out.bon = col('bon-summary-tbody', 8);
     switchSection('pesos'); switchTab('breakeven');
     return out;
   });
@@ -6860,6 +6884,11 @@ const omitir = (label, motivo) =>
         'el panel de abajo se achica a una tira que queda a la vista y vuelve con un clic', JSON.stringify(cvista.min));
   check(cvista.cols && cvista.cols.fuera && cvista.cols.guardado && cvista.cols.boton && cvista.cols.vuelve,
         'las columnas de la tabla se eligen a mano y se guardan', JSON.stringify(cvista.cols));
+  const ord = cvista.orden || {};
+  check(ord.movida && ord.movida !== ord.natural && ord.movida.indexOf('TIR real') < ord.movida.indexOf('Precio $') && ord.guardado
+        && ord.filaTir === true && ord.filaPx === true && ord.ocultaBien && ord.flecha && ord.vuelve,
+        'el orden de las columnas se cambia, se guarda, vale para las filas que se vuelven a armar y vuelve al original', JSON.stringify(ord));
+  check(ord.var === true, 'la variación del día va en su columna, al lado del precio', JSON.stringify(ord));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));

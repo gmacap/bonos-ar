@@ -190,6 +190,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .calc-min-bar{display:none;align-items:center;justify-content:center;gap:6px;width:100%;height:18px;border:0;border-top:1px solid var(--border);background:var(--surface);color:var(--text3);font-family:var(--mono);font-size:var(--fs9);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;padding:0;}
 .calc-min-bar:hover{color:var(--text);background:var(--surface2);}
 .calc-fwd{flex:1;min-height:0;overflow:auto;padding:.4rem 1rem calc(.6rem + 26px);}
+/* El orden de las columnas: el encabezado que se arrastra y dónde va a caer. */
+.calc-th-arrastre{opacity:.4;}
+thead th.calc-th-izq{box-shadow:inset 3px 0 0 var(--accent);}
+thead th.calc-th-der{box-shadow:inset -3px 0 0 var(--accent);}
+.msel-mover{display:inline-flex;gap:2px;margin-left:auto;padding-left:10px;}
+.msel-mover button{font-family:var(--mono);font-size:var(--fs9);line-height:1;padding:2px 5px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);color:var(--text2);cursor:pointer;}
+.msel-mover button:disabled{opacity:.3;cursor:default;}
+.msel-mover button:not(:disabled):hover,.msel-mover button:focus-visible{color:var(--accent);border-color:var(--accent);}
 /* Calculadoras: un bono fuera del gráfico y de la curva queda atenuado en la
    tabla, con su casilla para volver a incluirlo. */
 .calc-incl{margin:0 6px 0 0;accent-color:var(--accent);cursor:pointer;vertical-align:middle;flex-shrink:0;}
@@ -756,7 +764,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <th onclick="sortBy('vcto')"   id="th-vcto"   class="sorted">Vto ↑</th>
           <th onclick="sortBy('dias')"   id="th-dias">Días</th>
           <th onclick="sortBy('modDuration')" id="th-modDuration">MD</th>
-          <th onclick="sortBy('precio')" id="th-precio" title="Precio y variación del día">Precio $</th>
+          <th onclick="sortBy('precio')" id="th-precio">Precio $</th>
+          <th onclick="sortBy('pct_change')" id="th-pct_change" title="Variación del día">Var%</th>
           <th onclick="sortBy('spread')" id="th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
           <th onclick="sortBy('monto')"  id="th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
           <th onclick="sortBy('tna')"    id="th-tna">TNA</th>
@@ -942,7 +951,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="cerSortBy('vcto')"   id="cer-th-vcto" class="sorted">Vto ↑</th>
             <th onclick="cerSortBy('dias')"   id="cer-th-dias">Días</th>
             <th onclick="cerSortBy('modDuration')" id="cer-th-modDuration">MD</th>
-            <th onclick="cerSortBy('precio')" id="cer-th-precio" title="Precio y variación del día">Precio $</th>
+            <th onclick="cerSortBy('precio')" id="cer-th-precio">Precio $</th>
+            <th onclick="cerSortBy('pct_change')" id="cer-th-pct_change" title="Variación del día">Var%</th>
             <th onclick="cerSortBy('spread')" id="cer-th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
             <th onclick="cerSortBy('monto')"  id="cer-th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th onclick="cerSortBy('tir')"    id="cer-th-tir">TIR real</th>
@@ -1220,7 +1230,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="tamarSortBy('vcto')"   id="tamar-th-vcto" class="sorted">Vto ↑</th>
             <th onclick="tamarSortBy('dias')"   id="tamar-th-dias">Días</th>
             <th onclick="tamarSortBy('modDuration')" id="tamar-th-modDuration">MD</th>
-            <th onclick="tamarSortBy('precio')" id="tamar-th-precio" title="Precio y variación del día">Precio $</th>
+            <th onclick="tamarSortBy('precio')" id="tamar-th-precio">Precio $</th>
+            <th onclick="tamarSortBy('pct_change')" id="tamar-th-pct_change" title="Variación del día">Var%</th>
             <th onclick="tamarSortBy('spread')" id="tamar-th-spread" title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
             <th onclick="tamarSortBy('monto')"  id="tamar-th-monto" title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th onclick="tamarSortBy('margenTNA')" id="tamar-th-margenTNA">Margen TNA</th>
@@ -1389,7 +1400,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th style="text-align:left">Ticker</th>
             <th>Vto</th>
             <th>Días</th>
-            <th title="Precio y variación del día">Precio $</th>
+            <th>Precio $</th>
+            <th title="Variación del día">Var%</th>
             <th title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th>
             <th title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
             <th>Paridad</th>
@@ -4673,7 +4685,7 @@ function tfcRender(){
   }).join('');
   el.innerHTML=`<div class="tfc-cab"><b>Con cupón</b><span>precio sucio por 100 de VN · TNA semestral, como el cupón · en el gráfico por duration; el del vencimiento, fuera del ajuste de la curva</span></div>
     <table><thead><tr>
-      <th style="text-align:left">Ticker</th><th>Tipo</th><th>Vto</th><th>Días</th><th>MD</th><th title="Precio y variación del día">Precio $</th>
+      <th style="text-align:left">Ticker</th><th>Tipo</th><th>Vto</th><th>Días</th><th>MD</th><th>Precio $</th><th title="Variación del día">Var%</th>
       <th title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th><th title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
       <th>TNA</th><th>TIR</th><th>TEM</th><th style="cursor:default;width:40px;"></th>
     </tr></thead><tbody>${filas}</tbody></table>${notas}`;
@@ -4766,13 +4778,6 @@ function libroMontoFmt(m){
 
 // Celda de spread: el número con el color del semáforo del monto, que es lo que
 // dice si ese spread se puede pagar. Sin monto, el número va en gris.
-// El precio y la variación del día en la misma celda: la variación va al lado
-// del precio, adentro de su caja, y no viaja cuando la celda se edita.
-function pxConVar(celda,chg){
-  if(chg==null||!isFinite(chg)||!/<\/div>\s*$/.test(celda))return celda;
-  const s=`<span class="${chg>=0?'c-chg-pos':'c-chg-neg'}" style="margin-left:6px">${chg>=0?'+':''}${chg.toFixed(2)}%</span>`;
-  return celda.replace(/<\/div>\s*$/,s+'</div>');
-}
 function libroSpreadHTML(spread,monto){
   if(spread==null)return '<span style="color:var(--text3)">—</span>';
   const c=colVar(LIQ_COLOR[libroSemaforo(monto)])||'var(--text2)';
@@ -5031,7 +5036,7 @@ async function fetchAllPrices(auto){
 // ── TABLA ─────────────────────────────────────────────────────────────────────
 let sortCol='vcto',sortAsc=true,selectedTicker=null,panelMode='precio',editingCell=null;
 
-const TH_COLS=['ticker','tipo','vcto','dias','modDuration','precio','spread','monto','tna','tir','tem'];
+const TH_COLS=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tna','tir','tem'];
 function sortBy(col){
   sortAsc=sortCol===col?!sortAsc:(col==='vcto'||col==='ticker');
   sortCol=col;renderTable();
@@ -5067,7 +5072,7 @@ function renderTable(){
     th.classList.toggle('sorted',c===sortCol);
   });
   const tbody=document.getElementById('table-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="12" class="no-rows">Sin resultados. Agregá letras con + Nueva y actualizá precios.</td></tr>';set('st-count','0 letras');renderChart();return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="13" class="no-rows">Sin resultados. Agregá letras con + Nueva y actualizá precios.</td></tr>';set('st-count','0 letras');renderChart();return;}
   // cache heat ranges for visible rows
   window._heatRanges={
     tna:heatRange('tna'),
@@ -5173,7 +5178,8 @@ function buildRow(r,cup){
     <td><div class="cv no-edit c-date">${vctoStr}</div></td>
     <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
     <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
-    <td>${pxConVar(cellContent('precio'),r.pct_change)}</td>
+    <td>${cellContent('precio')}</td>
+    <td><div class="cv no-edit" style="justify-content:flex-end">${chgStr}</div></td>
     <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
     <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
     <td>${cellContent('tna')}</td>
@@ -6404,7 +6410,7 @@ async function cerFetchPrices(){
 }
 
 // ── CER TABLE ─────────────────────────────────────────────────────────────────
-const CER_TH=['ticker','tipo','vcto','dias','modDuration','precio','spread','monto','tir','tirProy','tnaProy','temProy'];
+const CER_TH=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tir','tirProy','tnaProy','temProy'];
 function cerSortBy(col){
   cerSortAsc=cerSortCol===col?!cerSortAsc:(col==='vcto'||col==='ticker');
   cerSortCol=col;cerRenderTable();
@@ -6437,7 +6443,7 @@ function cerRenderTable(){
   });
   const tbody=document.getElementById('cer-table-body');
   const hasProy=CER_PROJ.size>0;
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="12" class="no-rows">Agregá bonos CER con + Nueva y actualizá precios.</td></tr>`;set('st-count','0 bonos');return;}
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="13" class="no-rows">Agregá bonos CER con + Nueva y actualizá precios.</td></tr>`;set('st-count','0 bonos');return;}
 
   tbody.innerHTML=rows.map(r=>{
     const v=r.dias<=0;
@@ -6483,7 +6489,8 @@ function cerRenderTable(){
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
-      <td>${pxConVar(cerc('precio'),r.pct_change)}</td>
+      <td>${cerc('precio')}</td>
+      <td><div class="cv no-edit" style="justify-content:flex-end">${chgStr}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td>${cerc('tir')}</td>
@@ -9937,7 +9944,7 @@ const LS_TAMAR='bonosAR_tamar_bonds_v1';
 let TAMAR_BONDS=[];
 let TAMAR_DATA=[];
 let tamarSortCol='vcto', tamarSortAsc=true;
-const TAMAR_TH=['ticker','vcto','dias','modDuration','precio','spread','monto','margenTNA','tir','tna','tem'];
+const TAMAR_TH=['ticker','vcto','dias','modDuration','precio','pct_change','spread','monto','margenTNA','tir','tna','tem'];
 
 // ── TAMAR ENRICH ─────────────────────────────────────────────────────────────
 function tamarEnrich(r){
@@ -10096,7 +10103,7 @@ function tamarRenderTable(){
   });
   const tbody=document.getElementById('tamar-table-body');
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="12" class="no-rows">Agregá bonos TAMAR con + Nueva y actualizá precios.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="13" class="no-rows">Agregá bonos TAMAR con + Nueva y actualizá precios.</td></tr>`;
     document.getElementById('tamar-st-count').textContent='0 bonos';return;
   }
   const E=escala3Cols(TAMAR_DATA.filter(r=>r.dias>0),['margenTNA','tir','tna','tem']);
@@ -10118,7 +10125,8 @@ function tamarRenderTable(){
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${v?'<span style="color:var(--text3)">vencida</span>':r.dias}</div></td>
       <td><div class="cv no-edit c-muted">${isNaN(r.modDuration)?'—':r.modDuration.toFixed(2)}</div></td>
-      <td>${pxConVar(pxCell,r.pct_change)}</td>
+      <td>${pxCell}</td>
+      <td><div class="cv no-edit" style="justify-content:flex-end">${chgStr}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td><div class="cv no-edit c-amber" style="${v?'':escala3Estilo(r.margenTNA,E.margenTNA)}">${f(r.margenTNA,4)}</div></td>
@@ -14760,7 +14768,8 @@ function calcBonosPintar(clave){
 //   · una fila de subsolapas para pasar de una calculadora a otra con un clic;
 //   · el panel de abajo muestra la curva o los forwards entre los bonos del
 //     gráfico (los mismos que elige "Bonos"), y se achica a una tira;
-//   · el desplegable "Columnas" elige qué columnas de la tabla se ven.
+//   · el desplegable "Columnas" elige qué columnas de la tabla se ven y en qué
+//     orden, que también se cambia arrastrando los títulos.
 // Se monta al abrir la solapa, sobre el HTML de cada una, y lo elegido se guarda
 // por calculadora como lo personal. Estado en var: calcBonosPintar lo consulta
 // desde el arranque, antes de que el script llegue hasta acá.
@@ -14797,7 +14806,7 @@ var CALC_FWD_NOTA={
 };
 
 function calcEstadoTodo(){try{const o=JSON.parse(localStorage.getItem(CALC_LS)||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
-function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'?'fwd':'curva',min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[]};}
+function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'?'fwd':'curva',min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[],orden:Array.isArray(e.orden)?e.orden:[]};}
 function calcEstadoGuardar(k,cambio){
   const o=calcEstadoTodo();
   o[k]={...calcEstado(k),...cambio};
@@ -14934,21 +14943,141 @@ function calcFwdRender(k){
 }
 
 // ── Columnas ──
-// Se esconden por su lugar en la fila, con una regla de CSS por calculadora: así
-// valen para las filas que se vuelvan a armar. Se guardan por el texto del
-// encabezado, sin la flecha del orden. La primera columna (el ticker) y las que
-// no tienen título (las de los botones) no se pueden esconder.
+// Qué columnas se ven y en qué orden. Se guardan por el texto del encabezado,
+// sin la flecha del orden. La primera (el ticker) no se esconde ni se mueve, y
+// las que no tienen título (las de los botones) van siempre al final.
+//
+// El orden se cambia arrastrando un título o con las flechas de "Columnas". Las
+// tablas se arman de nuevo con cada precio, en el orden de la app: un observador
+// acomoda cada fila que llega antes de que se pinte. Las ocultas se esconden por
+// su lugar en la fila ya acomodada, con una regla de CSS por calculadora, que
+// vale también para las filas que se vuelvan a armar.
+function calcClaveTh(th){return th.textContent.replace(/[↑↓▲▼]/g,'').replace(/\s+/g,' ').trim();}
+function calcTablas(k){const D=CALC_DEF[k];return D&&D.tabla?[...document.querySelectorAll(D.tabla)]:[];}
+// Las celdas de una fila en el orden en que las arma la app.
+function calcNat(tr){
+  const n=tr._calcNat;
+  if(n&&n.length===tr.children.length&&n.every(c=>c.parentNode===tr))return n;
+  tr._calcNat=[...tr.children];tr._calcSig=null;
+  return tr._calcNat;
+}
+// El orden elegido, como índices sobre el de la app. Una columna que no está en
+// lo guardado (una nueva) va después de la que la precede en la app.
+function calcPerm(k,claves){
+  const nombres=claves.filter((c,i)=>i>0&&c);
+  if(new Set(nombres).size!==nombres.length)return null;
+  const fin=calcEstado(k).orden.filter(c=>nombres.includes(c));
+  nombres.forEach((c,j)=>{
+    if(fin.includes(c))return;
+    const prev=nombres.slice(0,j).reverse().find(p=>fin.includes(p));
+    fin.splice(prev?fin.indexOf(prev)+1:0,0,c);
+  });
+  return[0,...fin.map(c=>claves.indexOf(c)),...claves.map((c,i)=>i).filter(i=>i>0&&!claves[i])];
+}
+function calcOrdenarTabla(k,t){
+  const cab=t.querySelector('thead tr:last-child');
+  if(!cab)return;
+  const nat=calcNat(cab),claves=nat.map(calcClaveTh),perm=calcPerm(k,claves);
+  if(!perm)return;
+  // Las filas de aviso (una celda con colspan) quedan como están. Una fila con
+  // otra cantidad de celdas dejaría la tabla corrida: entonces no se toca nada.
+  const filas=[...t.querySelectorAll('tr')].filter(tr=>tr===cab||tr.children.length>1);
+  if(filas.some(tr=>calcNat(tr).length!==nat.length))return;
+  const sig=perm.join(','),natural=perm.every((x,i)=>x===i);
+  filas.forEach(tr=>{
+    if(tr._calcSig===sig||(natural&&!tr._calcSig))return;
+    const n=calcNat(tr);
+    tr.append(...perm.map(i=>n[i]));
+    tr._calcSig=sig;
+  });
+  nat.forEach((th,i)=>{const d=i>0&&!!claves[i];if(th.draggable!==d)th.draggable=d;});
+}
+function calcOrdenarTablas(k){calcTablas(k).forEach(t=>{try{calcOrdenarTabla(k,t);}catch(e){console.warn('[columnas]',e.message);}});}
+var CALC_OBS={};
+function calcOrdenMontar(k){
+  const ts=calcTablas(k);
+  if(!ts.length)return;
+  const cont=ts[0].parentElement,o=CALC_OBS[k];
+  if(!o||o.cont!==cont){
+    if(o)o.obs.disconnect();
+    const obs=new MutationObserver(()=>{calcOrdenarTablas(k);obs.takeRecords();});
+    obs.observe(cont,{childList:true,subtree:true});
+    CALC_OBS[k]={obs,cont};
+    calcArrastreMontar(k,cont);
+  }
+  calcOrdenarTablas(k);
+}
+// Arrastrar un título: la raya marca de qué lado de la columna de abajo cae.
+function calcArrastreMontar(k,cont){
+  if(cont._calcArrastre)return;
+  cont._calcArrastre=true;
+  let src=null;
+  const thDe=e=>{const th=e.target&&e.target.closest?e.target.closest('thead th'):null;return th&&th.draggable&&cont.contains(th)?th:null;};
+  const limpiar=()=>cont.querySelectorAll('.calc-th-izq,.calc-th-der').forEach(x=>x.classList.remove('calc-th-izq','calc-th-der'));
+  const lado=(e,th)=>{const r=th.getBoundingClientRect();return e.clientX>r.left+r.width/2?'der':'izq';};
+  cont.addEventListener('dragstart',e=>{
+    const th=thDe(e);
+    if(!th)return;
+    src=calcClaveTh(th);
+    th.classList.add('calc-th-arrastre');
+    e.dataTransfer.effectAllowed='move';
+    try{e.dataTransfer.setData('text/plain',src);}catch(_){}
+  });
+  cont.addEventListener('dragover',e=>{
+    const th=thDe(e);
+    if(src==null||!th)return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect='move';
+    const c='calc-th-'+lado(e,th);
+    if(!th.classList.contains(c)){limpiar();th.classList.add(c);}
+  });
+  cont.addEventListener('dragleave',e=>{
+    const th=thDe(e);
+    if(th&&!th.contains(e.relatedTarget))th.classList.remove('calc-th-izq','calc-th-der');
+  });
+  cont.addEventListener('drop',e=>{
+    const th=thDe(e);
+    if(src==null||!th)return;
+    e.preventDefault();
+    const destino=calcClaveTh(th),antes=lado(e,th)==='izq';
+    limpiar();
+    calcColsMoverA(k,src,destino,antes);
+  });
+  cont.addEventListener('dragend',()=>{
+    limpiar();
+    cont.querySelectorAll('.calc-th-arrastre').forEach(x=>x.classList.remove('calc-th-arrastre'));
+    src=null;
+  });
+}
+// El orden que se ve, sin el ticker ni las columnas sin título.
+function calcOrdenVisto(k){return calcColsLista(k).map(c=>c.clave);}
+function calcColsMoverA(k,clave,destino,antes){
+  if(clave===destino)return;
+  const o=calcOrdenVisto(k).filter(c=>c!==clave),j=o.indexOf(destino);
+  if(j<0)return;
+  o.splice(antes?j:j+1,0,clave);
+  calcEstadoGuardar(k,{orden:o});
+  calcColsAplicar(k);
+}
+function calcColsMover(k,clave,d){
+  const o=calcOrdenVisto(k),j=o.indexOf(clave),m=j+d;
+  if(j<0||m<0||m>=o.length)return;
+  [o[j],o[m]]=[o[m],o[j]];
+  calcEstadoGuardar(k,{orden:o});
+  calcColsAplicar(k);
+}
+function calcColsOrdenOriginal(k){calcEstadoGuardar(k,{orden:[]});calcColsAplicar(k);}
 function calcColsLista(k){
-  const D=CALC_DEF[k],t=D&&D.tabla&&document.querySelector(D.tabla);
+  const t=calcTablas(k)[0];
   if(!t)return[];
   const fila=t.querySelector('thead tr:last-child');
   if(!fila)return[];
-  return[...fila.children].map((th,i)=>({i,clave:th.textContent.replace(/[↑↓▲▼]/g,'').replace(/\s+/g,' ').trim()}))
-    .filter(c=>c.i>0&&c.clave);
+  return[...fila.children].map((th,i)=>({i,clave:calcClaveTh(th)})).filter(c=>c.i>0&&c.clave);
 }
 function calcColsAplicar(k){
   const D=CALC_DEF[k];
   if(!D||!D.tabla)return;
+  calcOrdenMontar(k);
   const lista=calcColsLista(k);
   if(!lista.length)return;
   const ocultas=new Set(calcEstado(k).cols);
@@ -14961,10 +15090,13 @@ function calcColsPintar(k,lista,ocultas){
   if(!document.getElementById('calc-cols-'+k))return;
   const vis=lista.filter(c=>!ocultas.has(c.clave)).length;
   const esc=x=>String(x).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  // Las flechas mueven la columna un lugar: arriba en la lista es a la izquierda.
+  const boton=(c,d,dis,tit,txt)=>`<button type="button" title="${tit}"${dis?' disabled':''} onclick="${betrEsc(`event.preventDefault();calcColsMover('${k}','${esc(c.clave)}',${d})`)}">${txt}</button>`;
+  const flechas=(c,j)=>`<span class="msel-mover">${boton(c,-1,j===0,'Más a la izquierda','▲')}${boton(c,1,j===lista.length-1,'Más a la derecha','▼')}</span>`;
   mselPintar('calc-cols-'+k,{titulo:'Columnas',resumen:`${vis}/${lista.length}`,
-    acciones:[{l:'Todas',fn:`calcColsTodas('${k}')`}],
-    grupos:[{l:'Qué se ve en la tabla',items:lista.map(c=>({l:c.clave,v:c.clave,on:!ocultas.has(c.clave),
-      fn:`calcColsVer('${k}','${esc(c.clave)}',this.checked)`}))}]});
+    acciones:[{l:'Todas',fn:`calcColsTodas('${k}')`},{l:'Orden original',fn:`calcColsOrdenOriginal('${k}')`}],
+    grupos:[{l:'Qué se ve y en qué orden · o arrastrá los títulos',items:lista.map((c,j)=>({l:c.clave,v:c.clave,on:!ocultas.has(c.clave),
+      fn:`calcColsVer('${k}','${esc(c.clave)}',this.checked)`,extra:flechas(c,j)}))}]});
 }
 function calcColsVer(k,clave,ver){
   const s=new Set(calcEstado(k).cols);
@@ -15807,7 +15939,7 @@ function dlkRenderTable(){
   const tbody=document.getElementById('dlk-table-body');
   if(!tbody)return;
   if(!DLK_BONDS.length){
-    tbody.innerHTML=`<tr><td colspan="10" class="no-rows">Agregá bonos DLK con + Nueva.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="11" class="no-rows">Agregá bonos DLK con + Nueva.</td></tr>`;
     return;
   }
   const liq=G_LIQ||addHabiles(TODAY,1);
@@ -15830,7 +15962,8 @@ function dlkRenderTable(){
       <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('dlk',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}${altasMarca(r.emision)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
       <td><div class="cv no-edit c-muted">${r.dias}</div></td>
-      <td>${pxConVar(pxCell,r.pct_change)}</td>
+      <td>${pxCell}</td>
+      <td><div class="cv no-edit" style="justify-content:flex-end">${chgStr}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
       <td><div class="cv no-edit c-amber">${parStr}</div></td>
@@ -18245,6 +18378,7 @@ function equivInit(){
 const USD_SUM_COLS=[
   {key:'ticker',     label:'TICKER',  align:'left'},
   {key:'precio',     label:'PRECIO',  align:'right'},
+  {key:'var',        label:'VAR.',    align:'right'},
   {key:'spread',     label:'SPREAD',  align:'right'},
   {key:'monto',      label:'MONTO',   align:'right'},
   {key:'md',         label:'MD',      align:'right'},
@@ -18333,7 +18467,8 @@ function usdSumRowHtml(e,isSel,onClickFn,group,esc){
   const pxColor=ovr?'var(--warn)':usdEsCierre(b)?'var(--info)':'var(--text)';
   return`<tr class="${calcFilaCls(g,b.ticker)}" style="cursor:pointer;border-bottom:1px solid var(--border);${bg}" onclick="${onClickFn}('${b.ticker}')" ${hov}>
     <td style="padding:9px 14px;color:var(--accent);font-weight:600;white-space:nowrap;text-align:left">${calcCasilla(g,b.ticker)}${b.ticker}${altasMarca(b.emision)}</td>
-    <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}${varStr!=='—'?`<span style="margin-left:6px">${varStr}</span>`:''}</td>
+    <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}</td>
+    <td style="padding:9px 12px;text-align:right;color:var(--text3);white-space:nowrap">${varStr}</td>
     <td style="padding:9px 12px;text-align:right">${libroSpreadHTML(libroSpread(b.lastBid,b.lastAsk),b.lastMonto)}</td>
     <td style="padding:9px 12px;text-align:right"${b.lastOps?` title="${b.lastOps} operaciones"`:''}>${libroMontoHTML(b.lastMonto)}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--warn);font-variant-numeric:tabular-nums">${mdStr}</td>
@@ -22034,7 +22169,8 @@ function _curvasArsDraw(){
 //   cfg = {titulo, resumen, acciones:[{l,fn}], vacio,
 //          grupos:[{l, plegable, abierto, items:[{l, on, fn, c, nota, quitar, v, dis, title}]}]}
 // v va como data-v, para encontrar la casilla; dis la deja a la vista pero
-// sin poder elegirla, con el motivo en title.
+// sin poder elegirla, con el motivo en title; extra es HTML propio que va al
+// final del ítem (las flechas del orden de las columnas).
 // fn es el código del onclick/onchange, como en el resto de la app.
 var MSEL_ABIERTO=null;
 function mselPintar(id,cfg){
@@ -22048,7 +22184,7 @@ function mselPintar(id,cfg){
   const dot=c=>c?`<span class="msel-dot" style="background:${c}"></span>`:'';
   const item=it=>it.quitar
     ?`<div class="msel-item" title="Sacar del gráfico" onclick="${e(it.fn)}">${dot(it.c)}<span>${e(it.l)}</span><span class="msel-nota">✕</span></div>`
-    :`<label class="msel-item${it.dis?' msel-dis':''}"${it.v?` data-v="${e(it.v)}"`:''}${it.title?` title="${e(it.title)}"`:''}><input type="checkbox" ${it.on?'checked':''}${it.dis?' disabled':''} onchange="${e(it.fn)}">${dot(it.c)}<span>${e(it.l)}</span>${it.nota?`<span class="msel-nota">${e(it.nota)}</span>`:''}</label>`;
+    :`<label class="msel-item${it.dis?' msel-dis':''}"${it.v?` data-v="${e(it.v)}"`:''}${it.title?` title="${e(it.title)}"`:''}><input type="checkbox" ${it.on?'checked':''}${it.dis?' disabled':''} onchange="${e(it.fn)}">${dot(it.c)}<span>${e(it.l)}</span>${it.nota?`<span class="msel-nota">${e(it.nota)}</span>`:''}${it.extra||''}</label>`;
   el._abiertos=el._abiertos||new Set();
   const grupo=g=>{
     const cuerpo=g.items.map(item).join('');
