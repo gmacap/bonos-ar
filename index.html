@@ -16246,12 +16246,33 @@ function fwdDuration(bond, tipo){
   return dias>0?dias/365:null;
 }
 
-function fwdCellStyle(val, min, max, isDiag){
-  if(isDiag)return'background:var(--surface2);color:var(--accent);font-weight:600;';
-  if(val==null||isNaN(val))return'background:var(--bg);color:var(--text3);';
-  const t=max===min?0.5:(val-min)/(max-min);
-  const r=Math.round(180*(1-t)),g=Math.round(160*t);
-  return`background:rgba(${r},${g},0,0.45);color:var(--text);`;
+// Las matrices de forwards se pintan con la escala de tres colores de una
+// planilla: rojo en el forward más bajo, amarillo en la mediana y verde en el más
+// alto, sobre todos los forwards de la matriz. La diagonal (la tasa de cada bono)
+// va aparte, en azul, y no entra en la escala. Sirve para pesos y para dólares,
+// en la solapa Forwards y en el panel de las calculadoras.
+const FWD_ESCALA=[[248,105,107],[255,235,132],[99,190,123]];
+function fwdEscala(vals){
+  const v=vals.filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);
+  if(!v.length)return null;
+  const n=v.length,med=n%2?v[(n-1)/2]:(v[n/2-1]+v[n/2])/2;
+  return{min:v[0],med,max:v[n-1]};
+}
+function fwdCeldaEstilo(val,esc,isDiag){
+  if(isDiag)return'background:#002060;color:#fff;font-weight:700;';
+  if(val==null||!isFinite(val)||!esc)return'background:var(--bg);color:var(--text3);';
+  const mezcla=(a,b,t)=>a.map((x,i)=>Math.round(x+(b[i]-x)*Math.max(0,Math.min(1,t))));
+  let c;
+  if(val<=esc.med){const d=esc.med-esc.min;c=mezcla(FWD_ESCALA[0],FWD_ESCALA[1],d>0?(val-esc.min)/d:1);}
+  else{const d=esc.max-esc.med;c=mezcla(FWD_ESCALA[1],FWD_ESCALA[2],d>0?(val-esc.med)/d:0);}
+  return`background:rgb(${c.join(',')});color:#1a1a1a;`;
+}
+// Qué tasa muestra la matriz: va en la esquina, arriba de los tickers.
+function fwdMedida(tipo){
+  if(tipo==='cer')return'TIR real';
+  if(tipo==='tamar')return'Margen';
+  if(tipo==='dlk')return'TIR USD';
+  return({tir:'TIR',tna:'TNA',tem:'TEM'})[fwdMode]||'TIR';
 }
 
 function fwdEditPx(td, ticker, tipo){
@@ -16302,19 +16323,19 @@ function fwdBuildTable(bonds, tipo, wrapId){
   for(let i=0;i<rows.length;i++)
     for(let j=i+1;j<rows.length;j++){
       const fi=rows[i],fj=rows[j];
-      if(fi.tasa!=null&&fj.tasa!=null)
+      if(fi.tasa!=null&&fj.tasa!=null&&Math.abs(fj.dur-fi.dur)>1e-6)
         allVals.push((fj.tasa*fj.dur-fi.tasa*fi.dur)/(fj.dur-fi.dur));
     }
-  const diagVals=rows.map(r=>r.tasa).filter(v=>v!=null);
-  const allH=[...allVals,...diagVals];
-  const minV=allH.length?Math.min(...allH):0,maxV=allH.length?Math.max(...allH):0;
+  const esc=fwdEscala(allVals);
 
   const th='padding:5px 8px;font-size:var(--fs10);color:var(--text3);font-weight:400;text-align:center;white-space:nowrap;border-bottom:1px solid var(--border2);';
+  const thB='padding:5px 8px;font-size:var(--fs10);color:var(--text);font-weight:700;text-align:center;white-space:nowrap;border-bottom:1px solid var(--border2);';
   const td='padding:5px 8px;font-family:var(--mono);font-size:var(--fs11);text-align:center;white-space:nowrap;border-bottom:1px solid var(--border);border-right:1px solid var(--border);';
 
   let html=`<table style="border-collapse:collapse;font-size:var(--fs11);"><thead><tr>`;
-  html+=`<th style="${th}text-align:left">Bono</th><th style="${th}text-align:right">Px</th>`;
-  rows.forEach(r=>{html+=`<th style="${th}">${r.bond.ticker}</th>`;});
+  html+=`<th style="${th}text-align:left;color:var(--accent);font-weight:700" title="La tasa de la matriz">${fwdMedida(tipo)}</th><th style="${th}text-align:right">Px</th>`;
+  html+=`<th style="${th}text-align:right" title="Años al vencimiento: con ellos se calcula el forward">Años</th>`;
+  rows.forEach(r=>{html+=`<th style="${thB}">${r.bond.ticker}</th>`;});
   html+=`</tr></thead><tbody>`;
 
   rows.forEach((ri,i)=>{
@@ -16323,9 +16344,10 @@ function fwdBuildTable(bonds, tipo, wrapId){
     html+=`<tr><td style="${td}text-align:left;color:var(--accent);font-weight:500">${ri.bond.ticker}</td>`;
     html+=`<td style="${td}text-align:right;color:var(--text2);cursor:pointer" title="Click para editar precio"
       onclick="fwdEditPx(this,'${ri.bond.ticker}','${tipo}')">${pxDisplay}</td>`;
+    html+=`<td style="${td}text-align:right;color:var(--text3)">${fmtN(ri.dur,2)}</td>`;
     rows.forEach((rj,j)=>{
       if(j<i){html+=`<td style="${td}background:var(--bg);"></td>`;}
-      else if(j===i){const st=fwdCellStyle(ri.tasa,minV,maxV,true);html+=`<td style="${td}${st}">${tasaLabel}</td>`;}
+      else if(j===i){const st=fwdCeldaEstilo(ri.tasa,esc,true);html+=`<td style="${td}${st}">${tasaLabel}</td>`;}
       else{
         if(ri.tasa==null||rj.tasa==null){html+=`<td style="${td}background:var(--bg);color:var(--text3)">—</td>`;}
         else{
@@ -16333,7 +16355,7 @@ function fwdBuildTable(bonds, tipo, wrapId){
           // cuenta divide por cero.
           const fwd=Math.abs(rj.dur-ri.dur)>1e-6?(rj.tasa*rj.dur-ri.tasa*ri.dur)/(rj.dur-ri.dur):NaN;
           if(!isFinite(fwd)){html+=`<td style="${td}background:var(--bg);color:var(--text3)" title="Misma duration: no hay forward entre los dos">—</td>`;}
-          else{const st=fwdCellStyle(fwd,minV,maxV,false);html+=`<td style="${td}${st}">${fmtP2(fwd)}</td>`;}
+          else{const st=fwdCeldaEstilo(fwd,esc,false);html+=`<td style="${td}${st}">${fmtP2(fwd)}</td>`;}
         }
       }
     });
@@ -18424,13 +18446,6 @@ function usdFwdGetDuration(bond,tirPct){
     return bopDuracion(bond,liq,tirPct,flows).mac;
   }catch(e){return null;}
 }
-function usdFwdCellStyle(val,min,max,isDiag){
-  if(isDiag)return'background:var(--surface2);color:var(--accent);font-weight:600;';
-  if(val==null||isNaN(val))return'background:var(--bg);color:var(--text3);';
-  const t=max===min?0.5:(val-min)/(max-min);
-  const r=Math.round(180*(1-t)),g=Math.round(160*t);
-  return`background:rgba(${r},${g},0,0.45);color:var(--text);`;
-}
 function usdFwdEditPx(td,ticker){
   const b=[...BOP_BONDS,...GLO_BONDS,...BON_BONDS].find(x=>x.ticker===ticker);
   const current=(usdFwdPxOverrides[ticker]??b?.lastPrecio)||'';
@@ -18466,14 +18481,13 @@ function usdFwdBuildTable(bonds,wrapId){
       if(fi.tir!=null&&fj.tir!=null&&fj.dur!==fi.dur)
         allVals.push((fj.tir*fj.dur-fi.tir*fi.dur)/(fj.dur-fi.dur));
     }
-  const diagVals=rows.map(r=>r.tir).filter(v=>v!=null);
-  const allH=[...allVals,...diagVals];
-  const minV=allH.length?Math.min(...allH):0,maxV=allH.length?Math.max(...allH):0;
+  const esc=fwdEscala(allVals);
   const th='padding:5px 8px;font-size:var(--fs10);color:var(--text3);font-weight:400;text-align:center;white-space:nowrap;border-bottom:1px solid var(--border2);';
+  const thB='padding:5px 8px;font-size:var(--fs10);color:var(--text);font-weight:700;text-align:center;white-space:nowrap;border-bottom:1px solid var(--border2);';
   const td='padding:5px 8px;font-family:var(--mono);font-size:var(--fs11);text-align:center;white-space:nowrap;border-bottom:1px solid var(--border);border-right:1px solid var(--border);';
   let html=`<table style="border-collapse:collapse;font-size:var(--fs11);"><thead><tr>`;
-  html+=`<th style="${th}text-align:left">Bono</th><th style="${th}text-align:right">Px</th><th style="${th}text-align:right">Dur</th>`;
-  rows.forEach(r=>{html+=`<th style="${th}">${r.bond.ticker}</th>`;});
+  html+=`<th style="${th}text-align:left;color:var(--accent);font-weight:700" title="La tasa de la matriz">TIR</th><th style="${th}text-align:right">Px</th><th style="${th}text-align:right" title="Duration de Macaulay, en años">Duration</th>`;
+  rows.forEach(r=>{html+=`<th style="${thB}">${r.bond.ticker}</th>`;});
   html+=`</tr></thead><tbody>`;
   rows.forEach((ri,i)=>{
     const tirLabel=ri.tir!=null?ri.tir.toFixed(2)+'%':'—';
@@ -18485,10 +18499,10 @@ function usdFwdBuildTable(bonds,wrapId){
     html+=`<td style="${td}text-align:right;color:var(--text3)">${durDisplay}</td>`;
     rows.forEach((rj,j)=>{
       if(j<i){html+=`<td style="${td}background:var(--bg);"></td>`;}
-      else if(j===i){const st=usdFwdCellStyle(ri.tir,minV,maxV,true);html+=`<td style="${td}${st}">${tirLabel}</td>`;}
+      else if(j===i){const st=fwdCeldaEstilo(ri.tir,esc,true);html+=`<td style="${td}${st}">${tirLabel}</td>`;}
       else{
         if(ri.tir==null||rj.tir==null||ri.dur===rj.dur){html+=`<td style="${td}background:var(--bg);color:var(--text3)">—</td>`;}
-        else{const fwd=(rj.tir*rj.dur-ri.tir*ri.dur)/(rj.dur-ri.dur);const st=usdFwdCellStyle(fwd,minV,maxV,false);html+=`<td style="${td}${st}">${fwd.toFixed(2)}%</td>`;}
+        else{const fwd=(rj.tir*rj.dur-ri.tir*ri.dur)/(rj.dur-ri.dur);const st=fwdCeldaEstilo(fwd,esc,false);html+=`<td style="${td}${st}">${fwd.toFixed(2)}%</td>`;}
       }
     });
     html+=`</tr>`;

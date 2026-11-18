@@ -6747,6 +6747,20 @@ const omitir = (label, motivo) =>
   const cvista = await page.evaluate(async () => {
     const espera = ms => new Promise(r => setTimeout(r, ms));
     const out = {}, lsAntes = localStorage.getItem(CALC_LS);
+    // La escala de la matriz: el forward más bajo en rojo, el más alto en verde y
+    // la diagonal en azul. Las tres primeras columnas son ticker, precio y plazo.
+    const escala = id => {
+      const filas = [...document.querySelectorAll('#' + id + ' tbody tr')], celdas = [];
+      let diag = null;
+      filas.forEach((tr, i) => {
+        const tds = [...tr.children];
+        if (i === 0 && tds[3]) diag = getComputedStyle(tds[3]).backgroundColor;
+        tds.slice(4 + i).forEach(td => { const v = parseFloat(td.textContent); if (isFinite(v)) celdas.push({ v, bg: getComputedStyle(td).backgroundColor }); });
+      });
+      if (celdas.length < 2) return null;
+      celdas.sort((a, b) => a.v - b.v);
+      return { diag, min: celdas[0].bg, max: celdas[celdas.length - 1].bg, n: celdas.length };
+    };
     try {
       switchSection('pesos'); switchTab('cer'); await espera(1500);
       const nav = [...document.querySelectorAll('#page-cer .calc-nav button')];
@@ -6756,6 +6770,7 @@ const omitir = (label, motivo) =>
       // Forwards en CER, con los bonos del gráfico
       switchTab('cer'); await espera(1200);
       calcPanelVista('cer', 'fwd'); await espera(300);
+      out.escCER = escala('calc-fwd-cer');
       const cab = () => [...document.querySelectorAll('#calc-fwd-cer thead th')].map(t => t.textContent);
       const antes = cab(), saco = antes[3];
       calcExcluir('cer', saco, true); await espera(400);
@@ -6780,8 +6795,9 @@ const omitir = (label, motivo) =>
       switchTab('lecap'); await espera(1200);
       const fm = fwdMode, cm = chartMode;
       chartMode = 'tem'; calcPanelVista('lecap', 'fwd'); await espera(300);
-      const celda = document.querySelector('#calc-fwd-lecap tbody tr td:nth-child(3)');
-      out.tf = { tem: celda ? celda.textContent : null, fwdMode: fwdMode === fm };
+      const celda = document.querySelector('#calc-fwd-lecap tbody tr td:nth-child(4)');
+      const esquina = document.querySelector('#calc-fwd-lecap thead th');
+      out.tf = { tem: celda ? celda.textContent : null, fwdMode: fwdMode === fm, esquina: esquina ? esquina.textContent : null };
       chartMode = cm; calcPanelVista('lecap', 'curva');
       // Dólares: las subsolapas van en la barra de arriba
       switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1500);
@@ -6789,6 +6805,7 @@ const omitir = (label, motivo) =>
       out.navUsd = navU.map(b => b.textContent).join('|');
       calcPanelVista('usd-bonares', 'fwd'); await espera(400);
       out.fwdUsd = document.querySelectorAll('#calc-fwd-usd-bonares tbody tr').length;
+      out.escUSD = escala('calc-fwd-usd-bonares');
       calcPanelVista('usd-bonares', 'curva');
       navU[1].click(); await espera(800);
       out.irGlo = currentUsdTab === 'usd-globales';
@@ -6802,9 +6819,14 @@ const omitir = (label, motivo) =>
         && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD' && cvista.irGlo,
         'cada calculadora tiene las subsolapas de su sección, marca la abierta y lleva a la otra con un clic', JSON.stringify(cvista));
   check(cvista.fwd && cvista.fwd.filas >= 3 && cvista.fwd.sinElSacado && cvista.fwd.grafico === 'none' && !cvista.fwd.editable && cvista.fwdUsd >= 3
-        && cvista.tf && /%$/.test(cvista.tf.tem || '') && cvista.tf.fwdMode,
+        && cvista.tf && /%$/.test(cvista.tf.tem || '') && cvista.tf.fwdMode && cvista.tf.esquina === 'TEM',
         'abajo se cambia la curva por los forwards entre los mismos bonos del gráfico, en pesos y en dólares, sin tocar la solapa Forwards',
         JSON.stringify({ fwd: cvista.fwd, fwdUsd: cvista.fwdUsd, tf: cvista.tf }));
+  const escOk = e => !e || (e.diag === 'rgb(0, 32, 96)' && e.min === 'rgb(248, 105, 107)' && e.max === 'rgb(99, 190, 123)');
+  if (!cvista.escCER && !cvista.escUSD) omitir('escala de los forwards', 'sin forwards suficientes');
+  else check(escOk(cvista.escCER) && escOk(cvista.escUSD),
+        'los forwards van de rojo (el más bajo) a verde (el más alto) por la mediana en amarillo, con la diagonal en azul, en pesos y en dólares',
+        JSON.stringify({ cer: cvista.escCER, usd: cvista.escUSD }));
   check(cvista.min && cvista.min.alto <= 50 && cvista.min.visible && cvista.min.vuelve > 100,
         'el panel de abajo se achica a una tira que queda a la vista y vuelve con un clic', JSON.stringify(cvista.min));
   check(cvista.cols && cvista.cols.fuera && cvista.cols.guardado && cvista.cols.boton && cvista.cols.vuelve,
