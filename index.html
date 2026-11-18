@@ -253,7 +253,7 @@ tr.run-fuera>td{opacity:.38;}
 .pxc-tabla thead th{cursor:default;padding:5px 12px;}
 .pxc-tabla thead th:hover{color:var(--text3);}
 .pxc-tabla td{height:auto;padding:3px 12px;font-family:var(--mono);font-size:var(--fs12);border-bottom:1px solid var(--border);}
-.pxc-tabla td:first-child{text-align:left;white-space:nowrap;}
+.pxc-tabla td:first-child,.pxc-tabla td:nth-child(2){text-align:left;white-space:nowrap;}
 .pxc-tabla tbody tr[draggable="true"]{cursor:grab;}
 .pxc-tabla tbody tr:hover>td{background:var(--surface);}
 .pxc-asa{color:var(--text3);margin-right:8px;font-size:var(--fs10);letter-spacing:-1px;}
@@ -262,7 +262,8 @@ tr.run-fuera>td{opacity:.38;}
 .pxc-tabla tr:hover .pxc-mov,.pxc-mov:focus-within{opacity:1;}
 .pxc-mov button{font-family:var(--mono);font-size:var(--fs9);line-height:1;padding:1px 4px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);color:var(--text2);cursor:pointer;}
 .pxc-mov button:hover,.pxc-mov button:focus-visible{color:var(--accent);border-color:var(--accent);}
-.pxc-tabla tr.pxc-grupo>td{background:var(--surface2);color:var(--accent);font-size:var(--fs10);letter-spacing:.05em;text-transform:uppercase;padding:4px 12px;}
+.pxc-tabla td.pxc-tipo{text-align:left;color:var(--accent);font-size:var(--fs10);letter-spacing:.03em;white-space:nowrap;cursor:grab;}
+.pxc-tabla tr.pxc-corte>td{border-top:2px solid var(--border2);}
 .pxc-tabla tr.pxc-arriba>td{box-shadow:inset 0 2px 0 var(--accent);}
 .pxc-tabla tr.pxc-abajo>td{box-shadow:inset 0 -2px 0 var(--accent);}
 .pxc-tabla tr.pxc-arrastre>td{opacity:.4;}
@@ -15581,9 +15582,10 @@ function pxcEstado(){
   try{
     const o=JSON.parse(localStorage.getItem('bonosAR_pxcierre_v1')||'{}');
     if(o&&typeof o==='object'&&!Array.isArray(o))
-      return{orden:Array.isArray(o.orden)?o.orden:[],manuales:Array.isArray(o.manuales)?o.manuales.filter(m=>m&&m.ticker):[]};
+      return{orden:Array.isArray(o.orden)?o.orden:[],manuales:Array.isArray(o.manuales)?o.manuales.filter(m=>m&&m.ticker):[],
+        quitados:Array.isArray(o.quitados)?o.quitados:[]};
   }catch(e){}
-  return{orden:[],manuales:[]};
+  return{orden:[],manuales:[],quitados:[]};
 }
 function pxcGuardar(E){try{localStorage.setItem('bonosAR_pxcierre_v1',JSON.stringify(E));}catch(e){}}
 function pxcGrupos(){
@@ -15603,15 +15605,20 @@ function pxcGrupos(){
 // Las filas en el orden elegido. Un bono que no está en lo guardado (uno nuevo)
 // va después del que lo precede en el orden de la mesa.
 function pxcFilas(){
-  const nat=[];
-  pxcGrupos().forEach(([g,bs])=>bs.forEach(b=>nat.push({b,g})));
+  const nat=[],du=dualCombos('TAMAR'),fuera=new Set(pxcEstado().quitados);
+  // El tipo de cada bono: el de su grupo, o el del dual que es.
+  const tipo=(g,t)=>g.startsWith('CER')?(du.get(t)==='cer'?'Dual CER/TAMAR':'CER')
+    :g.startsWith('Fija')?'Fija'
+    :g.startsWith('Dollar')?(du.get(t)==='dlk'?'Dual TAMAR/DLK':'Dollar linked')
+    :g==='Tasa fija'?(du.get(t)==='tf'?'Dual TAMAR/TF':'Tasa fija'):g;
+  pxcGrupos().forEach(([g,bs])=>bs.forEach(b=>{if(!fuera.has(b.ticker))nat.push({b,g,tipo:tipo(g,b.ticker)});}));
   // Los agregados a mano, al final, con el precio que se les encontró.
   const ya=new Set(nat.map(x=>x.b.ticker));
   pxcEstado().manuales.forEach(m=>{
     if(ya.has(m.ticker))return;
     ya.add(m.ticker);
     const r=PXC_MAN[m.ticker]||{},escrito=m.precio>0;
-    nat.push({g:'Agregados a mano',b:{ticker:m.ticker,manual:true,precio:escrito?m.precio:r.precio>0?r.precio:null,
+    nat.push({g:'Agregados a mano',tipo:'A mano',b:{ticker:m.ticker,manual:true,precio:escrito?m.precio:r.precio>0?r.precio:null,
       fuente:escrito?'mano':r.fuente||null,fecha:escrito?null:r.fecha||null}});
   });
   const orden=pxcEstado().orden;
@@ -15636,9 +15643,10 @@ function pxcRender(){
       <button type="button" class="btn" onclick="pxcCopiar()" title="Copia sólo la columna de precios, en este orden: se pega como una columna en una planilla">⧉ Copiar precios</button>
       <button type="button" class="btn" onclick="pxcOrdenOriginal()" title="Vuelve al orden de la mesa">Orden original</button>
       <span class="pxc-agregar"><input type="text" id="pxc-nuevo" class="search-box" placeholder="Ticker" maxlength="12" spellcheck="false" autocomplete="off" aria-label="Ticker del bono a agregar" onkeydown="if(event.key==='Enter'){event.preventDefault();pxcAgregar(this.value);}"><button type="button" class="btn" onclick="pxcAgregar(document.getElementById('pxc-nuevo').value)" title="Suma un bono a la lista, aunque haya vencido">+ Agregar</button></span>
+      <button type="button" class="btn" id="pxc-restaurar" onclick="pxcRestaurar()" title="Vuelve a sumar todos los bonos quitados" hidden>↺ Quitados</button>
       <span class="run-aviso" id="pxc-aviso" role="status" aria-live="polite"></span>
     </div>
-    <div class="run-nota" style="padding:0 16px">El orden se cambia arrastrando una fila, o el título de un grupo para moverlo entero, o con las flechas de cada fila; se guarda. "Copiar precios" copia sólo los precios, en este orden y sin títulos; un bono sin precio deja la celda vacía. Los precios van por cada 1 de valor nominal. En celeste: el cierre anterior porque hoy no operó, o el último que se encontró de un bono agregado; en ámbar, escrito a mano. Un bono que no está en la lista (uno vencido, por ejemplo) se suma con "+ Agregar": se le busca el precio en BYMA, después el último que tenía la app y después el último archivado; si no aparece, clic en su precio para escribirlo.</div>
+    <div class="run-nota" style="padding:0 16px">El orden se cambia arrastrando una fila, o desde el tipo para mover el grupo entero, o con las flechas de cada fila; se guarda. Con ✕ se quita un bono de la lista. "Copiar precios" copia sólo los precios, en este orden y sin títulos; un bono sin precio deja la celda vacía. Los precios van por cada 1 de valor nominal. En celeste: el cierre anterior porque hoy no operó, o el último que se encontró de un bono agregado; en ámbar, escrito a mano. Un bono que no está en la lista (uno vencido, por ejemplo) se suma con "+ Agregar": se le busca el precio en BYMA, después el último que tenía la app y después el último archivado; si no aparece, clic en su precio para escribirlo.</div>
     <div class="pxc-cuerpo"></div>`);
     cuerpo=pg.querySelector('.pxc-cuerpo');
     pxcMontar(cuerpo);
@@ -15646,29 +15654,31 @@ function pxcRender(){
   const F=pxcFilas(),e=betrEsc;
   if(!F.length){cuerpo.innerHTML='<div class="run-nota">Sin bonos cargados.</div>';return;}
   // Un título cada vez que cambia el grupo: arrastrarlo mueve el bloque.
-  const bloques=[];
-  F.forEach(x=>{const u=bloques[bloques.length-1];if(u&&u.g===x.g)u.t.push(x.b.ticker);else bloques.push({g:x.g,t:[x.b.ticker]});});
-  let html='',i=0;
-  bloques.forEach(bl=>{
-    html+=`<tr class="pxc-grupo" draggable="true" data-bloque="${e(bl.t.join(','))}" title="Arrastrá para mover el grupo entero"><td colspan="2"><span class="pxc-asa" aria-hidden="true">⋮⋮</span>${e(bl.g)}</td></tr>`;
-    bl.t.forEach(t=>{
-      const b=F[i++].b,cierre=!b.manual&&b.precioCierre&&!b.manualOverride&&typeof pesosEsCierre==='function'&&pesosEsCierre(b);
-      const fec=b.fecha?String(b.fecha).slice(0,10).split('-').reverse().join('/'):'';
-      const[cls,tit]=b.manual
-        ?(b.fuente==='mano'?['pxc-manual','Escrito a mano · clic para cambiarlo']
-          :b.fuente==='byma'?['','De BYMA · clic para escribirlo a mano']
-          :b.fuente==='app'?['pxc-cierre','El último que tenía la app · clic para escribirlo a mano']
-          :b.fuente==='archivo'?['pxc-cierre',`El último archivado, del ${fec} · clic para escribirlo a mano`]
-          :['','Sin precio en BYMA ni en el archivo · clic para escribirlo a mano'])
-        :b.manualOverride?['pxc-manual','Precio escrito a mano en la calculadora']
-        :cierre&&typeof pesosCierreTexto==='function'?['pxc-cierre',pesosCierreTexto(b)]:['',''];
-      html+=`<tr draggable="true" data-t="${e(t)}"${b.manual?' data-manual="1"':''}><td><span class="pxc-asa" aria-hidden="true">⋮⋮</span><span class="pxc-tk">${e(t)}</span>`
-        +`<span class="pxc-mov"><button type="button" data-d="-1" aria-label="Subir ${e(t)}" title="Subir">▲</button><button type="button" data-d="1" aria-label="Bajar ${e(t)}" title="Bajar">▼</button>`
-        +(b.manual?`<button type="button" class="pxc-quitar" aria-label="Quitar ${e(t)}" title="Quitar de la lista">✕</button>`:'')+`</span></td>`
-        +`<td class="${cls}${b.manual?' pxc-px-man':''}"${tit?` title="${e(tit)}"`:''}>${pxcPx(b.precio)||'<span style="color:var(--text3)">—</span>'}</td></tr>`;
-    });
+  // El tipo va en su columna. Donde cambia el grupo, una raya más marcada;
+  // arrastrar desde el tipo mueve el grupo entero.
+  let html='';
+  F.forEach((x,i)=>{
+    const b=x.b,t=b.ticker,corte=i>0&&F[i-1].g!==x.g;
+    const cierre=!b.manual&&b.precioCierre&&!b.manualOverride&&typeof pesosEsCierre==='function'&&pesosEsCierre(b);
+    const fec=b.fecha?String(b.fecha).slice(0,10).split('-').reverse().join('/'):'';
+    const[cls,tit]=b.manual
+      ?(b.fuente==='mano'?['pxc-manual','Escrito a mano · clic para cambiarlo']
+        :b.fuente==='byma'?['','De BYMA · clic para escribirlo a mano']
+        :b.fuente==='app'?['pxc-cierre','El último que tenía la app · clic para escribirlo a mano']
+        :b.fuente==='archivo'?['pxc-cierre',`El último archivado, del ${fec} · clic para escribirlo a mano`]
+        :['','Sin precio en BYMA ni en el archivo · clic para escribirlo a mano'])
+      :b.manualOverride?['pxc-manual','Precio escrito a mano en la calculadora']
+      :cierre&&typeof pesosCierreTexto==='function'?['pxc-cierre',pesosCierreTexto(b)]:['',''];
+    html+=`<tr draggable="true" data-t="${e(t)}" data-g="${e(x.g)}"${b.manual?' data-manual="1"':''}${corte?' class="pxc-corte"':''}>`
+      +`<td class="pxc-tipo" title="${e(x.g)} · arrastrá desde acá para mover el grupo entero">${e(x.tipo)}</td>`
+      +`<td><span class="pxc-asa" aria-hidden="true">⋮⋮</span><span class="pxc-tk">${e(t)}</span>`
+      +`<span class="pxc-mov"><button type="button" data-d="-1" aria-label="Subir ${e(t)}" title="Subir">▲</button><button type="button" data-d="1" aria-label="Bajar ${e(t)}" title="Bajar">▼</button>`
+      +`<button type="button" class="pxc-quitar" aria-label="Quitar ${e(t)}" title="Quitar de la lista">✕</button></span></td>`
+      +`<td class="${cls}${b.manual?' pxc-px-man':''}"${tit?` title="${e(tit)}"`:''}>${pxcPx(b.precio)||'<span style="color:var(--text3)">—</span>'}</td></tr>`;
   });
-  cuerpo.innerHTML=`<table class="pxc-tabla"><thead><tr><th style="text-align:left">Ticker</th><th title="Por cada 1 de valor nominal">Precio</th></tr></thead><tbody>${html}</tbody></table>`;
+  cuerpo.innerHTML=`<table class="pxc-tabla"><thead><tr><th style="text-align:left">Tipo</th><th style="text-align:left">Ticker</th><th title="Por cada 1 de valor nominal">Precio</th></tr></thead><tbody>${html}</tbody></table>`;
+  const qn=pxcEstado().quitados.filter(t=>pxcGrupos().some(g=>g[1].some(b=>b.ticker===t))).length,rq=document.getElementById('pxc-restaurar');
+  if(rq){rq.hidden=!qn;rq.textContent=`↺ Quitados (${qn})`;}
 }
 function pxcMontar(cuerpo){
   // Las flechas mueven un lugar; el foco queda en la misma flecha.
@@ -15685,16 +15695,25 @@ function pxcMontar(cuerpo){
     const b2=f&&f.querySelector(`.pxc-mov button[data-d="${d}"]`);
     if(b2)b2.focus();
   });
-  let src=null;
+  let src=null,desdeTipo=false;
+  cuerpo.addEventListener('mousedown',ev=>{desdeTipo=!!(ev.target.closest&&ev.target.closest('td.pxc-tipo'));});
   const fila=ev=>{const tr=ev.target.closest&&ev.target.closest('tbody tr[draggable]');return tr&&cuerpo.contains(tr)?tr:null;};
+  // El bloque de un grupo: las filas seguidas del mismo grupo.
+  const bloque=tr=>{
+    const filas=[...cuerpo.querySelectorAll('tbody tr[data-t]')],i=filas.indexOf(tr),g=tr.dataset.g;
+    let a=i,z=i;
+    while(a>0&&filas[a-1].dataset.g===g)a--;
+    while(z<filas.length-1&&filas[z+1].dataset.g===g)z++;
+    return filas.slice(a,z+1).map(f=>f.dataset.t);
+  };
   const limpiar=()=>cuerpo.querySelectorAll('.pxc-arriba,.pxc-abajo').forEach(x=>x.classList.remove('pxc-arriba','pxc-abajo'));
   const lado=(ev,tr)=>{const r=tr.getBoundingClientRect();return ev.clientY>r.top+r.height/2?'abajo':'arriba';};
   cuerpo.addEventListener('dragstart',ev=>{
     const tr=fila(ev);
     if(!tr)return;
-    src=tr.dataset.bloque?tr.dataset.bloque.split(','):[tr.dataset.t];
+    src=desdeTipo?bloque(tr):[tr.dataset.t];
     pxcRender._arrastrando=true;
-    tr.classList.add('pxc-arrastre');
+    cuerpo.querySelectorAll('tbody tr[data-t]').forEach(f=>{if(src.includes(f.dataset.t))f.classList.add('pxc-arrastre');});
     ev.dataTransfer.effectAllowed='move';
     try{ev.dataTransfer.setData('text/plain',src.join(','));}catch(_){}
   });
@@ -15702,23 +15721,21 @@ function pxcMontar(cuerpo){
     const tr=fila(ev);
     if(!src||!tr)return;
     ev.preventDefault();ev.dataTransfer.dropEffect='move';
-    const c='pxc-'+(tr.dataset.bloque?'arriba':lado(ev,tr));
+    const c='pxc-'+lado(ev,tr);
     if(!tr.classList.contains(c)){limpiar();tr.classList.add(c);}
   });
   cuerpo.addEventListener('drop',ev=>{
     const tr=fila(ev);
     if(!src||!tr)return;
     ev.preventDefault();
-    // Sobre el título de un grupo, va antes de su primer bono.
-    const destino=tr.dataset.bloque?tr.dataset.bloque.split(',')[0]:tr.dataset.t;
-    const antes=tr.dataset.bloque?true:lado(ev,tr)==='arriba';
+    const destino=tr.dataset.t,antes=lado(ev,tr)==='arriba';
     limpiar();
     const s2=src;src=null;pxcRender._arrastrando=false;
     pxcMoverA(s2,destino,antes);
   });
   cuerpo.addEventListener('dragend',()=>{
     limpiar();cuerpo.querySelectorAll('.pxc-arrastre').forEach(x=>x.classList.remove('pxc-arrastre'));
-    src=null;pxcRender._arrastrando=false;
+    src=null;desdeTipo=false;pxcRender._arrastrando=false;
   });
 }
 function pxcOrden(){return pxcFilas().map(x=>x.b.ticker);}
@@ -15770,6 +15787,13 @@ function pxcAgregar(texto){
   if(!TICKER_RX.test(t)){pxcAviso(`"${t}" no es un ticker válido: letras, números, punto, guion o guion bajo, hasta 12.`);return;}
   if(pxcOrden().includes(t)){pxcAviso(`${t} ya está en la lista.`);return;}
   const E=pxcEstado();
+  // Uno de la lista que se había quitado vuelve a su lugar.
+  if(E.quitados.includes(t)&&pxcGrupos().some(g=>g[1].some(b=>b.ticker===t))){
+    E.quitados=E.quitados.filter(x=>x!==t);pxcGuardar(E);
+    if(inp)inp.value='';
+    pxcRender();pxcAviso(`${t} vuelve a la lista.`);
+    return;
+  }
   E.manuales.push({ticker:t});
   pxcGuardar(E);
   if(inp)inp.value='';
@@ -15777,12 +15801,19 @@ function pxcAgregar(texto){
   pxcAviso(`${t} agregado al final: buscando su precio…`);
   pxcResolver().then(()=>{const r=PXC_MAN[t];pxcAviso(r?`${t}: precio ${r.fuente==='byma'?'de BYMA':r.fuente==='app'?'que tenía la app':'archivado del '+String(r.fecha).slice(0,10).split('-').reverse().join('/')}.`:`${t}: sin precio en BYMA ni en el archivo. Clic en su precio para escribirlo.`);});
 }
+// Quitar: un agregado a mano se borra; uno de la lista queda guardado como
+// quitado y vuelve con "+ Agregar" o con "↺ Quitados".
 function pxcQuitar(t){
-  const E=pxcEstado();
-  E.manuales=E.manuales.filter(m=>m.ticker!==t);
-  E.orden=E.orden.filter(x=>x!==t);
-  pxcGuardar(E);delete PXC_MAN[t];
-  pxcRender();pxcAviso(`${t} quitado.`);
+  const E=pxcEstado(),manual=E.manuales.some(m=>m.ticker===t);
+  if(manual){E.manuales=E.manuales.filter(m=>m.ticker!==t);E.orden=E.orden.filter(x=>x!==t);delete PXC_MAN[t];}
+  else if(!E.quitados.includes(t))E.quitados.push(t);
+  pxcGuardar(E);
+  pxcRender();pxcAviso(manual?`${t} quitado.`:`${t} quitado: vuelve con "+ Agregar" o con "↺ Quitados".`);
+}
+function pxcRestaurar(){
+  const E=pxcEstado(),n=E.quitados.length;
+  E.quitados=[];pxcGuardar(E);
+  pxcRender();pxcAviso(n?`Vuelven ${n===1?'el bono quitado':`los ${n} bonos quitados`}.`:'No hay bonos quitados.');
 }
 // El precio escrito, por cada 1 de valor nominal como se ve; vacío vuelve al
 // que se encuentre.

@@ -4908,6 +4908,11 @@ const omitir = (label, motivo) =>
       out.cab = [...document.querySelectorAll('#page-pxcierre thead th')].map(x => x.textContent).join('|');
       const filas = () => [...document.querySelectorAll('#page-pxcierre tbody tr[data-t]')].map(r => r.dataset.t);
       out.filas = filas().length === G.reduce((s, g) => s + g[1].length, 0);
+      // El tipo en su columna, sin filas de grupo
+      const tipoDe = tk => { const r = [...document.querySelectorAll('#page-pxcierre tbody tr[data-t]')].find(x => x.dataset.t === tk); return r ? r.children[0].textContent : null; };
+      const dCer = [...du.entries()].find(([tk, k]) => k === 'cer' && de('CER y duales CER/TAMAR').includes(tk));
+      out.tipos = !document.querySelector('#page-pxcierre tr.pxc-grupo') && (!dCer || tipoDe(dCer[0]) === 'Dual CER/TAMAR')
+        && G.every(g => g[0] !== 'TAMAR' || g[1].every(b => tipoDe(b.ticker) === 'TAMAR'));
       const txt = pxcTexto().split('\n');
       out.copia = txt.length === filas().length && pxcFilas().every((x, i) => txt[i] === pxcPx(x.b.precio)) && !/[A-Z]/.test(pxcTexto())
         && (pxcHtml().match(/<tr>/g) || []).length === filas().length;
@@ -4929,19 +4934,29 @@ const omitir = (label, motivo) =>
       out.mano = { alFinal: fm[fm.length - 1] === 'ZZ99X', repetido: (pxcAgregar(fm[0]), pxcEstado().manuales.length === 1) };
       pxcPrecioManual('ZZ99X', 1.2345); await espera(50);
       const celdaM = [...document.querySelectorAll('#page-pxcierre tbody tr[data-t]')].find(r => r.dataset.t === 'ZZ99X');
-      out.mano.precio = !!celdaM && celdaM.children[1].textContent.trim() === '1,2345' && celdaM.children[1].classList.contains('pxc-manual');
+      out.mano.precio = !!celdaM && celdaM.children[2].textContent.trim() === '1,2345' && celdaM.children[2].classList.contains('pxc-manual') && celdaM.children[0].textContent === 'A mano';
       out.mano.copia = pxcTexto().split('\n').pop() === '1,2345';
       pxcMover('ZZ99X', -1); await espera(50);
       out.mano.mueve = filas().indexOf('ZZ99X') === fm.length - 2;
       pxcQuitar('ZZ99X'); await espera(50);
       out.mano.quita = !filas().includes('ZZ99X') && !pxcEstado().manuales.length;
+      // Quitar uno de la lista: no se ve ni se copia; vuelve con Agregar o con Quitados
+      const q0 = filas()[2], n0 = filas().length;
+      pxcQuitar(q0); await espera(50);
+      out.quitar = { fuera: !filas().includes(q0) && filas().length === n0 - 1 && pxcTexto().split('\n').length === n0 - 1,
+        boton: !document.getElementById('pxc-restaurar').hidden };
+      pxcAgregar(q0); await espera(50);
+      out.quitar.vuelve = filas()[2] === q0 && !pxcEstado().quitados.length;
+      pxcQuitar(q0); pxcQuitar(filas()[0]); await espera(50);
+      pxcRestaurar(); await espera(50);
+      out.quitar.restaura = filas().length === n0 && document.getElementById('pxc-restaurar').hidden;
       // Uno de las calculadoras que ya venció: toma el último precio que tenía la app
       const venc = [...LECAPS, ...CER_BONDS].find(b => b.vcto && b.vcto < hoyAR() && b.precio > 0);
       if (venc) {
         pxcAgregar(venc.ticker); await espera(50);
         await pxcResolver();
         const fv = [...document.querySelectorAll('#page-pxcierre tbody tr[data-t]')].find(r => r.dataset.t === venc.ticker);
-        out.vencido = { t: venc.ticker, precio: !!fv && fv.children[1].textContent.trim() === pxcPx(venc.precio) };
+        out.vencido = { t: venc.ticker, precio: !!fv && fv.children[2].textContent.trim() === pxcPx(venc.precio) };
         pxcQuitar(venc.ticker);
       }
       switchTab('breakeven');
@@ -4951,8 +4966,8 @@ const omitir = (label, motivo) =>
     return out;
   });
   check(/^(CER y duales CER\/TAMAR)?\|?(Fija \(TY30P\))?\|?(Dollar linked y duales TAMAR\/DLK)?\|?(Tasa fija)?\|?(TAMAR)?$/.test(pxc.grupos) && pxc.grupos.length > 0
-        && pxc.duales && pxc.sinRepetir && pxc.cab === 'Ticker|Precio' && pxc.filas && pxc.nav,
-        'Px Cierre: todos los bonos en pesos con el orden de la mesa, los duales con su otra pata, Ticker y Precio', JSON.stringify(pxc));
+        && pxc.duales && pxc.sinRepetir && pxc.cab === 'Tipo|Ticker|Precio' && pxc.filas && pxc.nav && pxc.tipos,
+        'Px Cierre: todos los bonos en pesos con el orden de la mesa, los duales con su otra pata, y Tipo, Ticker y Precio', JSON.stringify(pxc));
   check(pxc.copia, 'Px Cierre: copiar precios copia sólo los precios, uno por fila, en el orden de la tabla', JSON.stringify(pxc));
   check(pxc.flecha && pxc.grupo && pxc.vuelve, 'Px Cierre: el orden se cambia con las flechas o moviendo un grupo entero, se guarda y vuelve al original', JSON.stringify(pxc));
   check(pxc.vn === '1,29059|1,3096|496,45|1.557,40|', 'Px Cierre: los precios van por cada 1 de valor nominal', pxc.vn);
@@ -4961,6 +4976,8 @@ const omitir = (label, motivo) =>
         'Px Cierre: un bono se agrega a mano, al final, con su precio escrito; se copia, se mueve y se quita', JSON.stringify(pm));
   if (!pxc.vencido) omitir('Px Cierre: un bono vencido agregado a mano', 'ningún vencido con precio en las calculadoras');
   else check(pxc.vencido.precio, 'Px Cierre: un bono vencido agregado a mano toma el último precio que tenía la app', JSON.stringify(pxc.vencido));
+  const pq = pxc.quitar || {};
+  check(pq.fuera && pq.boton && pq.vuelve && pq.restaura, 'Px Cierre: cualquier bono se quita de la lista y vuelve con Agregar o con Quitados', JSON.stringify(pq));
 
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
   // lo del comunicado (un dual, en las dos de sus patas); el formulario de alta
