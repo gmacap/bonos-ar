@@ -6776,8 +6776,30 @@ const omitir = (label, motivo) =>
       const antes = cab(), saco = antes[3];
       calcExcluir('cer', saco, true); await espera(400);
       out.fwd = { filas: document.querySelectorAll('#calc-fwd-cer tbody tr').length, sinElSacado: !cab().includes(saco),
-        grafico: getComputedStyle(calcPanelGrafico(document.getElementById('cer-chart-area'))).display, editable: !!document.querySelector('#calc-fwd-cer td[onclick]') };
-      calcExcluir('cer', saco, false);
+        grafico: getComputedStyle(calcPanelGrafico(document.getElementById('cer-chart-area'))).display };
+      calcExcluir('cer', saco, false); await espera(300);
+      // El precio se edita desde la matriz y es el de la tabla
+      const celdaPx = document.querySelector('#calc-fwd-cer td[data-px]');
+      if (celdaPx) {
+        const tk = celdaPx.dataset.px, i = CER_BONDS.findIndex(b => b.ticker === tk), orig = CER_BONDS[i];
+        celdaPx.click();
+        const inp = celdaPx.querySelector('input.calc-fwd-px');
+        const nuevo = +(orig.precio * 1.01).toFixed(2);
+        if (inp) { inp.value = String(nuevo); inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); }
+        await espera(300);
+        const filaT = [...document.querySelectorAll('#cer-table-body tr')].find(tr => tr.querySelector('.c-ticker') && tr.querySelector('.c-ticker').textContent === tk);
+        const pxM = document.querySelector(`#calc-fwd-cer td[data-px="${tk}"]`);
+        out.fwd.edita = { input: !!inp, bono: CER_BONDS[i].precio === nuevo && CER_BONDS[i].manualOverride === true,
+          tabla: !!filaT && filaT.textContent.includes(fmtARS(nuevo)), matriz: !!pxM && pxM.textContent.trim() === fmtARS(nuevo) };
+        // Escape no cambia nada
+        const pxM2 = document.querySelector(`#calc-fwd-cer td[data-px="${tk}"]`);
+        pxM2.click();
+        const inp2 = pxM2.querySelector('input.calc-fwd-px');
+        if (inp2) { inp2.value = '1'; inp2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); }
+        await espera(200);
+        out.fwd.edita.escape = CER_BONDS[i].precio === nuevo;
+        CER_BONDS[i] = orig; savePortfolio(); CER_DATA = CER_BONDS.map(cerEnrich); cerRenderTable(); cerRenderTabChart();
+      }
       calcPanelVista('cer', 'curva'); await espera(200);
       // Achicar: la tira queda arriba de la barra de estado y vuelve con un clic
       calcPanelMin('cer', true); await espera(300);
@@ -6830,6 +6852,24 @@ const omitir = (label, motivo) =>
       out.navUsd = navU.map(b => b.textContent).join('|');
       calcPanelVista('usd-bonares', 'fwd'); await espera(400);
       out.fwdUsd = document.querySelectorAll('#calc-fwd-usd-bonares tbody tr').length;
+      // Dólares: el precio de la matriz es el de la tabla, aunque la solapa Forwards tenga uno a mano
+      const pxU = document.querySelector('#calc-fwd-usd-bonares td[data-px]');
+      if (pxU) {
+        const tk = pxU.dataset.px, b = BON_BONDS.find(x => x.ticker === tk);
+        const guard = { lastPrecio: b.lastPrecio, lastPrecioDisplay: b.lastPrecioDisplay, manualOverride: b.manualOverride, lastPrecioCierre: b.lastPrecioCierre, lastPrecioMEP: b.lastPrecioMEP };
+        const ovAntes = usdFwdPxOverrides; usdFwdPxOverrides = { [tk]: 1 };
+        calcFwdRender('usd-bonares');
+        const ignora = parseFloat(document.querySelector(`#calc-fwd-usd-bonares td[data-px="${tk}"]`).textContent) !== 1;
+        usdFwdPxOverrides = ovAntes;
+        const nuevo = +(b.lastPrecio * 1.01).toFixed(2);
+        document.querySelector(`#calc-fwd-usd-bonares td[data-px="${tk}"]`).click();
+        const inp = document.querySelector('#calc-fwd-usd-bonares input.calc-fwd-px');
+        if (inp) { inp.value = String(nuevo); inp.dispatchEvent(new FocusEvent('blur')); }
+        await espera(300);
+        out.fwdUsdEdita = { ignora, input: !!inp, bono: b.lastPrecio === nuevo && b.manualOverride === true,
+          matriz: (document.querySelector(`#calc-fwd-usd-bonares td[data-px="${tk}"]`) || {}).textContent === nuevo.toFixed(2) };
+        Object.assign(b, guard); bonSave(); bonRenderSummaryRows();
+      }
       out.escUSD = escala('calc-fwd-usd-bonares');
       calcPanelVista('usd-bonares', 'curva');
       navU[1].click(); await espera(800);
@@ -6843,7 +6883,7 @@ const omitir = (label, motivo) =>
   check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD · CER' && cvista.irTF
         && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD' && cvista.irGlo,
         'cada calculadora tiene las subsolapas de su sección, marca la abierta y lleva a la otra con un clic', JSON.stringify(cvista));
-  check(cvista.fwd && cvista.fwd.filas >= 3 && cvista.fwd.sinElSacado && cvista.fwd.grafico === 'none' && !cvista.fwd.editable && cvista.fwdUsd >= 3
+  check(cvista.fwd && cvista.fwd.filas >= 3 && cvista.fwd.sinElSacado && cvista.fwd.grafico === 'none' && cvista.fwdUsd >= 3
         && cvista.tf && /%$/.test(cvista.tf.tem || '') && cvista.tf.fwdMode && cvista.tf.esquina === 'TEM',
         'abajo se cambia la curva por los forwards entre los mismos bonos del gráfico, en pesos y en dólares, sin tocar la solapa Forwards',
         JSON.stringify({ fwd: cvista.fwd, fwdUsd: cvista.fwdUsd, tf: cvista.tf }));
@@ -6880,6 +6920,11 @@ const omitir = (label, motivo) =>
         'en las calculadoras de pesos y de dólares la TIR más baja va en rojo y la más alta en verde',
         JSON.stringify(Object.fromEntries(['lecap', 'cer', 'tamar', 'dlk', 'bon'].map(k => [k, esc3[k]]))));
 
+  const ed = (cvista.fwd || {}).edita, edU = cvista.fwdUsdEdita;
+  if (!ed || !edU) omitir('editar el precio desde los forwards', 'sin precios en la matriz');
+  else check(ed.input && ed.bono && ed.tabla && ed.matriz && ed.escape && edU.ignora && edU.input && edU.bono && edU.matriz,
+        'el precio se edita desde la matriz de forwards, en pesos y en dólares, y es el mismo de la tabla; Escape no cambia nada',
+        JSON.stringify({ pesos: ed, dolares: edU }));
   check(cvista.min && cvista.min.alto <= 50 && cvista.min.visible && cvista.min.vuelve > 100,
         'el panel de abajo se achica a una tira que queda a la vista y vuelve con un clic', JSON.stringify(cvista.min));
   check(cvista.cols && cvista.cols.fuera && cvista.cols.guardado && cvista.cols.boton && cvista.cols.vuelve,

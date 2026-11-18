@@ -190,6 +190,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .calc-min-bar{display:none;align-items:center;justify-content:center;gap:6px;width:100%;height:18px;border:0;border-top:1px solid var(--border);background:var(--surface);color:var(--text3);font-family:var(--mono);font-size:var(--fs9);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;padding:0;}
 .calc-min-bar:hover{color:var(--text);background:var(--surface2);}
 .calc-fwd{flex:1;min-height:0;overflow:auto;padding:.4rem 1rem calc(.6rem + 26px);}
+/* El precio que se escribe en los forwards de las calculadoras. */
+.calc-fwd-px{width:90px;background:var(--surface2);color:var(--text);border:1px solid var(--accent);border-radius:3px;padding:2px 4px;font-family:var(--mono);font-size:var(--fs11);text-align:right;}
 /* El orden de las columnas: el encabezado que se arrastra y dónde va a caer. */
 .calc-th-arrastre{opacity:.4;}
 thead th.calc-th-izq{box-shadow:inset 3px 0 0 var(--accent);}
@@ -5226,6 +5228,12 @@ function commitCell(){
   else if(col==='tir')     precio=tirToPrice(val,vf,dias);
   else { const tir=temToTIR(val); precio=tirToPrice(tir,vf,dias); }
 
+  tfFijarPrecio(ticker,precio);
+}
+// Un precio escrito a mano, desde la tabla o desde los forwards de abajo.
+function tfFijarPrecio(ticker,precio){
+  const idx=LECAPS.findIndex(r=>r.ticker===ticker);
+  if(idx<0||!(precio>0)){renderTable();return;}
   LECAPS[idx]={...LECAPS[idx],precio,manualOverride:true,precioCierre:null};savePortfolio();
   DATA=LECAPS.map(enrich);
   renderTable();
@@ -6526,6 +6534,12 @@ function cerCommitCell(){
     const tir=col==='tir'?val:col==='tem'?cerTemToTir(val):cerTnaToTir(val);
     precio=cerPrecioFromTir(tir,r,factor);
   } else { cerRenderTable(); return; }
+  cerFijarPrecio(ticker,precio);
+}
+// Un precio escrito a mano, desde la tabla o desde los forwards de abajo.
+function cerFijarPrecio(ticker,precio){
+  const idx=CER_BONDS.findIndex(r=>r.ticker===ticker);
+  if(idx<0||!(precio>0)){cerRenderTable();return;}
   CER_BONDS[idx]={...CER_BONDS[idx],precio,manualOverride:true,precioCierre:null};savePortfolio();
   CER_DATA=CER_BONDS.map(cerEnrich);
   cerRenderTable();
@@ -10168,8 +10182,12 @@ function tamarCommitCell(){
   const {ticker}=tamarEditingCell;
   tamarEditingCell=null;
   if(isNaN(val)||val<=0){tamarRenderTable();return;}
+  tamarFijarPrecio(ticker,val);
+}
+// Un precio escrito a mano, desde la tabla o desde los forwards de abajo.
+function tamarFijarPrecio(ticker,val){
   const idx=TAMAR_BONDS.findIndex(r=>r.ticker===ticker);
-  if(idx<0){tamarRenderTable();return;}
+  if(idx<0||!(val>0)){tamarRenderTable();return;}
   TAMAR_BONDS[idx]={...TAMAR_BONDS[idx],precio:val,manualOverride:true,precioCierre:null};
   tamarSaveBonds();
   TAMAR_DATA=TAMAR_BONDS.map(tamarEnrich);
@@ -14885,7 +14903,7 @@ function calcPanelMontar(k){
   if(D.fwd){
     const caja=document.createElement('div');
     caja.className='calc-fwd';caja.style.display='none';
-    caja.innerHTML=`<div style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin-bottom:6px">${CALC_FWD_NOTA[D.fwd]}: fila, desde el vencimiento de ese bono; columna, hasta el de ese otro. Los bonos son los del gráfico (elegilos en "Bonos").</div><div id="calc-fwd-${k}"></div>`;
+    caja.innerHTML=`<div style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin-bottom:6px">${CALC_FWD_NOTA[D.fwd]}: fila, desde el vencimiento de ese bono; columna, hasta el de ese otro. Los bonos son los del gráfico (elegilos en "Bonos"). El precio se cambia con un clic en Px, y es el mismo de la tabla.</div><div id="calc-fwd-${k}"></div>`;
     area.appendChild(caja);
   }
   const min=document.createElement('button');
@@ -14922,16 +14940,22 @@ function calcPanelMin(k,min){calcEstadoGuardar(k,{min:!!min});calcPanelAplicar(k
 
 // Los forwards entre los bonos del gráfico: los que no se sacaron con "Bonos",
 // sin los que van fuera del ajuste (duales, el BONTE al vencimiento), vigentes y
-// con precio. El precio se edita en la tabla de arriba, no acá.
+// con precio. El precio se edita con un clic en la columna Px y es el mismo de
+// la tabla de arriba: cambia la tabla, el gráfico y la matriz. Mientras se
+// escribe, la matriz no se vuelve a armar (llegan precios cada tanto).
 function calcFwdRender(k){
   const D=CALC_DEF[k],el=document.getElementById('calc-fwd-'+k);
   if(!D||!D.fwd||!el)return;
+  if(el.querySelector('input.calc-fwd-px'))return;
   const ex=calcExcl(D.clave),hoy=hoyAR();
   const sirve=b=>b&&b.ticker&&!ex.has(b.ticker)&&!calcAparte(D.clave,b.ticker);
   if(D.fwd==='bon'||D.fwd==='glo'||D.fwd==='bop'){
     const arr={bon:BON_BONDS,glo:GLO_BONDS,bop:BOP_BONDS}[D.fwd]||[];
     const bonos=arr.filter(b=>sirve(b)&&b.vencimiento&&b.vencimiento>hoy).sort((a,b)=>a.vencimiento.localeCompare(b.vencimiento));
-    usdFwdBuildTable(bonos,'calc-fwd-'+k);
+    // Los precios a mano de la solapa Forwards son de esa solapa: acá va el de la tabla.
+    const pxAntes=usdFwdPxOverrides;
+    usdFwdPxOverrides={};
+    try{usdFwdBuildTable(bonos,'calc-fwd-'+k);}finally{usdFwdPxOverrides=pxAntes;}
   }else{
     const arr={tf:LECAPS,cer:CER_BONDS,tamar:TAMAR_BONDS,dlk:DLK_BONDS}[D.fwd]||[];
     const bonos=arr.filter(b=>sirve(b)&&b.vcto&&b.vcto>hoy&&b.precio>0).sort((a,b)=>a.vcto.localeCompare(b.vcto));
@@ -14939,7 +14963,50 @@ function calcFwdRender(k){
     if(D.fwd==='tf'&&typeof chartMode!=='undefined')fwdMode=chartMode;
     try{fwdBuildTable(bonos,D.fwd,'calc-fwd-'+k);}finally{fwdMode=antes;}
   }
-  el.querySelectorAll('td[onclick]').forEach(td=>{td.removeAttribute('onclick');td.removeAttribute('title');td.style.cursor='default';});
+  el.querySelectorAll('td[onclick]').forEach(td=>{
+    if(td.dataset.px){td.setAttribute('onclick',`calcFwdEditPx(this,'${k}')`);td.title='Clic para editar el precio: es el de la tabla, y cambia también la tabla y el gráfico';}
+    else td.removeAttribute('onclick');
+  });
+}
+function calcFwdPrecio(fwd,t){
+  if(fwd==='bon'||fwd==='glo'||fwd==='bop'){
+    const b=({bon:BON_BONDS,glo:GLO_BONDS,bop:BOP_BONDS}[fwd]||[]).find(x=>x.ticker===t);
+    return b&&b.lastPrecio!=null?b.lastPrecio:null;
+  }
+  const b=({tf:LECAPS,cer:CER_BONDS,tamar:TAMAR_BONDS,dlk:DLK_BONDS}[fwd]||[]).find(x=>x.ticker===t);
+  return b&&b.precio>0?b.precio:null;
+}
+function calcFijarPrecio(fwd,t,v){
+  if(fwd==='tf')tfFijarPrecio(t,v);
+  else if(fwd==='cer')cerFijarPrecio(t,v);
+  else if(fwd==='tamar')tamarFijarPrecio(t,v);
+  else if(fwd==='dlk')dlkFijarPrecio(t,v);
+  else if(fwd==='bon'||fwd==='glo'||fwd==='bop')usdFijarPrecio(fwd,t,'precio',v);
+}
+// Enter o salir de la casilla guarda; Escape deja el precio como estaba. El
+// mismo número que ya tenía no lo marca como precio a mano.
+function calcFwdEditPx(td,k){
+  const D=CALC_DEF[k],t=td&&td.dataset.px;
+  if(!D||!t||td.querySelector('input'))return;
+  const actual=calcFwdPrecio(D.fwd,t);
+  td.innerHTML=`<input type="number" class="calc-fwd-px" step="0.01" min="0" value="${actual!=null?+actual.toFixed(4):''}" aria-label="Precio de ${betrEsc(t)}">`;
+  const inp=td.querySelector('input');
+  let listo=false;
+  const fin=guardar=>{
+    if(listo)return;
+    listo=true;
+    const v=parseFloat(inp.value);
+    td.textContent=inp.value||'—';
+    if(guardar&&isFinite(v)&&v>0&&!(actual!=null&&Math.abs(v-actual)<1e-9))calcFijarPrecio(D.fwd,t,v);
+    calcFwdRender(k);
+  };
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault();fin(true);}
+    else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();fin(false);}
+  });
+  inp.addEventListener('blur',()=>fin(true));
+  inp.addEventListener('click',e=>e.stopPropagation());
+  inp.focus();inp.select();
 }
 
 // ── Columnas ──
@@ -15619,8 +15686,12 @@ function dlkCommitCell(){
   const {ticker}=dlkEditingCell;
   dlkEditingCell=null;
   if(isNaN(val)||val<=0){dlkRenderTable();return;}
+  dlkFijarPrecio(ticker,val);
+}
+// Un precio escrito a mano, desde la tabla o desde los forwards de abajo.
+function dlkFijarPrecio(ticker,val){
   const idx=DLK_BONDS.findIndex(b=>b.ticker===ticker);
-  if(idx<0){dlkRenderTable();return;}
+  if(idx<0||!(val>0)){dlkRenderTable();return;}
   DLK_BONDS[idx]={...DLK_BONDS[idx],precio:val,manualOverride:true,precioCierre:null};
   dlkSaveBonds();
   DLK_DATA=DLK_BONDS.map(dlkEnrich);
@@ -16483,7 +16554,7 @@ function fwdBuildTable(bonds, tipo, wrapId){
     const tasaLabel=ri.tasa!=null?fmtP2(ri.tasa):'—';   // fmtP2 ya trae el %
     const pxDisplay=ri.precio!=null?fmtARS(ri.precio):'—';
     html+=`<tr><td style="${td}text-align:left;color:var(--accent);font-weight:500">${ri.bond.ticker}</td>`;
-    html+=`<td style="${td}text-align:right;color:var(--text2);cursor:pointer" title="Click para editar precio"
+    html+=`<td style="${td}text-align:right;color:var(--text2);cursor:pointer" title="Click para editar precio" data-px="${betrEsc(ri.bond.ticker)}"
       onclick="fwdEditPx(this,'${ri.bond.ticker}','${tipo}')">${pxDisplay}</td>`;
     html+=`<td style="${td}text-align:right;color:var(--text3)">${fmtN(ri.dur,2)}</td>`;
     rows.forEach((rj,j)=>{
@@ -18499,7 +18570,11 @@ function usdRowRerender(group){
 
 function usdRowCommit(inp){
   const{group,ticker,field}=inp.dataset;
-  const val=parseFloat(inp.value);
+  usdFijarPrecio(group,ticker,field,parseFloat(inp.value));
+}
+// Un precio (o una TIR, que se pasa a precio) escrito a mano, desde la tabla o
+// desde los forwards de abajo.
+function usdFijarPrecio(group,ticker,field,val){
   if(isNaN(val)||val<=0){usdRowRerender(group);return;}
   const bonds=group==='bop'?BOP_BONDS:group==='bon'?BON_BONDS:GLO_BONDS;
   const bond=bonds.find(b=>b.ticker===ticker);
@@ -18642,7 +18717,7 @@ function usdFwdBuildTable(bonds,wrapId){
     const durDisplay=ri.dur!=null?ri.dur.toFixed(2):'—';
     html+=`<tr>`;
     html+=`<td style="${td}text-align:left;color:var(--accent);font-weight:500">${ri.bond.ticker}</td>`;
-    html+=`<td style="${td}text-align:right;color:var(--text2);cursor:pointer" title="Click para editar precio" onclick="usdFwdEditPx(this,'${ri.bond.ticker}')">${pxDisplay}</td>`;
+    html+=`<td style="${td}text-align:right;color:var(--text2);cursor:pointer" title="Click para editar precio" data-px="${betrEsc(ri.bond.ticker)}" onclick="usdFwdEditPx(this,'${ri.bond.ticker}')">${pxDisplay}</td>`;
     html+=`<td style="${td}text-align:right;color:var(--text3)">${durDisplay}</td>`;
     rows.forEach((rj,j)=>{
       if(j<i){html+=`<td style="${td}background:var(--bg);"></td>`;}
