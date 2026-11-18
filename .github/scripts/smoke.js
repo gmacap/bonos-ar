@@ -4809,25 +4809,29 @@ const omitir = (label, motivo) =>
         await espera(50);
         const txt = runTexto();
         out.excluye = runEstado().fuera.includes(b.ticker) && !txt.split('\n').some(l => l.split(/\s+/)[0] === b.ticker)
-          && txt.includes('Bid Size') && /^RUN \d\d\/\d\d\/\d{4}/.test(txt)
+          && /^Ticker +Bid Size/.test(txt) && !/RUN/.test(txt) && !/RUN/.test(runHtml())
           && !!document.querySelector(`#page-run input.run-incl[data-t="${b.ticker}"]`).closest('tr.run-fuera');
         const cv = runImagen();
         out.imagen = cv.width > 300 && cv.height > 200;
       }
-      // Un tipo entero se saca o se suma con su casilla, y cada tabla se exporta sola
+      // La casilla de cada tabla la saca de la copia general, sin tocar sus bonos,
+      // y cada tabla se exporta sola
       const tipo2 = G.find(g => g[1].length >= 2);
       if (tipo2) {
         const casG = () => document.querySelector(`#page-run input.run-grupo[data-g="${tipo2[0]}"]`);
+        const fuera0 = runEstado().fuera.slice().sort().join();
         runGrupo(tipo2[0], false); await espera(50);
-        out.grupo = { fuera: tipo2[1].every(x => runEstado().fuera.includes(x.ticker)), casilla: !casG().checked };
-        runIncluir(tipo2[1][0].ticker, true); await espera(50);
-        out.grupo.medio = casG().indeterminate;
+        const general = runTexto().split('\n');
+        out.grupo = { casilla: !casG().checked, fueraDeGeneral: !general.includes(tipo2[0]) && G.filter(g => g[0] !== tipo2[0]).some(g => general.includes(g[0])),
+          bonosIgual: runEstado().fuera.slice().sort().join() === fuera0, sola: runTexto(tipo2[0]).split('\n').includes(tipo2[0]),
+          marcada: !!casG().closest('section.run-sin-general') };
         runGrupo(tipo2[0], true); await espera(50);
-        out.grupo.vuelve = casG().checked && !casG().indeterminate;
+        out.grupo.vuelve = casG().checked && runTexto().split('\n').includes(tipo2[0]);
         const txtG = runTexto(tipo2[0]), lineas = txtG.split('\n');
         out.grupo.solo = lineas.includes(tipo2[0]) && G.filter(g => g[0] !== tipo2[0]).every(g => !lineas.includes(g[0]));
         const htmlG = runHtml(tipo2[0]);
-        out.grupo.html = /^<table/.test(htmlG) && (htmlG.match(/<tr>/g) || []).length === 3 + tipo2[1].length;
+        const incG = tipo2[1].filter(x => !runEstado().fuera.includes(x.ticker)).length;
+        out.grupo.html = /^<table/.test(htmlG) && (htmlG.match(/<tr>/g) || []).length === 2 + incG;
         out.grupo.botones = [...document.querySelectorAll(`#page-run .run-mini[data-g="${tipo2[0]}"]`)].map(x => x.dataset.acc).join('|') === 'img|png|tabla'
           && !/WhatsApp/.test(document.getElementById('page-run').textContent);
       }
@@ -4849,7 +4853,8 @@ const omitir = (label, motivo) =>
   }
   if (run.grupo) {
     const gr = run.grupo;
-    check(gr.fuera && gr.casilla && gr.medio && gr.vuelve, 'RUN: un tipo entero se saca o se suma con su casilla, que queda a medias si hay de los dos', JSON.stringify(gr));
+    check(gr.casilla && gr.fueraDeGeneral && gr.bonosIgual && gr.sola && gr.marcada && gr.vuelve,
+          'RUN: la casilla de cada tabla la saca de la copia general sin tocar sus bonos, y la tabla se sigue exportando sola', JSON.stringify(gr));
     check(gr.solo && gr.html && gr.botones, 'RUN: cada tabla se exporta sola, como imagen o como tabla (HTML)', JSON.stringify(gr));
   }
 

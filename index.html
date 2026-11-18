@@ -224,6 +224,8 @@ table.anc-fijo>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 .run-gacc{display:inline-flex;gap:3px;margin-left:auto;flex-wrap:wrap;}
 .run-mini{font-family:var(--mono);font-size:var(--fs9);text-transform:none;letter-spacing:0;padding:1px 6px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);color:var(--text3);cursor:pointer;}
 .run-mini:hover,.run-mini:focus-visible{color:var(--accent);border-color:var(--accent);}
+.run-sin-general .run-tabla{border-style:dashed;}
+.run-sin-general th.run-tipo .run-tk{color:var(--text3);}
 .run-tabla td{height:auto;padding:0;font-family:var(--mono);font-size:var(--fs12);border-bottom:1px solid var(--border);border-left:1px solid var(--border);}
 .run-tabla td:first-child{text-align:left;color:var(--text);font-weight:500;border-left:0;}
 .run-tk{display:flex;align-items:center;gap:7px;padding:4px 10px;cursor:pointer;white-space:nowrap;}
@@ -15169,9 +15171,9 @@ function runEstado(){
   try{
     const o=JSON.parse(localStorage.getItem('bonosAR_run_v1')||'{}');
     if(o&&typeof o==='object'&&!Array.isArray(o))
-      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuera:Array.isArray(o.fuera)?o.fuera:[],tomado:o.tomado||null};
+      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuera:Array.isArray(o.fuera)?o.fuera:[],gruposFuera:Array.isArray(o.gruposFuera)?o.gruposFuera:[],tomado:o.tomado||null};
   }catch(e){}
-  return{px:{},byma:{},q:{},fuera:[],tomado:null};
+  return{px:{},byma:{},q:{},fuera:[],gruposFuera:[],tomado:null};
 }
 function runGuardar(E){try{localStorage.setItem('bonosAR_run_v1',JSON.stringify(E));}catch(e){}}
 function runVivo(b){return{bid:b&&b.bid>0?b.bid:null,ask:b&&b.ask>0?b.ask:null};}
@@ -15201,7 +15203,7 @@ function runRender(forzar){
       </span>
       <span class="run-aviso" id="run-aviso" role="status" aria-live="polite"></span>
     </div>
-    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda, Enter baja a la de abajo y Escape deja lo que había. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Lo destildado no sale al exportar. Arriba se exporta todo el run; en cada tabla, sólo ese tipo.</div>
+    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda, Enter baja a la de abajo y Escape deja lo que había. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Los bonos destildados no salen al exportar. Arriba se exportan las tablas tildadas; con los botones de cada tabla, sólo esa.</div>
     <div class="run-cuerpo"></div>`);
     cuerpo=pg.querySelector('.run-cuerpo');
     runMontar(pg);
@@ -15221,7 +15223,7 @@ function runRender(forzar){
     const d=E.tomado?new Date(E.tomado):null;
     tom.textContent=d?`Precios de BYMA del ${d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}: quedan fijos hasta que los vuelvas a traer`:'Todavía sin precios de BYMA';
   }
-  const fuera=new Set(E.fuera),e=betrEsc,f=s=>s?s.split('-').reverse().join('/'):'';
+  const fuera=new Set(E.fuera),gFuera=new Set(E.gruposFuera),e=betrEsc,f=s=>s?s.split('-').reverse().join('/'):'';
   const fila=(b,dec)=>{
     const t=b.ticker,p=E.px[t]||{},q=E.q[t]||{},m=E.byma[t]||{},vivo=runVivo(b);
     const tip=c=>`Se trajo de BYMA: ${runPx(m[c])||'—'} · pantalla ahora: ${runPx(vivo[c])||'—'}`;
@@ -15233,15 +15235,13 @@ function runRender(forzar){
       +`<td>${inp('qa',q.ask||'','run-q','','—')}</td></tr>`;
   };
   cuerpo.innerHTML=G.length?G.map(([tipo,bonos])=>{
-    return`<section aria-label="${tipo}"><table class="run-tabla"><colgroup><col style="width:20%"><col style="width:19%"><col style="width:21%"><col style="width:21%"><col style="width:19%"></colgroup><thead>
+    return`<section aria-label="${tipo}"${gFuera.has(tipo)?' class="run-sin-general"':''}><table class="run-tabla"><colgroup><col style="width:20%"><col style="width:19%"><col style="width:21%"><col style="width:21%"><col style="width:19%"></colgroup><thead>
     <tr><th colspan="5" class="run-tipo"><div class="run-tipo-fila">
-      <label class="run-tk" title="Incluir o sacar todos los de ${tipo}"><input type="checkbox" class="run-grupo" data-g="${tipo}"${bonos.every(b=>!fuera.has(b.ticker))?' checked':''}${bonos.some(b=>!fuera.has(b.ticker))&&bonos.some(b=>fuera.has(b.ticker))?' data-medio="1"':''} aria-label="Incluir todos los de ${tipo}">${tipo}</label>
+      <label class="run-tk" title="Incluir ${tipo} en la copia general (los botones de arriba)"><input type="checkbox" class="run-grupo" data-g="${tipo}"${gFuera.has(tipo)?'':' checked'} aria-label="Incluir ${tipo} en la copia general">${tipo}</label>
       <span class="run-gacc">${runAccHTML(tipo)}</span></div></th></tr>
     <tr><th style="text-align:left">Ticker</th><th>Bid Size</th><th>Bid Px</th><th>Offer Px</th><th>Offer Size</th></tr>
   </thead><tbody>${bonos.map(b=>fila(b,runDec([E.px[b.ticker]||{}]))).join('')}</tbody></table></section>`;}).join('')
     :'<div class="run-nota" style="padding:8px 0">Sin bonos cargados.</div>';
-  // La casilla del tipo queda a medias si hay algunos sí y otros no.
-  cuerpo.querySelectorAll('input.run-grupo[data-medio]').forEach(c=>{c.indeterminate=true;});
   runBonosPintar(G,E);
 }
 function runMontar(pg){
@@ -15317,13 +15317,13 @@ function runIncluir(t,on){
   E.fuera=[...s];runGuardar(E);
   runRender(true);
 }
-// Incluir o sacar todos los de un tipo.
+// La casilla de cada tabla dice si va en la copia general (los botones de
+// arriba). No toca qué bonos de la tabla van: eso es la casilla de cada uno, y
+// la tabla se sigue exportando sola con sus botones.
 function runGrupo(tipo,on){
-  const g=runGrupos().find(x=>x[0]===tipo);
-  if(!g)return;
-  const E=runEstado(),s=new Set(E.fuera);
-  g[1].forEach(b=>{if(on)s.delete(b.ticker);else s.add(b.ticker);});
-  E.fuera=[...s];runGuardar(E);
+  const E=runEstado(),s2=new Set(E.gruposFuera);
+  if(on)s2.delete(tipo);else s2.add(tipo);
+  E.gruposFuera=[...s2];runGuardar(E);
   runRender(true);
 }
 function runAccHTML(tipo){
@@ -15368,10 +15368,11 @@ function runAviso(m){
 }
 
 // ── Exportar ──
-// Lo incluido, por tipo, como se ve en el run; con g, sólo ese tipo.
+// Lo incluido, por tipo, como se ve en el run: las tablas tildadas, o con g,
+// sólo ese tipo.
 function runFilasExport(g){
-  const E=runEstado(),fuera=new Set(E.fuera);
-  return runGrupos().filter(([tipo])=>!g||tipo===g).map(([tipo,bs])=>{
+  const E=runEstado(),fuera=new Set(E.fuera),gFuera=new Set(E.gruposFuera);
+  return runGrupos().filter(([tipo])=>g?tipo===g:!gFuera.has(tipo)).map(([tipo,bs])=>{
     const inc=bs.filter(b=>!fuera.has(b.ticker));
     return[tipo,inc.map(b=>{const p=E.px[b.ticker]||{},q=E.q[b.ticker]||{},dec=runDec([p]);return[b.ticker,q.bid||'',runPx(p.bid,dec),runPx(p.ask,dec),q.ask||''];})];
   }).filter(x=>x[1].length);
@@ -15382,7 +15383,7 @@ function runTexto(g){
   const G=runFilasExport(g),filas=G.flatMap(x=>x[1]);
   const w=RUN_CAB.map((h,i)=>Math.max(h.length,...filas.map(f=>f[i].length)));
   const lin=f=>f.map((x,i)=>i===0?x.padEnd(w[i]):x.padStart(w[i])).join('  ').replace(/\s+$/,'');
-  return[`RUN ${runFecha()}`,lin(RUN_CAB),...G.flatMap(([tipo,fs])=>['',tipo,...fs.map(lin)])].join('\n');
+  return[lin(RUN_CAB),...G.flatMap(([tipo,fs])=>['',tipo,...fs.map(lin)])].join('\n');
 }
 // Una tabla de verdad, para lo que pega HTML (Eikon Messenger, Outlook, Teams,
 // Excel): bordes, el tipo como fila y los números a la derecha.
@@ -15391,7 +15392,6 @@ function runHtml(g){
   const b='border:1px solid #8a8f94;padding:2px 8px;';
   const td=(v,i)=>`<td style="${b}text-align:${i===0?'left':'right'};${i===0?'font-weight:bold;':''}white-space:nowrap">${e(v)}</td>`;
   return`<table style="border-collapse:collapse;font-family:Consolas,'Courier New',monospace;font-size:12px">`
-    +`<tr><td colspan="5" style="padding:2px 8px 4px 0;font-weight:bold">RUN ${runFecha()}</td></tr>`
     +`<tr>${RUN_CAB.map((h,i)=>`<th style="${b}background:#e3e6e8;text-align:${i===0?'left':'right'}">${h}</th>`).join('')}</tr>`
     +G.map(([tipo,fs])=>`<tr><td colspan="5" style="${b}background:#c9cfd4;font-weight:bold">${e(tipo)}</td></tr>`+fs.map(f=>`<tr>${f.map(td).join('')}</tr>`).join('')).join('')
     +`</table>`;
@@ -15400,7 +15400,7 @@ function runHtml(g){
 function runImagen(g){
   const G=runFilasExport(g),filas=G.flatMap(x=>x[1]);
   const S=2,fam=getComputedStyle(document.body).fontFamily||'monospace';
-  const fN=`13px ${fam}`,fB=`600 13px ${fam}`,fH=`11px ${fam}`,fT=`600 14px ${fam}`,fG=`600 12px ${fam}`;
+  const fN=`13px ${fam}`,fB=`600 13px ${fam}`,fH=`11px ${fam}`,fG=`600 12px ${fam}`;
   const c=document.createElement('canvas'),x=c.getContext('2d');
   const pad=12,alto=24;
   const anchos=RUN_CAB.map((h,i)=>{
@@ -15408,10 +15408,7 @@ function runImagen(g){
     x.font=i===0?fB:fN;filas.forEach(f=>{m=Math.max(m,x.measureText(f[i]).width);});
     return Math.ceil(m)+2*pad;
   });
-  const titulo=`RUN · ${runFecha()}`;
-  x.font=fT;
-  const W=Math.max(anchos.reduce((a,b)=>a+b,0),Math.ceil(x.measureText(titulo).width)+2*pad),n=2+G.reduce((s2,y)=>s2+1+y[1].length,0),H=n*alto;
-  anchos[anchos.length-1]+=W-anchos.reduce((a,b)=>a+b,0);
+  const W=anchos.reduce((a,b)=>a+b,0),n=1+G.reduce((s2,y)=>s2+1+y[1].length,0),H=n*alto;
   c.width=(W+2)*S;c.height=(H+2)*S;
   x.scale(S,S);x.translate(1,1);
   x.fillStyle='#101317';x.fillRect(-1,-1,W+2,H+2);
@@ -15428,8 +15425,6 @@ function runImagen(g){
   };
   const columnas=(y0,y1)=>{let xx=0;x.strokeStyle='#3a4047';anchos.slice(0,-1).forEach(a=>{xx+=a;x.beginPath();x.moveTo(xx+.5,y0);x.lineTo(xx+.5,y1);x.stroke();});};
   let y=0;
-  x.font=fT;x.fillStyle='#f2f2f2';x.textAlign='left';x.fillText(titulo,pad,y+alto/2+1);
-  y+=alto;raya(y);
   texto(RUN_CAB.map(h=>h.toUpperCase()),y,'#9aa3ab',fH);
   columnas(y,y+alto);
   y+=alto;raya(y);
@@ -15444,7 +15439,7 @@ function runImagen(g){
   x.strokeStyle='#55606a';x.strokeRect(.5,.5,W-1,H-1);
   return c;
 }
-function runVacio(g){if(runFilasExport(g).length)return false;runAviso(g?`No hay bonos de ${g} incluidos para exportar.`:'No hay bonos incluidos para exportar.');return true;}
+function runVacio(g){if(runFilasExport(g).length)return false;runAviso(g?`No hay bonos de ${g} incluidos para exportar.`:'No hay tablas tildadas con bonos incluidos para la copia general.');return true;}
 function runExportar(acc,g){
   if(runVacio(g))return;
   if(acc==='img')runCopiarImagen(g);
