@@ -4921,6 +4921,29 @@ const omitir = (label, motivo) =>
       pxcOrdenOriginal(); await espera(50);
       out.vuelve = filas().join() === f0.join() && !pxcEstado().orden.length;
       out.nav = !!document.querySelector('#page-pxcierre .calc-nav button[aria-current]');
+      // Por cada 1 de valor nominal
+      out.vn = [pxcPx(129.059), pxcPx(130.96), pxcPx(49645), pxcPx(155740), pxcPx(null)].join('|');
+      // Un bono agregado a mano: al final, con su precio escrito, se copia y se quita
+      pxcAgregar('ZZ99X'); await espera(100);
+      const fm = filas();
+      out.mano = { alFinal: fm[fm.length - 1] === 'ZZ99X', repetido: (pxcAgregar(fm[0]), pxcEstado().manuales.length === 1) };
+      pxcPrecioManual('ZZ99X', 1.2345); await espera(50);
+      const celdaM = [...document.querySelectorAll('#page-pxcierre tbody tr[data-t]')].find(r => r.dataset.t === 'ZZ99X');
+      out.mano.precio = !!celdaM && celdaM.children[1].textContent.trim() === '1,2345' && celdaM.children[1].classList.contains('pxc-manual');
+      out.mano.copia = pxcTexto().split('\n').pop() === '1,2345';
+      pxcMover('ZZ99X', -1); await espera(50);
+      out.mano.mueve = filas().indexOf('ZZ99X') === fm.length - 2;
+      pxcQuitar('ZZ99X'); await espera(50);
+      out.mano.quita = !filas().includes('ZZ99X') && !pxcEstado().manuales.length;
+      // Uno de las calculadoras que ya venció: toma el último precio que tenía la app
+      const venc = [...LECAPS, ...CER_BONDS].find(b => b.vcto && b.vcto < hoyAR() && b.precio > 0);
+      if (venc) {
+        pxcAgregar(venc.ticker); await espera(50);
+        await pxcResolver();
+        const fv = [...document.querySelectorAll('#page-pxcierre tbody tr[data-t]')].find(r => r.dataset.t === venc.ticker);
+        out.vencido = { t: venc.ticker, precio: !!fv && fv.children[1].textContent.trim() === pxcPx(venc.precio) };
+        pxcQuitar(venc.ticker);
+      }
       switchTab('breakeven');
     } finally {
       if (antes == null) localStorage.removeItem('bonosAR_pxcierre_v1'); else localStorage.setItem('bonosAR_pxcierre_v1', antes);
@@ -4932,6 +4955,12 @@ const omitir = (label, motivo) =>
         'Px Cierre: todos los bonos en pesos con el orden de la mesa, los duales con su otra pata, Ticker y Precio', JSON.stringify(pxc));
   check(pxc.copia, 'Px Cierre: copiar precios copia sólo los precios, uno por fila, en el orden de la tabla', JSON.stringify(pxc));
   check(pxc.flecha && pxc.grupo && pxc.vuelve, 'Px Cierre: el orden se cambia con las flechas o moviendo un grupo entero, se guarda y vuelve al original', JSON.stringify(pxc));
+  check(pxc.vn === '1,29059|1,3096|496,45|1.557,40|', 'Px Cierre: los precios van por cada 1 de valor nominal', pxc.vn);
+  const pm = pxc.mano || {};
+  check(pm.alFinal && pm.repetido && pm.precio && pm.copia && pm.mueve && pm.quita,
+        'Px Cierre: un bono se agrega a mano, al final, con su precio escrito; se copia, se mueve y se quita', JSON.stringify(pm));
+  if (!pxc.vencido) omitir('Px Cierre: un bono vencido agregado a mano', 'ningún vencido con precio en las calculadoras');
+  else check(pxc.vencido.precio, 'Px Cierre: un bono vencido agregado a mano toma el último precio que tenía la app', JSON.stringify(pxc.vencido));
 
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
   // lo del comunicado (un dual, en las dos de sus patas); el formulario de alta

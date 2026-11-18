@@ -267,6 +267,10 @@ tr.run-fuera>td{opacity:.38;}
 .pxc-tabla tr.pxc-abajo>td{box-shadow:inset 0 -2px 0 var(--accent);}
 .pxc-tabla tr.pxc-arrastre>td{opacity:.4;}
 .pxc-cierre{color:var(--info);}
+.pxc-agregar{display:inline-flex;gap:4px;align-items:center;}
+.pxc-agregar input{width:92px;text-transform:uppercase;}
+.pxc-tabla td.pxc-px-man{cursor:text;}
+.pxc-px-in{width:110px;background:var(--surface2);color:var(--text);border:1px solid var(--accent);border-radius:3px;padding:1px 6px;font:inherit;text-align:right;}
 .pxc-manual{color:var(--warn);}
 /* El precio que se escribe en los forwards de las calculadoras. */
 .calc-fwd-px{width:90px;background:var(--surface2);color:var(--text);border:1px solid var(--accent);border-radius:3px;padding:2px 4px;font-family:var(--mono);font-size:var(--fs11);text-align:right;}
@@ -5953,6 +5957,7 @@ function switchTab(tab){
   } else if(tab==='pxcierre'){
     document.getElementById('page-pxcierre').style.display='block';
     pxcRender();
+    pxcResolver();
   } else if(tab==='escenarios'){
     document.getElementById('page-escenarios').style.display='block';
     updateIndexBanners();
@@ -10618,7 +10623,7 @@ function beRefreshIfVisible(){
   if(currentTab==='dual'){try{dualRender();}catch(e){console.warn('[dual]',e.message);}return;}
   if(currentTab==='escenarios'){escProgramar();return;}
   if(currentTab==='run'){try{runRender();}catch(e){console.warn('[run]',e.message);}return;}
-  if(currentTab==='pxcierre'){try{pxcRender();}catch(e){console.warn('[px cierre]',e.message);}return;}
+  if(currentTab==='pxcierre'){try{pxcRender();pxcResolver();}catch(e){console.warn('[px cierre]',e.message);}return;}
   if(currentTab==='retornos'){try{retRender('ars');}catch(e){console.warn('[retornos]',e.message);}return;}
   if(currentTab==='cartera'){try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}return;}
   if(currentTab==='licitaciones'){licRefrescar();return;}
@@ -15563,7 +15568,7 @@ function runCopiarSeleccion(html){
 
 // ══ PX CIERRE ══
 // El precio de cada bono en pesos, en una lista con el orden de la planilla de
-// la mesa: CER con los duales CER/TAMAR, mezclados por vencimiento; la fija con
+// la mesa, por cada 1 de valor nominal: CER con los duales CER/TAMAR, mezclados por vencimiento; la fija con
 // cupón (TY30P); dollar linked con los duales TAMAR/DLK; tasa fija, con los
 // duales TAMAR/tasa fija; y TAMAR. El orden se cambia arrastrando una fila (o
 // el título de un grupo, que se lleva el grupo entero) o con las flechas, y se
@@ -15573,8 +15578,12 @@ function runCopiarSeleccion(html){
 // Los precios son los de las calculadoras: el último de BYMA, el cierre
 // anterior si hoy no operó (en celeste) o el escrito a mano (en ámbar).
 function pxcEstado(){
-  try{const o=JSON.parse(localStorage.getItem('bonosAR_pxcierre_v1')||'{}');if(o&&Array.isArray(o.orden))return{orden:o.orden};}catch(e){}
-  return{orden:[]};
+  try{
+    const o=JSON.parse(localStorage.getItem('bonosAR_pxcierre_v1')||'{}');
+    if(o&&typeof o==='object'&&!Array.isArray(o))
+      return{orden:Array.isArray(o.orden)?o.orden:[],manuales:Array.isArray(o.manuales)?o.manuales.filter(m=>m&&m.ticker):[]};
+  }catch(e){}
+  return{orden:[],manuales:[]};
 }
 function pxcGuardar(E){try{localStorage.setItem('bonosAR_pxcierre_v1',JSON.stringify(E));}catch(e){}}
 function pxcGrupos(){
@@ -15596,6 +15605,15 @@ function pxcGrupos(){
 function pxcFilas(){
   const nat=[];
   pxcGrupos().forEach(([g,bs])=>bs.forEach(b=>nat.push({b,g})));
+  // Los agregados a mano, al final, con el precio que se les encontró.
+  const ya=new Set(nat.map(x=>x.b.ticker));
+  pxcEstado().manuales.forEach(m=>{
+    if(ya.has(m.ticker))return;
+    ya.add(m.ticker);
+    const r=PXC_MAN[m.ticker]||{},escrito=m.precio>0;
+    nat.push({g:'Agregados a mano',b:{ticker:m.ticker,manual:true,precio:escrito?m.precio:r.precio>0?r.precio:null,
+      fuente:escrito?'mano':r.fuente||null,fecha:escrito?null:r.fecha||null}});
+  });
   const orden=pxcEstado().orden;
   if(!orden.length)return nat;
   const por=new Map(nat.map(x=>[x.b.ticker,x])),fin=orden.filter(t=>por.has(t));
@@ -15606,19 +15624,21 @@ function pxcFilas(){
   });
   return fin.map(t=>por.get(t));
 }
-function pxcPx(p){return p>0?p.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:3}):'';}
+// Por cada 1 de valor nominal: los precios vienen por cada 100.
+function pxcPx(p){return p>0?(p/100).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:5}):'';}
 function pxcRender(){
   const pg=document.getElementById('page-pxcierre');
-  if(!pg||pxcRender._arrastrando)return;
+  if(!pg||pxcRender._arrastrando||(document.activeElement&&document.activeElement.classList&&document.activeElement.classList.contains('pxc-px-in')))return;
   let cuerpo=pg.querySelector('.pxc-cuerpo');
   if(!cuerpo){
     pg.insertAdjacentHTML('beforeend',`<div class="run-cab">
       <span class="pane-title">Px Cierre</span>
       <button type="button" class="btn" onclick="pxcCopiar()" title="Copia sólo la columna de precios, en este orden: se pega como una columna en una planilla">⧉ Copiar precios</button>
       <button type="button" class="btn" onclick="pxcOrdenOriginal()" title="Vuelve al orden de la mesa">Orden original</button>
+      <span class="pxc-agregar"><input type="text" id="pxc-nuevo" class="search-box" placeholder="Ticker" maxlength="12" spellcheck="false" autocomplete="off" aria-label="Ticker del bono a agregar" onkeydown="if(event.key==='Enter'){event.preventDefault();pxcAgregar(this.value);}"><button type="button" class="btn" onclick="pxcAgregar(document.getElementById('pxc-nuevo').value)" title="Suma un bono a la lista, aunque haya vencido">+ Agregar</button></span>
       <span class="run-aviso" id="pxc-aviso" role="status" aria-live="polite"></span>
     </div>
-    <div class="run-nota" style="padding:0 16px">El orden se cambia arrastrando una fila, o el título de un grupo para moverlo entero, o con las flechas de cada fila; se guarda. "Copiar precios" copia sólo los precios, en este orden y sin títulos; un bono sin precio deja la celda vacía. Precio en celeste: el cierre anterior, porque hoy no operó; en ámbar, escrito a mano en la calculadora.</div>
+    <div class="run-nota" style="padding:0 16px">El orden se cambia arrastrando una fila, o el título de un grupo para moverlo entero, o con las flechas de cada fila; se guarda. "Copiar precios" copia sólo los precios, en este orden y sin títulos; un bono sin precio deja la celda vacía. Los precios van por cada 1 de valor nominal. En celeste: el cierre anterior porque hoy no operó, o el último que se encontró de un bono agregado; en ámbar, escrito a mano. Un bono que no está en la lista (uno vencido, por ejemplo) se suma con "+ Agregar": se le busca el precio en BYMA, después el último que tenía la app y después el último archivado; si no aparece, clic en su precio para escribirlo.</div>
     <div class="pxc-cuerpo"></div>`);
     cuerpo=pg.querySelector('.pxc-cuerpo');
     pxcMontar(cuerpo);
@@ -15632,19 +15652,31 @@ function pxcRender(){
   bloques.forEach(bl=>{
     html+=`<tr class="pxc-grupo" draggable="true" data-bloque="${e(bl.t.join(','))}" title="Arrastrá para mover el grupo entero"><td colspan="2"><span class="pxc-asa" aria-hidden="true">⋮⋮</span>${e(bl.g)}</td></tr>`;
     bl.t.forEach(t=>{
-      const b=F[i++].b,cierre=b.precioCierre&&!b.manualOverride&&typeof pesosEsCierre==='function'&&pesosEsCierre(b);
-      const cls=b.manualOverride?'pxc-manual':cierre?'pxc-cierre':'';
-      const tit=b.manualOverride?'Precio escrito a mano en la calculadora':cierre&&typeof pesosCierreTexto==='function'?pesosCierreTexto(b):'';
-      html+=`<tr draggable="true" data-t="${e(t)}"><td><span class="pxc-asa" aria-hidden="true">⋮⋮</span><span class="pxc-tk">${e(t)}</span>`
-        +`<span class="pxc-mov"><button type="button" data-d="-1" aria-label="Subir ${e(t)}" title="Subir">▲</button><button type="button" data-d="1" aria-label="Bajar ${e(t)}" title="Bajar">▼</button></span></td>`
-        +`<td class="${cls}"${tit?` title="${e(tit)}"`:''}>${pxcPx(b.precio)||'<span style="color:var(--text3)">—</span>'}</td></tr>`;
+      const b=F[i++].b,cierre=!b.manual&&b.precioCierre&&!b.manualOverride&&typeof pesosEsCierre==='function'&&pesosEsCierre(b);
+      const fec=b.fecha?String(b.fecha).slice(0,10).split('-').reverse().join('/'):'';
+      const[cls,tit]=b.manual
+        ?(b.fuente==='mano'?['pxc-manual','Escrito a mano · clic para cambiarlo']
+          :b.fuente==='byma'?['','De BYMA · clic para escribirlo a mano']
+          :b.fuente==='app'?['pxc-cierre','El último que tenía la app · clic para escribirlo a mano']
+          :b.fuente==='archivo'?['pxc-cierre',`El último archivado, del ${fec} · clic para escribirlo a mano`]
+          :['','Sin precio en BYMA ni en el archivo · clic para escribirlo a mano'])
+        :b.manualOverride?['pxc-manual','Precio escrito a mano en la calculadora']
+        :cierre&&typeof pesosCierreTexto==='function'?['pxc-cierre',pesosCierreTexto(b)]:['',''];
+      html+=`<tr draggable="true" data-t="${e(t)}"${b.manual?' data-manual="1"':''}><td><span class="pxc-asa" aria-hidden="true">⋮⋮</span><span class="pxc-tk">${e(t)}</span>`
+        +`<span class="pxc-mov"><button type="button" data-d="-1" aria-label="Subir ${e(t)}" title="Subir">▲</button><button type="button" data-d="1" aria-label="Bajar ${e(t)}" title="Bajar">▼</button>`
+        +(b.manual?`<button type="button" class="pxc-quitar" aria-label="Quitar ${e(t)}" title="Quitar de la lista">✕</button>`:'')+`</span></td>`
+        +`<td class="${cls}${b.manual?' pxc-px-man':''}"${tit?` title="${e(tit)}"`:''}>${pxcPx(b.precio)||'<span style="color:var(--text3)">—</span>'}</td></tr>`;
     });
   });
-  cuerpo.innerHTML=`<table class="pxc-tabla"><thead><tr><th style="text-align:left">Ticker</th><th>Precio</th></tr></thead><tbody>${html}</tbody></table>`;
+  cuerpo.innerHTML=`<table class="pxc-tabla"><thead><tr><th style="text-align:left">Ticker</th><th title="Por cada 1 de valor nominal">Precio</th></tr></thead><tbody>${html}</tbody></table>`;
 }
 function pxcMontar(cuerpo){
   // Las flechas mueven un lugar; el foco queda en la misma flecha.
   cuerpo.addEventListener('click',ev=>{
+    const q=ev.target.closest&&ev.target.closest('.pxc-quitar');
+    if(q){pxcQuitar(q.closest('tr').dataset.t);return;}
+    const pm=ev.target.closest&&ev.target.closest('td.pxc-px-man');
+    if(pm&&!pm.querySelector('input')){pxcEditar(pm);return;}
     const btn=ev.target.closest&&ev.target.closest('.pxc-mov button');
     if(!btn)return;
     const t=btn.closest('tr').dataset.t,d=+btn.dataset.d;
@@ -15694,7 +15726,7 @@ function pxcMover(t,d){
   const o=pxcOrden(),j=o.indexOf(t),m=j+d;
   if(j<0||m<0||m>=o.length)return;
   [o[j],o[m]]=[o[m],o[j]];
-  pxcGuardar({orden:o});pxcRender();
+  pxcGuardar({...pxcEstado(),orden:o});pxcRender();
 }
 // Mueve uno o varios (un grupo entero) antes o después de otro.
 function pxcMoverA(lista,destino,antes){
@@ -15702,9 +15734,89 @@ function pxcMoverA(lista,destino,antes){
   const o=pxcOrden().filter(t=>!lista.includes(t)),j=o.indexOf(destino);
   if(j<0)return;
   o.splice(antes?j:j+1,0,...lista.filter(t=>pxcOrden().includes(t)));
-  pxcGuardar({orden:o});pxcRender();
+  pxcGuardar({...pxcEstado(),orden:o});pxcRender();
 }
-function pxcOrdenOriginal(){pxcGuardar({orden:[]});pxcRender();pxcAviso('Vuelve el orden de la mesa.');}
+function pxcOrdenOriginal(){pxcGuardar({...pxcEstado(),orden:[]});pxcRender();pxcAviso('Vuelve el orden de la mesa.');}
+// ── Agregados a mano ──
+// El precio de cada uno: el escrito a mano; si no, BYMA en vivo; si no, el
+// último que tenía la app (un bono vencido de las calculadoras guarda el suyo);
+// si no, el último archivado en la base. data912 deja de dar un bono cuando
+// vence, ni siquiera en el histórico.
+var PXC_MAN={};
+async function pxcResolver(){
+  const man=pxcEstado().manuales.filter(m=>!(m.precio>0));
+  if(!man.length)return;
+  let mapa=new Map();
+  try{const[n,b]=await Promise.all([fetchData912('arg_notes'),fetchData912('arg_bonds')]);mapa=new Map([...(n||[]),...(b||[])].map(x=>[x.symbol,x]));}catch(e){}
+  const app=[...(LECAPS||[]),...(CER_BONDS||[]),...(TAMAR_BONDS||[]),...(DLK_BONDS||[]),...((typeof TF_CUPON!=='undefined'&&TF_CUPON)||[])];
+  for(const m of man){
+    const api=mapa.get(m.ticker),px=api?apiBestPrice(api):null;
+    if(px>0){PXC_MAN[m.ticker]={precio:px,fuente:'byma'};continue;}
+    const b=app.find(x=>x.ticker===m.ticker&&x.precio>0);
+    if(b){PXC_MAN[m.ticker]={precio:b.precio,fuente:'app'};continue;}
+    if(PXC_MAN[m.ticker]&&PXC_MAN[m.ticker].fuente==='archivo')continue;
+    try{
+      const{data}=await supa.from('bond_price_snapshots').select('price,snapshot_date').eq('ticker',m.ticker)
+        .gt('price',0).order('snapshot_date',{ascending:false}).limit(1);
+      if(data&&data[0]&&+data[0].price>0)PXC_MAN[m.ticker]={precio:+data[0].price,fuente:'archivo',fecha:data[0].snapshot_date};
+    }catch(e){console.warn('[px cierre] archivo de',m.ticker+':',e.message);}
+  }
+  if(currentTab==='pxcierre')pxcRender();
+}
+function pxcAgregar(texto){
+  const t=String(texto||'').trim().toUpperCase();
+  const inp=document.getElementById('pxc-nuevo');
+  if(!t){pxcAviso('Escribí el ticker del bono.');return;}
+  if(!TICKER_RX.test(t)){pxcAviso(`"${t}" no es un ticker válido: letras, números, punto, guion o guion bajo, hasta 12.`);return;}
+  if(pxcOrden().includes(t)){pxcAviso(`${t} ya está en la lista.`);return;}
+  const E=pxcEstado();
+  E.manuales.push({ticker:t});
+  pxcGuardar(E);
+  if(inp)inp.value='';
+  pxcRender();
+  pxcAviso(`${t} agregado al final: buscando su precio…`);
+  pxcResolver().then(()=>{const r=PXC_MAN[t];pxcAviso(r?`${t}: precio ${r.fuente==='byma'?'de BYMA':r.fuente==='app'?'que tenía la app':'archivado del '+String(r.fecha).slice(0,10).split('-').reverse().join('/')}.`:`${t}: sin precio en BYMA ni en el archivo. Clic en su precio para escribirlo.`);});
+}
+function pxcQuitar(t){
+  const E=pxcEstado();
+  E.manuales=E.manuales.filter(m=>m.ticker!==t);
+  E.orden=E.orden.filter(x=>x!==t);
+  pxcGuardar(E);delete PXC_MAN[t];
+  pxcRender();pxcAviso(`${t} quitado.`);
+}
+// El precio escrito, por cada 1 de valor nominal como se ve; vacío vuelve al
+// que se encuentre.
+function pxcPrecioManual(t,v1){
+  const E=pxcEstado(),m=E.manuales.find(x=>x.ticker===t);
+  if(!m)return;
+  if(v1>0)m.precio=+(v1*100).toFixed(6);else delete m.precio;
+  pxcGuardar(E);
+  if(!(v1>0))pxcResolver();
+  pxcRender();
+}
+function pxcEditar(td){
+  const t=td.closest('tr').dataset.t,m=pxcEstado().manuales.find(x=>x.ticker===t);
+  if(!m)return;
+  const actual=(PXC_MAN[t]||{}).precio,base=m.precio>0?m.precio:actual;
+  td.innerHTML=`<input type="text" class="pxc-px-in" value="${base>0?pxcPx(base):''}" aria-label="Precio de ${betrEsc(t)} por cada 1 de nominal" spellcheck="false" autocomplete="off">`;
+  const inp=td.querySelector('input');
+  let listo=false;
+  // La casilla se saca antes de guardar: con el foco en ella la lista no se
+  // vuelve a armar.
+  const fin=guardar=>{
+    if(listo)return;listo=true;
+    const texto=inp.value;
+    td.textContent='';
+    if(!guardar){pxcRender();return;}
+    const v=runLeerPx(texto);
+    if(v===undefined){pxcAviso('Eso no es un precio.');pxcRender();return;}
+    pxcPrecioManual(t,v==null?null:v);
+  };
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();fin(true);}else if(e.key==='Escape'){e.preventDefault();fin(false);}});
+  inp.addEventListener('blur',()=>fin(true));
+  inp.focus();inp.select();
+}
+
 // Sólo los precios, uno por fila, en el orden de la tabla.
 function pxcPrecios(){return pxcFilas().map(x=>pxcPx(x.b.precio));}
 function pxcTexto(){return pxcPrecios().join('\n');}
