@@ -4772,7 +4772,7 @@ const omitir = (label, motivo) =>
       out.fmt = [runCant(4992952926), runCant(15e6), runCant(508550), runCant(2111784), runCant(0), runPx(129.043), runPx(103.5), runPx(null)].join('|');
       out.leer = [runLeerPx('1.434,50'), runLeerPx('129.045'), runLeerPx('129,045'), runLeerPx(''), runLeerPx('abc')].join('|');
       const tablas = [...document.querySelectorAll('#page-run .run-tabla')];
-      out.tipos = tablas.map(x => x.querySelector('.run-tipo').textContent).join('|');
+      out.tipos = tablas.map(x => x.querySelector('.run-tipo input.run-grupo').dataset.g).join('|');
       out.cols = tablas.every(x => [...x.querySelectorAll('thead tr:last-child th')].map(h => h.textContent).join('|') === 'Ticker|Bid Size|Bid Px|Offer Px|Offer Size');
       const G = runGrupos();
       out.filas = tablas.reduce((s, x) => s + x.querySelectorAll('tbody tr').length, 0) === G.reduce((s, g) => s + g[1].length, 0);
@@ -4814,6 +4814,23 @@ const omitir = (label, motivo) =>
         const cv = runImagen();
         out.imagen = cv.width > 300 && cv.height > 200;
       }
+      // Un tipo entero se saca o se suma con su casilla, y cada tabla se exporta sola
+      const tipo2 = G.find(g => g[1].length >= 2);
+      if (tipo2) {
+        const casG = () => document.querySelector(`#page-run input.run-grupo[data-g="${tipo2[0]}"]`);
+        runGrupo(tipo2[0], false); await espera(50);
+        out.grupo = { fuera: tipo2[1].every(x => runEstado().fuera.includes(x.ticker)), casilla: !casG().checked };
+        runIncluir(tipo2[1][0].ticker, true); await espera(50);
+        out.grupo.medio = casG().indeterminate;
+        runGrupo(tipo2[0], true); await espera(50);
+        out.grupo.vuelve = casG().checked && !casG().indeterminate;
+        const txtG = runTexto(tipo2[0]), lineas = txtG.split('\n');
+        out.grupo.solo = lineas.includes(tipo2[0]) && G.filter(g => g[0] !== tipo2[0]).every(g => !lineas.includes(g[0]));
+        const htmlG = runHtml(tipo2[0]);
+        out.grupo.html = /^<table/.test(htmlG) && (htmlG.match(/<tr>/g) || []).length === 3 + tipo2[1].length;
+        out.grupo.wa = /^```\n[\s\S]*\n```$/.test(runWhatsApp(tipo2[0]));
+        out.grupo.botones = document.querySelectorAll(`#page-run .run-mini[data-g="${tipo2[0]}"]`).length === 4;
+      }
       switchTab('breakeven');
     } finally {
       if (antes == null) localStorage.removeItem('bonosAR_run_v1'); else localStorage.setItem('bonosAR_run_v1', antes);
@@ -4829,6 +4846,11 @@ const omitir = (label, motivo) =>
     check(run.trae && run.fijo, 'RUN: trae los precios de BYMA y no se mueven aunque cambie la pantalla', JSON.stringify(run));
     check(run.edita && run.marcado && run.traer, 'RUN: precios y cantidades se editan y se guardan; traer de BYMA cambia los precios y deja las cantidades', JSON.stringify(run));
     check(run.excluye && run.imagen, 'RUN: lo destildado no sale al exportar, y se arma la imagen y el texto', JSON.stringify(run));
+  }
+  if (run.grupo) {
+    const gr = run.grupo;
+    check(gr.fuera && gr.casilla && gr.medio && gr.vuelve, 'RUN: un tipo entero se saca o se suma con su casilla, que queda a medias si hay de los dos', JSON.stringify(gr));
+    check(gr.solo && gr.html && gr.wa && gr.botones, 'RUN: cada tabla se exporta sola, como imagen, como tabla (HTML) o para WhatsApp', JSON.stringify(gr));
   }
 
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
@@ -6961,6 +6983,16 @@ const omitir = (label, motivo) =>
         alto: Math.round(areaC.getBoundingClientRect().height), altoTabla: Math.round(wL.getBoundingClientRect().height),
         boton: (areaC.querySelector('.calc-lado-btn') || {}).textContent, guardado: calcEstado('cer').lado };
       calcLado('cer', false); await espera(300);
+      // Curva y forwards a la vez: abajo, uno al lado del otro; al costado, uno arriba del otro
+      calcPanelVista('cer', 'ambos'); await espera(400);
+      const gA = () => calcPanelGrafico(areaC).getBoundingClientRect(), fA = () => areaC.querySelector('.calc-fwd').getBoundingClientRect();
+      out.ambos = { abajo: fA().left >= gA().right - 1 && Math.abs(fA().top - gA().top) <= 2 && gA().width > 100, filas: document.querySelectorAll('#calc-fwd-cer tbody tr').length };
+      calcPanelParte('cer', 0.3); await espera(100);
+      out.ambos.parte = Math.abs(gA().width / areaC.querySelector('.calc-cuerpo').getBoundingClientRect().width - 0.3) < 0.03;
+      calcLado('cer', true); await espera(400);
+      out.ambos.costado = fA().top >= gA().bottom - 1 && Math.abs(fA().left - gA().left) <= 2;
+      calcLado('cer', false); calcPanelVista('cer', 'curva'); await espera(200);
+      out.ambos.vuelve = getComputedStyle(areaC.querySelector('.calc-fwd')).display === 'none' && getComputedStyle(calcPanelGrafico(areaC)).display !== 'none';
       out.lado.vuelve = !document.querySelector('#page-cer .calc-lado') && areaC.getBoundingClientRect().top >= document.getElementById('cer-table-body').closest('.table-scroll').getBoundingClientRect().bottom - 2;
       // La variación, en su columna al lado del precio
       const fv = document.querySelector('#cer-table-body tr');
@@ -7084,6 +7116,9 @@ const omitir = (label, motivo) =>
   if (!tcu || !tcu.cup.length) omitir('los bonos con cupón en los forwards de tasa fija', 'el TY30P sin precio');
   else check(tcu.cup.every(tk => tcu.filas.includes(tk)) && tcu.ordenado && tcu.sinEditar && tcu.tasa,
         'los forwards de tasa fija suman el TY30P al put y al vencimiento, por duration y con su precio de pantalla', JSON.stringify(tcu));
+  const am = cvista.ambos || {};
+  check(am.abajo && am.filas >= 3 && am.parte && am.costado && am.vuelve,
+        'curva y forwards a la vez: abajo uno al lado del otro, al costado uno arriba del otro, con el reparto a elección', JSON.stringify(am));
   const la = cvista.lado || {};
   check(la.env && la.costado && Math.abs(la.alto - la.altoTabla) <= 2 && /abajo/.test(la.boton || '') && la.guardado && la.vuelve,
         'la curva va al costado de la tabla, a toda la altura, y vuelve abajo', JSON.stringify(la));

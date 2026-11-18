@@ -190,6 +190,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .calc-min-bar{display:none;align-items:center;justify-content:center;gap:6px;width:100%;height:18px;border:0;border-top:1px solid var(--border);background:var(--surface);color:var(--text3);font-family:var(--mono);font-size:var(--fs9);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;padding:0;}
 .calc-min-bar:hover{color:var(--text);background:var(--surface2);}
 .calc-fwd{flex:1;min-height:0;overflow:auto;padding:.4rem 1rem calc(.6rem + 26px);}
+/* El cuerpo del panel: la curva, el divisor y los forwards. */
+.calc-cuerpo{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;}
+.calc-cuerpo>*{min-width:0;min-height:0;}
+.calc-cuerpo>.calc-fwd{flex:1 1 0;}
+.calc-cuerpo.fila{flex-direction:row;}
+.calc-div{display:none;flex:0 0 6px;background:var(--border);cursor:row-resize;}
+.calc-cuerpo.calc-ambos>.calc-div{display:block;}
+.calc-cuerpo.fila>.calc-div{cursor:col-resize;}
+.calc-div:hover{background:var(--accent-dim);}
+body.calc-div-alto,body.calc-div-alto *{cursor:row-resize!important;user-select:none!important;}
 /* El ancho de las columnas: el borde derecho de cada título se arrastra. */
 th.anc-th{position:relative;}
 .anc-borde{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;z-index:3;}
@@ -206,9 +216,14 @@ table.anc-fijo>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 .run-cuerpo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(460px,100%),1fr));gap:16px;align-items:start;padding:8px 16px 40px;}
 .run-tabla{min-width:0;width:100%;border:1px solid var(--border2);font-variant-numeric:tabular-nums;table-layout:fixed;}
 .run-tabla thead tr{position:static;}
-.run-tabla thead th{cursor:default;padding:5px 8px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;}
+.run-tabla thead th{cursor:default;padding:5px 6px;letter-spacing:0;overflow:hidden;text-overflow:ellipsis;}
 .run-tabla thead th:hover{color:var(--text3);}
-.run-tabla th.run-tipo{text-align:left;color:var(--accent);font-size:var(--fs11);letter-spacing:.06em;background:var(--surface);border-bottom:1px solid var(--border2);}
+.run-tabla th.run-tipo{text-align:left;color:var(--accent);font-size:var(--fs11);letter-spacing:.06em;background:var(--surface);border-bottom:1px solid var(--border2);padding:3px 6px 3px 0;overflow:visible;}
+.run-tipo-fila{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.run-tipo-fila .run-tk{padding:2px 10px;}
+.run-gacc{display:inline-flex;gap:3px;margin-left:auto;flex-wrap:wrap;}
+.run-mini{font-family:var(--mono);font-size:var(--fs9);text-transform:none;letter-spacing:0;padding:1px 6px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);color:var(--text3);cursor:pointer;}
+.run-mini:hover,.run-mini:focus-visible{color:var(--accent);border-color:var(--accent);}
 .run-tabla td{height:auto;padding:0;font-family:var(--mono);font-size:var(--fs12);border-bottom:1px solid var(--border);border-left:1px solid var(--border);}
 .run-tabla td:first-child{text-align:left;color:var(--text);font-weight:500;border-left:0;}
 .run-tk{display:flex;align-items:center;gap:7px;padding:4px 10px;cursor:pointer;white-space:nowrap;}
@@ -14890,7 +14905,7 @@ var CALC_FWD_NOTA={
 };
 
 function calcEstadoTodo(){try{const o=JSON.parse(localStorage.getItem(CALC_LS)||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
-function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'?'fwd':'curva',min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[],orden:Array.isArray(e.orden)?e.orden:[],
+function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'||e.vista==='ambos'?e.vista:'curva',parte:e.parte>=.15&&e.parte<=.85?+e.parte:.5,min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[],orden:Array.isArray(e.orden)?e.orden:[],
   anchos:e.anchos&&typeof e.anchos==='object'&&!Array.isArray(e.anchos)?e.anchos:{},lado:!!e.lado};}
 function calcEstadoGuardar(k,cambio){
   const o=calcEstadoTodo();
@@ -14954,7 +14969,8 @@ function calcPanelMontar(k){
   ctl.className='calc-ctl';
   ctl.innerHTML=(D.fwd?`<span class="calc-seg" role="group" aria-label="Qué mostrar abajo">
       <button type="button" data-v="curva" onclick="calcPanelVista('${k}','curva')">Curva</button>
-      <button type="button" data-v="fwd" onclick="calcPanelVista('${k}','fwd')">Forwards</button></span>`:'')
+      <button type="button" data-v="fwd" onclick="calcPanelVista('${k}','fwd')">Forwards</button>
+      <button type="button" data-v="ambos" onclick="calcPanelVista('${k}','ambos')" title="La curva y los forwards a la vez: uno al lado del otro abajo, uno arriba del otro al costado">Ambos</button></span>`:'')
     +(D.tabla?`<button type="button" class="calc-achicar calc-lado-btn" onclick="calcLado('${k}',!calcEstado('${k}').lado)" title="Poner el panel a la derecha de la tabla, a toda la altura (sirve con la tabla angosta)" aria-pressed="false">⇥ al costado</button>`:'')
     +`<button type="button" class="calc-achicar" onclick="calcPanelMin('${k}',true)" title="Achicar el panel a una tira, para que la tabla ocupe la pantalla">▾ achicar</button>`;
   // Lo de control va a la derecha: si la barra tiene un título que empuja todo,
@@ -14974,6 +14990,15 @@ function calcPanelMontar(k){
     caja.className='calc-fwd';caja.style.display='none';
     caja.innerHTML=`<div style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin-bottom:6px">${CALC_FWD_NOTA[D.fwd]}: fila, desde el vencimiento de ese bono; columna, hasta el de ese otro. Los bonos son los del gráfico (elegilos en "Bonos"). El precio se cambia con un clic en Px, y es el mismo de la tabla.</div><div id="calc-fwd-${k}"></div>${D.fwd==='tamar'?`<div id="calc-fwd-${k}-duales"></div>`:''}`;
     area.appendChild(caja);
+    // La curva y los forwards van en un cuerpo propio, para mostrar uno u otro o
+    // los dos a la vez con un divisor que se arrastra.
+    const g=calcPanelGrafico(area);
+    if(g){
+      const cu=document.createElement('div');cu.className='calc-cuerpo';
+      const dv=document.createElement('div');dv.className='calc-div';dv.title='Arrastrá para repartir el lugar entre la curva y los forwards';
+      dv.addEventListener('mousedown',e=>calcDivArrastrar(k,e));
+      area.insertBefore(cu,g);cu.append(g,dv,caja);
+    }
   }
   const min=document.createElement('button');
   min.type='button';min.className='calc-min-bar';
@@ -14984,27 +15009,65 @@ function calcPanelMontar(k){
 }
 // El contenedor del gráfico: lo que queda después de la barra y no es nuestro.
 function calcPanelGrafico(area){
+  const cu=area.querySelector(':scope>.calc-cuerpo');
+  if(cu)return cu.firstElementChild;
   return[...area.children].slice(2).find(c=>!c.classList.contains('calc-fwd')&&!c.classList.contains('calc-min-bar'));
 }
 function calcPanelAplicar(k){
   const D=CALC_DEF[k],area=D.area&&document.getElementById(D.area);
   if(!area)return;
-  const E=calcEstado(k),fwd=!!D.fwd&&E.vista==='fwd';
+  const E=calcEstado(k),v=D.fwd?E.vista:'curva',fwd=v!=='curva',curva=v!=='fwd';
   // La barra de estado de abajo es fija y tapa el borde inferior de la página:
   // achicado, el panel mide la tira más esa barra, y la tira queda a la vista.
   const sb=[...document.querySelectorAll('.status-bar')].find(x=>x.offsetHeight>0);
   area.style.setProperty('--calc-min',(18+(sb?sb.offsetHeight:0))+'px');
   area.classList.toggle('calc-panel-min',E.min&&!E.lado);
   const g=calcPanelGrafico(area),caja=area.querySelector('.calc-fwd');
-  if(g)g.style.display=fwd?'none':'';
+  if(g)g.style.display=curva?'':'none';
   if(caja)caja.style.display=fwd?'':'none';
-  area.querySelectorAll('.calc-seg button').forEach(b=>{b.classList.toggle('on',b.dataset.v===(fwd?'fwd':'curva'));b.setAttribute('aria-pressed',String(b.dataset.v===(fwd?'fwd':'curva')));});
+  // Los dos a la vez: abajo, uno al lado del otro; al costado, uno arriba del otro.
+  const cu=area.querySelector(':scope>.calc-cuerpo');
+  if(cu){
+    cu.classList.toggle('calc-ambos',v==='ambos');
+    cu.classList.toggle('fila',v==='ambos'&&!E.lado);
+    calcPanelParte(k,E.parte);
+  }
+  area.querySelectorAll('.calc-seg button').forEach(b=>{b.classList.toggle('on',b.dataset.v===v);b.setAttribute('aria-pressed',String(b.dataset.v===v));});
   if(fwd&&(!E.min||E.lado))calcFwdRender(k);
   // Al volver a la curva el lienzo cambia de tamaño. Un gráfico que se destruyó
   // y se volvió a crear deja el viejo sin lienzo: a ese no se le pide nada.
-  if(!fwd&&(!E.min||E.lado))setTimeout(()=>{try{const c=D.chart&&D.chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
+  if(curva&&(!E.min||E.lado))setTimeout(()=>{try{const c=D.chart&&D.chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
 }
-function calcPanelVista(k,v){calcEstadoGuardar(k,{vista:v==='fwd'?'fwd':'curva'});calcPanelAplicar(k);}
+function calcPanelVista(k,v){calcEstadoGuardar(k,{vista:v==='fwd'||v==='ambos'?v:'curva'});calcPanelAplicar(k);}
+// Cuánto del panel va para la curva cuando se ven los dos (de 0,15 a 0,85).
+function calcPanelParte(k,p){
+  const D=CALC_DEF[k],area=D&&D.area&&document.getElementById(D.area),cu=area&&area.querySelector(':scope>.calc-cuerpo');
+  if(!cu)return;
+  const g=cu.firstElementChild;
+  if(g.dataset.flexOrig===undefined)g.dataset.flexOrig=g.style.flex;
+  if(cu.classList.contains('calc-ambos')){g.style.flex=`0 0 calc(${(p*100).toFixed(1)}% - 3px)`;cu.dataset.parte=String(p);}
+  else g.style.flex=g.dataset.flexOrig;
+}
+function calcDivArrastrar(k,e){
+  if(e.button!==0)return;
+  const D=CALC_DEF[k],area=document.getElementById(D.area),cu=area&&area.querySelector(':scope>.calc-cuerpo');
+  if(!cu||!cu.classList.contains('calc-ambos'))return;
+  e.preventDefault();
+  const fila=cu.classList.contains('fila'),r=cu.getBoundingClientRect();
+  document.body.classList.add(fila?'anc-arrastrando':'calc-div-alto');
+  let p=calcEstado(k).parte;
+  const mover=ev=>{
+    p=Math.max(.15,Math.min(.85,fila?(ev.clientX-r.left)/r.width:(ev.clientY-r.top)/r.height));
+    calcPanelParte(k,p);
+  };
+  const soltar=()=>{
+    document.removeEventListener('mousemove',mover);document.removeEventListener('mouseup',soltar);
+    document.body.classList.remove('anc-arrastrando','calc-div-alto');
+    calcEstadoGuardar(k,{parte:+p.toFixed(3)});
+    try{const c=D.chart&&D.chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(_){}
+  };
+  document.addEventListener('mousemove',mover);document.addEventListener('mouseup',soltar);
+}
 function calcPanelMin(k,min){calcEstadoGuardar(k,{min:!!min});calcPanelAplicar(k);}
 
 // Los forwards entre los bonos del gráfico: los que no se sacaron con "Bonos",
@@ -15131,14 +15194,15 @@ function runRender(forzar){
       <span class="pane-title">Run</span><span id="run-bonos"></span>
       <button type="button" class="btn" id="run-traer" onclick="runTraer()" title="Reemplaza los precios del run por los de pantalla. Las cantidades quedan">↻ Traer de BYMA</button>
       <span class="run-nota" id="run-tomado"></span>
-      <span class="run-acc">
-        <button type="button" class="btn" onclick="runCopiarImagen()" title="Copia el run como imagen, para pegarlo en un chat">⧉ Copiar imagen</button>
-        <button type="button" class="btn" onclick="runDescargar()" title="Descarga el run como imagen PNG">⤓ PNG</button>
-        <button type="button" class="btn" onclick="runCopiarTexto()" title="Copia el run como texto, en columnas">⧉ Texto</button>
+      <span class="run-acc" role="group" aria-label="Exportar todo el run">
+        <button type="button" class="btn" onclick="runExportar('img')" title="Copia el run como imagen, para pegarlo en un chat">⧉ Copiar imagen</button>
+        <button type="button" class="btn" onclick="runExportar('png')" title="Descarga el run como imagen PNG">⤓ PNG</button>
+        <button type="button" class="btn" onclick="runExportar('tabla')" title="Copia el run como tabla: se pega como tabla en Eikon Messenger, Outlook, Teams o Excel">⧉ Tabla</button>
+        <button type="button" class="btn" onclick="runExportar('wa')" title="Copia el run para WhatsApp: en letra fija, con las columnas alineadas">⧉ WhatsApp</button>
       </span>
       <span class="run-aviso" id="run-aviso" role="status" aria-live="polite"></span>
     </div>
-    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda, Enter baja a la de abajo y Escape deja lo que había. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Lo destildado no sale al exportar.</div>
+    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda, Enter baja a la de abajo y Escape deja lo que había. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Lo destildado no sale al exportar. Arriba se exporta todo el run; en cada tabla, sólo ese tipo.</div>
     <div class="run-cuerpo"></div>`);
     cuerpo=pg.querySelector('.run-cuerpo');
     runMontar(pg);
@@ -15170,11 +15234,15 @@ function runRender(forzar){
       +`<td>${inp('qa',q.ask||'','run-q','','—')}</td></tr>`;
   };
   cuerpo.innerHTML=G.length?G.map(([tipo,bonos])=>{
-    return`<section aria-label="${tipo}"><table class="run-tabla"><colgroup><col style="width:22%"><col style="width:15%"><col style="width:24%"><col style="width:24%"><col style="width:15%"></colgroup><thead>
-    <tr><th colspan="5" class="run-tipo">${tipo}</th></tr>
+    return`<section aria-label="${tipo}"><table class="run-tabla"><colgroup><col style="width:20%"><col style="width:19%"><col style="width:21%"><col style="width:21%"><col style="width:19%"></colgroup><thead>
+    <tr><th colspan="5" class="run-tipo"><div class="run-tipo-fila">
+      <label class="run-tk" title="Incluir o sacar todos los de ${tipo}"><input type="checkbox" class="run-grupo" data-g="${tipo}"${bonos.every(b=>!fuera.has(b.ticker))?' checked':''}${bonos.some(b=>!fuera.has(b.ticker))&&bonos.some(b=>fuera.has(b.ticker))?' data-medio="1"':''} aria-label="Incluir todos los de ${tipo}">${tipo}</label>
+      <span class="run-gacc">${runAccHTML(tipo)}</span></div></th></tr>
     <tr><th style="text-align:left">Ticker</th><th>Bid Size</th><th>Bid Px</th><th>Offer Px</th><th>Offer Size</th></tr>
   </thead><tbody>${bonos.map(b=>fila(b,runDec([E.px[b.ticker]||{}]))).join('')}</tbody></table></section>`;}).join('')
     :'<div class="run-nota" style="padding:8px 0">Sin bonos cargados.</div>';
+  // La casilla del tipo queda a medias si hay algunos sí y otros no.
+  cuerpo.querySelectorAll('input.run-grupo[data-medio]').forEach(c=>{c.indeterminate=true;});
   runBonosPintar(G,E);
 }
 function runMontar(pg){
@@ -15184,7 +15252,12 @@ function runMontar(pg){
     const x=ev.target;
     if(!x.classList)return;
     if(x.classList.contains('run-incl'))runIncluir(x.dataset.t,x.checked);
+    else if(x.classList.contains('run-grupo'))runGrupo(x.dataset.g,x.checked);
     else if(x.classList.contains('run-in'))runCelda(x);
+  });
+  pg.addEventListener('click',ev=>{
+    const b=ev.target.closest&&ev.target.closest('.run-mini');
+    if(b){ev.preventDefault();runExportar(b.dataset.acc,b.dataset.g);}
   });
   pg.addEventListener('keydown',ev=>{
     const x=ev.target;
@@ -15245,6 +15318,21 @@ function runIncluir(t,on){
   E.fuera=[...s];runGuardar(E);
   runRender(true);
 }
+// Incluir o sacar todos los de un tipo.
+function runGrupo(tipo,on){
+  const g=runGrupos().find(x=>x[0]===tipo);
+  if(!g)return;
+  const E=runEstado(),s=new Set(E.fuera);
+  g[1].forEach(b=>{if(on)s.delete(b.ticker);else s.add(b.ticker);});
+  E.fuera=[...s];runGuardar(E);
+  runRender(true);
+}
+function runAccHTML(tipo){
+  const e=betrEsc(tipo);
+  return[['img','⧉ Imagen','Copiar '+e+' como imagen'],['png','⤓ PNG','Descargar '+e+' como imagen'],
+    ['tabla','⧉ Tabla','Copiar '+e+' como tabla (Eikon, Outlook, Teams, Excel)'],['wa','⧉ WhatsApp','Copiar '+e+' para WhatsApp']]
+    .map(([a,l,t])=>`<button type="button" class="run-mini" data-acc="${a}" data-g="${e}" title="${t}">${l}</button>`).join('');
+}
 function runTodos(on){
   const E=runEstado();
   E.fuera=on?[]:runGrupos().flatMap(g=>g[1].map(b=>b.ticker));
@@ -15281,24 +15369,40 @@ function runAviso(m){
 }
 
 // ── Exportar ──
-// Lo incluido, por tipo, como se ve en el run.
-function runFilasExport(){
+// Lo incluido, por tipo, como se ve en el run; con g, sólo ese tipo.
+function runFilasExport(g){
   const E=runEstado(),fuera=new Set(E.fuera);
-  return runGrupos().map(([tipo,bs])=>{
+  return runGrupos().filter(([tipo])=>!g||tipo===g).map(([tipo,bs])=>{
     const inc=bs.filter(b=>!fuera.has(b.ticker));
     return[tipo,inc.map(b=>{const p=E.px[b.ticker]||{},q=E.q[b.ticker]||{},dec=runDec([p]);return[b.ticker,q.bid||'',runPx(p.bid,dec),runPx(p.ask,dec),q.ask||''];})];
-  }).filter(g=>g[1].length);
+  }).filter(x=>x[1].length);
 }
 var RUN_CAB=['Ticker','Bid Size','Bid Px','Offer Px','Offer Size'];
-function runTexto(){
-  const G=runFilasExport(),filas=G.flatMap(g=>g[1]);
+// En columnas alineadas, para letra fija.
+function runTexto(g){
+  const G=runFilasExport(g),filas=G.flatMap(x=>x[1]);
   const w=RUN_CAB.map((h,i)=>Math.max(h.length,...filas.map(f=>f[i].length)));
   const lin=f=>f.map((x,i)=>i===0?x.padEnd(w[i]):x.padStart(w[i])).join('  ').replace(/\s+$/,'');
   return[`RUN ${runFecha()}`,lin(RUN_CAB),...G.flatMap(([tipo,fs])=>['',tipo,...fs.map(lin)])].join('\n');
 }
+// WhatsApp no tiene tablas: entre triples comillas invertidas va en letra fija,
+// y las columnas quedan alineadas.
+function runWhatsApp(g){return['```',runTexto(g),'```'].join('\n');}
+// Una tabla de verdad, para lo que pega HTML (Eikon Messenger, Outlook, Teams,
+// Excel): bordes, el tipo como fila y los números a la derecha.
+function runHtml(g){
+  const e=betrEsc,G=runFilasExport(g);
+  const b='border:1px solid #8a8f94;padding:2px 8px;';
+  const td=(v,i)=>`<td style="${b}text-align:${i===0?'left':'right'};${i===0?'font-weight:bold;':''}white-space:nowrap">${e(v)}</td>`;
+  return`<table style="border-collapse:collapse;font-family:Consolas,'Courier New',monospace;font-size:12px">`
+    +`<tr><td colspan="5" style="padding:2px 8px 4px 0;font-weight:bold">RUN ${runFecha()}</td></tr>`
+    +`<tr>${RUN_CAB.map((h,i)=>`<th style="${b}background:#e3e6e8;text-align:${i===0?'left':'right'}">${h}</th>`).join('')}</tr>`
+    +G.map(([tipo,fs])=>`<tr><td colspan="5" style="${b}background:#c9cfd4;font-weight:bold">${e(tipo)}</td></tr>`+fs.map(f=>`<tr>${f.map(td).join('')}</tr>`).join('')).join('')
+    +`</table>`;
+}
 // La imagen, siempre en oscuro como el run de la mesa, al doble de resolución.
-function runImagen(){
-  const G=runFilasExport(),filas=G.flatMap(g=>g[1]);
+function runImagen(g){
+  const G=runFilasExport(g),filas=G.flatMap(x=>x[1]);
   const S=2,fam=getComputedStyle(document.body).fontFamily||'monospace';
   const fN=`13px ${fam}`,fB=`600 13px ${fam}`,fH=`11px ${fam}`,fT=`600 14px ${fam}`,fG=`600 12px ${fam}`;
   const c=document.createElement('canvas'),x=c.getContext('2d');
@@ -15308,7 +15412,10 @@ function runImagen(){
     x.font=i===0?fB:fN;filas.forEach(f=>{m=Math.max(m,x.measureText(f[i]).width);});
     return Math.ceil(m)+2*pad;
   });
-  const W=anchos.reduce((a,b)=>a+b,0),n=2+G.reduce((s,g)=>s+1+g[1].length,0),H=n*alto;
+  const titulo=`RUN · ${runFecha()}`;
+  x.font=fT;
+  const W=Math.max(anchos.reduce((a,b)=>a+b,0),Math.ceil(x.measureText(titulo).width)+2*pad),n=2+G.reduce((s2,y)=>s2+1+y[1].length,0),H=n*alto;
+  anchos[anchos.length-1]+=W-anchos.reduce((a,b)=>a+b,0);
   c.width=(W+2)*S;c.height=(H+2)*S;
   x.scale(S,S);x.translate(1,1);
   x.fillStyle='#101317';x.fillRect(-1,-1,W+2,H+2);
@@ -15325,7 +15432,7 @@ function runImagen(){
   };
   const columnas=(y0,y1)=>{let xx=0;x.strokeStyle='#3a4047';anchos.slice(0,-1).forEach(a=>{xx+=a;x.beginPath();x.moveTo(xx+.5,y0);x.lineTo(xx+.5,y1);x.stroke();});};
   let y=0;
-  x.font=fT;x.fillStyle='#f2f2f2';x.textAlign='left';x.fillText(`RUN · ${runFecha()}`,pad,y+alto/2+1);
+  x.font=fT;x.fillStyle='#f2f2f2';x.textAlign='left';x.fillText(titulo,pad,y+alto/2+1);
   y+=alto;raya(y);
   texto(RUN_CAB.map(h=>h.toUpperCase()),y,'#9aa3ab',fH);
   columnas(y,y+alto);
@@ -15341,27 +15448,58 @@ function runImagen(){
   x.strokeStyle='#55606a';x.strokeRect(.5,.5,W-1,H-1);
   return c;
 }
-function runVacio(){if(runFilasExport().length)return false;runAviso('No hay bonos incluidos para exportar.');return true;}
-async function runCopiarImagen(){
-  if(runVacio())return;
+function runVacio(g){if(runFilasExport(g).length)return false;runAviso(g?`No hay bonos de ${g} incluidos para exportar.`:'No hay bonos incluidos para exportar.');return true;}
+function runExportar(acc,g){
+  if(runVacio(g))return;
+  if(acc==='img')runCopiarImagen(g);
+  else if(acc==='png')runDescargar(g);
+  else if(acc==='tabla')runCopiarTabla(g);
+  else if(acc==='wa')runCopiarWhatsApp(g);
+}
+function runCual(g){return g?` (${g})`:'';}
+async function runCopiarImagen(g){
+  if(runVacio(g))return;
   try{
     if(!navigator.clipboard||typeof ClipboardItem==='undefined')throw new Error('este navegador no copia imágenes');
-    const c=runImagen();
+    const c=runImagen(g);
     await navigator.clipboard.write([new ClipboardItem({'image/png':new Promise((ok,mal)=>c.toBlob(b=>b?ok(b):mal(new Error('sin imagen')),'image/png'))})]);
-    runAviso('Imagen copiada: pegala en el chat.');
+    runAviso(`Imagen copiada${runCual(g)}: pegala en el chat.`);
   }catch(e){runAviso(`No se pudo copiar la imagen (${e.message}). Descargala con ⤓ PNG.`);}
 }
-function runDescargar(){
-  if(runVacio())return;
+function runDescargar(g){
+  if(runVacio(g))return;
   const a=document.createElement('a');
-  a.download=`run-${hoyAR()}.png`;a.href=runImagen().toDataURL('image/png');
+  a.download=`run-${g?g.toLowerCase().replace(/\s+/g,'-')+'-':''}${hoyAR()}.png`;a.href=runImagen(g).toDataURL('image/png');
   document.body.appendChild(a);a.click();a.remove();
-  runAviso('Imagen descargada.');
+  runAviso(`Imagen descargada${runCual(g)}.`);
 }
-async function runCopiarTexto(){
-  if(runVacio())return;
-  try{await navigator.clipboard.writeText(runTexto());runAviso('Texto copiado.');}
-  catch(e){runAviso(`No se pudo copiar el texto (${e.message}).`);}
+// La tabla va con las dos formas: HTML para lo que pega tablas y el texto en
+// columnas para lo demás. Sin el portapapeles nuevo, se copia la tabla
+// seleccionada, como lo hace el navegador.
+async function runCopiarTabla(g){
+  if(runVacio(g))return;
+  const html=runHtml(g),txt=runTexto(g);
+  try{
+    if(!navigator.clipboard||typeof ClipboardItem==='undefined')throw new Error('viejo');
+    await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([txt],{type:'text/plain'})})]);
+  }catch(e){
+    try{runCopiarSeleccion(html);}catch(e2){runAviso(`No se pudo copiar la tabla (${e.message}).`);return;}
+  }
+  runAviso(`Tabla copiada${runCual(g)}: se pega como tabla en Eikon Messenger, Outlook, Teams o Excel.`);
+}
+function runCopiarSeleccion(html){
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;left:-9999px;top:0';d.innerHTML=html;document.body.appendChild(d);
+  const r=document.createRange(),sel=getSelection();
+  r.selectNodeContents(d);sel.removeAllRanges();sel.addRange(r);
+  const ok=document.execCommand('copy');
+  sel.removeAllRanges();d.remove();
+  if(!ok)throw new Error('el navegador no copió');
+}
+async function runCopiarWhatsApp(g){
+  if(runVacio(g))return;
+  try{await navigator.clipboard.writeText(runWhatsApp(g));runAviso(`Copiado para WhatsApp${runCual(g)}: se pega en letra fija, con las columnas alineadas.`);}
+  catch(e){runAviso(`No se pudo copiar (${e.message}).`);}
 }
 
 function calcFwdPrecio(fwd,t){
