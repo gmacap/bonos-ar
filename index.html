@@ -190,6 +190,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .calc-min-bar{display:none;align-items:center;justify-content:center;gap:6px;width:100%;height:18px;border:0;border-top:1px solid var(--border);background:var(--surface);color:var(--text3);font-family:var(--mono);font-size:var(--fs9);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;padding:0;}
 .calc-min-bar:hover{color:var(--text);background:var(--surface2);}
 .calc-fwd{flex:1;min-height:0;overflow:auto;padding:.4rem 1rem calc(.6rem + 26px);}
+/* El ancho de las columnas: el borde derecho de cada título se arrastra. */
+th.anc-th{position:relative;}
+.anc-borde{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;z-index:3;}
+.anc-borde:hover,.anc-borde.activo{box-shadow:inset -2px 0 0 var(--accent);}
+body.anc-arrastrando,body.anc-arrastrando *{cursor:col-resize!important;user-select:none!important;}
+table.anc-fijo{table-layout:fixed;}
+table.anc-fijo>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
+/* Los títulos de las matrices de duales, abajo de la de TAMAR. */
+.calc-fwd-sub{font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin:16px 0 6px;}
+.calc-fwd-sub b{color:var(--v-f472b6,#f472b6);font-weight:500;}
 /* El precio que se escribe en los forwards de las calculadoras. */
 .calc-fwd-px{width:90px;background:var(--surface2);color:var(--text);border:1px solid var(--accent);border-radius:3px;padding:2px 4px;font-family:var(--mono);font-size:var(--fs11);text-align:right;}
 /* El orden de las columnas: el encabezado que se arrastra y dónde va a caer. */
@@ -3152,7 +3162,7 @@ async function authAction(){
 // Resumen, el Resumen de dólares, la fuente de cada proyección, los dos
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_fwd_anchos_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
   'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1','bonosAR_escenarios_v1','bonosAR_calc_vista_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
@@ -14787,7 +14797,9 @@ function calcBonosPintar(clave){
 //   · el panel de abajo muestra la curva o los forwards entre los bonos del
 //     gráfico (los mismos que elige "Bonos"), y se achica a una tira;
 //   · el desplegable "Columnas" elige qué columnas de la tabla se ven y en qué
-//     orden, que también se cambia arrastrando los títulos.
+//     orden, que también se cambia arrastrando los títulos;
+//   · el ancho de cada columna, de la tabla y de los forwards, se arrastra
+//     desde el borde derecho del título.
 // Se monta al abrir la solapa, sobre el HTML de cada una, y lo elegido se guarda
 // por calculadora como lo personal. Estado en var: calcBonosPintar lo consulta
 // desde el arranque, antes de que el script llegue hasta acá.
@@ -14824,7 +14836,8 @@ var CALC_FWD_NOTA={
 };
 
 function calcEstadoTodo(){try{const o=JSON.parse(localStorage.getItem(CALC_LS)||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
-function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'?'fwd':'curva',min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[],orden:Array.isArray(e.orden)?e.orden:[]};}
+function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'?'fwd':'curva',min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[],orden:Array.isArray(e.orden)?e.orden:[],
+  anchos:e.anchos&&typeof e.anchos==='object'&&!Array.isArray(e.anchos)?e.anchos:{}};}
 function calcEstadoGuardar(k,cambio){
   const o=calcEstadoTodo();
   o[k]={...calcEstado(k),...cambio};
@@ -14903,7 +14916,7 @@ function calcPanelMontar(k){
   if(D.fwd){
     const caja=document.createElement('div');
     caja.className='calc-fwd';caja.style.display='none';
-    caja.innerHTML=`<div style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin-bottom:6px">${CALC_FWD_NOTA[D.fwd]}: fila, desde el vencimiento de ese bono; columna, hasta el de ese otro. Los bonos son los del gráfico (elegilos en "Bonos"). El precio se cambia con un clic en Px, y es el mismo de la tabla.</div><div id="calc-fwd-${k}"></div>`;
+    caja.innerHTML=`<div style="font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin-bottom:6px">${CALC_FWD_NOTA[D.fwd]}: fila, desde el vencimiento de ese bono; columna, hasta el de ese otro. Los bonos son los del gráfico (elegilos en "Bonos"). El precio se cambia con un clic en Px, y es el mismo de la tabla.</div><div id="calc-fwd-${k}"></div>${D.fwd==='tamar'?`<div id="calc-fwd-${k}-duales"></div>`:''}`;
     area.appendChild(caja);
   }
   const min=document.createElement('button');
@@ -14946,7 +14959,8 @@ function calcPanelMin(k,min){calcEstadoGuardar(k,{min:!!min});calcPanelAplicar(k
 function calcFwdRender(k){
   const D=CALC_DEF[k],el=document.getElementById('calc-fwd-'+k);
   if(!D||!D.fwd||!el)return;
-  if(el.querySelector('input.calc-fwd-px'))return;
+  const caja=el.parentElement||el;
+  if(caja.querySelector('input.calc-fwd-px'))return;
   const ex=calcExcl(D.clave),hoy=hoyAR();
   const sirve=b=>b&&b.ticker&&!ex.has(b.ticker)&&!calcAparte(D.clave,b.ticker);
   if(D.fwd==='bon'||D.fwd==='glo'||D.fwd==='bop'){
@@ -14963,10 +14977,26 @@ function calcFwdRender(k){
     if(D.fwd==='tf'&&typeof chartMode!=='undefined')fwdMode=chartMode;
     try{fwdBuildTable(bonos,D.fwd,'calc-fwd-'+k);}finally{fwdMode=antes;}
   }
-  el.querySelectorAll('td[onclick]').forEach(td=>{
+  if(D.fwd==='tamar')calcFwdDuales(k,ex,hoy);
+  caja.querySelectorAll('td[onclick]').forEach(td=>{
     if(td.dataset.px){td.setAttribute('onclick',`calcFwdEditPx(this,'${k}')`);td.title='Clic para editar el precio: es el de la tabla, y cambia también la tabla y el gráfico';}
     else td.removeAttribute('onclick');
   });
+}
+// Abajo de TAMAR, los duales: una matriz por combinación (TAMAR/CER, TAMAR/dólar
+// linked, TAMAR/tasa fija) con al menos dos bonos, sobre el mismo margen que la
+// de arriba. Siguen la selección de "Bonos" y su precio se edita igual.
+function calcFwdDuales(k,ex,hoy){
+  const caja=document.getElementById('calc-fwd-'+k+'-duales');
+  if(!caja)return;
+  const combos=dualCombos('TAMAR'),g={};
+  (TAMAR_BONDS||[]).forEach(b=>{
+    const c=b&&combos.get(b.ticker);
+    if(c&&!ex.has(b.ticker)&&b.vcto&&b.vcto>hoy&&b.precio>0)(g[c]=g[c]||[]).push(b);
+  });
+  const cs=['cer','dlk','tf'].filter(c=>(g[c]||[]).length>=2);
+  caja.innerHTML=cs.map(c=>`<div class="calc-fwd-sub"><b>Duales ${DUAL_COMBO_NOMBRE[c]}</b> · margen forward sobre TAMAR entre cada par de vencimientos; no entran en la matriz de arriba</div><div id="calc-fwd-${k}-dual-${c}"></div>`).join('');
+  cs.forEach(c=>fwdBuildTable(g[c].sort((a,b)=>a.vcto.localeCompare(b.vcto)),'tamar',`calc-fwd-${k}-dual-${c}`));
 }
 function calcFwdPrecio(fwd,t){
   if(fwd==='bon'||fwd==='glo'||fwd==='bop'){
@@ -15059,7 +15089,10 @@ function calcOrdenarTabla(k,t){
   });
   nat.forEach((th,i)=>{const d=i>0&&!!claves[i];if(th.draggable!==d)th.draggable=d;});
 }
-function calcOrdenarTablas(k){calcTablas(k).forEach(t=>{try{calcOrdenarTabla(k,t);}catch(e){console.warn('[columnas]',e.message);}});}
+function calcOrdenarTablas(k){calcTablas(k).forEach(t=>{
+  try{calcOrdenarTabla(k,t);}catch(e){console.warn('[columnas]',e.message);}
+  try{anchosAplicar(t,calcAnchosCfg(k));}catch(e){console.warn('[anchos]',e.message);}
+});}
 var CALC_OBS={};
 function calcOrdenMontar(k){
   const ts=calcTablas(k);
@@ -15083,6 +15116,7 @@ function calcArrastreMontar(k,cont){
   const limpiar=()=>cont.querySelectorAll('.calc-th-izq,.calc-th-der').forEach(x=>x.classList.remove('calc-th-izq','calc-th-der'));
   const lado=(e,th)=>{const r=th.getBoundingClientRect();return e.clientX>r.left+r.width/2?'der':'izq';};
   cont.addEventListener('dragstart',e=>{
+    if(document.body.classList.contains('anc-arrastrando')){e.preventDefault();return;}
     const th=thDe(e);
     if(!th)return;
     src=calcClaveTh(th);
@@ -15151,6 +15185,8 @@ function calcColsAplicar(k){
   let st=document.getElementById('calc-cols-css-'+k);
   if(!st){st=document.createElement('style');st.id='calc-cols-css-'+k;document.head.appendChild(st);}
   st.textContent=lista.filter(c=>ocultas.has(c.clave)).map(c=>`${D.tabla} tr>:nth-child(${c.i+1}){display:none}`).join('\n');
+  // Con anchos fijos, la tabla mide la suma de las columnas que se ven.
+  calcTablas(k).forEach(t=>{try{anchosAplicar(t,calcAnchosCfg(k));}catch(e){}});
   calcColsPintar(k,lista,ocultas);
 }
 function calcColsPintar(k,lista,ocultas){
@@ -15161,7 +15197,8 @@ function calcColsPintar(k,lista,ocultas){
   const boton=(c,d,dis,tit,txt)=>`<button type="button" title="${tit}"${dis?' disabled':''} onclick="${betrEsc(`event.preventDefault();calcColsMover('${k}','${esc(c.clave)}',${d})`)}">${txt}</button>`;
   const flechas=(c,j)=>`<span class="msel-mover">${boton(c,-1,j===0,'Más a la izquierda','▲')}${boton(c,1,j===lista.length-1,'Más a la derecha','▼')}</span>`;
   mselPintar('calc-cols-'+k,{titulo:'Columnas',resumen:`${vis}/${lista.length}`,
-    acciones:[{l:'Todas',fn:`calcColsTodas('${k}')`},{l:'Orden original',fn:`calcColsOrdenOriginal('${k}')`}],
+    acciones:[{l:'Todas',fn:`calcColsTodas('${k}')`},{l:'Orden original',fn:`calcColsOrdenOriginal('${k}')`}]
+      .concat(Object.keys(calcEstado(k).anchos).length?[{l:'Anchos originales',fn:`calcAnchosOriginales('${k}')`}]:[]),
     grupos:[{l:'Qué se ve y en qué orden · o arrastrá los títulos',items:lista.map((c,j)=>({l:c.clave,v:c.clave,on:!ocultas.has(c.clave),
       fn:`calcColsVer('${k}','${esc(c.clave)}',this.checked)`,extra:flechas(c,j)}))}]});
 }
@@ -15172,6 +15209,127 @@ function calcColsVer(k,clave,ver){
   calcColsAplicar(k);
 }
 function calcColsTodas(k){calcEstadoGuardar(k,{cols:[]});calcColsAplicar(k);}
+
+// ── Anchos de columna ──
+// En las tablas de las calculadoras y en las matrices de forwards, el borde
+// derecho de cada título se arrastra para cambiar el ancho de su columna; doble
+// clic en un borde vuelve a los anchos de siempre. Mientras no se toca ninguno,
+// la tabla se reparte sola, como siempre. Al tocar uno pasa a anchos fijos: cada
+// columna con el suyo y la tabla con la suma (si no entra, se corre de costado),
+// y lo que no entra en una celda se corta.
+//   cfg = {clave:(th,i)=>clave, o null si ese borde no se arrastra;
+//          leer:()=>{clave:px}; guardar:{clave:px}=>void;
+//          todas:()=>vuelve a aplicar en todas las tablas que comparten anchos}
+function anchosAplicar(t,cfg,A){
+  if(!t||!cfg)return;
+  t._anchos=cfg;
+  const cab=t.querySelector('thead tr:last-child');
+  if(!cab)return;
+  A=A||cfg.leer()||{};
+  const ths=[...cab.children];
+  if(t.dataset.ancW===undefined){t.dataset.ancW=t.style.width;t.dataset.ancMin=t.style.minWidth;}
+  ths.forEach((th,i)=>{
+    if(th.dataset.ancW===undefined)th.dataset.ancW=th.style.width;
+    if(cfg.clave(th,i)!=null&&!th.querySelector(':scope>.anc-borde')){
+      th.classList.add('anc-th');
+      th.insertAdjacentHTML('beforeend','<span class="anc-borde" title="Arrastrá para cambiar el ancho · doble clic: los anchos de siempre"></span>');
+    }
+  });
+  if(!Object.keys(A).length){
+    if(t.classList.contains('anc-fijo')){
+      t.classList.remove('anc-fijo');
+      ths.forEach(th=>{th.style.width=th.dataset.ancW;});
+      t.style.width=t.dataset.ancW;t.style.minWidth=t.dataset.ancMin;
+    }
+    return;
+  }
+  // Una columna sin ancho guardado (una nueva, o una que estaba oculta) toma el
+  // que tenía o uno razonable.
+  const w=ths.map((th,i)=>{
+    if(getComputedStyle(th).display==='none')return 0;
+    const c=cfg.clave(th,i);
+    if(c!=null&&A[c]>0)return A[c];
+    const fijo=parseFloat(th.dataset.ancW);
+    if(fijo>0)return fijo;
+    const r=Math.round(th.getBoundingClientRect().width);
+    return r>=40?r:80;
+  });
+  ths.forEach((th,i)=>{if(w[i])th.style.width=w[i]+'px';});
+  t.style.width=w.reduce((a,b)=>a+b,0)+'px';
+  t.style.minWidth='0';
+  t.classList.add('anc-fijo');
+}
+document.addEventListener('mousedown',e=>{
+  const h=e.target&&e.target.classList&&e.target.classList.contains('anc-borde')?e.target:null;
+  if(!h||e.button!==0)return;
+  const th=h.parentElement,t=th&&th.closest('table'),cfg=t&&t._anchos;
+  if(!cfg)return;
+  e.preventDefault();e.stopPropagation();
+  const ths=[...th.parentElement.children],c=cfg.clave(th,ths.indexOf(th));
+  if(c==null)return;
+  // Al tocar el primero, todas las columnas quedan con el ancho que se ve.
+  const A={...(cfg.leer()||{})};
+  ths.forEach((x,j)=>{
+    const cx=cfg.clave(x,j);
+    if(cx==null||A[cx]>0||getComputedStyle(x).display==='none')return;
+    const r=Math.round(x.getBoundingClientRect().width);
+    if(r>0)A[cx]=r;
+  });
+  const x0=e.clientX,w0=th.getBoundingClientRect().width;
+  h.classList.add('activo');document.body.classList.add('anc-arrastrando');
+  const mover=ev=>{A[c]=Math.max(28,Math.round(w0+ev.clientX-x0));anchosAplicar(t,cfg,A);};
+  const soltar=()=>{
+    document.removeEventListener('mousemove',mover);document.removeEventListener('mouseup',soltar);
+    h.classList.remove('activo');document.body.classList.remove('anc-arrastrando');
+    t._ancFin=Date.now();
+    cfg.guardar(A);
+    if(cfg.todas)cfg.todas();else anchosAplicar(t,cfg);
+  };
+  document.addEventListener('mousemove',mover);document.addEventListener('mouseup',soltar);
+},true);
+document.addEventListener('dblclick',e=>{
+  const h=e.target&&e.target.classList&&e.target.classList.contains('anc-borde')?e.target:null;
+  if(!h)return;
+  const t=h.closest('table'),cfg=t&&t._anchos;
+  if(!cfg)return;
+  e.preventDefault();e.stopPropagation();
+  cfg.guardar({});
+  if(cfg.todas)cfg.todas();else anchosAplicar(t,cfg);
+},true);
+// Soltar el borde sobre el título no lo ordena.
+document.addEventListener('click',e=>{
+  const t=e.target&&e.target.closest?e.target.closest('table'):null;
+  if(t&&t._ancFin&&Date.now()-t._ancFin<150){e.stopPropagation();e.preventDefault();}
+},true);
+
+// Las tablas de una calculadora (en tasa fija, también la de bonos con cupón)
+// comparten los anchos, guardados por el texto del título.
+function calcAnchosCfg(k){
+  const cfg={clave:(th,i)=>i===0?'_ticker':(calcClaveTh(th)||null),
+    leer:()=>calcEstado(k).anchos,
+    guardar:A=>{calcEstadoGuardar(k,{anchos:A});calcColsPintar(k,calcColsLista(k),new Set(calcEstado(k).cols));},
+    todas:()=>calcTablas(k).forEach(t=>anchosAplicar(t,cfg))};
+  return cfg;
+}
+function calcAnchosOriginales(k){calcEstadoGuardar(k,{anchos:{}});calcColsAplicar(k);}
+
+// Las matrices de forwards: la columna del bono, la del precio y la del plazo,
+// cada una con su ancho, y las de la matriz todas con el mismo. Se guardan por
+// matriz; las de los duales, abajo de TAMAR, usan los de la matriz de arriba.
+function fwdAnchosTodo(){try{const o=JSON.parse(localStorage.getItem('bonosAR_fwd_anchos_v1')||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
+function fwdAnchosAplicar(wrapId){
+  const clave=String(wrapId).replace(/-dual-\w+$/,'');
+  const cfg={clave:(th,i)=>['_fila','_px','_plazo'][i]||'_mat',
+    leer:()=>{const v=fwdAnchosTodo()[clave];return v&&typeof v==='object'?v:{};},
+    guardar:A=>{
+      const o=fwdAnchosTodo();
+      if(Object.keys(A).length)o[clave]=A;else delete o[clave];
+      try{localStorage.setItem('bonosAR_fwd_anchos_v1',JSON.stringify(o));}catch(e){}
+    },
+    todas:()=>document.querySelectorAll(`[id="${clave}"] table,[id^="${clave}-dual-"] table`).forEach(t=>anchosAplicar(t,cfg))};
+  const t=document.querySelector(`[id="${wrapId}"] table`);
+  if(t)anchosAplicar(t,cfg);
+}
 
 // ── CER TAB CHART ─────────────────────────────────────────────────────────────
 function cerRenderTabChart(){
@@ -16575,6 +16733,7 @@ function fwdBuildTable(bonds, tipo, wrapId){
   });
   html+=`</tbody></table>`;
   wrap.innerHTML=html;
+  fwdAnchosAplicar(wrapId);
 }
 
 function calcLecap(r){
@@ -18731,6 +18890,7 @@ function usdFwdBuildTable(bonds,wrapId){
   });
   html+=`</tbody></table>`;
   wrap.innerHTML=html;
+  fwdAnchosAplicar(wrapId);
 }
 async function usdFwdRecalc(){
   usdFwdLoad();

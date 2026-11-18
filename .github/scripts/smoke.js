@@ -6747,7 +6747,18 @@ const omitir = (label, motivo) =>
   console.log('\nCalculadoras: subsolapas, panel y columnas');
   const cvista = await page.evaluate(async () => {
     const espera = ms => new Promise(r => setTimeout(r, ms));
-    const out = {}, lsAntes = localStorage.getItem(CALC_LS);
+    const out = {}, lsAntes = localStorage.getItem(CALC_LS), ancAntes = localStorage.getItem('bonosAR_fwd_anchos_v1');
+    // Arrastrar el borde de un título, con eventos del mouse
+    const arrastrar = (th, dx) => {
+      const h = th.querySelector('.anc-borde');
+      if (!h) return false;
+      const x = h.getBoundingClientRect().right - 2;
+      h.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: x, button: 0 }));
+      document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x + dx }));
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x + dx }));
+      return true;
+    };
+    const ancho = el => Math.round(el.getBoundingClientRect().width);
     // La escala de la matriz: el forward más bajo en rojo, el más alto en verde y
     // la diagonal en azul. Las tres primeras columnas son ticker, precio y plazo.
     const escala = id => {
@@ -6772,6 +6783,18 @@ const omitir = (label, motivo) =>
       switchTab('cer'); await espera(1200);
       calcPanelVista('cer', 'fwd'); await espera(300);
       out.escCER = escala('calc-fwd-cer');
+      // Ancho en la matriz: las columnas de la matriz van todas con el mismo
+      const thsM = () => [...document.querySelectorAll('#calc-fwd-cer thead th')];
+      if (thsM().length > 5) {
+        const m0 = ancho(thsM()[4]);
+        arrastrar(thsM()[4], -15); await espera(100);
+        calcFwdRender('cer'); await espera(100);
+        const ws = thsM().slice(3).map(ancho);
+        out.anchosFwd = { m0, m1: ws[1], iguales: ws.every(w => Math.abs(w - ws[0]) <= 1), guardado: (fwdAnchosTodo()['calc-fwd-cer'] || {})._mat };
+        thsM()[4].querySelector('.anc-borde').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        await espera(100);
+        out.anchosFwd.vuelve = !fwdAnchosTodo()['calc-fwd-cer'] && !document.querySelector('#calc-fwd-cer table').classList.contains('anc-fijo');
+      }
       const cab = () => [...document.querySelectorAll('#calc-fwd-cer thead th')].map(t => t.textContent);
       const antes = cab(), saco = antes[3];
       calcExcluir('cer', saco, true); await espera(400);
@@ -6835,9 +6858,30 @@ const omitir = (label, motivo) =>
       out.orden.flecha = cabCER().indexOf('TIR real') === iTir + 1;
       calcColsOrdenOriginal('cer'); await espera(100);
       out.orden.vuelve = cabCER().join('|') === natural.join('|');
+      // Ancho de una columna de la tabla: se arrastra, se guarda, sobrevive a
+      // que la tabla se vuelva a armar y vuelve con "Anchos originales"
+      const thSp = () => thsCER().find(x => calcClaveTh(x) === 'Spread');
+      const w0 = ancho(thSp());
+      const pudo = arrastrar(thSp(), 40); await espera(100);
+      const w1 = ancho(thSp());
+      cerRenderTable(); await espera(150);
+      const tablaCER = document.getElementById('cer-table-body').closest('table');
+      out.anchos = { pudo, w0, w1, guardado: calcEstado('cer').anchos.Spread, fijo: tablaCER.classList.contains('anc-fijo'),
+        sigue: ancho(thSp()), celda: ancho(document.querySelector('#cer-table-body tr').children[thsCER().indexOf(thSp())]) };
+      calcAnchosOriginales('cer'); await espera(100);
+      out.anchos.vuelve = !tablaCER.classList.contains('anc-fijo') && !Object.keys(calcEstado('cer').anchos).length;
       // La variación, en su columna al lado del precio
       const fv = document.querySelector('#cer-table-body tr');
       out.orden.var = natural[natural.indexOf('Precio $') + 1] === 'Var%' && !!fv && !/%/.test(fv.children[natural.indexOf('Precio $')].textContent);
+      // TAMAR: los duales, en su propia matriz abajo, fuera de la de arriba
+      switchTab('tamar'); await espera(1200);
+      calcPanelVista('tamar', 'fwd'); await espera(400);
+      const duales = dualCombos('TAMAR');
+      const cabM = id => [...document.querySelectorAll(`#${id} thead th`)].slice(3).map(x => x.textContent.trim());
+      const conPrecio = [...duales.entries()].filter(([tk, c]) => c === 'cer' && TAMAR_BONDS.some(b => b.ticker === tk && b.precio > 0 && b.vcto > hoyAR())).length;
+      out.duales = { conPrecio, matriz: cabM('calc-fwd-tamar-dual-cer'), arriba: cabM('calc-fwd-tamar').filter(tk => duales.has(tk)),
+        titulo: ((document.querySelector('#calc-fwd-tamar-duales .calc-fwd-sub') || {}).textContent || '').slice(0, 40) };
+      calcPanelVista('tamar', 'curva');
       // Tasa fija: los forwards siguen la tasa del gráfico sin tocar la solapa Forwards
       switchTab('lecap'); await espera(1200);
       const fm = fwdMode, cm = chartMode;
@@ -6877,6 +6921,7 @@ const omitir = (label, motivo) =>
       switchSection('pesos'); switchTab('breakeven');
     } finally {
       if (lsAntes == null) localStorage.removeItem(CALC_LS); else localStorage.setItem(CALC_LS, lsAntes);
+      if (ancAntes == null) localStorage.removeItem('bonosAR_fwd_anchos_v1'); else localStorage.setItem('bonosAR_fwd_anchos_v1', ancAntes);
     }
     return out;
   });
@@ -6929,6 +6974,17 @@ const omitir = (label, motivo) =>
         'el panel de abajo se achica a una tira que queda a la vista y vuelve con un clic', JSON.stringify(cvista.min));
   check(cvista.cols && cvista.cols.fuera && cvista.cols.guardado && cvista.cols.boton && cvista.cols.vuelve,
         'las columnas de la tabla se eligen a mano y se guardan', JSON.stringify(cvista.cols));
+  const an = cvista.anchos || {}, anF = cvista.anchosFwd;
+  check(an.pudo && Math.abs(an.w1 - an.w0 - 40) <= 2 && Math.abs(an.guardado - an.w1) <= 1 && an.fijo && Math.abs(an.sigue - an.w1) <= 1
+        && Math.abs(an.celda - an.w1) <= 1 && an.vuelve,
+        'el ancho de una columna de la tabla se arrastra, se guarda, sigue cuando la tabla se vuelve a armar y vuelve al original', JSON.stringify(an));
+  if (!anF) omitir('ancho de las columnas de la matriz de forwards', 'menos de tres bonos');
+  else check(Math.abs(anF.m1 - (anF.m0 - 15)) <= 2 && anF.iguales && Math.abs(anF.guardado - anF.m1) <= 1 && anF.vuelve,
+        'en la matriz de forwards las columnas van con el mismo ancho, que se arrastra, se guarda y vuelve con doble clic', JSON.stringify(anF));
+  const du = cvista.duales || {};
+  if (!(du.conPrecio >= 2)) omitir('matriz de los duales en TAMAR', 'menos de dos duales TAMAR/CER con precio');
+  else check(du.matriz.length === du.conPrecio && !du.arriba.length && /Duales TAMAR\/CER/.test(du.titulo),
+        'en TAMAR los duales tienen su matriz de forwards abajo, y no entran en la de arriba', JSON.stringify(du));
   const ord = cvista.orden || {};
   check(ord.movida && ord.movida !== ord.natural && ord.movida.indexOf('TIR real') < ord.movida.indexOf('Precio $') && ord.guardado
         && ord.filaTir === true && ord.filaPx === true && ord.ocultaBien && ord.flecha && ord.vuelve,
