@@ -4086,15 +4086,16 @@ const omitir = (label, motivo) =>
     check(dua.repinta === true, 'cambiar el sendero de TAMAR repinta la solapa DUAL sola');
   }
 
-  // El color de la tabla del Resumen: sólo la TIR, por percentil y centrado en
-  // la mediana. La lista de la tabla es por usuario, así que se arma una.
+  // El color de la tabla del Resumen: sólo la TIR, por percentil, con la escala
+  // de toda la app (rojo, amarillo en la mediana, verde). La lista de la tabla
+  // es por usuario, así que se arma una.
   console.log('\nColores de la tabla del Resumen');
   const cpc = await page.evaluate(async () => {
     const out = {};
     const p = beCPPercentiles([5, 1, 3, 2, 4]);
     const e = beCPPercentiles([1, 1, 3]);
     out.percentiles = p.get(1) === 0 && p.get(3) === 0.5 && p.get(5) === 1 && e.get(1) === 0.25 && e.get(3) === 1;
-    out.escala = beCPHeat(0.5) === '' && beCPHeat(0.55) === '' && /74,222,128/.test(beCPHeat(1)) && /248,113,113/.test(beCPHeat(0));
+    out.escala = /255,235,132/.test(beCPHeat(0.5)) && /99,190,123/.test(beCPHeat(1)) && /248,105,107/.test(beCPHeat(0)) && beCPHeat(null) === '';
     const prev = CP_BONDS;
     const liq = G_LIQ || addHabiles(TODAY, 1);
     CP_BONDS = LECAPS.filter(b => b.precio > 0 && b.vcto && diasACT(liq, parseDate(b.vcto)) > 0).slice(0, 8).map(b => ({ ticker: b.ticker, tipo: 'tf' }));
@@ -4108,13 +4109,13 @@ const omitir = (label, motivo) =>
     out.sinColorTnaTem = filas.every(tr => !bg(tr.children[4]) && !bg(tr.children[6]));
     if (filas.length >= 2) {
       const ord = [...filas].sort((a, b) => tir(a) - tir(b));
-      out.extremos = /74, 222, 128|74,222,128/.test(bg(ord[ord.length - 1].children[5])) && /248, 113, 113|248,113,113/.test(bg(ord[0].children[5]));
+      out.extremos = /99, 190, 123|99,190,123/.test(bg(ord[ord.length - 1].children[5])) && /248, 105, 107|248,105,107/.test(bg(ord[0].children[5]));
     }
     CP_BONDS = prev;
     beCPRecalc();
     return out;
   });
-  check(cpc.percentiles && cpc.escala, 'el percentil reparte los empates y el medio de la escala va sin color', JSON.stringify(cpc));
+  check(cpc.percentiles && cpc.escala, 'el percentil reparte los empates y la mediana va en amarillo', JSON.stringify(cpc));
   if (cpc.filas < 2) omitir('colores de la tabla del Resumen en vivo', 'menos de dos LECAP con precio');
   else check(cpc.sinColorTnaTem && cpc.extremos, 'en la tabla del Resumen sólo la TIR lleva color: la más alta verde, la más baja roja',
              JSON.stringify(cpc));
@@ -6827,6 +6828,34 @@ const omitir = (label, motivo) =>
   else check(escOk(cvista.escCER) && escOk(cvista.escUSD),
         'los forwards van de rojo (el más bajo) a verde (el más alto) por la mediana en amarillo, con la diagonal en azul, en pesos y en dólares',
         JSON.stringify({ cer: cvista.escCER, usd: cvista.escUSD }));
+  // La escala de las columnas de tasas: la misma en todas las calculadoras.
+  console.log('\nEscala de colores de las calculadoras');
+  const esc3 = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const col = (tb, i) => {
+      const c = [...document.querySelectorAll('#' + tb + ' tr')].map(tr => tr.children[i]).filter(Boolean)
+        .map(td => { const el = td.querySelector('.cv') || td; return { v: parseFloat(el.textContent), bg: getComputedStyle(el).backgroundColor }; })
+        .filter(x => isFinite(x.v)).sort((a, b) => a.v - b.v);
+      return c.length >= 3 ? { n: c.length, min: c[0].bg, max: c[c.length - 1].bg } : null;
+    };
+    const out = {}, e = escala3([1, 2, 3]);
+    out.f = { rojo: escala3Estilo(1, e), amarillo: escala3Estilo(2, e), verde: escala3Estilo(3, e), fuera: escala3Estilo(9, e), nada: escala3Estilo(null, e) };
+    switchSection('pesos');
+    for (const [tab, tb, i] of [['lecap', 'table-body', 9], ['cer', 'cer-table-body', 8], ['tamar', 'tamar-table-body', 8], ['dlk', 'dlk-table-body', 7]]) {
+      switchTab(tab); await espera(1200); out[tab] = col(tb, i);
+    }
+    switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1500); out.bon = col('bon-summary-tbody', 7);
+    switchSection('pesos'); switchTab('breakeven');
+    return out;
+  });
+  check(/248,105,107/.test(esc3.f.rojo) && /255,235,132/.test(esc3.f.amarillo) && /99,190,123/.test(esc3.f.verde) && esc3.f.fuera === esc3.f.verde && esc3.f.nada === '',
+        'la escala va de rojo en el mínimo a verde en el máximo, por amarillo en la mediana', JSON.stringify(esc3.f));
+  const tablas3 = ['lecap', 'cer', 'tamar', 'dlk', 'bon'].filter(k => esc3[k]);
+  if (!tablas3.length) omitir('escala en las tablas de las calculadoras', 'sin precios');
+  else check(tablas3.every(k => esc3[k].min === 'rgb(248, 105, 107)' && esc3[k].max === 'rgb(99, 190, 123)'),
+        'en las calculadoras de pesos y de dólares la TIR más baja va en rojo y la más alta en verde',
+        JSON.stringify(Object.fromEntries(['lecap', 'cer', 'tamar', 'dlk', 'bon'].map(k => [k, esc3[k]]))));
+
   check(cvista.min && cvista.min.alto <= 50 && cvista.min.visible && cvista.min.vuelve > 100,
         'el panel de abajo se achica a una tira que queda a la vista y vuelve con un clic', JSON.stringify(cvista.min));
   check(cvista.cols && cvista.cols.fuera && cvista.cols.guardado && cvista.cols.boton && cvista.cols.vuelve,
