@@ -4828,8 +4828,8 @@ const omitir = (label, motivo) =>
         out.grupo.solo = lineas.includes(tipo2[0]) && G.filter(g => g[0] !== tipo2[0]).every(g => !lineas.includes(g[0]));
         const htmlG = runHtml(tipo2[0]);
         out.grupo.html = /^<table/.test(htmlG) && (htmlG.match(/<tr>/g) || []).length === 3 + tipo2[1].length;
-        out.grupo.wa = /^```\n[\s\S]*\n```$/.test(runWhatsApp(tipo2[0]));
-        out.grupo.botones = document.querySelectorAll(`#page-run .run-mini[data-g="${tipo2[0]}"]`).length === 4;
+        out.grupo.botones = [...document.querySelectorAll(`#page-run .run-mini[data-g="${tipo2[0]}"]`)].map(x => x.dataset.acc).join('|') === 'img|png|tabla'
+          && !/WhatsApp/.test(document.getElementById('page-run').textContent);
       }
       switchTab('breakeven');
     } finally {
@@ -4850,7 +4850,7 @@ const omitir = (label, motivo) =>
   if (run.grupo) {
     const gr = run.grupo;
     check(gr.fuera && gr.casilla && gr.medio && gr.vuelve, 'RUN: un tipo entero se saca o se suma con su casilla, que queda a medias si hay de los dos', JSON.stringify(gr));
-    check(gr.solo && gr.html && gr.wa && gr.botones, 'RUN: cada tabla se exporta sola, como imagen, como tabla (HTML) o para WhatsApp', JSON.stringify(gr));
+    check(gr.solo && gr.html && gr.botones, 'RUN: cada tabla se exporta sola, como imagen o como tabla (HTML)', JSON.stringify(gr));
   }
 
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
@@ -7083,6 +7083,10 @@ const omitir = (label, motivo) =>
     switchSection('pesos');
     for (const [tab, tb, i] of [['lecap', 'table-body', 10], ['cer', 'cer-table-body', 9], ['tamar', 'tamar-table-body', 9], ['dlk', 'dlk-table-body', 8]]) {
       switchTab(tab); await espera(1200); out[tab] = col(tb, i);
+      if (tab === 'tamar') {
+        const f1 = document.querySelector('#tamar-table-body tr');
+        out.tamarDec = !!f1 && [8, 9, 10, 11].every(j => /^-?\d+\.\d\d%$/.test(f1.children[j].textContent.trim()));
+      }
     }
     switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1500); out.bon = col('bon-summary-tbody', 8);
     switchSection('pesos'); switchTab('breakeven');
@@ -7090,6 +7094,7 @@ const omitir = (label, motivo) =>
   });
   check(/248,105,107/.test(esc3.f.rojo) && /255,235,132/.test(esc3.f.amarillo) && /99,190,123/.test(esc3.f.verde) && esc3.f.fuera === esc3.f.verde && esc3.f.nada === '',
         'la escala va de rojo en el mínimo a verde en el máximo, por amarillo en la mediana', JSON.stringify(esc3.f));
+  check(esc3.tamarDec, 'en la tabla de TAMAR las tasas van con dos decimales', JSON.stringify(esc3.tamarDec));
   const tablas3 = ['lecap', 'cer', 'tamar', 'dlk', 'bon'].filter(k => esc3[k]);
   if (!tablas3.length) omitir('escala en las tablas de las calculadoras', 'sin precios');
   else check(tablas3.every(k => esc3[k].min === 'rgb(248, 105, 107)' && esc3[k].max === 'rgb(99, 190, 123)'),

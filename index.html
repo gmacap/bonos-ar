@@ -10208,10 +10208,10 @@ function tamarRenderTable(){
       <td><div class="cv no-edit" style="justify-content:flex-end">${chgStr}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end">${libroSpreadHTML(libroSpread(r.bid,r.ask),r.monto)}</div></td>
       <td><div class="cv no-edit" style="justify-content:flex-end" title="${r.ops?r.ops+' operaciones':''}">${libroMontoHTML(r.monto)}</div></td>
-      <td><div class="cv no-edit c-amber" style="${v?'':escala3Estilo(r.margenTNA,E.margenTNA)}">${f(r.margenTNA,4)}</div></td>
-      <td><div class="cv no-edit c-amber" style="${v?'':escala3Estilo(r.tir,E.tir)}">${f(r.tir,4)}</div></td>
-      <td><div class="cv no-edit c-muted" style="${v?'':escala3Estilo(r.tna,E.tna)}">${f(r.tna,4)}</div></td>
-      <td><div class="cv no-edit c-muted" style="${v?'':escala3Estilo(r.tem,E.tem)}">${f(r.tem,4)}</div></td>
+      <td><div class="cv no-edit c-amber" style="${v?'':escala3Estilo(r.margenTNA,E.margenTNA)}">${f(r.margenTNA)}</div></td>
+      <td><div class="cv no-edit c-amber" style="${v?'':escala3Estilo(r.tir,E.tir)}">${f(r.tir)}</div></td>
+      <td><div class="cv no-edit c-muted" style="${v?'':escala3Estilo(r.tna,E.tna)}">${f(r.tna)}</div></td>
+      <td><div class="cv no-edit c-muted" style="${v?'':escala3Estilo(r.tem,E.tem)}">${f(r.tem)}</div></td>
       <td onclick="event.stopPropagation()"><div class="row-act">
         <button class="rbtn del" onclick="tamarDeleteRow('${r.ticker}')" style="display:${isAdmin()?'':'none'}">✕</button>
       </div></td>
@@ -15132,7 +15132,7 @@ function calcFwdDuales(k,ex,hoy){
 //     y quedan guardadas.
 //   · Cada bono se incluye o no (su casilla, o "Bonos"): el que no, queda
 //     atenuado y no sale al exportar.
-//   · Se exporta como imagen (copiar o descargar) o como texto.
+//   · Se exporta como imagen (copiar o descargar) o como tabla, todo o cada tipo.
 // Todo se guarda con el usuario. Los duales van aparte; los demás, en su
 // familia, vigentes y por vencimiento.
 function runGrupos(){
@@ -15198,7 +15198,6 @@ function runRender(forzar){
         <button type="button" class="btn" onclick="runExportar('img')" title="Copia el run como imagen, para pegarlo en un chat">⧉ Copiar imagen</button>
         <button type="button" class="btn" onclick="runExportar('png')" title="Descarga el run como imagen PNG">⤓ PNG</button>
         <button type="button" class="btn" onclick="runExportar('tabla')" title="Copia el run como tabla: se pega como tabla en Eikon Messenger, Outlook, Teams o Excel">⧉ Tabla</button>
-        <button type="button" class="btn" onclick="runExportar('wa')" title="Copia el run para WhatsApp: en letra fija, con las columnas alineadas">⧉ WhatsApp</button>
       </span>
       <span class="run-aviso" id="run-aviso" role="status" aria-live="polite"></span>
     </div>
@@ -15330,7 +15329,7 @@ function runGrupo(tipo,on){
 function runAccHTML(tipo){
   const e=betrEsc(tipo);
   return[['img','⧉ Imagen','Copiar '+e+' como imagen'],['png','⤓ PNG','Descargar '+e+' como imagen'],
-    ['tabla','⧉ Tabla','Copiar '+e+' como tabla (Eikon, Outlook, Teams, Excel)'],['wa','⧉ WhatsApp','Copiar '+e+' para WhatsApp']]
+    ['tabla','⧉ Tabla','Copiar '+e+' como tabla (Eikon, Outlook, Teams, Excel)']]
     .map(([a,l,t])=>`<button type="button" class="run-mini" data-acc="${a}" data-g="${e}" title="${t}">${l}</button>`).join('');
 }
 function runTodos(on){
@@ -15385,9 +15384,6 @@ function runTexto(g){
   const lin=f=>f.map((x,i)=>i===0?x.padEnd(w[i]):x.padStart(w[i])).join('  ').replace(/\s+$/,'');
   return[`RUN ${runFecha()}`,lin(RUN_CAB),...G.flatMap(([tipo,fs])=>['',tipo,...fs.map(lin)])].join('\n');
 }
-// WhatsApp no tiene tablas: entre triples comillas invertidas va en letra fija,
-// y las columnas quedan alineadas.
-function runWhatsApp(g){return['```',runTexto(g),'```'].join('\n');}
 // Una tabla de verdad, para lo que pega HTML (Eikon Messenger, Outlook, Teams,
 // Excel): bordes, el tipo como fila y los números a la derecha.
 function runHtml(g){
@@ -15454,7 +15450,6 @@ function runExportar(acc,g){
   if(acc==='img')runCopiarImagen(g);
   else if(acc==='png')runDescargar(g);
   else if(acc==='tabla')runCopiarTabla(g);
-  else if(acc==='wa')runCopiarWhatsApp(g);
 }
 function runCual(g){return g?` (${g})`:'';}
 async function runCopiarImagen(g){
@@ -15495,11 +15490,6 @@ function runCopiarSeleccion(html){
   const ok=document.execCommand('copy');
   sel.removeAllRanges();d.remove();
   if(!ok)throw new Error('el navegador no copió');
-}
-async function runCopiarWhatsApp(g){
-  if(runVacio(g))return;
-  try{await navigator.clipboard.writeText(runWhatsApp(g));runAviso(`Copiado para WhatsApp${runCual(g)}: se pega en letra fija, con las columnas alineadas.`);}
-  catch(e){runAviso(`No se pudo copiar (${e.message}).`);}
 }
 
 function calcFwdPrecio(fwd,t){
