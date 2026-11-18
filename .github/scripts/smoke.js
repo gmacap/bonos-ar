@@ -4762,35 +4762,74 @@ const omitir = (label, motivo) =>
   // RUN: las puntas de todos los bonos en pesos, por tipo, con sus cantidades.
   console.log('\nRUN');
   const run = await page.evaluate(async () => {
-    switchSection('pesos'); switchTab('run');
-    await new Promise(r => setTimeout(r, 600));
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const antes = localStorage.getItem('bonosAR_run_v1');
+    localStorage.removeItem('bonosAR_run_v1');
     const out = {};
-    out.fmt = [runCant(4992952926), runCant(15e6), runCant(508550), runCant(2111784), runCant(0), runPx(129.043), runPx(103.5), runPx(null)].join('|');
-    const tablas = [...document.querySelectorAll('#page-run .run-tabla')];
-    out.tipos = tablas.map(x => x.querySelector('.run-tipo').textContent).join('|');
-    out.cols = tablas.every(x => [...x.querySelectorAll('thead tr:last-child th')].map(h => h.textContent).join('|') === 'Ticker|Bid Size|Bid Px|Offer Px|Offer Size');
-    const G = runGrupos();
-    out.filas = tablas.reduce((s, x) => s + x.querySelectorAll('tbody tr').length, 0) === G.reduce((s, g) => s + g[1].length, 0);
-    const duales = dualCombos('TAMAR');
-    out.dualesAparte = G.filter(g => g[0] !== 'DUALES').every(g => g[1].every(b => !duales.has(b.ticker)));
-    out.sinPeso = !/\$/.test(document.getElementById('page-run').textContent);
-    // Un bono con las dos puntas: la fila muestra lo del libro
-    const b = G.flatMap(g => g[1]).find(x => x.bid > 0 && x.ask > 0 && x.bidQ > 0 && x.askQ > 0);
-    if (b) {
-      const tr = [...document.querySelectorAll('#page-run tbody tr')].find(r => r.children[0].textContent === b.ticker);
-      const num = s => parseFloat(s.replace(/\./g, '').replace(',', '.'));
-      const c = tr ? [...tr.children].map(x => x.textContent) : [];
-      out.fila = !!tr && c[1] === runCant(b.bidQ) && Math.abs(num(c[2]) - b.bid) < 1e-6 && Math.abs(num(c[3]) - b.ask) < 1e-6 && c[4] === runCant(b.askQ);
+    try {
+      switchSection('pesos'); switchTab('run');
+      await espera(600);
+      out.fmt = [runCant(4992952926), runCant(15e6), runCant(508550), runCant(2111784), runCant(0), runPx(129.043), runPx(103.5), runPx(null)].join('|');
+      out.leer = [runLeerPx('1.434,50'), runLeerPx('129.045'), runLeerPx('129,045'), runLeerPx(''), runLeerPx('abc')].join('|');
+      const tablas = [...document.querySelectorAll('#page-run .run-tabla')];
+      out.tipos = tablas.map(x => x.querySelector('.run-tipo').textContent).join('|');
+      out.cols = tablas.every(x => [...x.querySelectorAll('thead tr:last-child th')].map(h => h.textContent).join('|') === 'Ticker|Bid Size|Bid Px|Offer Px|Offer Size');
+      const G = runGrupos();
+      out.filas = tablas.reduce((s, x) => s + x.querySelectorAll('tbody tr').length, 0) === G.reduce((s, g) => s + g[1].length, 0);
+      const duales = dualCombos('TAMAR');
+      out.dualesAparte = G.filter(g => g[0] !== 'DUALES').every(g => g[1].every(b => !duales.has(b.ticker)));
+      out.sinPeso = ![...document.querySelectorAll('#page-run input.run-in')].some(x => /\$/.test(x.value));
+      out.nav = !!document.querySelector('#page-run .calc-nav button[aria-current]');
+      const b = G.flatMap(g => g[1]).find(x => x.bid > 0 && x.ask > 0);
+      if (b) {
+        const inp = c => document.querySelector(`#page-run input.run-in[data-t="${b.ticker}"][data-c="${c}"]`);
+        out.trae = Math.abs(runLeerPx(inp('bid').value) - b.bid) < 1e-6 && Math.abs(runLeerPx(inp('ask').value) - b.ask) < 1e-6;
+        // BYMA se mueve y el run no
+        const bid0 = b.bid;
+        b.bid = +(bid0 * 1.01).toFixed(3);
+        runRender(true);
+        out.fijo = Math.abs(runLeerPx(inp('bid').value) - bid0) < 1e-6;
+        // Se edita un precio y una cantidad
+        const ed = inp('bid');
+        ed.focus(); ed.value = '101,5'; ed.dispatchEvent(new Event('change', { bubbles: true }));
+        const q = inp('qb');
+        q.focus(); q.value = '3b'; q.dispatchEvent(new Event('change', { bubbles: true })); q.blur();
+        await espera(50);
+        const E = runEstado();
+        out.edita = E.px[b.ticker].bid === 101.5 && E.q[b.ticker].bid === '3B';
+        out.marcado = inp('bid').classList.contains('run-ed') && inp('qb').value === '3B';
+        // Traer de BYMA: los precios vuelven a los de pantalla; las cantidades quedan
+        await runTraer({ sinPedir: true, sinConfirmar: true });
+        const E2 = runEstado();
+        out.traer = Math.abs(E2.px[b.ticker].bid - b.bid) < 1e-6 && E2.q[b.ticker].bid === '3B' && !!E2.tomado && !inp('bid').classList.contains('run-ed');
+        b.bid = bid0;
+        // Destildado: no sale al exportar
+        const casilla = document.querySelector(`#page-run input.run-incl[data-t="${b.ticker}"]`);
+        casilla.checked = false; casilla.dispatchEvent(new Event('change', { bubbles: true }));
+        await espera(50);
+        const txt = runTexto();
+        out.excluye = runEstado().fuera.includes(b.ticker) && !txt.split('\n').some(l => l.split(/\s+/)[0] === b.ticker)
+          && txt.includes('Bid Size') && /^RUN \d\d\/\d\d\/\d{4}/.test(txt)
+          && !!document.querySelector(`#page-run input.run-incl[data-t="${b.ticker}"]`).closest('tr.run-fuera');
+        const cv = runImagen();
+        out.imagen = cv.width > 300 && cv.height > 200;
+      }
+      switchTab('breakeven');
+    } finally {
+      if (antes == null) localStorage.removeItem('bonosAR_run_v1'); else localStorage.setItem('bonosAR_run_v1', antes);
     }
-    out.nav = !!document.querySelector('#page-run .calc-nav button[aria-current]');
-    switchTab('breakeven');
     return out;
   });
-  check(run.fmt === '5B|15M|509k|2,1M||129,043|103,50|', 'RUN: las cantidades en k, M y B, y los precios sin "$"', run.fmt);
+  check(run.fmt === '5B|15M|509k|2,1M||129,043|103,50|' && run.leer === '1434.5|129.045|129.045||',
+        'RUN: las cantidades en k, M y B, los precios sin "$", y lo escrito se lee con coma o con punto', run.fmt + ' · ' + run.leer);
   check(/^TASA FIJA\|CER\|TAMAR(\|DUALES)?(\|DLK)?$/.test(run.tipos) && run.cols && run.filas && run.dualesAparte && run.sinPeso && run.nav,
         'RUN: todos los bonos en pesos por tipo, con Ticker, Bid Size, Bid Px, Offer Px y Offer Size, y los duales aparte', JSON.stringify(run));
-  if (run.fila === undefined) omitir('RUN: una fila con las dos puntas', 'sin libro');
-  else check(run.fila, 'RUN: la fila muestra las puntas y sus cantidades del libro', JSON.stringify(run));
+  if (run.trae === undefined) omitir('RUN: precios de BYMA, fijos y editables', 'sin libro');
+  else {
+    check(run.trae && run.fijo, 'RUN: trae los precios de BYMA y no se mueven aunque cambie la pantalla', JSON.stringify(run));
+    check(run.edita && run.marcado && run.traer, 'RUN: precios y cantidades se editan y se guardan; traer de BYMA cambia los precios y deja las cantidades', JSON.stringify(run));
+    check(run.excluye && run.imagen, 'RUN: lo destildado no sale al exportar, y se arma la imagen y el texto', JSON.stringify(run));
+  }
 
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
   // lo del comunicado (un dual, en las dos de sus patas); el formulario de alta
@@ -6914,6 +6953,15 @@ const omitir = (label, motivo) =>
         sigue: ancho(thSp()), celda: ancho(document.querySelector('#cer-table-body tr').children[thsCER().indexOf(thSp())]) };
       calcAnchosOriginales('cer'); await espera(100);
       out.anchos.vuelve = !tablaCER.classList.contains('anc-fijo') && !Object.keys(calcEstado('cer').anchos).length;
+      // La curva al costado: a la derecha de la tabla, a toda la altura, y vuelve abajo
+      const areaC = document.getElementById('cer-chart-area');
+      calcLado('cer', true); await espera(300);
+      const envL = areaC.parentElement, wL = envL.firstElementChild;
+      out.lado = { env: envL.classList.contains('calc-lado'), costado: areaC.getBoundingClientRect().left >= wL.getBoundingClientRect().right - 2,
+        alto: Math.round(areaC.getBoundingClientRect().height), altoTabla: Math.round(wL.getBoundingClientRect().height),
+        boton: (areaC.querySelector('.calc-lado-btn') || {}).textContent, guardado: calcEstado('cer').lado };
+      calcLado('cer', false); await espera(300);
+      out.lado.vuelve = !document.querySelector('#page-cer .calc-lado') && areaC.getBoundingClientRect().top >= document.getElementById('cer-table-body').closest('.table-scroll').getBoundingClientRect().bottom - 2;
       // La variación, en su columna al lado del precio
       const fv = document.querySelector('#cer-table-body tr');
       out.orden.var = natural[natural.indexOf('Precio $') + 1] === 'Var%' && !!fv && !/%/.test(fv.children[natural.indexOf('Precio $')].textContent);
@@ -7025,6 +7073,9 @@ const omitir = (label, motivo) =>
   if (!anF) omitir('ancho de las columnas de la matriz de forwards', 'menos de tres bonos');
   else check(Math.abs(anF.m1 - (anF.m0 - 15)) <= 2 && anF.iguales && Math.abs(anF.guardado - anF.m1) <= 1 && anF.vuelve,
         'en la matriz de forwards las columnas van con el mismo ancho, que se arrastra, se guarda y vuelve con doble clic', JSON.stringify(anF));
+  const la = cvista.lado || {};
+  check(la.env && la.costado && Math.abs(la.alto - la.altoTabla) <= 2 && /abajo/.test(la.boton || '') && la.guardado && la.vuelve,
+        'la curva va al costado de la tabla, a toda la altura, y vuelve abajo', JSON.stringify(la));
   const du = cvista.duales || {};
   if (!(du.conPrecio >= 2)) omitir('matriz de los duales en TAMAR', 'menos de dos duales TAMAR/CER con precio');
   else check(du.matriz.length === du.conPrecio && !du.arriba.length && /Duales TAMAR\/CER/.test(du.titulo),

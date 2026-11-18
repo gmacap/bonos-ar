@@ -203,16 +203,32 @@ table.anc-fijo>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 /* RUN: las puntas de todos los bonos en pesos, por tipo. */
 .run-cab{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 16px 4px;}
 .run-nota{font-size:var(--fs10);color:var(--text3);font-family:var(--mono);}
-.run-cuerpo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(440px,100%),1fr));gap:16px;align-items:start;padding:8px 16px 40px;}
-.run-tabla{min-width:0;width:100%;border:1px solid var(--border2);font-variant-numeric:tabular-nums;}
+.run-cuerpo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(460px,100%),1fr));gap:16px;align-items:start;padding:8px 16px 40px;}
+.run-tabla{min-width:0;width:100%;border:1px solid var(--border2);font-variant-numeric:tabular-nums;table-layout:fixed;}
 .run-tabla thead tr{position:static;}
-.run-tabla thead th{cursor:default;padding:5px 10px;}
+.run-tabla thead th{cursor:default;padding:5px 8px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;}
 .run-tabla thead th:hover{color:var(--text3);}
 .run-tabla th.run-tipo{text-align:left;color:var(--accent);font-size:var(--fs11);letter-spacing:.06em;background:var(--surface);border-bottom:1px solid var(--border2);}
-.run-tabla td{height:auto;padding:4px 10px;font-family:var(--mono);font-size:var(--fs12);border-bottom:1px solid var(--border);border-left:1px solid var(--border);}
+.run-tabla td{height:auto;padding:0;font-family:var(--mono);font-size:var(--fs12);border-bottom:1px solid var(--border);border-left:1px solid var(--border);}
 .run-tabla td:first-child{text-align:left;color:var(--text);font-weight:500;border-left:0;}
-.run-tabla td.run-q{color:var(--text2);}
-.run-tabla td.run-nada{color:var(--text3);}
+.run-tk{display:flex;align-items:center;gap:7px;padding:4px 10px;cursor:pointer;white-space:nowrap;}
+.run-tk input{margin:0;accent-color:var(--accent);}
+.run-in{width:100%;min-width:0;background:transparent;border:0;color:var(--text);font:inherit;text-align:right;padding:4px 8px;outline:none;font-variant-numeric:tabular-nums;text-overflow:ellipsis;}
+.run-in:focus{background:var(--surface2);box-shadow:inset 0 0 0 1px var(--accent);}
+.run-in.run-q{color:var(--text2);}
+.run-in.run-ed{color:var(--warn);}
+.run-in::placeholder{color:var(--text3);opacity:.6;}
+tr.run-fuera>td{opacity:.38;}
+.run-acc{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
+.run-aviso{font-size:var(--fs10);color:var(--accent);font-family:var(--mono);flex-basis:100%;min-height:1em;}
+/* La curva al costado de la tabla, a toda la altura. */
+.calc-lado{display:flex;flex:1;min-height:0;overflow:hidden;}
+.calc-lado>:first-child{min-width:0;}
+.calc-lado>:last-child{flex:1 1 0!important;min-width:300px;height:auto!important;border-top:0!important;border-left:1px solid var(--border);}
+.calc-lado .chart-resize-handle,.calc-lado .calc-achicar:not(.calc-lado-btn){display:none!important;}
+.calc-lado>:last-child>:nth-child(2){flex-wrap:wrap;row-gap:4px;height:auto!important;min-height:0;}
+.calc-lado .chart-title{white-space:nowrap;}
+.calc-lado-btn.on{color:var(--accent);border-color:var(--accent);}
 /* El precio que se escribe en los forwards de las calculadoras. */
 .calc-fwd-px{width:90px;background:var(--surface2);color:var(--text);border:1px solid var(--accent);border-radius:3px;padding:2px 4px;font-family:var(--mono);font-size:var(--fs11);text-align:right;}
 /* El orden de las columnas: el encabezado que se arrastra y dónde va a caer. */
@@ -3179,7 +3195,7 @@ async function authAction(){
 // Resumen, el Resumen de dólares, la fuente de cada proyección, los dos
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_fwd_anchos_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_fwd_anchos_v1','bonosAR_run_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
   'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1','bonosAR_escenarios_v1','bonosAR_calc_vista_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
@@ -14835,7 +14851,8 @@ function calcBonosPintar(clave){
 //   · el desplegable "Columnas" elige qué columnas de la tabla se ven y en qué
 //     orden, que también se cambia arrastrando los títulos;
 //   · el ancho de cada columna, de la tabla y de los forwards, se arrastra
-//     desde el borde derecho del título.
+//     desde el borde derecho del título;
+//   · "al costado" pone el panel de abajo a la derecha de la tabla.
 // Se monta al abrir la solapa, sobre el HTML de cada una, y lo elegido se guarda
 // por calculadora como lo personal. Estado en var: calcBonosPintar lo consulta
 // desde el arranque, antes de que el script llegue hasta acá.
@@ -14874,7 +14891,7 @@ var CALC_FWD_NOTA={
 
 function calcEstadoTodo(){try{const o=JSON.parse(localStorage.getItem(CALC_LS)||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
 function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'?'fwd':'curva',min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[],orden:Array.isArray(e.orden)?e.orden:[],
-  anchos:e.anchos&&typeof e.anchos==='object'&&!Array.isArray(e.anchos)?e.anchos:{}};}
+  anchos:e.anchos&&typeof e.anchos==='object'&&!Array.isArray(e.anchos)?e.anchos:{},lado:!!e.lado};}
 function calcEstadoGuardar(k,cambio){
   const o=calcEstadoTodo();
   o[k]={...calcEstado(k),...cambio};
@@ -14888,6 +14905,7 @@ function calcMontar(k){
   calcPanelMontar(k);
   calcPanelAplicar(k);
   calcColsAplicar(k);
+  calcLadoAplicar(k);
   // Las tablas que se arman con los precios pueden llegar después.
   setTimeout(()=>{try{calcColsAplicar(k);}catch(e){}},600);
 }
@@ -14937,6 +14955,7 @@ function calcPanelMontar(k){
   ctl.innerHTML=(D.fwd?`<span class="calc-seg" role="group" aria-label="Qué mostrar abajo">
       <button type="button" data-v="curva" onclick="calcPanelVista('${k}','curva')">Curva</button>
       <button type="button" data-v="fwd" onclick="calcPanelVista('${k}','fwd')">Forwards</button></span>`:'')
+    +(D.tabla?`<button type="button" class="calc-achicar calc-lado-btn" onclick="calcLado('${k}',!calcEstado('${k}').lado)" title="Poner el panel a la derecha de la tabla, a toda la altura (sirve con la tabla angosta)" aria-pressed="false">⇥ al costado</button>`:'')
     +`<button type="button" class="calc-achicar" onclick="calcPanelMin('${k}',true)" title="Achicar el panel a una tira, para que la tabla ocupe la pantalla">▾ achicar</button>`;
   // Lo de control va a la derecha: si la barra tiene un título que empuja todo,
   // al lado de lo demás; si no, empujado al borde. Lo que ya iba al borde queda
@@ -14975,15 +14994,15 @@ function calcPanelAplicar(k){
   // achicado, el panel mide la tira más esa barra, y la tira queda a la vista.
   const sb=[...document.querySelectorAll('.status-bar')].find(x=>x.offsetHeight>0);
   area.style.setProperty('--calc-min',(18+(sb?sb.offsetHeight:0))+'px');
-  area.classList.toggle('calc-panel-min',E.min);
+  area.classList.toggle('calc-panel-min',E.min&&!E.lado);
   const g=calcPanelGrafico(area),caja=area.querySelector('.calc-fwd');
   if(g)g.style.display=fwd?'none':'';
   if(caja)caja.style.display=fwd?'':'none';
   area.querySelectorAll('.calc-seg button').forEach(b=>{b.classList.toggle('on',b.dataset.v===(fwd?'fwd':'curva'));b.setAttribute('aria-pressed',String(b.dataset.v===(fwd?'fwd':'curva')));});
-  if(fwd&&!E.min)calcFwdRender(k);
+  if(fwd&&(!E.min||E.lado))calcFwdRender(k);
   // Al volver a la curva el lienzo cambia de tamaño. Un gráfico que se destruyó
   // y se volvió a crear deja el viejo sin lienzo: a ese no se le pide nada.
-  if(!fwd&&!E.min)setTimeout(()=>{try{const c=D.chart&&D.chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
+  if(!fwd&&(!E.min||E.lado))setTimeout(()=>{try{const c=D.chart&&D.chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
 }
 function calcPanelVista(k,v){calcEstadoGuardar(k,{vista:v==='fwd'?'fwd':'curva'});calcPanelAplicar(k);}
 function calcPanelMin(k,min){calcEstadoGuardar(k,{min:!!min});calcPanelAplicar(k);}
@@ -15036,12 +15055,19 @@ function calcFwdDuales(k,ex,hoy){
   cs.forEach(c=>fwdBuildTable(g[c].sort((a,b)=>a.vcto.localeCompare(b.vcto)),'tamar',`calc-fwd-${k}-dual-${c}`));
 }
 // ══ RUN ══
-// Las puntas de pantalla de todos los bonos en pesos, por tipo, como en un run:
-// Ticker | Bid Size | Bid Px | Offer Px | Offer Size. Precios y cantidades de
-// BYMA vía data912, del mismo pedido que los precios de las calculadoras, así
-// que se repinta con cada actualización. Las cantidades van en nominales, como
-// en el run de la mesa: k miles, M millones, B miles de millones. Los duales van
-// aparte; los demás, en su familia, vigentes y por vencimiento.
+// El run de la mesa: los bonos en pesos por tipo, con Ticker | Bid Size | Bid
+// Px | Offer Px | Offer Size, para armarlo y mandarlo a los comerciales.
+//   · Los precios salen de BYMA (data912) y quedan fijos: sólo se vuelven a
+//     traer con "↻ Traer de BYMA". Un bono que todavía no tiene precio en el
+//     run toma el de pantalla; los demás no se mueven solos.
+//   · Todo se edita, como una planilla. Un precio distinto del que se trajo va
+//     marcado. Las cantidades son las de la mesa, como se escriban (3B, 500M),
+//     y quedan guardadas.
+//   · Cada bono se incluye o no (su casilla, o "Bonos"): el que no, queda
+//     atenuado y no sale al exportar.
+//   · Se exporta como imagen (copiar o descargar) o como texto.
+// Todo se guarda con el usuario. Los duales van aparte; los demás, en su
+// familia, vigentes y por vencimiento.
 function runGrupos(){
   const hoy=hoyAR(),vig=b=>b&&b.ticker&&b.vcto&&b.vcto>hoy,duales=dualCombos('TAMAR');
   const porVto=a=>a.sort((x,y)=>x.vcto.localeCompare(y.vcto));
@@ -15061,27 +15087,277 @@ function runCant(q){
   return(u&&v<10?v.toLocaleString('es-AR',{maximumFractionDigits:1}):Math.round(v).toLocaleString('es-AR'))+u;
 }
 // Dos decimales, o tres si el precio los tiene (las LECAP cotizan con tres).
-// Con dec, todos los de un tipo van con los mismos.
+// Con dec, el bid y el offer de un bono van con los mismos.
 function runPx(p,dec){return p>0?p.toLocaleString('es-AR',{minimumFractionDigits:dec||2,maximumFractionDigits:dec||3}):'';}
-function runDec(bonos){return bonos.some(b=>[b.bid,b.ask].some(p=>p>0&&Math.abs(Math.round(p*100)-p*100)>1e-6))?3:2;}
-function runRender(){
+// Lo escrito en una celda de precio: con coma, como se escribe acá (1.434,50);
+// sin coma, el punto es el decimal (129.045). Vacío es sin punta; undefined, que
+// no es un número.
+function runLeerPx(s){
+  s=String(s==null?'':s).trim().replace(/\s/g,'');
+  if(!s)return null;
+  const n=s.includes(',')?parseFloat(s.replace(/\./g,'').replace(',','.')):parseFloat(s);
+  return isFinite(n)&&n>0?n:undefined;
+}
+function runEstado(){
+  try{
+    const o=JSON.parse(localStorage.getItem('bonosAR_run_v1')||'{}');
+    if(o&&typeof o==='object'&&!Array.isArray(o))
+      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuera:Array.isArray(o.fuera)?o.fuera:[],tomado:o.tomado||null};
+  }catch(e){}
+  return{px:{},byma:{},q:{},fuera:[],tomado:null};
+}
+function runGuardar(E){try{localStorage.setItem('bonosAR_run_v1',JSON.stringify(E));}catch(e){}}
+function runVivo(b){return{bid:b&&b.bid>0?b.bid:null,ask:b&&b.ask>0?b.ask:null};}
+function runEditando(){const a=document.activeElement;return!!(a&&a.classList&&a.classList.contains('run-in')&&a.closest('#page-run'));}
+function runFecha(){const h=hoyAR();return h.slice(8,10)+'/'+h.slice(5,7)+'/'+h.slice(0,4);}
+function runEditado(E,t,c){
+  if(!(t in E.byma))return false;
+  const p=(E.px[t]||{})[c],m=E.byma[t][c];
+  return p==null?m!=null:m==null||Math.abs(p-m)>1e-9;
+}
+function runDec(px){return px.some(b=>[b&&b.bid,b&&b.ask].some(p=>p>0&&Math.abs(Math.round(p*100)-p*100)>1e-6))?3:2;}
+function runRender(forzar){
   const pg=document.getElementById('page-run');
   if(!pg)return;
+  // Mientras se escribe no se vuelve a armar: llegan precios cada tanto.
+  if(!forzar&&runEditando())return;
   let cuerpo=pg.querySelector('.run-cuerpo');
   if(!cuerpo){
-    pg.insertAdjacentHTML('beforeend',`<div class="run-cab"><span class="pane-title">Run</span><span class="run-nota">Puntas de pantalla de BYMA (data912), de todos los bonos en pesos por tipo · cantidades en nominales: k miles, M millones, B miles de millones · se actualiza con los precios</span></div><div class="run-cuerpo"></div>`);
+    pg.insertAdjacentHTML('beforeend',`<div class="run-cab">
+      <span class="pane-title">Run</span><span id="run-bonos"></span>
+      <button type="button" class="btn" id="run-traer" onclick="runTraer()" title="Reemplaza los precios del run por los de pantalla. Las cantidades quedan">↻ Traer de BYMA</button>
+      <span class="run-nota" id="run-tomado"></span>
+      <span class="run-acc">
+        <button type="button" class="btn" onclick="runCopiarImagen()" title="Copia el run como imagen, para pegarlo en un chat">⧉ Copiar imagen</button>
+        <button type="button" class="btn" onclick="runDescargar()" title="Descarga el run como imagen PNG">⤓ PNG</button>
+        <button type="button" class="btn" onclick="runCopiarTexto()" title="Copia el run como texto, en columnas">⧉ Texto</button>
+      </span>
+      <span class="run-aviso" id="run-aviso" role="status" aria-live="polite"></span>
+    </div>
+    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda, Enter baja a la de abajo y Escape deja lo que había. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Lo destildado no sale al exportar.</div>
+    <div class="run-cuerpo"></div>`);
     cuerpo=pg.querySelector('.run-cuerpo');
+    runMontar(pg);
   }
-  const e=betrEsc,f=s=>s?s.split('-').reverse().join('/'):'';
-  const celda=(txt,cls,tit)=>txt?`<td class="${cls||''}"${tit?` title="${e(tit)}"`:''}>${txt}</td>`:'<td class="run-nada">—</td>';
-  const nom=q=>q>0?Math.round(q).toLocaleString('es-AR')+' nominales':'';
-  const fila=(b,dec)=>`<tr><td title="Vence el ${e(f(b.vcto))}">${e(b.ticker)}</td>${celda(runCant(b.bidQ),'run-q',nom(b.bidQ))}${celda(runPx(b.bid,dec))}${celda(runPx(b.ask,dec))}${celda(runCant(b.askQ),'run-q',nom(b.askQ))}</tr>`;
-  const G=runGrupos();
-  cuerpo.innerHTML=G.length?G.map(([tipo,bonos])=>`<section aria-label="${tipo}"><table class="run-tabla"><thead>
+  const G=runGrupos(),E=runEstado();
+  // Un bono que todavía no tiene precio en el run toma el de pantalla.
+  let nuevo=false;
+  G.forEach(([,bs])=>bs.forEach(b=>{
+    if(b.ticker in E.px)return;
+    const v=runVivo(b);
+    if(v.bid==null&&v.ask==null)return;
+    E.px[b.ticker]=v;E.byma[b.ticker]={...v};nuevo=true;
+  }));
+  if(nuevo){if(!E.tomado)E.tomado=new Date().toISOString();runGuardar(E);}
+  const tom=document.getElementById('run-tomado');
+  if(tom){
+    const d=E.tomado?new Date(E.tomado):null;
+    tom.textContent=d?`Precios de BYMA del ${d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}: quedan fijos hasta que los vuelvas a traer`:'Todavía sin precios de BYMA';
+  }
+  const fuera=new Set(E.fuera),e=betrEsc,f=s=>s?s.split('-').reverse().join('/'):'';
+  const fila=(b,dec)=>{
+    const t=b.ticker,p=E.px[t]||{},q=E.q[t]||{},m=E.byma[t]||{},vivo=runVivo(b);
+    const tip=c=>`Se trajo de BYMA: ${runPx(m[c])||'—'} · pantalla ahora: ${runPx(vivo[c])||'—'}`;
+    const inp=(c,val,cls,tit,ph)=>`<input class="run-in${cls?' '+cls:''}" data-t="${e(t)}" data-c="${c}" value="${e(val)}"${tit?` title="${e(tit)}"`:''}${ph?` placeholder="${ph}"`:''} aria-label="${e(t)} ${({qb:'Bid Size',bid:'Bid Px',ask:'Offer Px',qa:'Offer Size'})[c]}" spellcheck="false" autocomplete="off">`;
+    return`<tr${fuera.has(t)?' class="run-fuera"':''}><td><label class="run-tk" title="Vence el ${e(f(b.vcto))}"><input type="checkbox" class="run-incl" data-t="${e(t)}"${fuera.has(t)?'':' checked'} aria-label="Incluir ${e(t)} en el run">${e(t)}</label></td>`
+      +`<td>${inp('qb',q.bid||'','run-q','','—')}</td>`
+      +`<td>${inp('bid',runPx(p.bid,dec),runEditado(E,t,'bid')?'run-ed':'',tip('bid'),'—')}</td>`
+      +`<td>${inp('ask',runPx(p.ask,dec),runEditado(E,t,'ask')?'run-ed':'',tip('ask'),'—')}</td>`
+      +`<td>${inp('qa',q.ask||'','run-q','','—')}</td></tr>`;
+  };
+  cuerpo.innerHTML=G.length?G.map(([tipo,bonos])=>{
+    return`<section aria-label="${tipo}"><table class="run-tabla"><colgroup><col style="width:22%"><col style="width:15%"><col style="width:24%"><col style="width:24%"><col style="width:15%"></colgroup><thead>
     <tr><th colspan="5" class="run-tipo">${tipo}</th></tr>
     <tr><th style="text-align:left">Ticker</th><th>Bid Size</th><th>Bid Px</th><th>Offer Px</th><th>Offer Size</th></tr>
-  </thead><tbody>${bonos.map(b=>fila(b,runDec(bonos))).join('')}</tbody></table></section>`).join('')
+  </thead><tbody>${bonos.map(b=>fila(b,runDec([E.px[b.ticker]||{}]))).join('')}</tbody></table></section>`;}).join('')
     :'<div class="run-nota" style="padding:8px 0">Sin bonos cargados.</div>';
+  runBonosPintar(G,E);
+}
+function runMontar(pg){
+  if(pg._run)return;
+  pg._run=true;
+  pg.addEventListener('change',ev=>{
+    const x=ev.target;
+    if(!x.classList)return;
+    if(x.classList.contains('run-incl'))runIncluir(x.dataset.t,x.checked);
+    else if(x.classList.contains('run-in'))runCelda(x);
+  });
+  pg.addEventListener('keydown',ev=>{
+    const x=ev.target;
+    if(!x.classList||!x.classList.contains('run-in'))return;
+    x._recien=false;
+    if(ev.key==='Enter'){ev.preventDefault();runCelda(x);runMover(x,ev.shiftKey?-1:1);}
+    else if(ev.key==='Escape'){ev.preventDefault();x.value=x.dataset.orig||'';x.blur();}
+  });
+  // Al entrar a una celda queda todo seleccionado: lo que se escribe reemplaza.
+  // El mouseup del mismo clic no deshace la selección.
+  pg.addEventListener('focusin',ev=>{
+    const x=ev.target;
+    if(x.classList&&x.classList.contains('run-in')){x.dataset.orig=x.value;x.select();x._recien=true;}
+  });
+  pg.addEventListener('mouseup',ev=>{
+    const x=ev.target;
+    if(x&&x._recien){x._recien=false;ev.preventDefault();}
+  });
+  // Al salir del run se vuelve a armar, con los decimales y las marcas al día.
+  pg.addEventListener('focusout',ev=>{
+    const r=ev.relatedTarget;
+    if(r&&r.classList&&r.classList.contains('run-in'))return;
+    setTimeout(()=>{if(!runEditando())runRender();},0);
+  });
+}
+// Enter baja a la misma columna de la fila de abajo, aunque sea de otro tipo.
+function runMover(x,d){
+  const todas=[...document.querySelectorAll(`#page-run input.run-in[data-c="${x.dataset.c}"]`)],j=todas.indexOf(x)+d;
+  if(j>=0&&j<todas.length)todas[j].focus();else x.blur();
+}
+function runCelda(x){
+  const E=runEstado(),t=x.dataset.t,c=x.dataset.c;
+  if(c==='qb'||c==='qa'){
+    const k=c==='qb'?'bid':'ask',v=x.value.trim().toUpperCase().replace(/\s+/g,'');
+    E.q[t]=E.q[t]||{};
+    if(v)E.q[t][k]=v;else delete E.q[t][k];
+    if(!Object.keys(E.q[t]).length)delete E.q[t];
+    x.value=v;
+  }else{
+    const v=runLeerPx(x.value);
+    if(v===undefined){x.value=x.dataset.orig||'';return;}
+    E.px[t]=E.px[t]||{bid:null,ask:null};
+    E.px[t][c]=v;
+    // El bid y el offer de un bono van con los mismos decimales.
+    const dec=runDec([E.px[t]]),tr=x.closest('tr');
+    (tr?[...tr.querySelectorAll('input.run-in[data-c="bid"],input.run-in[data-c="ask"]')]:[x]).forEach(i=>{
+      const cc=i.dataset.c,vv=E.px[t][cc];
+      i.value=vv==null?'':runPx(vv,dec);
+      i.classList.toggle('run-ed',runEditado(E,t,cc));
+    });
+  }
+  runGuardar(E);
+  x.dataset.orig=x.value;
+}
+function runIncluir(t,on){
+  const E=runEstado(),s=new Set(E.fuera);
+  if(on)s.delete(t);else s.add(t);
+  E.fuera=[...s];runGuardar(E);
+  runRender(true);
+}
+function runTodos(on){
+  const E=runEstado();
+  E.fuera=on?[]:runGrupos().flatMap(g=>g[1].map(b=>b.ticker));
+  runGuardar(E);runRender(true);
+}
+function runBonosPintar(G,E){
+  const fuera=new Set(E.fuera),todos=G.flatMap(g=>g[1]);
+  mselPintar('run-bonos',{titulo:'Bonos',resumen:`${todos.filter(b=>!fuera.has(b.ticker)).length}/${todos.length}`,
+    acciones:[{l:'Todos',fn:'runTodos(true)'},{l:'Ninguno',fn:'runTodos(false)'}],
+    grupos:G.map(([tipo,bs])=>({l:tipo,plegable:true,items:bs.map(b=>({l:b.ticker,v:b.ticker,on:!fuera.has(b.ticker),fn:`runIncluir('${b.ticker}',this.checked)`}))}))});
+}
+async function runTraer(opc){
+  opc=opc||{};
+  const E=runEstado();
+  const editados=Object.keys(E.px).filter(t=>runEditado(E,t,'bid')||runEditado(E,t,'ask')).length;
+  if(editados&&!opc.sinConfirmar&&!confirm(`Traer los precios de BYMA reemplaza ${editados===1?'el bono que editaste':`los ${editados} bonos que editaste`}. Las cantidades quedan. ¿Seguir?`))return;
+  const btn=document.getElementById('run-traer');
+  if(btn){btn.disabled=true;btn.textContent='trayendo…';}
+  try{if(!opc.sinPedir)await fetchAllPrices();}catch(e){console.warn('[run]',e.message);}
+  const E2=runEstado();
+  E2.px={};E2.byma={};
+  runGrupos().forEach(([,bs])=>bs.forEach(b=>{const v=runVivo(b);E2.px[b.ticker]=v;E2.byma[b.ticker]={...v};}));
+  E2.tomado=new Date().toISOString();
+  runGuardar(E2);
+  if(btn){btn.disabled=false;btn.textContent='↻ Traer de BYMA';}
+  runRender(true);
+  runAviso('Precios traídos de BYMA');
+}
+function runAviso(m){
+  const el=document.getElementById('run-aviso');
+  if(!el)return;
+  el.textContent=m;
+  clearTimeout(runAviso._t);runAviso._t=setTimeout(()=>{el.textContent='';},5000);
+}
+
+// ── Exportar ──
+// Lo incluido, por tipo, como se ve en el run.
+function runFilasExport(){
+  const E=runEstado(),fuera=new Set(E.fuera);
+  return runGrupos().map(([tipo,bs])=>{
+    const inc=bs.filter(b=>!fuera.has(b.ticker));
+    return[tipo,inc.map(b=>{const p=E.px[b.ticker]||{},q=E.q[b.ticker]||{},dec=runDec([p]);return[b.ticker,q.bid||'',runPx(p.bid,dec),runPx(p.ask,dec),q.ask||''];})];
+  }).filter(g=>g[1].length);
+}
+var RUN_CAB=['Ticker','Bid Size','Bid Px','Offer Px','Offer Size'];
+function runTexto(){
+  const G=runFilasExport(),filas=G.flatMap(g=>g[1]);
+  const w=RUN_CAB.map((h,i)=>Math.max(h.length,...filas.map(f=>f[i].length)));
+  const lin=f=>f.map((x,i)=>i===0?x.padEnd(w[i]):x.padStart(w[i])).join('  ').replace(/\s+$/,'');
+  return[`RUN ${runFecha()}`,lin(RUN_CAB),...G.flatMap(([tipo,fs])=>['',tipo,...fs.map(lin)])].join('\n');
+}
+// La imagen, siempre en oscuro como el run de la mesa, al doble de resolución.
+function runImagen(){
+  const G=runFilasExport(),filas=G.flatMap(g=>g[1]);
+  const S=2,fam=getComputedStyle(document.body).fontFamily||'monospace';
+  const fN=`13px ${fam}`,fB=`600 13px ${fam}`,fH=`11px ${fam}`,fT=`600 14px ${fam}`,fG=`600 12px ${fam}`;
+  const c=document.createElement('canvas'),x=c.getContext('2d');
+  const pad=12,alto=24;
+  const anchos=RUN_CAB.map((h,i)=>{
+    x.font=fH;let m=x.measureText(h.toUpperCase()).width;
+    x.font=i===0?fB:fN;filas.forEach(f=>{m=Math.max(m,x.measureText(f[i]).width);});
+    return Math.ceil(m)+2*pad;
+  });
+  const W=anchos.reduce((a,b)=>a+b,0),n=2+G.reduce((s,g)=>s+1+g[1].length,0),H=n*alto;
+  c.width=(W+2)*S;c.height=(H+2)*S;
+  x.scale(S,S);x.translate(1,1);
+  x.fillStyle='#101317';x.fillRect(-1,-1,W+2,H+2);
+  x.textBaseline='middle';
+  const raya=yy=>{x.strokeStyle='#3a4047';x.lineWidth=1;x.beginPath();x.moveTo(0,yy+.5);x.lineTo(W,yy+.5);x.stroke();};
+  const texto=(f,y,col,font)=>{
+    let xx=0;
+    f.forEach((v,i)=>{
+      x.font=font||(i===0?fB:fN);x.fillStyle=col;
+      if(i===0){x.textAlign='left';x.fillText(v,xx+pad,y+alto/2+1);}
+      else{x.textAlign='right';x.fillText(v,xx+anchos[i]-pad,y+alto/2+1);}
+      xx+=anchos[i];
+    });
+  };
+  const columnas=(y0,y1)=>{let xx=0;x.strokeStyle='#3a4047';anchos.slice(0,-1).forEach(a=>{xx+=a;x.beginPath();x.moveTo(xx+.5,y0);x.lineTo(xx+.5,y1);x.stroke();});};
+  let y=0;
+  x.font=fT;x.fillStyle='#f2f2f2';x.textAlign='left';x.fillText(`RUN · ${runFecha()}`,pad,y+alto/2+1);
+  y+=alto;raya(y);
+  texto(RUN_CAB.map(h=>h.toUpperCase()),y,'#9aa3ab',fH);
+  columnas(y,y+alto);
+  y+=alto;raya(y);
+  G.forEach(([tipo,fs])=>{
+    x.fillStyle='#252b31';x.fillRect(0,y,W,alto);
+    x.font=fG;x.fillStyle='#ffffff';x.textAlign='left';x.fillText(tipo,pad,y+alto/2+1);
+    y+=alto;raya(y);
+    const y0=y;
+    fs.forEach(f=>{texto(f,y,'#e8e8e8');y+=alto;raya(y);});
+    columnas(y0,y);
+  });
+  x.strokeStyle='#55606a';x.strokeRect(.5,.5,W-1,H-1);
+  return c;
+}
+function runVacio(){if(runFilasExport().length)return false;runAviso('No hay bonos incluidos para exportar.');return true;}
+async function runCopiarImagen(){
+  if(runVacio())return;
+  try{
+    if(!navigator.clipboard||typeof ClipboardItem==='undefined')throw new Error('este navegador no copia imágenes');
+    const c=runImagen();
+    await navigator.clipboard.write([new ClipboardItem({'image/png':new Promise((ok,mal)=>c.toBlob(b=>b?ok(b):mal(new Error('sin imagen')),'image/png'))})]);
+    runAviso('Imagen copiada: pegala en el chat.');
+  }catch(e){runAviso(`No se pudo copiar la imagen (${e.message}). Descargala con ⤓ PNG.`);}
+}
+function runDescargar(){
+  if(runVacio())return;
+  const a=document.createElement('a');
+  a.download=`run-${hoyAR()}.png`;a.href=runImagen().toDataURL('image/png');
+  document.body.appendChild(a);a.click();a.remove();
+  runAviso('Imagen descargada.');
+}
+async function runCopiarTexto(){
+  if(runVacio())return;
+  try{await navigator.clipboard.writeText(runTexto());runAviso('Texto copiado.');}
+  catch(e){runAviso(`No se pudo copiar el texto (${e.message}).`);}
 }
 
 function calcFwdPrecio(fwd,t){
@@ -15273,6 +15549,7 @@ function calcColsAplicar(k){
   st.textContent=lista.filter(c=>ocultas.has(c.clave)).map(c=>`${D.tabla} tr>:nth-child(${c.i+1}){display:none}`).join('\n');
   // Con anchos fijos, la tabla mide la suma de las columnas que se ven.
   calcTablas(k).forEach(t=>{try{anchosAplicar(t,calcAnchosCfg(k));}catch(e){}});
+  try{calcLadoAplicar(k);}catch(e){}
   calcColsPintar(k,lista,ocultas);
 }
 function calcColsPintar(k,lista,ocultas){
@@ -15394,9 +15671,51 @@ function calcAnchosCfg(k){
   const cfg={clave:(th,i)=>i===0?'_ticker':(calcClaveTh(th)||null),
     leer:()=>calcEstado(k).anchos,
     guardar:A=>{calcEstadoGuardar(k,{anchos:A});calcColsPintar(k,calcColsLista(k),new Set(calcEstado(k).cols));},
-    todas:()=>calcTablas(k).forEach(t=>anchosAplicar(t,cfg))};
+    todas:()=>{calcTablas(k).forEach(t=>anchosAplicar(t,cfg));try{calcLadoAplicar(k);}catch(e){}}};
   return cfg;
 }
+// ── La curva al costado ──
+// Con la tabla angosta (anchos a mano, columnas ocultas) sobra lugar a la
+// derecha: "al costado" pone ahí el panel de abajo (curva o forwards) a toda la
+// altura. La tabla y el panel son hermanos en todas las calculadoras: se los
+// envuelve en una fila, y al volver se los deja como estaban. La tabla toma el
+// ancho de sus columnas (o la mitad, si no tiene anchos a mano) y el panel, el
+// resto.
+function calcLadoPartes(k){
+  const D=CALC_DEF[k],A=D&&D.area&&document.getElementById(D.area);
+  if(!A)return null;
+  const env=A.parentElement&&A.parentElement.classList.contains('calc-lado')?A.parentElement:null;
+  const W=env?env.firstElementChild:A.previousElementSibling,t=calcTablas(k)[0];
+  if(!W||W===A||!t||!W.contains(t))return null;
+  return{A,W,env,t};
+}
+function calcLadoAplicar(k){
+  const P=calcLadoPartes(k);
+  if(!P)return;
+  const lado=calcEstado(k).lado,{A,W,t}=P;
+  let env=P.env,cambio=false;
+  if(lado&&!env){
+    env=document.createElement('div');env.className='calc-lado';
+    A.parentNode.insertBefore(env,W);env.append(W,A);cambio=true;
+  }else if(!lado&&env){
+    env.parentNode.insertBefore(W,env);env.parentNode.insertBefore(A,env);env.remove();env=null;cambio=true;
+  }
+  if(W.dataset.ladoFlex===undefined)W.dataset.ladoFlex=W.style.flex;
+  let base='';
+  if(env){
+    const w=t.classList.contains('anc-fijo')?Math.ceil(parseFloat(t.style.width)||0)+18:0;
+    base=w>0?`0 0 min(${w}px, calc(100% - 320px))`:'0 0 55%';
+  }
+  const f=env?base:W.dataset.ladoFlex;
+  if(W.style.flex!==f){W.style.flex=f;cambio=true;}
+  A.querySelectorAll('.calc-lado-btn').forEach(b=>{
+    b.classList.toggle('on',!!env);b.setAttribute('aria-pressed',String(!!env));
+    b.textContent=env?'⤓ abajo':'⇥ al costado';
+  });
+  if(cambio)setTimeout(()=>{try{const c=CALC_DEF[k].chart&&CALC_DEF[k].chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
+}
+function calcLado(k,on){calcEstadoGuardar(k,{lado:!!on});calcLadoAplicar(k);calcPanelAplicar(k);}
+
 function calcAnchosOriginales(k){calcEstadoGuardar(k,{anchos:{}});calcColsAplicar(k);}
 
 // Las matrices de forwards: la columna del bono, la del precio y la del plazo,
