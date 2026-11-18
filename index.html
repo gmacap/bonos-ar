@@ -225,6 +225,7 @@ table.anc-fijo>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 .run-mini{font-family:var(--mono);font-size:var(--fs9);text-transform:none;letter-spacing:0;padding:1px 6px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);color:var(--text3);cursor:pointer;}
 .run-mini:hover,.run-mini:focus-visible{color:var(--accent);border-color:var(--accent);}
 .run-sin-general .run-tabla{border-style:dashed;}
+.run-tabla td.run-vacia{padding:8px 10px;color:var(--text3);font-size:var(--fs11);text-align:left;}
 .run-sin-general th.run-tipo .run-tk{color:var(--text3);}
 .run-tabla td{height:auto;padding:0;font-family:var(--mono);font-size:var(--fs12);border-bottom:1px solid var(--border);border-left:1px solid var(--border);}
 .run-tabla td:first-child{text-align:left;color:var(--text);font-weight:500;border-left:0;}
@@ -15171,9 +15172,9 @@ function runEstado(){
   try{
     const o=JSON.parse(localStorage.getItem('bonosAR_run_v1')||'{}');
     if(o&&typeof o==='object'&&!Array.isArray(o))
-      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuera:Array.isArray(o.fuera)?o.fuera:[],gruposFuera:Array.isArray(o.gruposFuera)?o.gruposFuera:[],tomado:o.tomado||null};
+      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuera:Array.isArray(o.fuera)?o.fuera:[],gruposFuera:Array.isArray(o.gruposFuera)?o.gruposFuera:[],ocultos:Array.isArray(o.ocultos)?o.ocultos:[],tomado:o.tomado||null};
   }catch(e){}
-  return{px:{},byma:{},q:{},fuera:[],gruposFuera:[],tomado:null};
+  return{px:{},byma:{},q:{},fuera:[],gruposFuera:[],ocultos:[],tomado:null};
 }
 function runGuardar(E){try{localStorage.setItem('bonosAR_run_v1',JSON.stringify(E));}catch(e){}}
 function runVivo(b){return{bid:b&&b.bid>0?b.bid:null,ask:b&&b.ask>0?b.ask:null};}
@@ -15193,7 +15194,7 @@ function runRender(forzar){
   let cuerpo=pg.querySelector('.run-cuerpo');
   if(!cuerpo){
     pg.insertAdjacentHTML('beforeend',`<div class="run-cab">
-      <span class="pane-title">Run</span><span id="run-bonos"></span>
+      <span class="pane-title">Run</span>
       <button type="button" class="btn" id="run-traer" onclick="runTraer()" title="Reemplaza los precios del run por los de pantalla. Las cantidades quedan">↻ Traer de BYMA</button>
       <span class="run-nota" id="run-tomado"></span>
       <span class="run-acc" role="group" aria-label="Exportar todo el run">
@@ -15203,7 +15204,7 @@ function runRender(forzar){
       </span>
       <span class="run-aviso" id="run-aviso" role="status" aria-live="polite"></span>
     </div>
-    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda, Enter baja a la de abajo y Escape deja lo que había. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Los bonos destildados no salen al exportar. Arriba se exportan las tablas tildadas; con los botones de cada tabla, sólo esa.</div>
+    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda; Tab va al precio siguiente, Enter baja y Escape deja lo que había. Los bonos destildados se saltean y no salen al exportar; los que ocultás en "Bonos" de cada tabla no se ven. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Arriba se exportan las tablas tildadas; con los botones de cada tabla, sólo esa.</div>
     <div class="run-cuerpo"></div>`);
     cuerpo=pg.querySelector('.run-cuerpo');
     runMontar(pg);
@@ -15223,26 +15224,67 @@ function runRender(forzar){
     const d=E.tomado?new Date(E.tomado):null;
     tom.textContent=d?`Precios de BYMA del ${d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}: quedan fijos hasta que los vuelvas a traer`:'Todavía sin precios de BYMA';
   }
-  const fuera=new Set(E.fuera),gFuera=new Set(E.gruposFuera),e=betrEsc,f=s=>s?s.split('-').reverse().join('/'):'';
-  const fila=(b,dec)=>{
-    const t=b.ticker,p=E.px[t]||{},q=E.q[t]||{},m=E.byma[t]||{},vivo=runVivo(b);
-    const tip=c=>`Se trajo de BYMA: ${runPx(m[c])||'—'} · pantalla ahora: ${runPx(vivo[c])||'—'}`;
-    const inp=(c,val,cls,tit,ph)=>`<input class="run-in${cls?' '+cls:''}" data-t="${e(t)}" data-c="${c}" value="${e(val)}"${tit?` title="${e(tit)}"`:''}${ph?` placeholder="${ph}"`:''} aria-label="${e(t)} ${({qb:'Bid Size',bid:'Bid Px',ask:'Offer Px',qa:'Offer Size'})[c]}" spellcheck="false" autocomplete="off">`;
-    return`<tr${fuera.has(t)?' class="run-fuera"':''}><td><label class="run-tk" title="Vence el ${e(f(b.vcto))}"><input type="checkbox" class="run-incl" data-t="${e(t)}"${fuera.has(t)?'':' checked'} aria-label="Incluir ${e(t)} en el run">${e(t)}</label></td>`
-      +`<td>${inp('qb',q.bid||'','run-q','','—')}</td>`
-      +`<td>${inp('bid',runPx(p.bid,dec),runEditado(E,t,'bid')?'run-ed':'',tip('bid'),'—')}</td>`
-      +`<td>${inp('ask',runPx(p.ask,dec),runEditado(E,t,'ask')?'run-ed':'',tip('ask'),'—')}</td>`
-      +`<td>${inp('qa',q.ask||'','run-q','','—')}</td></tr>`;
-  };
+  const gFuera=new Set(E.gruposFuera),oc=new Set(E.ocultos),e=betrEsc;
   cuerpo.innerHTML=G.length?G.map(([tipo,bonos])=>{
-    return`<section aria-label="${tipo}"${gFuera.has(tipo)?' class="run-sin-general"':''}><table class="run-tabla"><colgroup><col style="width:20%"><col style="width:19%"><col style="width:21%"><col style="width:21%"><col style="width:19%"></colgroup><thead>
+    return`<section aria-label="${tipo}" data-g="${e(tipo)}"${gFuera.has(tipo)?' class="run-sin-general"':''}><table class="run-tabla"><colgroup><col style="width:20%"><col style="width:19%"><col style="width:21%"><col style="width:21%"><col style="width:19%"></colgroup><thead>
     <tr><th colspan="5" class="run-tipo"><div class="run-tipo-fila">
       <label class="run-tk" title="Incluir ${tipo} en la copia general (los botones de arriba)"><input type="checkbox" class="run-grupo" data-g="${tipo}"${gFuera.has(tipo)?'':' checked'} aria-label="Incluir ${tipo} en la copia general">${tipo}</label>
+      <span id="${runVerId(tipo)}"></span>
       <span class="run-gacc">${runAccHTML(tipo)}</span></div></th></tr>
     <tr><th style="text-align:left">Ticker</th><th>Bid Size</th><th>Bid Px</th><th>Offer Px</th><th>Offer Size</th></tr>
-  </thead><tbody>${bonos.map(b=>fila(b,runDec([E.px[b.ticker]||{}]))).join('')}</tbody></table></section>`;}).join('')
+  </thead><tbody>${runFilasHTML(bonos.filter(b=>!oc.has(b.ticker)),E)}</tbody></table></section>`;}).join('')
     :'<div class="run-nota" style="padding:8px 0">Sin bonos cargados.</div>';
-  runBonosPintar(G,E);
+  G.forEach(([tipo,bonos])=>runVerPintar(tipo,bonos,E));
+}
+// Una fila del run: la casilla y el ticker, y las cuatro celdas que se editan.
+function runFilaHTML(b,E){
+  const e=betrEsc,f=s=>s?s.split('-').reverse().join('/'):'',fuera=E.fuera.includes(b.ticker);
+  const t=b.ticker,p=E.px[t]||{},q=E.q[t]||{},m=E.byma[t]||{},vivo=runVivo(b),dec=runDec([p]);
+  const tip=c=>`Se trajo de BYMA: ${runPx(m[c])||'—'} · pantalla ahora: ${runPx(vivo[c])||'—'}`;
+  const inp=(c,val,cls,tit,ph)=>`<input class="run-in${cls?' '+cls:''}" data-t="${e(t)}" data-c="${c}" value="${e(val)}"${tit?` title="${e(tit)}"`:''}${ph?` placeholder="${ph}"`:''} aria-label="${e(t)} ${({qb:'Bid Size',bid:'Bid Px',ask:'Offer Px',qa:'Offer Size'})[c]}" spellcheck="false" autocomplete="off">`;
+  return`<tr${fuera?' class="run-fuera"':''}><td><label class="run-tk" title="Vence el ${e(f(b.vcto))}"><input type="checkbox" class="run-incl" data-t="${e(t)}"${fuera?'':' checked'} aria-label="Incluir ${e(t)} en el run">${e(t)}</label></td>`
+    +`<td>${inp('qb',q.bid||'','run-q','','—')}</td>`
+    +`<td>${inp('bid',runPx(p.bid,dec),runEditado(E,t,'bid')?'run-ed':'',tip('bid'),'—')}</td>`
+    +`<td>${inp('ask',runPx(p.ask,dec),runEditado(E,t,'ask')?'run-ed':'',tip('ask'),'—')}</td>`
+    +`<td>${inp('qa',q.ask||'','run-q','','—')}</td></tr>`;
+}
+function runFilasHTML(bonos,E){
+  return bonos.length?bonos.map(b=>runFilaHTML(b,E)).join('')
+    :'<tr><td colspan="5" class="run-vacia">Todos ocultos: elegí cuáles ver en "Bonos".</td></tr>';
+}
+
+// ── Qué bonos se ven ──
+// Cada tabla tiene su desplegable "Bonos": un bono oculto no se ve en la tabla
+// ni sale al exportar. Es otra cosa que la casilla de cada fila, que lo deja a
+// la vista pero fuera de lo exportado.
+function runVerId(tipo){return'run-ver-'+String(tipo).toLowerCase().replace(/[^a-z0-9]+/g,'-');}
+function runVerPintar(tipo,bonos,E){
+  const oc=new Set(E.ocultos),vis=bonos.filter(b=>!oc.has(b.ticker)).length;
+  mselPintar(runVerId(tipo),{titulo:'Bonos',resumen:`${vis}/${bonos.length}`,
+    acciones:[{l:'Todos',fn:`runVerTodos('${tipo}',true)`},{l:'Ninguno',fn:`runVerTodos('${tipo}',false)`}],
+    grupos:[{l:'Los que se ven en la tabla',items:bonos.map(b=>({l:b.ticker,v:b.ticker,on:!oc.has(b.ticker),fn:`runVer('${tipo}','${b.ticker}',this.checked)`}))}]});
+}
+// Se vuelve a armar sólo esa tabla: el desplegable queda abierto para seguir eligiendo.
+function runSeccion(tipo){
+  const g=runGrupos().find(x=>x[0]===tipo),sec=[...document.querySelectorAll('#page-run section[data-g]')].find(x=>x.dataset.g===tipo);
+  if(!g||!sec){runRender(true);return;}
+  const E=runEstado(),oc=new Set(E.ocultos);
+  sec.querySelector('tbody').innerHTML=runFilasHTML(g[1].filter(b=>!oc.has(b.ticker)),E);
+  runVerPintar(tipo,g[1],E);
+}
+function runVer(tipo,t,ver){
+  const E=runEstado(),s2=new Set(E.ocultos);
+  if(ver)s2.delete(t);else s2.add(t);
+  E.ocultos=[...s2];runGuardar(E);
+  runSeccion(tipo);
+}
+function runVerTodos(tipo,ver){
+  const g=runGrupos().find(x=>x[0]===tipo);
+  if(!g)return;
+  const E=runEstado(),s2=new Set(E.ocultos);
+  g[1].forEach(b=>{if(ver)s2.delete(b.ticker);else s2.add(b.ticker);});
+  E.ocultos=[...s2];runGuardar(E);
+  runSeccion(tipo);
 }
 function runMontar(pg){
   if(pg._run)return;
@@ -15262,7 +15304,8 @@ function runMontar(pg){
     const x=ev.target;
     if(!x.classList||!x.classList.contains('run-in'))return;
     x._recien=false;
-    if(ev.key==='Enter'){ev.preventDefault();runCelda(x);runMover(x,ev.shiftKey?-1:1);}
+    if(ev.key==='Tab'&&(x.dataset.c==='bid'||x.dataset.c==='ask')){ev.preventDefault();runCelda(x);runSaltar(x,ev.shiftKey?-1:1);}
+    else if(ev.key==='Enter'){ev.preventDefault();runCelda(x);runMover(x,ev.shiftKey?-1:1);}
     else if(ev.key==='Escape'){ev.preventDefault();x.value=x.dataset.orig||'';x.blur();}
   });
   // Al entrar a una celda queda todo seleccionado: lo que se escribe reemplaza.
@@ -15276,16 +15319,30 @@ function runMontar(pg){
     if(x&&x._recien){x._recien=false;ev.preventDefault();}
   });
   // Al salir del run se vuelve a armar, con los decimales y las marcas al día.
+  // Sólo al salir de una celda: los desplegables y los botones no lo vuelven a
+  // armar, que se cerrarían.
   pg.addEventListener('focusout',ev=>{
     const r=ev.relatedTarget;
+    if(!ev.target.classList||!ev.target.classList.contains('run-in'))return;
     if(r&&r.classList&&r.classList.contains('run-in'))return;
     setTimeout(()=>{if(!runEditando())runRender();},0);
   });
 }
+// La celda que sigue entre las dadas, sin las de los bonos destildados.
+function runSiguiente(lista,x,d){
+  const k=lista.indexOf(x);
+  return(d>0?lista.slice(k+1):lista.slice(0,Math.max(0,k)).reverse()).find(i=>!i.closest('tr.run-fuera'));
+}
 // Enter baja a la misma columna de la fila de abajo, aunque sea de otro tipo.
 function runMover(x,d){
-  const todas=[...document.querySelectorAll(`#page-run input.run-in[data-c="${x.dataset.c}"]`)],j=todas.indexOf(x)+d;
-  if(j>=0&&j<todas.length)todas[j].focus();else x.blur();
+  const n=runSiguiente([...document.querySelectorAll(`#page-run input.run-in[data-c="${x.dataset.c}"]`)],x,d);
+  if(n)n.focus();else x.blur();
+}
+// Tab va de un precio al siguiente: bid, offer, el bid de la fila de abajo, y
+// de una tabla a la otra; Shift+Tab vuelve. Sin las cantidades.
+function runSaltar(x,d){
+  const n=runSiguiente([...document.querySelectorAll('#page-run input.run-in[data-c="bid"],#page-run input.run-in[data-c="ask"]')],x,d);
+  if(n)n.focus();
 }
 function runCelda(x){
   const E=runEstado(),t=x.dataset.t,c=x.dataset.c;
@@ -15332,17 +15389,6 @@ function runAccHTML(tipo){
     ['tabla','⧉ Tabla','Copiar '+e+' como tabla (Eikon, Outlook, Teams, Excel)']]
     .map(([a,l,t])=>`<button type="button" class="run-mini" data-acc="${a}" data-g="${e}" title="${t}">${l}</button>`).join('');
 }
-function runTodos(on){
-  const E=runEstado();
-  E.fuera=on?[]:runGrupos().flatMap(g=>g[1].map(b=>b.ticker));
-  runGuardar(E);runRender(true);
-}
-function runBonosPintar(G,E){
-  const fuera=new Set(E.fuera),todos=G.flatMap(g=>g[1]);
-  mselPintar('run-bonos',{titulo:'Bonos',resumen:`${todos.filter(b=>!fuera.has(b.ticker)).length}/${todos.length}`,
-    acciones:[{l:'Todos',fn:'runTodos(true)'},{l:'Ninguno',fn:'runTodos(false)'}],
-    grupos:G.map(([tipo,bs])=>({l:tipo,plegable:true,items:bs.map(b=>({l:b.ticker,v:b.ticker,on:!fuera.has(b.ticker),fn:`runIncluir('${b.ticker}',this.checked)`}))}))});
-}
 async function runTraer(opc){
   opc=opc||{};
   const E=runEstado();
@@ -15371,7 +15417,7 @@ function runAviso(m){
 // Lo incluido, por tipo, como se ve en el run: las tablas tildadas, o con g,
 // sólo ese tipo.
 function runFilasExport(g){
-  const E=runEstado(),fuera=new Set(E.fuera),gFuera=new Set(E.gruposFuera);
+  const E=runEstado(),fuera=new Set([...E.fuera,...E.ocultos]),gFuera=new Set(E.gruposFuera);
   return runGrupos().filter(([tipo])=>g?tipo===g:!gFuera.has(tipo)).map(([tipo,bs])=>{
     const inc=bs.filter(b=>!fuera.has(b.ticker));
     return[tipo,inc.map(b=>{const p=E.px[b.ticker]||{},q=E.q[b.ticker]||{},dec=runDec([p]);return[b.ticker,q.bid||'',runPx(p.bid,dec),runPx(p.ask,dec),q.ask||''];})];

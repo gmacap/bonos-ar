@@ -4831,6 +4831,32 @@ const omitir = (label, motivo) =>
         out.grupo.solo = lineas.includes(tipo2[0]) && G.filter(g => g[0] !== tipo2[0]).every(g => !lineas.includes(g[0]));
         const htmlG = runHtml(tipo2[0]);
         const incG = tipo2[1].filter(x => !runEstado().fuera.includes(x.ticker)).length;
+        // Tab: de un precio al siguiente, sin las cantidades y salteando los destildados
+        const [b0, b1, b2] = tipo2[1].length >= 3 ? tipo2[1] : [tipo2[1][0], null, tipo2[1][1]];
+        runIncluir(b0.ticker, true);
+        if (b1) runIncluir(b1.ticker, false);
+        await espera(50);
+        const celda = (tk, c) => document.querySelector(`#page-run input.run-in[data-t="${tk}"][data-c="${c}"]`);
+        const tab = (x, shift) => x.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: !!shift, bubbles: true }));
+        celda(b0.ticker, 'bid').focus(); tab(document.activeElement);
+        const a1 = document.activeElement.dataset.t + ':' + document.activeElement.dataset.c;
+        tab(document.activeElement);
+        const a2 = document.activeElement.dataset.t + ':' + document.activeElement.dataset.c;
+        tab(document.activeElement, true);
+        const a3 = document.activeElement.dataset.t + ':' + document.activeElement.dataset.c;
+        document.activeElement.blur();
+        out.tab = { a1, a2, a3, ok: a1 === b0.ticker + ':ask' && a2 === b2.ticker + ':bid' && a3 === b0.ticker + ':ask' };
+        if (b1) runIncluir(b1.ticker, true);
+        // Ocultar: no se ve en la tabla ni sale al exportar; el desplegable lo cuenta
+        runVer(tipo2[0], b0.ticker, false); await espera(50);
+        const sec = [...document.querySelectorAll('#page-run section[data-g]')].find(x => x.dataset.g === tipo2[0]);
+        out.ocultar = { fila: !celda(b0.ticker, 'bid'), exporta: !runTexto(tipo2[0]).split('\n').some(l => l.split(/\s+/)[0] === b0.ticker),
+          boton: (sec.querySelector('.msel-btn') || {}).textContent || '', guardado: runEstado().ocultos.includes(b0.ticker) };
+        runVerTodos(tipo2[0], false); await espera(50);
+        out.ocultar.vacia = !!sec.querySelector('td.run-vacia');
+        runVerTodos(tipo2[0], true); await espera(50);
+        out.ocultar.vuelve = !!celda(b0.ticker, 'bid') && !runEstado().ocultos.length;
+        out.grupo.tab = out.tab; out.grupo.ocultar = out.ocultar;
         out.grupo.html = /^<table/.test(htmlG) && (htmlG.match(/<tr>/g) || []).length === 2 + incG;
         out.grupo.botones = [...document.querySelectorAll(`#page-run .run-mini[data-g="${tipo2[0]}"]`)].map(x => x.dataset.acc).join('|') === 'img|png|tabla'
           && !/WhatsApp/.test(document.getElementById('page-run').textContent);
@@ -4856,6 +4882,10 @@ const omitir = (label, motivo) =>
     check(gr.casilla && gr.fueraDeGeneral && gr.bonosIgual && gr.sola && gr.marcada && gr.vuelve,
           'RUN: la casilla de cada tabla la saca de la copia general sin tocar sus bonos, y la tabla se sigue exportando sola', JSON.stringify(gr));
     check(gr.solo && gr.html && gr.botones, 'RUN: cada tabla se exporta sola, como imagen o como tabla (HTML)', JSON.stringify(gr));
+    check(gr.tab && gr.tab.ok, 'RUN: Tab va de un precio al siguiente, sin las cantidades y salteando los destildados; Shift+Tab vuelve', JSON.stringify(gr.tab));
+    const oc = gr.ocultar || {};
+    check(oc.fila && oc.exporta && /Bonos · \d+\/\d+/.test(oc.boton) && oc.guardado && oc.vacia && oc.vuelve,
+          'RUN: cada tabla tiene su desplegable para ocultar bonos, que no se ven ni salen al exportar', JSON.stringify(oc));
   }
 
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
