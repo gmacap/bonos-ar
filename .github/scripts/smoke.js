@@ -4888,6 +4888,51 @@ const omitir = (label, motivo) =>
           'RUN: cada tabla tiene su desplegable para ocultar bonos, que no se ven ni salen al exportar', JSON.stringify(oc));
   }
 
+  // Px Cierre: todos los bonos en pesos en el orden de la mesa, el orden a
+  // elección, y la copia de sólo los precios.
+  console.log('\nPx Cierre');
+  const pxc = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const antes = localStorage.getItem('bonosAR_pxcierre_v1');
+    localStorage.removeItem('bonosAR_pxcierre_v1');
+    const out = {};
+    try {
+      switchSection('pesos'); switchTab('pxcierre');
+      await espera(500);
+      const G = pxcGrupos(), du = dualCombos('TAMAR');
+      out.grupos = G.map(g => g[0]).join('|');
+      const de = n => (G.find(g => g[0] === n) || [, []])[1].map(b => b.ticker);
+      out.duales = [...du.entries()].filter(([tk]) => G.some(g => g[1].some(b => b.ticker === tk)))
+        .every(([tk, k]) => de(k === 'cer' ? 'CER y duales CER/TAMAR' : k === 'dlk' ? 'Dollar linked y duales TAMAR/DLK' : 'Tasa fija').includes(tk));
+      out.sinRepetir = (() => { const all = G.flatMap(g => g[1].map(b => b.ticker)); return new Set(all).size === all.length; })();
+      out.cab = [...document.querySelectorAll('#page-pxcierre thead th')].map(x => x.textContent).join('|');
+      const filas = () => [...document.querySelectorAll('#page-pxcierre tbody tr[data-t]')].map(r => r.dataset.t);
+      out.filas = filas().length === G.reduce((s, g) => s + g[1].length, 0);
+      const txt = pxcTexto().split('\n');
+      out.copia = txt.length === filas().length && pxcFilas().every((x, i) => txt[i] === pxcPx(x.b.precio)) && !/[A-Z]/.test(pxcTexto())
+        && (pxcHtml().match(/<tr>/g) || []).length === filas().length;
+      // Mover: con la flecha y arrastrando un grupo entero; se guarda y vuelve
+      const f0 = filas();
+      pxcMover(f0[0], 1); await espera(50);
+      out.flecha = filas()[0] === f0[1] && filas()[1] === f0[0] && pxcTexto().split('\n')[0] === pxcPx(pxcFilas()[0].b.precio);
+      const ultimo = G[G.length - 1];
+      pxcMoverA(ultimo[1].map(b => b.ticker), filas()[0], true); await espera(50);
+      out.grupo = filas().slice(0, ultimo[1].length).join() === ultimo[1].map(b => b.ticker).join() && pxcEstado().orden.length === f0.length;
+      pxcOrdenOriginal(); await espera(50);
+      out.vuelve = filas().join() === f0.join() && !pxcEstado().orden.length;
+      out.nav = !!document.querySelector('#page-pxcierre .calc-nav button[aria-current]');
+      switchTab('breakeven');
+    } finally {
+      if (antes == null) localStorage.removeItem('bonosAR_pxcierre_v1'); else localStorage.setItem('bonosAR_pxcierre_v1', antes);
+    }
+    return out;
+  });
+  check(/^(CER y duales CER\/TAMAR)?\|?(Fija \(TY30P\))?\|?(Dollar linked y duales TAMAR\/DLK)?\|?(Tasa fija)?\|?(TAMAR)?$/.test(pxc.grupos) && pxc.grupos.length > 0
+        && pxc.duales && pxc.sinRepetir && pxc.cab === 'Ticker|Precio' && pxc.filas && pxc.nav,
+        'Px Cierre: todos los bonos en pesos con el orden de la mesa, los duales con su otra pata, Ticker y Precio', JSON.stringify(pxc));
+  check(pxc.copia, 'Px Cierre: copiar precios copia sólo los precios, uno por fila, en el orden de la tabla', JSON.stringify(pxc));
+  check(pxc.flecha && pxc.grupo && pxc.vuelve, 'Px Cierre: el orden se cambia con las flechas o moviendo un grupo entero, se guarda y vuelve al original', JSON.stringify(pxc));
+
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
   // lo del comunicado (un dual, en las dos de sus patas); el formulario de alta
   // se abre completo y con la nota de lo que falta; el aviso es sólo del admin;
@@ -6388,7 +6433,7 @@ const omitir = (label, motivo) =>
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd,run',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd,run,pxcierre',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
         'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-liquidez,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
@@ -7091,7 +7136,7 @@ const omitir = (label, motivo) =>
     }
     return out;
   });
-  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD|RUN · CER' && cvista.irTF
+  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD|RUN|Px Cierre · CER' && cvista.irTF
         && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD' && cvista.irGlo,
         'cada calculadora tiene las subsolapas de su sección, marca la abierta y lleva a la otra con un clic', JSON.stringify(cvista));
   check(cvista.fwd && cvista.fwd.filas >= 3 && cvista.fwd.sinElSacado && cvista.fwd.grafico === 'none' && cvista.fwdUsd >= 3
