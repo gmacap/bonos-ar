@@ -4979,6 +4979,64 @@ const omitir = (label, motivo) =>
   const pq = pxc.quitar || {};
   check(pq.fuera && pq.boton && pq.vuelve && pq.restaura, 'Px Cierre: cualquier bono se quita de la lista y vuelve con Agregar o con Quitados', JSON.stringify(pq));
 
+  // Respaldo de precios: si data912 no responde, BYMA; si BYMA tampoco, lo
+  // último archivado. Siempre a la vista: la franja, el estado y la marca.
+  console.log('\nRespaldo de precios');
+  const resp = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, realFetch = window.fetch;
+    const panel = [
+      { symbol: 'S30N6', settlementType: '2', trade: 129.5, bidPrice: 129.4, quantityBid: 1000, offerPrice: 129.6, quantityOffer: 2000, previousClosingPrice: 129, volume: 5000, numberOfOrders: 3 },
+      { symbol: 'S30N6', settlementType: '1', trade: 129.2, bidPrice: 129.1, offerPrice: 129.3, previousClosingPrice: 129 },
+    ];
+    let byma = true;
+    const av = document.getElementById('precios-aviso');
+    try {
+      const m = bymaComoData912(panel);
+      out.mapa = m.length === 1 && m[0].c === 129.5 && m[0].px_bid === 129.4 && m[0].q_ask === 2000 && Math.abs(m[0].pct_change - 0.388) < 0.001 && m[0]._fuente === 'byma';
+      window.fetch = (u, o) => {
+        const url = String(u);
+        if (url.includes('data912.com/live')) return Promise.reject(new TypeError('Failed to fetch'));
+        if (url.includes('open.bymadata.com.ar') || url.includes('/byma?'))
+          return byma ? Promise.resolve(new Response(JSON.stringify({ data: panel }), { status: 200 })) : Promise.reject(new TypeError('Failed to fetch'));
+        return realFetch(u, o);
+      };
+      fetchData912.tandas = {}; BYMA_VIVO = null; PRECIOS_ARCH = null;
+      const d = await fetchData912('arg_notes', true);
+      out.byma = { c: d[0] && d[0].c, fuente: PRECIOS_FUENTE.fuente, aviso: !av.hidden && /BYMA/.test(av.textContent) && av.classList.contains('byma') };
+      await fetchAllPrices(); await espera(300);
+      switchSection('pesos'); switchTab('lecap'); await espera(400);
+      const fila = [...document.querySelectorAll('#table-body tr')].find(tr => (tr.querySelector('.c-ticker') || {}).textContent === 'S30N6');
+      out.marca = !!fila && !!fila.querySelector('.fuente-marca.fuente-byma');
+      out.estado = /BYMA/.test(document.getElementById('api-status').textContent);
+      // BYMA también cae: lo último archivado
+      byma = false; fetchData912.tandas = {}; BYMA_VIVO = null; PRECIOS_ARCH = null;
+      let arch = null;
+      try { arch = await fetchData912('arg_notes', true); } catch (e) { arch = null; }
+      out.archivo = arch ? { fuente: PRECIOS_FUENTE.fuente, marca: arch.every(x => x._fuente === 'archivo'), aviso: /ARCHIVADOS/.test(av.textContent) && av.classList.contains('archivo') }
+        : { sinArchivo: PRECIOS_FUENTE.fuente === 'ninguna' };
+      // data912 vuelve: la franja se va
+      window.fetch = (u, o) => String(u).includes('data912.com/live')
+        ? Promise.resolve(new Response(JSON.stringify([{ symbol: 'S30N6', c: 129.1, px_bid: 129, px_ask: 129.2 }]), { status: 200 }))
+        : realFetch(u, o);
+      fetchData912.tandas = {};
+      await fetchData912('arg_notes', true); await fetchData912('arg_bonds', true);
+      out.vuelve = PRECIOS_FUENTE.fuente === 'data912' && av.hidden && getComputedStyle(document.documentElement).getPropertyValue('--alto-aviso').trim() === '0px';
+    } finally {
+      window.fetch = realFetch; fetchData912.tandas = {}; BYMA_VIVO = null; PRECIOS_ARCH = null;
+      try { await fetchAllPrices(); } catch (e) {}
+      switchTab('breakeven');
+    }
+    return out;
+  });
+  check(resp.mapa, 'respaldo: BYMA se pasa al formato de data912, con el plazo que se mira y la variación contra el cierre anterior', JSON.stringify(resp));
+  check(resp.byma && resp.byma.fuente === 'byma' && resp.byma.c === 129.5 && resp.byma.aviso && resp.marca && resp.estado,
+        'si data912 no responde, los precios vienen de BYMA, con la franja arriba, el estado y la marca en cada precio', JSON.stringify(resp));
+  if (resp.archivo && resp.archivo.sinArchivo) omitir('respaldo: lo último archivado', 'el archivo no respondió');
+  else check(resp.archivo && resp.archivo.fuente === 'archivo' && resp.archivo.marca && resp.archivo.aviso,
+        'si BYMA tampoco, los últimos precios archivados, con la franja en rojo y cada uno marcado', JSON.stringify(resp.archivo));
+  check(resp.vuelve, 'cuando data912 vuelve, la franja se va', JSON.stringify(resp));
+
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
   // lo del comunicado (un dual, en las dos de sus patas); el formulario de alta
   // se abre completo y con la nota de lo que falta; el aviso es sólo del admin;

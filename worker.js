@@ -158,6 +158,11 @@ const ALLOWED_ORIGINS = [
 // arbitraria por querystring y hubo que endurecer después, acá la allowlist es de
 // paths completos: no hay parámetro que el llamador pueda torcer.
 const MAE_BASE = 'https://api.marketdata.mae.com.ar';
+// BYMA, datos abiertos (con unos 15 minutos de demora): el respaldo de precios
+// de la app cuando data912 no responde. La app lo pide directo y, si su red no
+// llega a BYMA, por acá. Sólo los dos paneles que usa, por nombre.
+const BYMA_FREE = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free';
+const BYMA_PANELES = ['public-bonds', 'lebacs'];
 const MAE_ALLOWED_PATHS = [
   '/api/mercado/resumen/FOR',   // FOREX mayorista — UST$T plazo 000 es el contado
   '/api/mercado/resumen/DDF',   // Dólar Diferido a Fix — curva de futuros
@@ -245,6 +250,26 @@ export default {
       return new Response(body, {
         status: maeRes.status,
         // El MAE es intradiario: cachear acá escondería el último tick.
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors },
+      });
+    }
+
+    // ── Proxy BYMA ─────────────────────────────────────────────────────────────
+    // GET /byma?panel=public-bonds · GET /byma?panel=lebacs
+    // El panel tiene que estar en la lista tal cual; el pedido a BYMA lo arma el
+    // Worker, sin nada del llamador más que el nombre.
+    if (url.pathname === '/byma') {
+      if (request.method !== 'GET') return jsonError('GET required', 405, cors);
+      const panel = url.searchParams.get('panel') || '';
+      if (!BYMA_PANELES.includes(panel)) return jsonError(`Panel no permitido: ${panel}`, 400, cors);
+      const bRes = await fetch(`${BYMA_FREE}/${panel}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+        body: JSON.stringify({ page_size: 3000 }),
+      });
+      const body = await bRes.text();
+      return new Response(body, {
+        status: bRes.status,
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors },
       });
     }

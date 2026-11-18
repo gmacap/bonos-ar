@@ -26,7 +26,10 @@
      que descontarle al alto de la ventana. Estaba escrito a mano en veintiún
      lugares, así que sacar una barra era editarlos todos. ARS: header 50 +
      nav 35 + barra USD 28. USD: eso más la sub-barra de moneda, 36. */
-  --alto-barras:113px; --alto-barras-usd:149px;
+  --alto-barras:calc(113px + var(--alto-aviso)); --alto-barras-usd:calc(149px + var(--alto-aviso));
+  /* La franja que avisa que los precios no vienen de data912 (ver RESPALDO DE
+     PRECIOS): mientras se ve, las páginas le descuentan su alto. */
+  --alto-aviso:0px;
   --bg:#0d0f0e;--surface:#141715;--surface2:#1a1d1b;
   --border:#2d322e;--border2:#3a403a;
   /* Contraste contra --bg, --surface y --surface2: --text3 entre 7,5 y 8,5:1,
@@ -137,6 +140,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:va
 .hdate{font-size:var(--fs11);color:var(--text3);white-space:nowrap;}
 
 .nav{display:flex;border-bottom:1px solid var(--border);padding:0 1.5rem;background:var(--bg);overflow-x:auto;}
+/* Precios que no son de data912: la franja de arriba y la marca de cada precio. */
+.precios-aviso{display:flex;align-items:center;gap:12px;padding:5px 1.5rem;font-size:var(--fs12);font-family:var(--mono);border-bottom:2px solid;line-height:1.35;}
+.precios-aviso>span{flex:1;min-width:0;}
+.precios-aviso[hidden]{display:none;}
+.precios-aviso.byma{background:#3a2a05;color:#ffd27a;border-color:#d99a00;}
+.precios-aviso.archivo{background:#3d0c0c;color:#ffb4b4;border-color:#e5484d;}
+body.theme-light .precios-aviso.byma{background:#fff3cd;color:#5c4400;border-color:#c98a00;}
+body.theme-light .precios-aviso.archivo{background:#fde2e2;color:#7a1414;border-color:#c62828;}
+.precios-aviso b{font-weight:700;}
+.precios-aviso .btn{flex-shrink:0;padding:2px 9px;font-size:var(--fs11);}
+.fuente-marca{display:inline-block;margin-left:5px;padding:0 4px;border-radius:3px;font-size:var(--fs9);line-height:13px;font-weight:600;white-space:nowrap;vertical-align:middle;}
+.fuente-byma{border:1px solid #d99a00;color:#d99a00;}
+.fuente-archivo{border:1px solid #e5484d;color:#e5484d;}
+body.theme-light .fuente-byma{border-color:#a86f00;color:#a86f00;}
+body.theme-light .fuente-archivo{border-color:#c62828;color:#c62828;}
 .nav-tab{padding:8px 16px;font-size:var(--fs11);font-family:var(--mono);color:var(--text3);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .12s;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
 .nav-tab:hover{color:var(--text2);}
 .nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
@@ -684,6 +702,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     <div class="hdate" id="hoy"></div>
   </div>
 </header>
+<div id="precios-aviso" class="precios-aviso" role="alert" hidden></div>
 
 <nav class="nav" id="nav-pesos">
   <button class="nav-tab active" id="nav-breakeven" onclick="switchTab('breakeven')">Resumen</button>
@@ -4235,7 +4254,156 @@ function fetchData912(endpoint,fresco){
     tandas[endpoint]={ts:ahora,p};
     p.catch(()=>{if(tandas[endpoint]&&tandas[endpoint].p===p)delete tandas[endpoint];});
   }
-  return p.then(txt=>JSON.parse(txt));
+  // Una respuesta que no es una lista con algo adentro cuenta como caída.
+  return p.then(txt=>{
+    const d=JSON.parse(txt);
+    if(!Array.isArray(d)||!d.length)throw new Error('data912 respondió vacío');
+    preciosFuenteSet(endpoint,'data912');
+    return d;
+  }).catch(e=>preciosRespaldo(endpoint,e));
+}
+
+// ══ RESPALDO DE PRECIOS ══
+// data912 es la fuente de los precios en vivo. Si no responde, o contesta
+// vacío, fetchData912 no corta: devuelve lo mismo armado con BYMA (sus datos
+// abiertos, con unos 15 minutos de demora), y si BYMA tampoco, los últimos
+// precios que archivó la app. Quien pide precios recibe el mismo formato, así
+// que pesos, dólares, RUN y Px Cierre siguen andando; el usuario sí se entera:
+// una franja arriba de todo dice de dónde vienen y cada precio que no es de
+// data912 lleva su marca. En cada refresco se vuelve a probar data912 primero.
+//
+// BYMA se pide directo y, si no llega (hay redes que no llegan a BYMA), por el
+// Worker. El archivo es el de las curvas: un registro por bono y por día.
+var PRECIOS_FUENTE={fuente:'data912',por:{},ts:null,fecha:null};
+var WORKER_BYMA='https://royal-resonance-d470.santosechezarreta5.workers.dev/byma';
+function preciosFuenteSet(endpoint,f,extra){
+  // var: puede llamarse antes de que el script llegue a la línea que la inicia.
+  if(!PRECIOS_FUENTE)PRECIOS_FUENTE={fuente:'data912',por:{},ts:null,fecha:null};
+  const F=PRECIOS_FUENTE;
+  F.por[endpoint]=f;
+  // La peor de las fuentes en uso es la que se avisa.
+  const orden=['data912','byma','archivo','ninguna'];
+  const peor=Object.values(F.por).reduce((a,b)=>orden.indexOf(b)>orden.indexOf(a)?b:a,'data912');
+  if(peor!=='data912'&&(F.fuente!==peor||!F.ts))F.ts=Date.now();
+  if(extra&&extra.fecha)F.fecha=extra.fecha;
+  F.fuente=peor;
+  try{preciosAvisoPintar();}catch(e){}
+}
+async function preciosRespaldo(endpoint,err){
+  console.warn(`[precios] data912 ${endpoint}: ${err&&err.message} → respaldo`);
+  try{const d=await bymaVivo();preciosFuenteSet(endpoint,'byma');return d;}
+  catch(e){console.warn('[precios] BYMA:',e.message);}
+  try{const d=await preciosArchivo();preciosFuenteSet(endpoint,'archivo',{fecha:d._fecha});return d;}
+  catch(e){console.warn('[precios] archivo:',e.message);}
+  preciosFuenteSet(endpoint,'ninguna');
+  throw err;
+}
+// Los paneles de BYMA (bonos públicos y letras) con la forma de data912. De cada
+// especie, el plazo que se está mirando (contado inmediato o 24 horas), o el
+// otro si ese no está. Sin operaciones hoy, el precio queda en 0 y se usa el
+// medio de las puntas, como con data912.
+function bymaComoData912(items){
+  const pl=document.getElementById('g-plazo'),ci=pl&&String(pl.value)==='0';
+  const por=new Map();
+  for(const it of items||[]){
+    if(!it||!it.symbol)continue;
+    const e=por.get(it.symbol)||{};
+    e[String(it.settlementType)==='1'?'ci':'h24']=it;
+    por.set(it.symbol,e);
+  }
+  const n=v=>+v>0?+v:0,out=[];
+  por.forEach((e,sym)=>{
+    const it=ci?(e.ci||e.h24):(e.h24||e.ci);
+    const ult=n(it.trade)||n(it.closingPrice),ant=n(it.previousClosingPrice);
+    out.push({symbol:sym,c:ult,px_bid:n(it.bidPrice),q_bid:n(it.quantityBid),px_ask:n(it.offerPrice),q_ask:n(it.quantityOffer),
+      v:n(it.volume),q_op:n(it.numberOfOrders),pct_change:ult&&ant?+((ult/ant-1)*100).toFixed(3):null,_fuente:'byma'});
+  });
+  return out;
+}
+var BYMA_VIVO=null;
+function bymaVivo(){
+  if(BYMA_VIVO&&Date.now()-BYMA_VIVO.ts<60000)return BYMA_VIVO.p;
+  const panel=async ep=>{
+    let res;
+    try{
+      res=await fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/'+ep,{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({page_size:3000}),signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
+      if(!res.ok)throw new Error('HTTP '+res.status);
+    }catch(e){
+      res=await fetch(WORKER_BYMA+'?panel='+ep,{cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
+      if(!res.ok)throw new Error('BYMA por el Worker HTTP '+res.status);
+    }
+    const j=await res.json();
+    return Array.isArray(j)?j:((j&&j.data)||[]);
+  };
+  const p=(async()=>{
+    const r=await Promise.allSettled([panel('public-bonds'),panel('lebacs')]);
+    const d=bymaComoData912(r.filter(x=>x.status==='fulfilled').flatMap(x=>x.value));
+    if(!d.length)throw new Error(r.map(x=>x.reason&&x.reason.message).filter(Boolean).join(' · ')||'BYMA sin datos');
+    return d;
+  })();
+  BYMA_VIVO={ts:Date.now(),p};
+  p.catch(()=>{if(BYMA_VIVO&&BYMA_VIVO.p===p)BYMA_VIVO=null;});
+  return p;
+}
+// El último precio archivado de cada bono, de las dos últimas semanas. Los de
+// dólares se archivan en MEP: van con el ticker MEP de cada uno.
+var PRECIOS_ARCH=null;
+function preciosArchivo(){
+  if(PRECIOS_ARCH&&Date.now()-PRECIOS_ARCH.ts<300000)return PRECIOS_ARCH.p;
+  const p=(async()=>{
+    const desde=fmtDate(new Date(parseDate(hoyAR()).getTime()-14*864e5));
+    const{data,error}=await supa.from('bond_price_snapshots').select('ticker,sector,price,snapshot_date')
+      .gte('snapshot_date',desde).gt('price',0).order('snapshot_date',{ascending:false}).limit(3000);
+    if(error)throw new Error(error.message);
+    const ult=new Map();
+    (data||[]).forEach(r=>{if(r&&r.ticker&&!ult.has(r.ticker))ult.set(r.ticker,r);});
+    const usd=new Set(['BON','GLO','BOP']),eq=(typeof EQUIV_DATA!=='undefined'&&EQUIV_DATA)||[],out=[];
+    let fecha=null;
+    ult.forEach(r=>{
+      let sym=r.ticker;
+      if(usd.has(r.sector)){const row=eq.find(e=>e.ticker===r.ticker);sym=row&&row.mep;}
+      if(!sym)return;
+      out.push({symbol:sym,c:+r.price,px_bid:0,q_bid:0,px_ask:0,q_ask:0,v:0,q_op:0,pct_change:null,_fuente:'archivo',_fecha:r.snapshot_date});
+      if(!fecha||r.snapshot_date>fecha)fecha=r.snapshot_date;
+    });
+    if(!out.length)throw new Error('el archivo no tiene precios de las dos últimas semanas');
+    out._fecha=fecha;
+    return out;
+  })();
+  PRECIOS_ARCH={ts:Date.now(),p};
+  p.catch(()=>{if(PRECIOS_ARCH&&PRECIOS_ARCH.p===p)PRECIOS_ARCH=null;});
+  return p;
+}
+// La franja: sólo cuando algún precio no viene de data912.
+function preciosAvisoPintar(){
+  const el=document.getElementById('precios-aviso');
+  if(!el)return;
+  const F=PRECIOS_FUENTE,hh=t=>t?new Date(t).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):'';
+  const fec=F.fecha?String(F.fecha).slice(0,10).split('-').reverse().join('/'):'';
+  let html='',cls='';
+  if(F.fuente==='byma'){
+    cls='byma';
+    html=`<b>⚠ PRECIOS DE BYMA, NO DE DATA912</b> · data912 no responde desde las ${hh(F.ts)} · BYMA, con unos 15 minutos de demora · cada precio va marcado <span class="fuente-marca fuente-byma">BYMA</span>`;
+  }else if(F.fuente==='archivo'){
+    cls='archivo';
+    html=`<b>⚠ PRECIOS ARCHIVADOS${fec?` DEL ${fec}`:''}, NO EN VIVO</b> · ni data912 ni BYMA responden desde las ${hh(F.ts)} · los últimos que archivó la app, sin puntas ni volumen · cada precio va marcado <span class="fuente-marca fuente-archivo">arch.</span>`;
+  }else if(F.fuente==='ninguna'){
+    cls='archivo';
+    html=`<b>⚠ SIN PRECIOS NUEVOS</b> · ni data912, ni BYMA, ni el archivo responden desde las ${hh(F.ts)} · lo que se ve es lo de antes`;
+  }
+  el.hidden=!html;
+  el.className='precios-aviso'+(cls?' '+cls:'');
+  el.innerHTML=html?`<span>${html}</span><button type="button" class="btn" onclick="preciosReintentar()">↻ Probar data912</button>`:'';
+  document.documentElement.style.setProperty('--alto-aviso',html?el.offsetHeight+'px':'0px');
+}
+window.addEventListener('resize',()=>{try{const el=document.getElementById('precios-aviso');if(el&&!el.hidden)document.documentElement.style.setProperty('--alto-aviso',el.offsetHeight+'px');}catch(e){}});
+function preciosReintentar(){BYMA_VIVO=null;PRECIOS_ARCH=null;fetchAllPrices();}
+// La marca de un precio que no vino de data912.
+function fuenteMarca(f){
+  if(f==='byma')return' <span class="fuente-marca fuente-byma" title="Precio de BYMA, con unos 15 minutos de demora: data912 no respondió">BYMA</span>';
+  if(f==='archivo')return' <span class="fuente-marca fuente-archivo" title="Último precio archivado por la app: ni data912 ni BYMA respondieron">arch.</span>';
+  return'';
 }
 
 // Distingue que se cayo el proveedor de que falle la conexion del usuario:
@@ -4746,7 +4914,7 @@ function tfcVariantes(liq){
     if(!c)return;
     const fila=(ticker,tipo,vcto,x,enCurva)=>({ticker,tipo,vcto,base:b.ticker,cupon:true,enCurva,emision:b.emision,
       dias:Math.max(0,diasACT(liq,parseDate(vcto))),durDias:x?x.dias:NaN,modDuration:x?x.md:NaN,
-      precio:b.precio>0?b.precio:null,pct_change:b.pct_change,bid:b.bid,ask:b.ask,monto:b.monto,ops:b.ops,manualOverride:!!b.manualOverride,
+      precio:b.precio>0?b.precio:null,pct_change:b.pct_change,bid:b.bid,ask:b.ask,monto:b.monto,ops:b.ops,manualOverride:!!b.manualOverride,fuentePx:b.fuentePx||null,
       tir:x?x.tir:NaN,tna:x?tfcTnaSem(x.tir,b.freq):NaN,tem:x?calcTEM(x.tir):NaN,
       corrido:c.corrido,limpio:c.limpio,paridad:c.paridad,prox:c.prox});
     if(c.conPut)out.push(fila(b.ticker+' put','BONTE put',tfcHabil(b.put.pago),c.put,true));
@@ -4885,12 +5053,12 @@ function libroMontoHTML(monto){
 // Los campos de libro que se quedan del item. El monto se calcula acá, con el
 // precio de ese mismo item: `v` viene en nominales y sin el precio no dice nada.
 function libroDe(api){
-  if(!api)return{bid:null,ask:null,bidQ:null,askQ:null,vol:null,ops:null,monto:null};
+  if(!api)return{bid:null,ask:null,bidQ:null,askQ:null,vol:null,ops:null,monto:null,fuentePx:null};
   const bid=api.px_bid>0?+api.px_bid:null, ask=api.px_ask>0?+api.px_ask:null;
   // Las cantidades de cada punta, en nominales: las usa el RUN.
   const bidQ=bid&&api.q_bid>0?+api.q_bid:null, askQ=ask&&api.q_ask>0?+api.q_ask:null;
   const vol=api.v>0?+api.v:null, ops=api.q_op>0?+api.q_op:null;
-  return{bid,ask,bidQ,askQ,vol,ops,monto:libroMonto(vol,apiBestPrice(api),null)};
+  return{bid,ask,bidQ,askQ,vol,ops,monto:libroMonto(vol,apiBestPrice(api),null),fuentePx:api._fuente||null};
 }
 
 function apiBestPrice(api){
@@ -4909,10 +5077,12 @@ function apiBestPrice(api){
 // cierre anterior de BYMA), igual que en dólares. Los vencidos y los precios
 // escritos a mano no se tocan.
 function pesosSinPrecioHoy(r,liq){
-  if(r.manualOverride||!r.vcto||diasACT(liq,parseDate(r.vcto))<=0)return r;
+  // Un vencido o uno escrito a mano no se tocan; sólo pierden la marca de un
+  // respaldo que ya no corre.
+  if(r.manualOverride||!r.vcto||diasACT(liq,parseDate(r.vcto))<=0)return r.fuentePx?{...r,fuentePx:null}:r;
   // Un bono nuevo que todavía no liquidó no cotiza: no le falta precio.
   if(r.emision&&r.emision>hoyAR())return{...r,precio:null,pct_change:null,precioCierre:null};
-  return{...r,precio:null,pct_change:null,bid:null,ask:null,bidQ:null,askQ:null,vol:null,ops:null,monto:null,
+  return{...r,precio:null,pct_change:null,bid:null,ask:null,bidQ:null,askQ:null,vol:null,ops:null,monto:null,fuentePx:null,
     precioCierre:{buscando:true}};
 }
 
@@ -4953,6 +5123,10 @@ async function pesosCompletarCierres(){
 
 function pesosEstado(n,ci,palabra){
   const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  // Si no vienen de data912 se dice siempre, la llame quien la llame.
+  const f=PRECIOS_FUENTE&&PRECIOS_FUENTE.fuente;
+  if(f==='byma')palabra='de BYMA, no de data912 (15′ de demora)';
+  else if(f==='archivo')palabra='ARCHIVADOS, no en vivo';
   return`${n} ${palabra||'actualizados'}`
     +(ci.alCierre.length?` · al cierre anterior: ${ci.alCierre.join(', ')}`:'')
     +(ci.sinPrecio.length?` · sin precio: ${ci.sinPrecio.join(', ')}`:'')
@@ -5019,7 +5193,7 @@ async function fetchPrices(){
     if(selectedTicker)recalcPanel();
     const ci=await pesosCompletarCierres();
     statusEl.textContent=pesosEstado(updated,ci,'actualizadas');
-    statusEl.className=ci.sinPrecio.length?'api-status err':'api-status ok';
+    statusEl.className=ci.sinPrecio.length||(PRECIOS_FUENTE&&PRECIOS_FUENTE.fuente!=='data912')?'api-status err':'api-status ok';
     beRefreshIfVisible();
     curvasSnapshotToday();
   }catch(e){
@@ -5112,7 +5286,7 @@ async function fetchAllPrices(auto){
     // Lo que no vino en vivo: el último cierre, marcado.
     const ci=await pesosCompletarCierres();
     st.textContent=pesosEstado(total,ci);
-    st.className=ci.sinPrecio.length?'api-status err':'api-status ok';
+    st.className=ci.sinPrecio.length||PRECIOS_FUENTE.fuente!=='data912'?'api-status err':'api-status ok';
   }catch(e){
     document.getElementById('api-status').textContent=msgErrorPrecios(e);
     document.getElementById('api-status').className='api-status err';
@@ -5254,12 +5428,12 @@ function buildRow(r,cup){
     }
     const hs=isRate&&!v?heatStyle(val,HR[col],col):'';
     // Un precio del cierre anterior va en otro color, con la marca.
-    if(cup)return `<div class="cv no-edit ${colorClass}" style="${hs}"${col==='precio'&&cup.titulo?` title="${cup.titulo.replace(/"/g,'&quot;')}"`:''}>${noPrice&&col!=='precio'?'—':disp}</div>`;
+    if(cup)return `<div class="cv no-edit ${colorClass}" style="${hs}"${col==='precio'&&cup.titulo?` title="${cup.titulo.replace(/"/g,'&quot;')}"`:''}>${noPrice&&col!=='precio'?'—':disp}${col==='precio'&&!isOverride?fuenteMarca(r.fuentePx):''}</div>`;
     if(col==='precio'&&!v&&r.precioCierre&&!isOverride){
       const ci=pesosEsCierre(r);
       return `<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${ci?'color:var(--info)':''}" onclick="startCell(event,'${r.ticker}','${col}')">${disp}${pesosCierreMarca(r)}</div>`;
     }
-    return `<div class="cv editable ${colorClass} ${overrideCls}" style="${hs}" onclick="startCell(event,'${r.ticker}','${col}')">${noPrice&&col!=='precio'?'—':disp}</div>`;
+    return `<div class="cv editable ${colorClass} ${overrideCls}" style="${hs}" onclick="startCell(event,'${r.ticker}','${col}')">${noPrice&&col!=='precio'?'—':disp}${col==='precio'&&!isOverride?fuenteMarca(r.fuentePx):''}</div>`;
   }
 
   const tipoBadge=cup?`<span style="font-size:var(--fs10);color:var(--v-c4a7e7,#c4a7e7)">${r.tipo}</span>`
@@ -6508,7 +6682,7 @@ async function cerFetchPrices(){
     if(cerSelectedTicker)cerRecalcPanel();
     const ci=await pesosCompletarCierres();
     st.textContent=pesosEstado(updated,ci);
-    st.className=ci.sinPrecio.length?'api-status err':'api-status ok';
+    st.className=ci.sinPrecio.length||(PRECIOS_FUENTE&&PRECIOS_FUENTE.fuente!=='data912')?'api-status err':'api-status ok';
     beRefreshIfVisible();
     curvasSnapshotToday();
   }catch(e){
@@ -6581,7 +6755,7 @@ function cerRenderTable(){
         const ci=pesosEsCierre(r);
         return`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${ci?'color:var(--info)':''}" onclick="cerStartCell(event,'${r.ticker}','${col}')">${disp}${pesosCierreMarca(r)}</div>`;
       }
-      return`<div class="cv editable ${cc} ${oc}" style="${hs}" onclick="cerStartCell(event,'${r.ticker}','${col}')">${r.precio==null&&col!=='precio'?'—':disp}</div>`;
+      return`<div class="cv editable ${cc} ${oc}" style="${hs}" onclick="cerStartCell(event,'${r.ticker}','${col}')">${r.precio==null&&col!=='precio'?'—':disp}${col==='precio'&&!r.manualOverride?fuenteMarca(r.fuentePx):''}</div>`;
     }
 
     // columnas proyectadas: no editables, color ámbar
@@ -10232,8 +10406,8 @@ function tamarRenderTable(){
     const pxCell=pxEditing
       ?`<input class="cell-input" id="tamar-ci-input" type="number" step="0.01" value="${r.precio!=null?r.precio.toFixed(4):''}" onblur="tamarCommitCell()" onkeydown="tamarCellKey(event)" autofocus>`
       :(r.precioCierre&&!pxOverride)
-        ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtPx(r.precio):'—'}${pesosCierreMarca(r)}</div>`
-        :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtPx(r.precio):'—'}</div>`;
+        ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtPx(r.precio):'—'}${r.manualOverride?'':fuenteMarca(r.fuentePx)}${pesosCierreMarca(r)}</div>`
+        :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="tamarStartCell(event,'${r.ticker}')">${r.precio!=null?fmtPx(r.precio):'—'}${r.manualOverride?'':fuenteMarca(r.fuentePx)}</div>`;
     return`<tr class="${calcFilaCls('tamar',r.ticker)}" onclick="tamarRowClick(event,'${r.ticker}')" style="cursor:pointer">
       <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('tamar',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}${altasMarca(r.emision)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
@@ -10525,7 +10699,7 @@ async function tamarFetchPrices(){
     tamarSaveBonds();tamarRenderTable();
     const ci=await pesosCompletarCierres();
     st.textContent=pesosEstado(updated,ci);
-    st.className=ci.sinPrecio.length?'api-status err':'api-status ok';
+    st.className=ci.sinPrecio.length||(PRECIOS_FUENTE&&PRECIOS_FUENTE.fuente!=='data912')?'api-status err':'api-status ok';
     beRefreshIfVisible();
   }catch(e){
     document.getElementById('tamar-api-status').textContent=msgErrorPrecios(e);
@@ -15206,7 +15380,7 @@ function runEstado(){
   try{
     const o=JSON.parse(localStorage.getItem('bonosAR_run_v1')||'{}');
     if(o&&typeof o==='object'&&!Array.isArray(o))
-      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuera:Array.isArray(o.fuera)?o.fuera:[],gruposFuera:Array.isArray(o.gruposFuera)?o.gruposFuera:[],ocultos:Array.isArray(o.ocultos)?o.ocultos:[],tomado:o.tomado||null};
+      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuenteTomado:o.fuenteTomado||null,fuera:Array.isArray(o.fuera)?o.fuera:[],gruposFuera:Array.isArray(o.gruposFuera)?o.gruposFuera:[],ocultos:Array.isArray(o.ocultos)?o.ocultos:[],tomado:o.tomado||null};
   }catch(e){}
   return{px:{},byma:{},q:{},fuera:[],gruposFuera:[],ocultos:[],tomado:null};
 }
@@ -15256,7 +15430,8 @@ function runRender(forzar){
   const tom=document.getElementById('run-tomado');
   if(tom){
     const d=E.tomado?new Date(E.tomado):null;
-    tom.textContent=d?`Precios de BYMA del ${d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}: quedan fijos hasta que los vuelvas a traer`:'Todavía sin precios de BYMA';
+    const via=E.fuenteTomado==='byma'?' (data912 no respondía: de los datos abiertos de BYMA, con 15′ de demora)':E.fuenteTomado==='archivo'?' (ARCHIVADOS: ni data912 ni BYMA respondían)':'';
+    tom.textContent=d?`Precios de BYMA del ${d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}${via}: quedan fijos hasta que los vuelvas a traer`:'Todavía sin precios de BYMA';
   }
   const gFuera=new Set(E.gruposFuera),oc=new Set(E.ocultos),e=betrEsc;
   cuerpo.innerHTML=G.length?G.map(([tipo,bonos])=>{
@@ -15435,6 +15610,7 @@ async function runTraer(opc){
   E2.px={};E2.byma={};
   runGrupos().forEach(([,bs])=>bs.forEach(b=>{const v=runVivo(b);E2.px[b.ticker]=v;E2.byma[b.ticker]={...v};}));
   E2.tomado=new Date().toISOString();
+  E2.fuenteTomado=PRECIOS_FUENTE.fuente;
   runGuardar(E2);
   if(btn){btn.disabled=false;btn.textContent='↻ Traer de BYMA';}
   runRender(true);
@@ -15674,7 +15850,7 @@ function pxcRender(){
       +`<td><span class="pxc-asa" aria-hidden="true">⋮⋮</span><span class="pxc-tk">${e(t)}</span>`
       +`<span class="pxc-mov"><button type="button" data-d="-1" aria-label="Subir ${e(t)}" title="Subir">▲</button><button type="button" data-d="1" aria-label="Bajar ${e(t)}" title="Bajar">▼</button>`
       +`<button type="button" class="pxc-quitar" aria-label="Quitar ${e(t)}" title="Quitar de la lista">✕</button></span></td>`
-      +`<td class="${cls}${b.manual?' pxc-px-man':''}"${tit?` title="${e(tit)}"`:''}>${pxcPx(b.precio)||'<span style="color:var(--text3)">—</span>'}</td></tr>`;
+      +`<td class="${cls}${b.manual?' pxc-px-man':''}"${tit?` title="${e(tit)}"`:''}>${pxcPx(b.precio)||'<span style="color:var(--text3)">—</span>'}${b.manual||b.manualOverride?'':fuenteMarca(b.fuentePx)}</td></tr>`;
   });
   cuerpo.innerHTML=`<table class="pxc-tabla"><thead><tr><th style="text-align:left">Tipo</th><th style="text-align:left">Ticker</th><th title="Por cada 1 de valor nominal">Precio</th></tr></thead><tbody>${html}</tbody></table>`;
   const qn=pxcEstado().quitados.filter(t=>pxcGrupos().some(g=>g[1].some(b=>b.ticker===t))).length,rq=document.getElementById('pxc-restaurar');
@@ -17101,8 +17277,8 @@ function dlkRenderTable(){
     const pxCell=pxEditing
       ?`<input class="cell-input" id="dlk-ci-input" type="number" step="0.01" value="${r.precio!=null?r.precio.toFixed(4):''}" onblur="dlkCommitCell()" onkeydown="dlkCellKey(event)" autofocus>`
       :(r.precioCierre&&!pxOverride)
-        ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtPx(r.precio):'—'}${pesosCierreMarca(r)}</div>`
-        :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtPx(r.precio):'—'}</div>`;
+        ?`<div class="cv editable" title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="white-space:nowrap;${pesosEsCierre(r)?'color:var(--info)':''}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtPx(r.precio):'—'}${r.manualOverride?'':fuenteMarca(r.fuentePx)}${pesosCierreMarca(r)}</div>`
+        :`<div class="cv editable ${pxOverride?'c-amber override':'c-green'}" onclick="dlkStartCell(event,'${r.ticker}')">${r.precio!=null?fmtPx(r.precio):'—'}${r.manualOverride?'':fuenteMarca(r.fuentePx)}</div>`;
     return`<tr class="${calcFilaCls('dlk',r.ticker)}" onclick="dlkRowClick(event,'${r.ticker}')" style="cursor:pointer">
       <td class="ticker-cell"><div class="cv left no-edit">${calcCasilla('dlk',r.ticker)}<span class="c-ticker">${r.ticker}</span>${fijMarca(r)}${altasMarca(r.emision)}</div></td>
       <td><div class="cv no-edit c-date">${vctoStr}</div></td>
@@ -19451,12 +19627,13 @@ async function usdRefreshPrices(){
           bond.lastAsk=ra!=null?(enPesos&&mepRate?ra/mepRate:+ra):null;
           Object.assign(bond,libroUsd(v.sym));
           bond.lastPrecioCierre=null;
+          bond.lastFuente=(crudo[v.sym]||{})._fuente||null;
           if(fam.bop&&!bond.lastLiq)bond.lastLiq=liq;
           bond.manualOverride=false;fam.n++;
         }else if(!bond.manualOverride){
           // Mientras se busca el cierre, sin precio: mejor un guion que el de
           // otra moneda.
-          Object.assign(bond,{lastPrecio:null,lastPrecioDisplay:null,lastPrecioMEP:pxMEP(row),
+          Object.assign(bond,{lastPrecio:null,lastPrecioDisplay:null,lastPrecioMEP:pxMEP(row),lastFuente:null,
             lastPctChange:null,lastBid:null,lastAsk:null,lastVol:null,lastOps:null,lastMonto:null,
             lastPrecioCierre:{fecha:null,sym:v.sym||null,moneda:usdCurrency,buscando:true}});
           fam.n++;
@@ -19622,7 +19799,7 @@ function usdSumRowHtml(e,isSel,onClickFn,group,esc){
   const pxColor=ovr?'var(--warn)':usdEsCierre(b)?'var(--info)':'var(--text)';
   return`<tr class="${calcFilaCls(g,b.ticker)}" style="cursor:pointer;border-bottom:1px solid var(--border);${bg}" onclick="${onClickFn}('${b.ticker}')" ${hov}>
     <td style="padding:9px 14px;color:var(--accent);font-weight:600;white-space:nowrap;text-align:left">${calcCasilla(g,b.ticker)}${b.ticker}${altasMarca(b.emision)}</td>
-    <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}</td>
+    <td onclick="usdRowEdit(event,'${g}','${b.ticker}','precio',this,'${pxVal}')" title="${pxTitle}" style="padding:9px 12px;text-align:right;color:${pxColor};font-variant-numeric:tabular-nums;cursor:text;white-space:nowrap;${ovrStyle}">${precioStr}${ovrMark}${cierre?usdCierreMarca(b):''}${ovr?'':fuenteMarca(b.lastFuente)}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--text3);white-space:nowrap">${varStr}</td>
     <td style="padding:9px 12px;text-align:right">${libroSpreadHTML(libroSpread(b.lastBid,b.lastAsk),b.lastMonto)}</td>
     <td style="padding:9px 12px;text-align:right"${b.lastOps?` title="${b.lastOps} operaciones"`:''}>${libroMontoHTML(b.lastMonto)}</td>
@@ -22666,6 +22843,8 @@ async function _curvasSnapshotTodayImpl(){
   // recalcular toda la valuación y disparar peticiones inútiles en el
   // navegador de quien sólo consulta.
   if(!SUPA_PUEDE_SNAPSHOT)return;
+  // Precios que vinieron del archivo no se vuelven a archivar como de hoy.
+  if(PRECIOS_FUENTE.fuente==='archivo'||PRECIOS_FUENTE.fuente==='ninguna')return;
   const today=hoyAR();
   // Fin de semana o feriado: el mercado no operó, no hay cierre que guardar.
   // Sin esto, tener la app abierta un sábado guardaba los precios del viernes
