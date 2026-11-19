@@ -5183,7 +5183,9 @@ const omitir = (label, motivo) =>
     const tb = document.querySelector('#tfc-wrap tbody');
     out.fila = !!tb && tb.querySelectorAll('tr').length === 2 && tb.closest('table').querySelectorAll('thead th').length === tb.querySelector('tr').querySelectorAll('td').length
       && document.querySelector('#tfc-wrap thead').textContent.replace(/\s+/g, '') === document.querySelector('#table-body').closest('table').querySelector('thead').textContent.replace(/[↑↓\s]/g, '');
-    const letras = DATA.filter(r => r.dias > 0 && r.precio != null && !isNaN(r[chartMode]) && !calcExcl('tf').has(r.ticker)).length;
+    // Las letras y los indexados que fijaron, que también van en el gráfico
+    const letras = DATA.filter(r => r.dias > 0 && r.precio != null && !isNaN(r[chartMode]) && !calcExcl('tf').has(r.ticker)).length
+      + tfFijFilas().filter(r => !calcExcl('tf').has(r.ticker) && isFinite(r[chartMode])).length;
     out.enAjuste = curveChart.data.datasets[0].data.length === letras + 1;
     const ds = curveChart.data.datasets.find(d => d.tfc && d.label === 'TY30P');
     out.aparte = ds ? ds.data.length : 0;
@@ -7471,6 +7473,134 @@ const omitir = (label, motivo) =>
   check(cant.bcra === true, 'Descuento: sin BYMA, los pases a un día del BCRA, marcados', JSON.stringify(cant));
   check(cant.viernes === true, 'Descuento: un viernes cuenta los días corridos hasta el hábil siguiente', JSON.stringify(cant));
   check(cant.usd && cant.usdIda, 'Descuento en dólares, con la caución en dólares', JSON.stringify(cant));
+
+  // Tab entre precios, los fijados en tasa fija y los hábiles de Descuento.
+  console.log('\nTab entre precios, fijados en tasa fija y hábiles');
+  const tfx = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const tab = (shift) => { const a = document.activeElement; a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: !!shift, bubbles: true, cancelable: true })); };
+    const visibles = sel => [...document.querySelectorAll(sel)].filter(c => c.getClientRects().length);
+    const lecAntes = JSON.stringify(LECAPS), cerAntes = JSON.stringify(CER_BONDS), tamAntes = JSON.stringify(TAMAR_BONDS), dlkAntes = JSON.stringify(DLK_BONDS);
+    const descAntes = JSON.stringify(DESC);
+    try {
+      // Tasa fija: Tab baja por la columna de precios, Shift+Tab sube, y sin
+      // cambiar el número no lo marca como escrito a mano
+      switchSection('pesos'); switchTab('lecap'); await espera(800);
+      const cel = () => visibles('#table-body [data-ed="precio"]:not(input)');
+      const orden = cel().map(c => c.dataset.tk);
+      if (orden.length >= 3) {
+        cel()[0].click(); await espera(60);
+        tab(); await espera(60);
+        const t1 = editingCell && editingCell.ticker, foco1 = document.activeElement && document.activeElement.id;
+        tab(); await espera(60);
+        const t2 = editingCell && editingCell.ticker;
+        tab(true); await espera(60);
+        const t3 = editingCell && editingCell.ticker;
+        const sinMarca = !LECAPS.some(b => b.manualOverride && orden.slice(0, 3).includes(b.ticker) && !JSON.parse(lecAntes).find(x => x.ticker === b.ticker).manualOverride);
+        // Con un número nuevo, Tab lo guarda y sigue
+        const inp = document.getElementById('ci-input'), tk = editingCell.ticker;
+        const lecap = LECAPS.some(b => b.ticker === tk);
+        inp.value = String(+(parseFloat(inp.dataset.ini) * 1.001).toFixed(3)); tab(); await espera(80);
+        const guardado = lecap ? !!(LECAPS.find(b => b.ticker === tk) || {}).manualOverride : true;
+        out.tf = { t1: t1 === orden[1], foco: foco1 === 'ci-input', t2: t2 === orden[2], t3: t3 === orden[1], sinMarca, guardado, sigue: !!editingCell && editingCell.ticker === orden[2] };
+        editingCell = null; renderTable();
+      }
+      // Saltea los bonos que se sacaron en "Bonos"
+      if (orden.length >= 3) {
+        calcExcluir('tf', orden[1], true); await espera(100);
+        cel().find(c => c.dataset.tk === orden[0]).click(); await espera(60);
+        tab(); await espera(60);
+        out.saltea = !!editingCell && editingCell.ticker === orden[2];
+        editingCell = null; calcExcluir('tf', orden[1], false); await espera(100);
+      }
+      // CER y dólares, igual
+      switchTab('cer'); await espera(800);
+      const cc = visibles('#cer-table-body [data-ed="precio"]:not(input)');
+      if (cc.length >= 2) {
+        cc[0].click(); await espera(60); tab(); await espera(60);
+        out.cer = !!cerEditingCell && cerEditingCell.ticker === cc[1].dataset.tk;
+        cerEditingCell = null; cerRenderTable();
+      }
+      switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1200);
+      const uc = visibles('#bon-summary-tbody [data-ed="precio"]');
+      if (uc.length >= 2) {
+        const sig = uc[1].dataset.tk;
+        uc[0].click(); await espera(60); tab(); await espera(80);
+        const a = document.activeElement;
+        out.usd = !!a && a.tagName === 'INPUT' && a.dataset.ticker === sig && !BON_BONDS.find(b => b.ticker === uc[0].dataset.tk).manualOverride;
+        a._done = true; usdRowRerender('bon');
+      }
+      // Los fijados: en la tabla, el gráfico y los forwards de tasa fija; el RUN y
+      // Px Cierre, como siempre
+      switchSection('pesos'); switchTab('lecap'); await espera(800);
+      const fj = tfFijFilas();
+      out.nFij = fj.length;
+      if (fj.length) {
+        const f = fj[0];
+        const fila = [...document.querySelectorAll('#table-body tr')].find(tr => (tr.querySelector('.c-ticker') || {}).textContent === f.ticker);
+        const ft = fijTasas(f.bono);
+        out.fij = {
+          fila: !!fila && /fij\./.test(fila.children[1].textContent),
+          tna: !!fila && fila.textContent.includes(fmtP2(ft.tna)),
+          sinBorrar: !!fila && !fila.querySelector('.rbtn.del'),
+          bonos: calcClave('tf').bonos().some(b => b.ticker === f.ticker),
+          grafico: !!curveChart && curveChart.data.datasets[0].data.some(p => Math.abs(p.y - f[chartMode]) < 1e-9 && p.x === f.dias),
+          run: !runGrupos()[0][1].some(b => b.ticker === f.ticker),
+          pxc: !pxcGrupos().some(g => g[0] === 'Tasa fija' && g[1].some(b => b.ticker === f.ticker && !dualCombos('TAMAR').has(b.ticker))),
+          suFamilia: fj.every(x => ({ cer: CER_BONDS, tamar: TAMAR_BONDS, dlk: DLK_BONDS }[x.fam] || []).some(b => b.ticker === x.ticker)),
+        };
+        calcPanelVista('lecap', 'fwd'); await espera(400);
+        out.fij.fwd = [...document.querySelectorAll('#calc-fwd-lecap thead th')].some(th => th.textContent === f.ticker);
+        calcPanelVista('lecap', 'curva'); await espera(200);
+        // El precio escrito desde tasa fija va a su familia
+        const nuevo = +(f.precio * 1.002).toFixed(3);
+        const c = [...document.querySelectorAll('#table-body [data-ed="precio"]:not(input)')].find(x => x.dataset.tk === f.ticker);
+        c.click(); await espera(60);
+        const inp = document.getElementById('ci-input');
+        inp.value = String(nuevo);
+        inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await espera(100);
+        const fam = ({ cer: CER_BONDS, tamar: TAMAR_BONDS, dlk: DLK_BONDS }[f.fam] || []).find(b => b.ticker === f.ticker);
+        out.fij.edita = !!fam && fam.precio === nuevo && !!fam.manualOverride && tfFijFilas().some(x => x.ticker === f.ticker && x.precio === nuevo);
+      }
+      // Descuento: 2 hábiles saltean el fin de semana y los feriados
+      switchTab('descuento'); await espera(400);
+      DESC.pesos = { tasa: 30, px0: null, px1: null, ult: 0, fecha: '', n: 1 };
+      descPintar();
+      const $ = x => document.getElementById('desc-' + x + '-pesos');
+      $('n').value = '2'; $('n').dispatchEvent(new Event('input', { bubbles: true }));
+      const F = descFechas('pesos');
+      $('px0').value = '100'; $('px0').dispatchEvent(new Event('input', { bubbles: true }));
+      out.habiles = fmtDate(F.t1) === fmtDate(addHabiles(F.t0, 2)) && F.dias === diasACT(F.t0, addHabiles(F.t0, 2)) && F.dias >= 2
+        && $('lab1').textContent === 'Precio t+2' && /2 hábiles/.test($('dias').textContent)
+        && Math.abs(parseFloat($('px1').value) - 100 * (1 + 0.30 * F.dias / 365)) < 1e-4;
+      // Un caso con fecha: jueves 19/11/2026 a 2 hábiles liquida el martes 24/11 (lunes 23, feriado)
+      if (esFeriado(parseDate('2026-11-23'))) {
+        DESC.pesos.fecha = '2026-11-19'; descPintar();
+        const G = descFechas('pesos');
+        out.ejemplo = fmtDate(G.t1) === '2026-11-24' && G.dias === 5;
+      }
+    } catch (e) { out.err = e.message + ' ' + (e.stack || '').split('\n')[1]; }
+    finally {
+      LECAPS = JSON.parse(lecAntes); CER_BONDS = JSON.parse(cerAntes); TAMAR_BONDS = JSON.parse(tamAntes); DLK_BONDS = JSON.parse(dlkAntes);
+      DATA = LECAPS.map(enrich); CER_DATA = CER_BONDS.map(cerEnrich);
+      DESC = JSON.parse(descAntes);
+      editingCell = null; cerEditingCell = null;
+      switchSection('pesos'); switchTab('lecap');
+    }
+    return out;
+  });
+  if (!tfx.tf) omitir('Tab en tasa fija', 'menos de tres letras con precio');
+  else check(Object.values(tfx.tf).every(Boolean), 'tasa fija: Tab baja por los precios, Shift+Tab sube, sin cambiar el número no lo marca y con uno nuevo lo guarda', JSON.stringify(tfx));
+  if (tfx.saltea !== undefined) check(tfx.saltea === true, 'Tab saltea los bonos sacados en "Bonos"', JSON.stringify(tfx));
+  if (tfx.cer === undefined) omitir('Tab en CER', 'menos de dos bonos'); else check(tfx.cer === true, 'CER: Tab pasa al precio de abajo', JSON.stringify(tfx));
+  if (tfx.usd === undefined) omitir('Tab en dólares', 'menos de dos Bonares'); else check(tfx.usd === true, 'dólares: Tab pasa al precio de abajo, sin marcar el que no cambió', JSON.stringify(tfx));
+  if (!tfx.nFij) omitir('fijados en tasa fija', 'hoy no hay indexados fijados con precio');
+  else check(tfx.fij && Object.values(tfx.fij).every(Boolean),
+        'los indexados que fijaron van también en tasa fija (tabla, gráfico, forwards, precio editable que va a su familia); el RUN y Px Cierre no cambian', JSON.stringify(tfx.fij));
+  check(tfx.habiles === true && !tfx.err, 'Descuento: los hábiles entre liquidaciones saltean fines de semana y feriados', JSON.stringify(tfx));
+  if (tfx.ejemplo !== undefined) check(tfx.ejemplo === true, 'Descuento: el 19/11/2026 a 2 hábiles liquida el 24/11 (lunes feriado), 5 días corridos', JSON.stringify(tfx));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
