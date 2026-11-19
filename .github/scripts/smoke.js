@@ -6082,11 +6082,13 @@ const omitir = (label, motivo) =>
       switchSection('pesos'); switchTab('cartera');
       await new Promise(r => setTimeout(r, 500));
       cartNueva(); cartActiva().pos = [{ inst: 'TF|' + tf.ticker, vn: 2500000 }]; cartGuardar();
-      await new Promise(r => setTimeout(r, 1200));
-      const inp = document.querySelector('#cart-tbody input');
-      out.tabla = inp && inp.value === '2.500.000';
-      inp.value = '3.000.000'; inp.dispatchEvent(new Event('change'));
-      out.guarda = cartActiva().pos[0].vn === 3000000;
+      // La tabla puede tardar en armarse en una máquina lenta: se espera hasta
+      // 5 segundos, y si no aparece es una falla, no un corte de todo el smoke.
+      let inp = null;
+      for (let i = 0; i < 25 && !inp; i++) { await new Promise(r => setTimeout(r, 200)); inp = document.querySelector('#cart-tbody input'); }
+      out.tabla = !!inp && inp.value === '2.500.000';
+      if (inp) { inp.value = '3.000.000'; inp.dispatchEvent(new Event('change')); }
+      out.guarda = !!inp && cartActiva().pos[0].vn === 3000000;
     } finally { CART = JSON.parse(previo); cartGuardar(); }
     return out;
   });
@@ -7367,27 +7369,29 @@ const omitir = (label, motivo) =>
       out.cab = { tf: tiene(cab('#left-pane .table-scroll > table')), tfc: !document.querySelector('#tfc-wrap table') || tiene(cab('#tfc-wrap table')) };
       // Tasa fija: la TIR del cierre a t+1 de esa rueda y el precio que la rinde hoy a t+1
       if (lec) {
-        const x = DATA.find(r => r.ticker === lec.ticker)._cant, px = m.get('TF|' + lec.ticker);
+        const x = cantFila('tf', DATA.find(r => r.ticker === lec.ticker) || lec), px = m.get('TF|' + lec.ticker);
         const vc = parseDate(lec.vcto), dC = diasAlPago(x.liqC, vc), dH = diasAlPago(x.liqH, vc), vf = lec.vf;
         const tirC = (Math.pow(vf / px, 365 / dC) - 1) * 100;
         const eq = px * Math.pow(1 + tirC / 100, (dC - dH) / 365);
         const c = celdas('#left-pane .table-scroll > table', lec.ticker);
         out.tf = { px: x.px === px, archivo: x.ci.fuente === 'archivo' && x.ci.fecha === ant, tasa: cerca(x.tasa, tirC, 1e-9), eq: cerca(x.eq, eq, 1e-9),
           liq: fmtDate(x.liqC) === fmtDate(addHabiles(parseDate(ant), 1)) && fmtDate(x.liqH) === fmtDate(addHabiles(parseDate(hoyAR()), 1)),
-          celdas: !!c && c[0] === fmtPx(px) && c[1] === fmtP2(x.tasa) && c[2] === fmtPx(x.eq) };
+          celdas: !!c && c[0] === fmtPx(px) && c[1] === fmtP2(x.tasa) && c[2] === cantPx2(x.eq) && /^[\d.]+,\d{2}$/.test(c[2]) };
       }
       // CER y TAMAR: el equivalente rinde hoy exactamente la tasa del cierre
       switchTab('cer'); await espera(800);
       out.cab.cer = tiene(cab('#cer-left-pane .table-scroll table'));
       if (cer) {
-        const x = CER_DATA.find(r => r.ticker === cer.ticker)._cant;
+        // Directo, no lo guardado en la fila: un refresco de precios puede
+        // rearmar la lista entre el dibujo y la lectura.
+        const x = cantFila('cer', CER_DATA.find(r => r.ticker === cer.ticker) || cer);
         out.cer = !!x && x.ci.fuente === 'archivo' && x.tasa != null && x.eq != null && cerca(cantTasa('cer', cer, x.eq, x.liqH), x.tasa, 1e-7)
           && cerca(cantTasa('cer', cer, x.px, x.liqC), x.tasa, 1e-12);
       }
       switchTab('tamar'); await espera(800);
       out.cab.tamar = tiene(cab('#page-tamar .table-scroll table'));
       if (tam) {
-        const r = TAMAR_DATA.find(r => r.ticker === tam.ticker), x = r._cant;
+        const r = TAMAR_DATA.find(r => r.ticker === tam.ticker) || tam, x = cantFila('tamar', r);
         // El margen, no la TIR: con el precio de ahora da el margen de la tabla
         out.tamar = !!x && x.tasa != null && x.eq != null && cerca(cantTasa('tamar', tam, x.eq, x.liqH), x.tasa, 1e-7)
           && cerca(cantTasa('tamar', tam, r.precio, G_LIQ || addHabiles(TODAY, 1)), r.margenTNA, 1e-9);
@@ -7601,6 +7605,100 @@ const omitir = (label, motivo) =>
         'los indexados que fijaron van también en tasa fija (tabla, gráfico, forwards, precio editable que va a su familia); el RUN y Px Cierre no cambian', JSON.stringify(tfx.fij));
   check(tfx.habiles === true && !tfx.err, 'Descuento: los hábiles entre liquidaciones saltean fines de semana y feriados', JSON.stringify(tfx));
   if (tfx.ejemplo !== undefined) check(tfx.ejemplo === true, 'Descuento: el 19/11/2026 a 2 hábiles liquida el 24/11 (lunes feriado), 5 días corridos', JSON.stringify(tfx));
+
+  // Tu cierre escrito en Px Cierre manda como PX cierre al día siguiente; al
+  // costado, la división se arrastra y las columnas se reparten el ancho.
+  console.log('\nTu cierre y la tabla al costado');
+  const ajc = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, cierresAntes = localStorage.getItem(CIERRES_LS), estAntes = localStorage.getItem(CALC_LS);
+    try {
+      // Px Cierre: clic en el precio de un bono de la lista, escribir el tuyo
+      switchSection('pesos'); switchTab('pxcierre'); await espera(500);
+      localStorage.setItem(CIERRES_LS, '{}'); pxcRender(); await espera(50);
+      const td = document.querySelector('#page-pxcierre td.pxc-px-ed');
+      if (td) {
+        const tk = td.closest('tr').dataset.t;
+        const i = pxcFilas().findIndex(x => x.b.ticker === tk);
+        td.click(); await espera(50);
+        let inp = td.querySelector('input.pxc-px-in');
+        inp.value = '1,2345'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await espera(80);
+        const celda = () => [...document.querySelectorAll('#page-pxcierre tbody tr[data-t]')].find(x => x.dataset.t === tk).children[2];
+        out.pxc = { guardado: cierrePropio(hoyAR(), tk) === 123.45, muestra: celda().textContent === '1,2345' && celda().classList.contains('pxc-manual'),
+          copia: pxcTexto().split('\n')[i] === '1,2345', boton: !document.getElementById('pxc-cierres-mercado').hidden };
+        // Vacío vuelve al de mercado
+        celda().click(); await espera(50);
+        inp = celda().querySelector('input.pxc-px-in');
+        inp.value = ''; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await espera(80);
+        out.pxc.vuelve = cierrePropio(hoyAR(), tk) == null && !celda().classList.contains('pxc-manual') && document.getElementById('pxc-cierres-mercado').hidden;
+        // El mismo número que ya se veía no se guarda como tuyo
+        celda().click(); await espera(50);
+        inp = celda().querySelector('input.pxc-px-in');
+        inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await espera(80);
+        out.pxc.igual = cierrePropio(hoyAR(), tk) == null;
+      }
+      // Lo que escribiste ayer es el PX cierre de hoy, en ámbar
+      switchTab('lecap'); await espera(500);
+      const lec = DATA.find(r => r.dias > 30 && r.precio > 0);
+      if (lec) {
+        cierrePropioFijar(cantRuedaAnt(), lec.ticker, 99.5);
+        renderTable(); await espera(100);
+        const x = cantFila('tf', DATA.find(r => r.ticker === lec.ticker) || lec);
+        const fila = [...document.querySelectorAll('#table-body tr')].find(tr => (tr.querySelector('.c-ticker') || {}).textContent === lec.ticker);
+        const c = fila && fila.children[[...document.querySelectorAll('#left-pane .table-scroll > table thead th')].findIndex(th => calcClaveTh(th) === 'Px cierre')];
+        out.propio = !!x && x.px === 99.5 && x.ci.fuente === 'propio' && x.tasa != null && !!c && c.textContent.trim() === fmtPx(99.5)
+          && /Tu cierre/.test(c.firstElementChild.title) && c.firstElementChild.classList.contains('c-amber');
+      }
+      localStorage.setItem(CIERRES_LS, cierresAntes || '{}'); CANT_MEMO = {};
+      // Al costado: la división se arrastra, se guarda y las columnas llenan la parte de la tabla
+      switchTab('lecap'); await espera(600);
+      calcLado('lecap', true); await espera(300);
+      const P = calcLadoPartes('lecap'), d = P && P.env && P.env.querySelector('.calc-lado-div');
+      if (d) {
+        const er = P.env.getBoundingClientRect(), t = calcTablas('lecap')[0], sc = t.parentElement;
+        const arrastrar = f => { d.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: d.getBoundingClientRect().left + 2, button: 0 }));
+          document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: er.left + er.width * f }));
+          document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); };
+        // Ningún número cortado: en la primera fila, cada celda entra en su columna
+        const sinCortes = () => { const fila = [...t.tBodies[0].rows].find(r => r.getClientRects().length && r.children.length > 3);
+          return !!fila && [...fila.children].every(td => !td.getClientRects().length || !td.firstElementChild || td.firstElementChild.scrollWidth <= td.clientWidth + 1); };
+        const llena = () => t.getBoundingClientRect().width >= sc.clientWidth - 1;
+        const piso = () => (t._ajMed ? t._ajMed.piso.reduce((a, b) => a + b, 0) : 0);
+        arrastrar(0.5); await espera(250);
+        const w50 = P.W.getBoundingClientRect().width, a50 = sc.clientWidth;
+        out.lado = { div: true, ancho: Math.abs(w50 - er.width * 0.5) < 12, guardado: Math.abs(calcEstado('lecap').ladoAncho - 0.5) < 0.01,
+          llena50: llena(), cortes50: sinCortes(), ajusta: t.classList.contains('calc-ajusta') };
+        arrastrar(0.8); await espera(250);
+        // La tabla mide su parte, o lo que piden sus números si es más
+        out.lado.crece = sc.clientWidth > a50 + 50 && Math.abs(t.getBoundingClientRect().width - Math.max(sc.clientWidth, piso())) < 2;
+        out.lado.llena80 = llena(); out.lado.cortes80 = sinCortes();
+        // Si los números no entran, la tabla se corre de costado en vez de cortarlos
+        out.lado.scroll = piso() <= sc.clientWidth + 1 ? sc.scrollWidth <= sc.clientWidth + 1 : sc.scrollWidth > sc.clientWidth;
+        d.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); await espera(150);
+        out.lado.reset = calcEstado('lecap').ladoAncho == null;
+        calcLado('lecap', false); await espera(250);
+        out.lado.abajo = !t.classList.contains('calc-ajusta') && !t.classList.contains('calc-compacta') && !document.querySelector('#lecap-workspace .calc-lado-div');
+      }
+    } catch (e) { out.err = e.message; }
+    finally {
+      if (estAntes != null) localStorage.setItem(CALC_LS, estAntes);
+      try { calcLadoAplicar('lecap'); } catch (e) {}
+      localStorage.setItem(CIERRES_LS, cierresAntes || '{}'); CANT_MEMO = {};
+      switchTab('lecap');
+    }
+    return out;
+  });
+  if (!ajc.pxc) omitir('tu cierre en Px Cierre', 'sin bonos en la lista');
+  else check(Object.values(ajc.pxc).every(Boolean) && !ajc.err,
+        'Px Cierre: el precio de cualquier bono se escribe como tu cierre de hoy, se ve en ámbar y se copia; vacío vuelve al de mercado', JSON.stringify(ajc));
+  if (ajc.propio === undefined) omitir('tu cierre como PX cierre', 'sin letras con precio');
+  else check(ajc.propio === true, 'el cierre que escribiste ayer es el PX cierre de hoy, en ámbar', JSON.stringify(ajc));
+  if (!ajc.lado) omitir('división al costado', 'sin tabla al costado');
+  else check(Object.values(ajc.lado).every(Boolean),
+        'al costado, la división se arrastra y se guarda, y las columnas llenan la tabla sin cortar números', JSON.stringify(ajc.lado));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));

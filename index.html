@@ -265,6 +265,14 @@ tr.run-fuera>td{opacity:.38;}
 .calc-lado>:last-child>:nth-child(2){flex-wrap:wrap;row-gap:4px;height:auto!important;min-height:0;}
 .calc-lado .chart-title{white-space:nowrap;}
 .calc-lado-btn.on{color:var(--accent);border-color:var(--accent);}
+.calc-lado-div{flex:0 0 6px;cursor:col-resize;background:var(--surface);position:relative;}
+.calc-lado-div::after{content:'';position:absolute;top:50%;left:2px;height:32px;margin-top:-16px;border-left:2px dotted var(--border2);}
+.calc-lado-div:hover,.calc-lado-div.arrastrando,.calc-lado-div:focus-visible{background:var(--accent-dim);outline:none;}
+.calc-lado-div:hover::after,.calc-lado-div.arrastrando::after,.calc-lado-div:focus-visible::after{border-left-color:var(--accent);}
+table.calc-ajusta{table-layout:fixed;}
+table.calc-compacta thead th{padding-left:6px;padding-right:6px;}
+table.calc-compacta td>.cv{padding-left:6px;padding-right:6px;}
+table.calc-ajusta>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 /* Px Cierre: ticker y precio, en el orden que se elija. */
 .pxc-cuerpo{padding:8px 16px 40px;}
 .pxc-tabla{width:auto;min-width:340px;border:1px solid var(--border2);font-variant-numeric:tabular-nums;}
@@ -3293,7 +3301,7 @@ async function authAction(){
 // Resumen, el Resumen de dólares, la fuente de cada proyección, los dos
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_fwd_anchos_v1','bonosAR_run_v1','bonosAR_pxcierre_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_fwd_anchos_v1','bonosAR_run_v1','bonosAR_pxcierre_v1','bonosAR_cierres_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
   'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1','bonosAR_escenarios_v1','bonosAR_calc_vista_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
@@ -15139,6 +15147,22 @@ function calcTodos(clave,incluir){
 // Estado en var: las tablas se pintan durante la carga.
 var CANT={r:null,p:null,hoy:null,err:null,ts:0},CANT_ULT={},CANT_MEMO={};
 var CANT_SEC={tf:'TF',cer:'CER',tamar:'TAMAR',dlk:'DLK',bon:'BON',glo:'GLO',bop:'BOP'};
+// Tu cierre: el precio que escribiste en Px Cierre para una rueda, cuando el
+// último operado no representa dónde se operó. Por cada 100 de nominal, por
+// rueda y por bono; es personal (va con tu sesión). Al día siguiente manda
+// sobre el archivado como PX cierre. Se guardan las últimas 40 ruedas.
+var CIERRES_LS='bonosAR_cierres_v1';
+function cierresTodo(){try{const o=JSON.parse(localStorage.getItem(CIERRES_LS)||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
+function cierresDe(f){const d=cierresTodo()[f];return d&&typeof d==='object'&&!Array.isArray(d)?d:{};}
+function cierrePropio(f,t){const v=+cierresDe(f)[t];return v>0?v:null;}
+function cierrePropioFijar(f,t,v){
+  const o=cierresTodo(),d={...(o[f]||{})};
+  if(v>0)d[t]=+v.toFixed(6);else delete d[t];
+  if(Object.keys(d).length)o[f]=d;else delete o[f];
+  Object.keys(o).sort().slice(0,-40).forEach(k=>delete o[k]);
+  try{localStorage.setItem(CIERRES_LS,JSON.stringify(o));}catch(e){}
+  CANT_MEMO={};
+}
 function cantUltGuardar(d){
   if(!Array.isArray(d))return;
   d.forEach(x=>{if(x&&x.symbol&&x._fuente!=='archivo'&&x.c>0)
@@ -15188,6 +15212,11 @@ function cantRepintar(){
 }
 function cantCierre(sec,ticker,sym,conArchivo){
   const ant=cantRuedaAnt(),R=CANT.r;
+  // Px Cierre tiene los bonos en pesos: en dólares no hay cierre propio.
+  if(sec!=='BON'&&sec!=='GLO'&&sec!=='BOP'){
+    const p=cierrePropio(ant,ticker);
+    if(p>0)return{px:p,fecha:ant,fuente:'propio'};
+  }
   if(conArchivo!==false&&R&&R.fecha===ant){
     const v=R.m.get(sec+'|'+ticker);
     if(v>0)return{px:v,fecha:ant,fuente:'archivo'};
@@ -15299,10 +15328,12 @@ function cantAdjuntarUsd(g,e){
   e._cant=x;e.pxCierre=x?x.px:null;e.tasaCierre=x?x.tasa:null;e.pxEquiv=x?x.eq:null;
   return e;
 }
+function cantPx2(v){return v==null||!isFinite(v)?'—':v.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function cantFec(f){return f?String(f).slice(8,10)+'/'+String(f).slice(5,7):'';}
 function cantTitulos(k,x,ahora){
   const ci=x.ci,fec=cantFec(ci.fecha);
-  const de=ci.fuente==='archivo'?`Cierre del ${fec}, archivado por la app`
+  const de=ci.fuente==='propio'?`Tu cierre del ${fec}, escrito en Px Cierre`
+    :ci.fuente==='archivo'?`Cierre del ${fec}, archivado por la app`
     :`Cierre del ${fec} según data912: sale de la variación del día, que viene redondeada, y puede diferir en un tick`;
   const unidad={tf:'TIR',cer:'TIR real',tamar:'Margen TNA',bon:'TIR',glo:'TIR',bop:'TIR',
     dlk:(PROJ_FUENTE.dlkModo||'usd')==='pesos'?'TIR en pesos':'TIR en dólares, con el A3500 de esa rueda,'}[k];
@@ -15319,9 +15350,9 @@ function cantTds(k,r){
   const x=r._cant,e=v=>String(v).replace(/"/g,'&quot;');
   if(!x)return'<td><div class="cv no-edit c-muted">—</div></td>'.repeat(3);
   const T=cantTitulos(k,x,r.precio);
-  return`<td><div class="cv no-edit c-muted" title="${e(T.de)}">${fmtPx(x.px)}</div></td>`
+  return`<td><div class="cv no-edit${x.ci.fuente==='propio'?' c-amber':' c-muted'}" title="${e(T.de)}">${fmtPx(x.px)}</div></td>`
     +`<td><div class="cv no-edit c-muted" title="${e(T.tasa)}">${x.tasa!=null?fmtP2(x.tasa):'—'}</div></td>`
-    +`<td><div class="cv no-edit" title="${e(T.eq)}">${x.eq!=null?fmtPx(x.eq):'—'}</div></td>`;
+    +`<td><div class="cv no-edit" title="${e(T.eq)}">${cantPx2(x.eq)}</div></td>`;
 }
 function cantTdsUsd(g,e){
   const x=e._cant,st='padding:9px 12px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;';
@@ -15329,7 +15360,7 @@ function cantTdsUsd(g,e){
   const b=e.b,ahora=b.lastPrecioDisplay??b.lastPrecio,q=v=>String(v).replace(/"/g,'&quot;');
   const T=cantTitulos(g,x,ahora);
   const px=v=>v==null||!isFinite(v)?'—':v>=1000?Math.round(v).toLocaleString('es-AR'):v.toFixed(2);
-  return`<td style="${st}color:var(--text2)" title="${q(T.de)}">${px(x.px)}</td>`
+  return`<td style="${st}color:${x.ci.fuente==='propio'?'var(--warn)':'var(--text2)'}" title="${q(T.de)}">${px(x.px)}</td>`
     +`<td style="${st}color:var(--text2)" title="${q(T.tasa)}">${x.tasa!=null?x.tasa.toFixed(2)+'%':'—'}</td>`
     +`<td style="${st}color:var(--text)" title="${q(T.eq)}">${px(x.eq)}</td>`;
 }
@@ -15597,7 +15628,8 @@ var CALC_FWD_NOTA={
 
 function calcEstadoTodo(){try{const o=JSON.parse(localStorage.getItem(CALC_LS)||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
 function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'||e.vista==='ambos'?e.vista:'curva',parte:e.parte>=.15&&e.parte<=.85?+e.parte:.5,min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[],orden:Array.isArray(e.orden)?e.orden:[],
-  anchos:e.anchos&&typeof e.anchos==='object'&&!Array.isArray(e.anchos)?e.anchos:{},lado:!!e.lado};}
+  anchos:e.anchos&&typeof e.anchos==='object'&&!Array.isArray(e.anchos)?e.anchos:{},lado:!!e.lado,
+  ladoAncho:e.ladoAncho>=.15&&e.ladoAncho<=.9?+e.ladoAncho:null};}
 function calcEstadoGuardar(k,cambio){
   const o=calcEstadoTodo();
   o[k]={...calcEstado(k),...cambio};
@@ -16267,7 +16299,8 @@ function pxcFilas(){
     :g.startsWith('Fija')?'Fija'
     :g.startsWith('Dollar')?(du.get(t)==='dlk'?'Dual TAMAR/DLK':'Dollar linked')
     :g==='Tasa fija'?(du.get(t)==='tf'?'Dual TAMAR/TF':'Tasa fija'):g;
-  pxcGrupos().forEach(([g,bs])=>bs.forEach(b=>{if(!fuera.has(b.ticker))nat.push({b,g,tipo:tipo(g,b.ticker)});}));
+  const P=cierresDe(hoyAR());
+  pxcGrupos().forEach(([g,bs])=>bs.forEach(b=>{if(!fuera.has(b.ticker))nat.push({b,g,tipo:tipo(g,b.ticker),propio:+P[b.ticker]>0?+P[b.ticker]:null});}));
   // Los agregados a mano, al final, con el precio que se les encontró.
   const ya=new Set(nat.map(x=>x.b.ticker));
   pxcEstado().manuales.forEach(m=>{
@@ -16300,9 +16333,10 @@ function pxcRender(){
       <button type="button" class="btn" onclick="pxcOrdenOriginal()" title="Vuelve al orden de la mesa">Orden original</button>
       <span class="pxc-agregar"><input type="text" id="pxc-nuevo" class="search-box" placeholder="Ticker" maxlength="12" spellcheck="false" autocomplete="off" aria-label="Ticker del bono a agregar" onkeydown="if(event.key==='Enter'){event.preventDefault();pxcAgregar(this.value);}"><button type="button" class="btn" onclick="pxcAgregar(document.getElementById('pxc-nuevo').value)" title="Suma un bono a la lista, aunque haya vencido">+ Agregar</button></span>
       <button type="button" class="btn" id="pxc-restaurar" onclick="pxcRestaurar()" title="Vuelve a sumar todos los bonos quitados" hidden>↺ Quitados</button>
+      <button type="button" class="btn" id="pxc-cierres-mercado" onclick="pxcCierresMercado()" title="Borra los cierres que escribiste hoy: vuelven los de mercado" hidden>↺ Cierres de mercado</button>
       <span class="run-aviso" id="pxc-aviso" role="status" aria-live="polite"></span>
     </div>
-    <div class="run-nota" style="padding:0 16px">El orden se cambia arrastrando una fila, o desde el tipo para mover el grupo entero, o con las flechas de cada fila; se guarda. Con ✕ se quita un bono de la lista. "Copiar precios" copia sólo los precios, en este orden y sin títulos; un bono sin precio deja la celda vacía. Los precios van por cada 1 de valor nominal. En celeste: el cierre anterior porque hoy no operó, o el último que se encontró de un bono agregado; en ámbar, escrito a mano. Un bono que no está en la lista (uno vencido, por ejemplo) se suma con "+ Agregar": se le busca el precio en BYMA, después el último que tenía la app y después el último archivado; si no aparece, clic en su precio para escribirlo.</div>
+    <div class="run-nota" style="padding:0 16px">El orden se cambia arrastrando una fila, o desde el tipo para mover el grupo entero, o con las flechas de cada fila; se guarda. Con ✕ se quita un bono de la lista. "Copiar precios" copia sólo los precios, en este orden y sin títulos; un bono sin precio deja la celda vacía. Los precios van por cada 1 de valor nominal. En celeste: el cierre anterior porque hoy no operó, o el último que se encontró de un bono agregado; en ámbar, escrito a mano. Un bono que no está en la lista (uno vencido, por ejemplo) se suma con "+ Agregar": se le busca el precio en BYMA, después el último que tenía la app y después el último archivado; si no aparece, clic en su precio para escribirlo. Al cierre, clic en el precio de cualquier bono para escribir el tuyo, si el último operado no representa dónde se operó: queda guardado con tu sesión, en ámbar, es el que se copia y el que usan las calculadoras al día siguiente como PX cierre; vacío vuelve al de mercado.</div>
     <div class="pxc-cuerpo"></div>`);
     cuerpo=pg.querySelector('.pxc-cuerpo');
     pxcMontar(cuerpo);
@@ -16317,7 +16351,8 @@ function pxcRender(){
     const b=x.b,t=b.ticker,corte=i>0&&F[i-1].g!==x.g;
     const cierre=!b.manual&&b.precioCierre&&!b.manualOverride&&typeof pesosEsCierre==='function'&&pesosEsCierre(b);
     const fec=b.fecha?String(b.fecha).slice(0,10).split('-').reverse().join('/'):'';
-    const[cls,tit]=b.manual
+    const[cls,tit0]=x.propio?['pxc-manual','Tu cierre de hoy, escrito acá: es el que se copia y el que usan las calculadoras mañana como PX cierre · clic para cambiarlo; vacío vuelve al de mercado']
+      :b.manual
       ?(b.fuente==='mano'?['pxc-manual','Escrito a mano · clic para cambiarlo']
         :b.fuente==='byma'?['','De BYMA · clic para escribirlo a mano']
         :b.fuente==='app'?['pxc-cierre','El último que tenía la app · clic para escribirlo a mano']
@@ -16325,16 +16360,19 @@ function pxcRender(){
         :['','Sin precio en BYMA ni en el archivo · clic para escribirlo a mano'])
       :b.manualOverride?['pxc-manual','Precio escrito a mano en la calculadora']
       :cierre&&typeof pesosCierreTexto==='function'?['pxc-cierre',pesosCierreTexto(b)]:['',''];
+    const tit=b.manual||x.propio?tit0:(tit0?tit0+' · ':'')+'clic para escribir tu cierre de hoy';
     html+=`<tr draggable="true" data-t="${e(t)}" data-g="${e(x.g)}"${b.manual?' data-manual="1"':''}${corte?' class="pxc-corte"':''}>`
       +`<td class="pxc-tipo" title="${e(x.g)} · arrastrá desde acá para mover el grupo entero">${e(x.tipo)}</td>`
       +`<td><span class="pxc-asa" aria-hidden="true">⋮⋮</span><span class="pxc-tk">${e(t)}</span>`
       +`<span class="pxc-mov"><button type="button" data-d="-1" aria-label="Subir ${e(t)}" title="Subir">▲</button><button type="button" data-d="1" aria-label="Bajar ${e(t)}" title="Bajar">▼</button>`
       +`<button type="button" class="pxc-quitar" aria-label="Quitar ${e(t)}" title="Quitar de la lista">✕</button></span></td>`
-      +`<td class="${cls}${b.manual?' pxc-px-man':''}"${tit?` title="${e(tit)}"`:''}>${pxcPx(b.precio)||'<span style="color:var(--text3)">—</span>'}${b.manual||b.manualOverride?'':fuenteMarca(b.fuentePx)}</td></tr>`;
+      +`<td class="${cls}${b.manual?' pxc-px-man':' pxc-px-ed'}"${tit?` title="${e(tit)}"`:''}>${pxcPx(pxcPrecioFila(x))||'<span style="color:var(--text3)">—</span>'}${b.manual||b.manualOverride||x.propio?'':fuenteMarca(b.fuentePx)}</td></tr>`;
   });
   cuerpo.innerHTML=`<table class="pxc-tabla"><thead><tr><th style="text-align:left">Tipo</th><th style="text-align:left">Ticker</th><th title="Por cada 1 de valor nominal">Precio</th></tr></thead><tbody>${html}</tbody></table>`;
   const qn=pxcEstado().quitados.filter(t=>pxcGrupos().some(g=>g[1].some(b=>b.ticker===t))).length,rq=document.getElementById('pxc-restaurar');
   if(rq){rq.hidden=!qn;rq.textContent=`↺ Quitados (${qn})`;}
+  const np=Object.keys(cierresDe(hoyAR())).length,cm=document.getElementById('pxc-cierres-mercado');
+  if(cm){cm.hidden=!np;cm.textContent=`↺ Cierres de mercado (${np})`;}
 }
 function pxcMontar(cuerpo){
   // Las flechas mueven un lugar; el foco queda en la misma flecha.
@@ -16343,6 +16381,8 @@ function pxcMontar(cuerpo){
     if(q){pxcQuitar(q.closest('tr').dataset.t);return;}
     const pm=ev.target.closest&&ev.target.closest('td.pxc-px-man');
     if(pm&&!pm.querySelector('input')){pxcEditar(pm);return;}
+    const pe=ev.target.closest&&ev.target.closest('td.pxc-px-ed');
+    if(pe&&!pe.querySelector('input')){pxcEditarCierre(pe);return;}
     const btn=ev.target.closest&&ev.target.closest('.pxc-mov button');
     if(!btn)return;
     const t=btn.closest('tr').dataset.t,d=+btn.dataset.d;
@@ -16504,8 +16544,42 @@ function pxcEditar(td){
   inp.focus();inp.select();
 }
 
+// Tu cierre de hoy de un bono de la lista: se escribe por cada 1 de nominal,
+// como se ve; vacío lo borra y vuelve el de mercado.
+function pxcEditarCierre(td){
+  const t=td.closest('tr').dataset.t,x=pxcFilas().find(f=>f.b.ticker===t);
+  if(!x||x.b.manual)return;
+  const base=pxcPrecioFila(x);
+  td.innerHTML=`<input type="text" class="pxc-px-in" value="${base>0?pxcPx(base):''}" aria-label="Tu precio de cierre de ${betrEsc(t)}, por cada 1 de nominal; vacío vuelve al de mercado" spellcheck="false" autocomplete="off">`;
+  const inp=td.querySelector('input');
+  let listo=false;
+  const fin=guardar=>{
+    if(listo)return;listo=true;
+    const texto=inp.value;
+    td.textContent='';
+    if(!guardar){pxcRender();return;}
+    const v=runLeerPx(texto);
+    if(v===undefined){pxcAviso('Eso no es un precio.');pxcRender();return;}
+    // El mismo número que ya se veía no se guarda como tuyo.
+    if(v!=null&&!x.propio&&base>0&&Math.abs(v*100-base)<1e-6){pxcRender();return;}
+    cierrePropioFijar(hoyAR(),t,v==null?null:v*100);
+    pxcRender();
+  };
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();fin(true);}else if(e.key==='Escape'){e.preventDefault();fin(false);}});
+  inp.addEventListener('blur',()=>fin(true));
+  inp.focus();inp.select();
+}
+function pxcCierresMercado(){
+  const h=hoyAR(),d=Object.keys(cierresDe(h));
+  d.forEach(t=>cierrePropioFijar(h,t,null));
+  pxcRender();
+  if(d.length)pxcAviso(`Volvieron los de mercado: ${d.length} bono${d.length===1?'':'s'}.`);
+}
+
 // Sólo los precios, uno por fila, en el orden de la tabla.
-function pxcPrecios(){return pxcFilas().map(x=>pxcPx(x.b.precio));}
+function pxcPrecios(){return pxcFilas().map(x=>pxcPx(pxcPrecioFila(x)));}
+// El precio de una fila: tu cierre de hoy si lo escribiste, si no el de la calculadora.
+function pxcPrecioFila(x){return x&&x.propio>0?x.propio:x&&x.b?x.b.precio:null;}
 function pxcTexto(){return pxcPrecios().join('\n');}
 function pxcHtml(){return`<table>${pxcPrecios().map(p=>`<tr><td>${betrEsc(p)}</td></tr>`).join('')}</table>`;}
 async function pxcCopiar(){
@@ -16621,7 +16695,9 @@ function calcOrdenarTabla(k,t){
 function calcOrdenarTablas(k){calcTablas(k).forEach(t=>{
   try{calcOrdenarTabla(k,t);}catch(e){console.warn('[columnas]',e.message);}
   try{anchosAplicar(t,calcAnchosCfg(k));}catch(e){console.warn('[anchos]',e.message);}
-});}
+});
+  try{calcLadoAjustar(k);}catch(e){console.warn('[al costado]',e.message);}
+}
 var CALC_OBS={};
 function calcOrdenMontar(k){
   const ts=calcTablas(k);
@@ -16868,10 +16944,35 @@ function calcLadoAplicar(k){
     env.parentNode.insertBefore(W,env);env.parentNode.insertBefore(A,env);env.remove();env=null;cambio=true;
   }
   if(W.dataset.ladoFlex===undefined)W.dataset.ladoFlex=W.style.flex;
+  // La división entre la tabla y el panel, que se arrastra.
+  if(env&&!env.querySelector(':scope>.calc-lado-div')){
+    const d=document.createElement('div');
+    d.className='calc-lado-div';d.tabIndex=0;
+    d.setAttribute('role','separator');d.setAttribute('aria-orientation','vertical');
+    d.setAttribute('aria-label','Ancho de la tabla');
+    d.title='Arrastrá para repartir el ancho entre la tabla y el panel · doble clic: el reparto de siempre';
+    d.addEventListener('mousedown',e=>calcLadoDivArrastrar(k,e));
+    d.addEventListener('dblclick',()=>{calcEstadoGuardar(k,{ladoAncho:null});calcLadoAplicar(k);calcLadoGrafico(k);});
+    d.addEventListener('keydown',e=>{
+      if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+      e.preventDefault();
+      const Q=calcLadoPartes(k);if(!Q||!Q.env)return;
+      const r=Q.env.getBoundingClientRect(),f=Q.W.getBoundingClientRect().width/r.width+(e.key==='ArrowRight'?.02:-.02);
+      calcEstadoGuardar(k,{ladoAncho:+Math.max(.15,Math.min(.9,(r.width-306)/r.width,f)).toFixed(4)});
+      calcLadoAplicar(k);calcLadoGrafico(k);
+    });
+    env.insertBefore(d,A);
+  }
   let base='';
   if(env){
-    const w=t.classList.contains('anc-fijo')?Math.ceil(parseFloat(t.style.width)||0)+18:0;
-    base=w>0?`0 0 min(${w}px, calc(100% - 320px))`:'0 0 55%';
+    const ea=calcEstado(k).ladoAncho;
+    if(ea)base=`0 0 min(calc(${(ea*100).toFixed(2)}% - 3px), calc(100% - 306px))`;
+    else{
+      // Con anchos elegidos, la tabla mide lo que suman; si no, la mitad y algo.
+      const px=/px$/.test(t.style.width)&&t.classList.contains('anc-fijo')?parseFloat(t.style.width):(t._sumaFijo||0);
+      const w=px>0?Math.ceil(px)+18:0;
+      base=w>0?`0 0 min(${w}px, calc(100% - 320px))`:'0 0 55%';
+    }
   }
   const f=env?base:W.dataset.ladoFlex;
   if(W.style.flex!==f){W.style.flex=f;cambio=true;}
@@ -16880,7 +16981,122 @@ function calcLadoAplicar(k){
     b.textContent=env?'⤓ abajo':'⇥ al costado';
   });
   if(cambio)setTimeout(()=>{try{const c=CALC_DEF[k].chart&&CALC_DEF[k].chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
+  calcLadoAjustar(k);
 }
+function calcLadoGrafico(k){setTimeout(()=>{try{const c=CALC_DEF[k].chart&&CALC_DEF[k].chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);}
+// Arrastrar la división: la tabla toma la parte de la izquierda y el panel el
+// resto, con al menos 300 px. Se guarda como proporción, por calculadora.
+function calcLadoDivArrastrar(k,e){
+  if(e.button!==0)return;
+  const Q=calcLadoPartes(k);
+  if(!Q||!Q.env)return;
+  e.preventDefault();
+  const r=Q.env.getBoundingClientRect(),d=e.currentTarget||e.target;
+  document.body.classList.add('anc-arrastrando');
+  if(d&&d.classList)d.classList.add('arrastrando');
+  let f=null,raf=0;
+  const mover=ev=>{
+    f=Math.max(.15,Math.min((r.width-306)/r.width,.9,(ev.clientX-r.left)/r.width));
+    Q.W.style.flex=`0 0 calc(${(f*100).toFixed(2)}% - 3px)`;
+    if(!raf)raf=requestAnimationFrame(()=>{raf=0;try{calcLadoAjustar(k,true);}catch(_){}});
+  };
+  const soltar=()=>{
+    document.removeEventListener('mousemove',mover);document.removeEventListener('mouseup',soltar);
+    document.body.classList.remove('anc-arrastrando');
+    if(d&&d.classList)d.classList.remove('arrastrando');
+    if(f!=null)calcEstadoGuardar(k,{ladoAncho:+f.toFixed(4)});
+    calcLadoAplicar(k);calcLadoGrafico(k);
+  };
+  document.addEventListener('mousemove',mover);document.addEventListener('mouseup',soltar);
+}
+// Al costado, las columnas se reparten el ancho que le toca a la tabla. Si
+// sobra lugar, crecen en proporción a los anchos que elegiste (o a los de su
+// contenido, si no tocaste ninguno) y la tabla llena su parte sin dejar hueco.
+// Si falta, se achican en proporción hasta el ancho de sus números: primero se
+// recortan los títulos, nunca un precio ni una tasa; si ni así entra, la tabla
+// se corre de costado. Abajo vuelve a lo de siempre.
+function calcLadoReparto(pref,piso,A){
+  const P=pref.reduce((a,b)=>a+b,0);
+  if(!(P>0))return pref.slice();
+  if(P<=A)return pref.map(p=>p*A/P);
+  const F=piso.reduce((a,b)=>a+b,0);
+  if(F>=A)return piso.slice();
+  let lo=0,hi=1;
+  for(let i=0;i<40;i++){
+    const m=(lo+hi)/2,t=pref.reduce((a,p,j)=>a+Math.max(piso[j],p*m),0);
+    if(t>A)hi=m;else lo=m;
+  }
+  return pref.map((p,j)=>Math.max(piso[j],p*lo));
+}
+function calcLadoAjustar(k,reusar){
+  const ts=calcTablas(k);
+  if(!ts.length)return;
+  const P=calcLadoPartes(k),on=!!(P&&P.env),cfg=calcAnchosCfg(k);
+  if(!on){
+    ts.forEach(t=>{
+      if(!t.classList.contains('calc-ajusta'))return;
+      t.classList.remove('calc-ajusta','anc-fijo','calc-compacta');
+      const cab=t.querySelector('thead tr:last-child');
+      if(cab)[...cab.children].forEach(th=>{th.style.width=th.dataset.ancW||'';});
+      t.style.width=t.dataset.ancW||'';t.style.minWidth=t.dataset.ancMin||'';
+      t._sumaFijo=0;t._ajMed=null;
+      try{anchosAplicar(t,cfg);}catch(e){}
+    });
+    return;
+  }
+  const t0=ts[0],cab0=t0.querySelector('thead tr:last-child'),sc=t0.parentElement;
+  if(!cab0||!sc)return;
+  // Al costado las celdas van con menos aire a los lados.
+  ts.forEach(t=>t.classList.add('calc-compacta'));
+  const ths=[...cab0.children];
+  const vis=ths.map(th=>getComputedStyle(th).display!=='none');
+  const firma=vis.map(v=>v?1:0).join('')+'|'+ths.map(calcClaveTh).join(',')+'|'+JSON.stringify(calcEstado(k).anchos);
+  let M=reusar&&t0._ajMed&&t0._ajMed.firma===firma?t0._ajMed:null;
+  if(!M){
+    // Los elegidos: los que deja anchosAplicar, en px.
+    t0.classList.remove('calc-ajusta');
+    try{anchosAplicar(t0,cfg);}catch(e){}
+    const usr=t0.classList.contains('anc-fijo')?ths.map(th=>parseFloat(th.style.width)||0):null;
+    // Los del contenido, con la tabla a lo que pide: con los títulos y sin ellos.
+    let nat=ths.map(()=>0),cuerpo=ths.map(()=>0);
+    ts.forEach(t=>{
+      const cab=t.querySelector('thead tr:last-child');
+      if(!cab||cab.children.length!==ths.length)return;
+      const th2=[...cab.children];
+      t.classList.remove('calc-ajusta','anc-fijo');
+      th2.forEach(th=>{th.style.width=th.dataset.ancW||'';});
+      t.style.width='max-content';t.style.minWidth='0';
+      if(t===t0)nat=th2.map((th,i)=>vis[i]?th.getBoundingClientRect().width:0);
+      const cabeza=t.tHead;
+      if(cabeza)cabeza.style.display='none';
+      const fila=[...(t.tBodies[0]?t.tBodies[0].rows:[])].find(r=>r.children.length===ths.length&&r.getClientRects().length);
+      if(fila)[...fila.children].forEach((td,i)=>{if(vis[i])cuerpo[i]=Math.max(cuerpo[i],Math.ceil(td.getBoundingClientRect().width));});
+      if(cabeza)cabeza.style.display='';
+    });
+    const pref=ths.map((th,i)=>!vis[i]?0:usr&&usr[i]>0?usr[i]:Math.max(nat[i],cuerpo[i]));
+    const piso=pref.map((p,i)=>!vis[i]?0:usr?Math.min(p,cuerpo[i]||p):(cuerpo[i]||p));
+    M={firma,pref,piso,suma:usr?usr.reduce((a,b)=>a+b,0):0};
+    t0._ajMed=M;
+  }
+  t0._sumaFijo=M.suma;
+  const A=sc.clientWidth;
+  if(!(A>0))return;
+  const w=calcLadoReparto(M.pref,M.piso,A),tot=w.reduce((a,b)=>a+b,0);
+  ts.forEach(t=>{
+    const cab=t.querySelector('thead tr:last-child');
+    if(!cab||cab.children.length!==ths.length)return;
+    [...cab.children].forEach((th,i)=>{if(w[i]>0)th.style.width=w[i].toFixed(2)+'px';});
+    t.style.width=tot<=A+.5?'100%':Math.ceil(tot)+'px';
+    t.style.minWidth='0';
+    t.classList.add('calc-ajusta');
+  });
+}
+window.addEventListener('resize',()=>{
+  clearTimeout(calcLadoAjustar._t);
+  calcLadoAjustar._t=setTimeout(()=>{
+    try{const k=currentSection==='usd'?currentUsdTab:currentTab;if(CALC_DEF[k]&&calcEstado(k).lado)calcLadoAjustar(k,true);}catch(e){}
+  },120);
+});
 function calcLado(k,on){calcEstadoGuardar(k,{lado:!!on});calcLadoAplicar(k);calcPanelAplicar(k);}
 
 function calcAnchosOriginales(k){calcEstadoGuardar(k,{anchos:{}});calcColsAplicar(k);}
