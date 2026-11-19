@@ -4320,20 +4320,21 @@ function bymaComoData912(items){
   });
   return out;
 }
-var BYMA_VIVO=null;
+var BYMA_VIVO=null,BYMA_CAIDO=0;
 function bymaVivo(){
   if(BYMA_VIVO&&Date.now()-BYMA_VIVO.ts<60000)return BYMA_VIVO.p;
+  // Si BYMA no respondió hace poco no se lo vuelve a esperar: con data912
+  // caído, cada refresco iría al archivo recién después de dos esperas.
+  if(Date.now()<BYMA_CAIDO)return Promise.reject(new Error('BYMA no respondió hace un rato'));
+  // Directo y por el Worker a la vez: gana el primero que contesta bien.
   const panel=async ep=>{
-    let res;
-    try{
-      res=await fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/'+ep,{method:'POST',
-        headers:{'Content-Type':'application/json'},body:JSON.stringify({page_size:3000}),signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
-      if(!res.ok)throw new Error('HTTP '+res.status);
-    }catch(e){
-      res=await fetch(WORKER_BYMA+'?panel='+ep,{cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
-      if(!res.ok)throw new Error('BYMA por el Worker HTTP '+res.status);
-    }
-    const j=await res.json();
+    const leer=r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();};
+    const directo=fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/'+ep,{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({page_size:3000}),signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)}).then(leer);
+    const worker=fetch(WORKER_BYMA+'?panel='+ep,{cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)}).then(leer);
+    let j;
+    try{j=await Promise.any([directo,worker]);}
+    catch(e){throw new Error('BYMA '+ep+': '+((e.errors||[]).map(x=>x&&x.message).join(' / ')||e.message));}
     return Array.isArray(j)?j:((j&&j.data)||[]);
   };
   const p=(async()=>{
@@ -4343,7 +4344,7 @@ function bymaVivo(){
     return d;
   })();
   BYMA_VIVO={ts:Date.now(),p};
-  p.catch(()=>{if(BYMA_VIVO&&BYMA_VIVO.p===p)BYMA_VIVO=null;});
+  p.catch(()=>{if(BYMA_VIVO&&BYMA_VIVO.p===p)BYMA_VIVO=null;BYMA_CAIDO=Date.now()+10*60000;});
   return p;
 }
 // El último precio archivado de cada bono, de las dos últimas semanas. Los de

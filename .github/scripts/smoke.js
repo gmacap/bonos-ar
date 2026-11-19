@@ -5001,7 +5001,7 @@ const omitir = (label, motivo) =>
           return byma ? Promise.resolve(new Response(JSON.stringify({ data: panel }), { status: 200 })) : Promise.reject(new TypeError('Failed to fetch'));
         return realFetch(u, o);
       };
-      fetchData912.tandas = {}; BYMA_VIVO = null; PRECIOS_ARCH = null;
+      fetchData912.tandas = {}; BYMA_VIVO = null; BYMA_CAIDO = 0; PRECIOS_ARCH = null;
       const d = await fetchData912('arg_notes', true);
       out.byma = { c: d[0] && d[0].c, fuente: PRECIOS_FUENTE.fuente, aviso: !av.hidden && /BYMA/.test(av.textContent) && av.classList.contains('byma') };
       await fetchAllPrices(); await espera(300);
@@ -5013,7 +5013,15 @@ const omitir = (label, motivo) =>
       byma = false; fetchData912.tandas = {}; BYMA_VIVO = null; PRECIOS_ARCH = null;
       let arch = null;
       try { arch = await fetchData912('arg_notes', true); } catch (e) { arch = null; }
-      out.archivo = arch ? { fuente: PRECIOS_FUENTE.fuente, marca: arch.every(x => x._fuente === 'archivo'), aviso: /ARCHIVADOS/.test(av.textContent) && av.classList.contains('archivo') }
+      // BYMA no se vuelve a esperar por un rato: el próximo va directo al archivo
+      const memo = BYMA_CAIDO > Date.now();
+      let tocoByma = false;
+      const f2 = window.fetch;
+      window.fetch = (u, o) => { if (String(u).includes('bymadata') || String(u).includes('/byma?')) tocoByma = true; return f2(u, o); };
+      fetchData912.tandas = {};
+      try { await fetchData912('arg_bonds', true); } catch (e) {}
+      window.fetch = f2;
+      out.archivo = arch ? { fuente: PRECIOS_FUENTE.fuente, marca: arch.every(x => x._fuente === 'archivo'), aviso: /ARCHIVADOS/.test(av.textContent) && av.classList.contains('archivo'), memo, sinEsperarByma: !tocoByma }
         : { sinArchivo: PRECIOS_FUENTE.fuente === 'ninguna' };
       // data912 vuelve: la franja se va
       window.fetch = (u, o) => String(u).includes('data912.com/live')
@@ -5023,7 +5031,7 @@ const omitir = (label, motivo) =>
       await fetchData912('arg_notes', true); await fetchData912('arg_bonds', true);
       out.vuelve = PRECIOS_FUENTE.fuente === 'data912' && av.hidden && getComputedStyle(document.documentElement).getPropertyValue('--alto-aviso').trim() === '0px';
     } finally {
-      window.fetch = realFetch; fetchData912.tandas = {}; BYMA_VIVO = null; PRECIOS_ARCH = null;
+      window.fetch = realFetch; fetchData912.tandas = {}; BYMA_VIVO = null; BYMA_CAIDO = 0; PRECIOS_ARCH = null;
       try { await fetchAllPrices(); } catch (e) {}
       switchTab('breakeven');
     }
@@ -5033,8 +5041,8 @@ const omitir = (label, motivo) =>
   check(resp.byma && resp.byma.fuente === 'byma' && resp.byma.c === 129.5 && resp.byma.aviso && resp.marca && resp.estado,
         'si data912 no responde, los precios vienen de BYMA, con la franja arriba, el estado y la marca en cada precio', JSON.stringify(resp));
   if (resp.archivo && resp.archivo.sinArchivo) omitir('respaldo: lo último archivado', 'el archivo no respondió');
-  else check(resp.archivo && resp.archivo.fuente === 'archivo' && resp.archivo.marca && resp.archivo.aviso,
-        'si BYMA tampoco, los últimos precios archivados, con la franja en rojo y cada uno marcado', JSON.stringify(resp.archivo));
+  else check(resp.archivo && resp.archivo.fuente === 'archivo' && resp.archivo.marca && resp.archivo.aviso && resp.archivo.memo && resp.archivo.sinEsperarByma,
+        'si BYMA tampoco, los últimos precios archivados, con la franja en rojo y cada uno marcado; BYMA no se vuelve a esperar por un rato', JSON.stringify(resp.archivo));
   check(resp.vuelve, 'cuando data912 vuelve, la franja se va', JSON.stringify(resp));
 
   // Bonos nuevos de las licitaciones: cada uno se propone en su calculadora con
