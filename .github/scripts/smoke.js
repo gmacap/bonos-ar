@@ -6545,9 +6545,9 @@ const omitir = (label, motivo) =>
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd,run,pxcierre',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd,run,pxcierre,descuento',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
-        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-liquidez,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd',
+        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-liquidez,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd,usd-descuento',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
         'cada lista desplegable tiene sus solapas', nav.menus.join(' · '));
   check(nav.abre && nav.navega && nav.escape && nav.afuera,
@@ -7248,8 +7248,8 @@ const omitir = (label, motivo) =>
     }
     return out;
   });
-  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD|RUN|Px Cierre · CER' && cvista.irTF
-        && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD' && cvista.irGlo,
+  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD|RUN|Px Cierre|Descuento · CER' && cvista.irTF
+        && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD|Descuento' && cvista.irGlo,
         'cada calculadora tiene las subsolapas de su sección, marca la abierta y lleva a la otra con un clic', JSON.stringify(cvista));
   check(cvista.fwd && cvista.fwd.filas >= 3 && cvista.fwd.sinElSacado && cvista.fwd.grafico === 'none' && cvista.fwdUsd >= 3
         && cvista.tf && /%$/.test(cvista.tf.tem || '') && cvista.tf.fwdMode && cvista.tf.esquina === 'TEM',
@@ -7328,6 +7328,149 @@ const omitir = (label, motivo) =>
         && ord.filaTir === true && ord.filaPx === true && ord.ocultaBien && ord.flecha && ord.vuelve,
         'el orden de las columnas se cambia, se guarda, vale para las filas que se vuelven a armar y vuelve al original', JSON.stringify(ord));
   check(ord.var === true, 'la variación del día va en su columna, al lado del precio', JSON.stringify(ord));
+
+  // PX cierre, tasa del cierre y PX equivalente en las siete calculadoras; la
+  // solapa Descuento en las dos secciones. Con un archivo de prueba, para que
+  // las cuentas se puedan verificar contra la fórmula cerrada.
+  console.log('\nCierre anterior y Descuento');
+  const cant = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, COLS = ['PX CIERRE', 'TASA CIERRE', 'PX EQUIV. HOY'];
+    const cab = sel => { const t = document.querySelector(sel); return t ? [...t.querySelectorAll('thead tr:last-child th')].map(th => calcClaveTh(th).toUpperCase()) : null; };
+    const tiene = c => !!c && COLS.every(x => c.includes(x));
+    const celdas = (sel, tk) => {
+      const t = document.querySelector(sel), c = cab(sel);
+      if (!t || !c) return null;
+      const tr = [...t.querySelectorAll('tbody tr')].find(x => x.children[0] && x.children[0].textContent.includes(tk));
+      if (!tr) return null;
+      const i = c.indexOf('PX CIERRE');
+      return [...tr.children].slice(i, i + 3).map(td => td.textContent.trim());
+    };
+    const cerca = (a, b, tol) => a != null && b != null && Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+    const rArch = CANT.r, ultAntes = { ...CANT_ULT }, cauArs = CAUCION_ARS, cauUsd = CAUCION_USD;
+    const descAntes = JSON.stringify(DESC), bcraAntes = { ...DESC_BCRA };
+    try {
+      switchSection('pesos'); switchTab('lecap'); await espera(800);
+      const ant = cantRuedaAnt(), m = new Map();
+      const lec = DATA.find(r => r.dias > 30 && r.precio > 0);
+      const cer = (CER_DATA || []).find(r => r.dias > 60 && r.precio > 0);
+      const tam = (TAMAR_DATA || []).find(r => r.dias > 60 && r.precio > 0);
+      const bon = usdCurrency === 'MEP' ? (BON_BONDS || []).find(b => b.lastPrecio > 0 && b.vencimiento > hoyAR() && EQUIV_DATA.some(e => e.ticker === b.ticker)) : null;
+      if (lec) m.set('TF|' + lec.ticker, +(lec.precio * 0.998).toFixed(3));
+      if (cer) m.set('CER|' + cer.ticker, +(cer.precio * 0.995).toFixed(2));
+      if (tam) m.set('TAMAR|' + tam.ticker, +(tam.precio * 0.997).toFixed(2));
+      if (bon) m.set('BON|' + bon.ticker, +(bon.lastPrecio * 0.99).toFixed(2));
+      CANT.r = { fecha: ant, m }; CANT_MEMO = {};
+      renderTable(); await espera(200);
+      out.cab = { tf: tiene(cab('#left-pane .table-scroll > table')), tfc: !document.querySelector('#tfc-wrap table') || tiene(cab('#tfc-wrap table')) };
+      // Tasa fija: la TIR del cierre a t+1 de esa rueda y el precio que la rinde hoy a t+1
+      if (lec) {
+        const x = DATA.find(r => r.ticker === lec.ticker)._cant, px = m.get('TF|' + lec.ticker);
+        const vc = parseDate(lec.vcto), dC = diasAlPago(x.liqC, vc), dH = diasAlPago(x.liqH, vc), vf = lec.vf;
+        const tirC = (Math.pow(vf / px, 365 / dC) - 1) * 100;
+        const eq = px * Math.pow(1 + tirC / 100, (dC - dH) / 365);
+        const c = celdas('#left-pane .table-scroll > table', lec.ticker);
+        out.tf = { px: x.px === px, archivo: x.ci.fuente === 'archivo' && x.ci.fecha === ant, tasa: cerca(x.tasa, tirC, 1e-9), eq: cerca(x.eq, eq, 1e-9),
+          liq: fmtDate(x.liqC) === fmtDate(addHabiles(parseDate(ant), 1)) && fmtDate(x.liqH) === fmtDate(addHabiles(parseDate(hoyAR()), 1)),
+          celdas: !!c && c[0] === fmtPx(px) && c[1] === fmtP2(x.tasa) && c[2] === fmtPx(x.eq) };
+      }
+      // CER y TAMAR: el equivalente rinde hoy exactamente la tasa del cierre
+      switchTab('cer'); await espera(800);
+      out.cab.cer = tiene(cab('#cer-left-pane .table-scroll table'));
+      if (cer) {
+        const x = CER_DATA.find(r => r.ticker === cer.ticker)._cant;
+        out.cer = !!x && x.ci.fuente === 'archivo' && x.tasa != null && x.eq != null && cerca(cantTasa('cer', cer, x.eq, x.liqH), x.tasa, 1e-7)
+          && cerca(cantTasa('cer', cer, x.px, x.liqC), x.tasa, 1e-12);
+      }
+      switchTab('tamar'); await espera(800);
+      out.cab.tamar = tiene(cab('#page-tamar .table-scroll table'));
+      if (tam) {
+        const r = TAMAR_DATA.find(r => r.ticker === tam.ticker), x = r._cant;
+        // El margen, no la TIR: con el precio de ahora da el margen de la tabla
+        out.tamar = !!x && x.tasa != null && x.eq != null && cerca(cantTasa('tamar', tam, x.eq, x.liqH), x.tasa, 1e-7)
+          && cerca(cantTasa('tamar', tam, r.precio, G_LIQ || addHabiles(TODAY, 1)), r.margenTNA, 1e-9);
+      }
+      switchTab('dlk'); await espera(800);
+      out.cab.dlk = tiene(cab('#dlk-left-pane .table-scroll table'));
+      const dl = (DLK_DATA || []).find(r => r._cant && r._cant.tasa != null && r._cant.eq != null);
+      if (dl) {
+        const x = dl._cant, usd = (PROJ_FUENTE.dlkModo || 'usd') !== 'pesos';
+        out.dlk = cerca(cantTasa('dlk', dl, x.eq, x.liqH, usd ? dlkTCHoy() : null), x.tasa, 1e-7);
+      }
+      // Dólares: el archivo está en MEP; el equivalente sale del precio a esa TIR
+      switchSection('usd'); switchUsdTab('usd-bonares'); await espera(1200);
+      out.cab.bon = tiene(cab('#bon-summary-table'));
+      switchUsdTab('usd-globales'); await espera(600); out.cab.glo = tiene(cab('#glo-summary-table'));
+      switchUsdTab('usd-bopreales'); await espera(600); out.cab.bop = tiene(cab('#bop-summary-table'));
+      if (bon) {
+        const x = cantFila('bon', bon), px = m.get('BON|' + bon.ticker);
+        out.bon = !!x && x.px === px && cerca(bopTIR(bon, fmtDate(x.liqC), px), x.tasa, 1e-9) && cerca(bopTIR(bon, fmtDate(x.liqH), x.eq), x.tasa, 1e-5);
+      }
+      // Sin archivo: el cierre se despeja de la variación de data912
+      CANT_ULT.ZZPRUEBA = { c: 101.5, pct: 1.5 };
+      out.derivado = cantDerivado('ZZPRUEBA') === (cantSinRuedaHoy() ? 101.5 : 100);
+      const sinArch = cantCierre('TF', 'ZZPRUEBA', 'ZZPRUEBA');
+      out.derivado = out.derivado && !!sinArch && sinArch.fuente === 'data912';
+
+      // Descuento en pesos: ida, vuelta, tasa a mano y vuelta a la caución
+      switchSection('pesos'); switchTab('descuento'); await espera(500);
+      DESC.pesos = { tasa: null, px0: null, px1: null, ult: 0, fecha: '' };
+      const F = descFechas('pesos'), $ = x => document.getElementById('desc-' + x + '-pesos');
+      CAUCION_ARS = [{ dias: F.dias, tna: 30, monto: 1e10, ops: 10 }];
+      descPintar();
+      out.descVisible = getComputedStyle(document.getElementById('page-descuento')).display !== 'none' && !!$('px0');
+      out.descDef = $('tasa').placeholder === '30.00' && /caución de BYMA/.test($('fuente').textContent);
+      const tipear = (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+      tipear($('px0'), '100');
+      out.ida = cerca(parseFloat($('px1').value), 100 * (1 + 0.30 * F.dias / 365), 1e-6) && $('px1').classList.contains('desc-calc');
+      tipear($('px1'), '150');
+      out.vuelta = cerca(parseFloat($('px0').value), 150 / (1 + 0.30 * F.dias / 365), 1e-6) && $('px0').classList.contains('desc-calc');
+      tipear($('tasa'), '40');
+      out.manual = cerca(parseFloat($('px0').value), 150 / (1 + 0.40 * F.dias / 365), 1e-6) && /mano/.test($('fuente').textContent) && !$('volver').hidden;
+      $('volver').click();
+      out.vuelveCaucion = $('tasa').value === '' && $('volver').hidden && cerca(parseFloat($('px0').value), 150 / (1 + 0.30 * F.dias / 365), 1e-6);
+      // BYMA no responde: los pases del BCRA, marcados
+      CAUCION_ARS = []; DESC_BCRA.v = 29.5; DESC_BCRA.fecha = ant; descPintar();
+      out.bcra = $('tasa').placeholder === '29.50' && /BCRA/.test($('fuente').textContent) && $('fuente').classList.contains('desc-aviso');
+      // Un viernes: hasta el hábil siguiente, días corridos
+      const vie = new Date(TODAY); while (vie.getDay() !== 5 || !esHabil(vie)) vie.setDate(vie.getDate() + 1);
+      DESC.pesos.fecha = fmtDate(vie); descPintar();
+      const F2 = descFechas('pesos');
+      out.viernes = F2.dias >= 3 && F2.dias === diasACT(vie, addHabiles(vie, 1)) && /3 días|[4-9] días/.test($('dias').textContent);
+      // En dólares, con la caución en dólares
+      switchSection('usd'); switchUsdTab('usd-descuento'); await espera(500);
+      const Fu = descFechas('usd'), $u = x => document.getElementById('desc-' + x + '-usd');
+      CAUCION_USD = [{ dias: Fu.dias, tna: 2, monto: 1e6, ops: 1 }]; descPintar();
+      out.usd = getComputedStyle(document.getElementById('page-usd-descuento')).display !== 'none' && $u('tasa').placeholder === '2.00' && /dólares/.test($u('fuente').textContent);
+      tipear($u('px0'), '80');
+      out.usdIda = cerca(parseFloat($u('px1').value), 80 * (1 + 0.02 * Fu.dias / 365), 1e-6);
+    } catch (e) { out.err = e.message; }
+    finally {
+      CANT.r = rArch; CANT_MEMO = {}; CANT_ULT = ultAntes; CAUCION_ARS = cauArs; CAUCION_USD = cauUsd;
+      DESC = JSON.parse(descAntes); Object.assign(DESC_BCRA, bcraAntes);
+      switchSection('pesos'); switchTab('lecap');
+    }
+    return out;
+  });
+  check(cant.cab && Object.values(cant.cab).every(Boolean) && Object.keys(cant.cab).length === 8,
+        'las siete calculadoras tienen PX cierre, tasa del cierre y PX equivalente a hoy', JSON.stringify(cant));
+  if (!cant.tf) omitir('cierre anterior en tasa fija', 'sin letras con precio');
+  else check(Object.values(cant.tf).every(Boolean),
+        'tasa fija: el cierre es el archivado de la rueda anterior, su TIR liquidando a t+1 de esa rueda y el precio que hoy a t+1 rinde lo mismo, contra la fórmula', JSON.stringify(cant.tf));
+  if (cant.cer === undefined) omitir('cierre anterior en CER', 'sin bonos CER con precio');
+  else check(cant.cer === true, 'CER: el equivalente rinde hoy la TIR real del cierre', JSON.stringify(cant));
+  if (cant.tamar === undefined) omitir('cierre anterior en TAMAR', 'sin bonos TAMAR con precio');
+  else check(cant.tamar === true, 'TAMAR: la tasa del cierre es el margen, y el equivalente lo mantiene', JSON.stringify(cant));
+  if (cant.dlk === undefined) omitir('cierre anterior en DLK', 'sin DLK con cierre');
+  else check(cant.dlk === true, 'DLK: el equivalente rinde hoy la TIR del cierre', JSON.stringify(cant));
+  if (cant.bon === undefined) omitir('cierre anterior en dólares', 'sin Bonares con precio en MEP');
+  else check(cant.bon === true, 'dólares: el cierre MEP archivado, su TIR y el precio que la rinde hoy', JSON.stringify(cant));
+  check(cant.derivado === true, 'sin archivo, el cierre se despeja de la variación del día de data912', JSON.stringify(cant));
+  check(cant.descVisible && cant.descDef && cant.ida && cant.vuelta && cant.manual && cant.vuelveCaucion,
+        'Descuento: t+0 a t+1 y al revés con la caución de BYMA, con tasa a mano y de vuelta a la caución', JSON.stringify(cant));
+  check(cant.bcra === true, 'Descuento: sin BYMA, los pases a un día del BCRA, marcados', JSON.stringify(cant));
+  check(cant.viernes === true, 'Descuento: un viernes cuenta los días corridos hasta el hábil siguiente', JSON.stringify(cant));
+  check(cant.usd && cant.usdIda, 'Descuento en dólares, con la caución en dólares', JSON.stringify(cant));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));

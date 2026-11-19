@@ -285,6 +285,22 @@ tr.run-fuera>td{opacity:.38;}
 .pxc-tabla tr.pxc-arriba>td{box-shadow:inset 0 2px 0 var(--accent);}
 .pxc-tabla tr.pxc-abajo>td{box-shadow:inset 0 -2px 0 var(--accent);}
 .pxc-tabla tr.pxc-arrastre>td{opacity:.4;}
+.desc-cuerpo{padding:14px 16px 40px;display:flex;flex-direction:column;gap:14px;max-width:720px;}
+.desc-fila{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.desc-fila>label,.desc-punta>label{font-family:var(--mono);font-size:var(--fs10);color:var(--text3);letter-spacing:.04em;text-transform:uppercase;}
+.desc-fila>label{min-width:96px;}
+.desc-in{font-family:var(--mono);font-size:var(--fs13);background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:4px 8px;color:var(--text);width:130px;text-align:right;font-variant-numeric:tabular-nums;}
+.desc-in:focus{outline:none;border-color:var(--accent);}
+.desc-in[type=date]{text-align:left;width:auto;}
+.desc-in.desc-manual{color:var(--warn);border-color:var(--warn);}
+.desc-in.desc-calc{color:var(--info);}
+.desc-px{width:180px;font-size:calc(16px*var(--esc));padding:6px 10px;}
+.desc-dato{font-family:var(--mono);font-size:var(--fs10);color:var(--text3);}
+.desc-dato.desc-aviso{color:var(--warn);}
+.desc-par{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--border);}
+.desc-punta{display:flex;flex-direction:column;gap:5px;}
+.desc-flecha{font-size:calc(18px*var(--esc));color:var(--text3);}
+.desc-res{font-family:var(--mono);font-size:var(--fs11);color:var(--text2);min-height:1.3em;font-variant-numeric:tabular-nums;}
 .pxc-cierre{color:var(--info);}
 .pxc-agregar{display:inline-flex;gap:4px;align-items:center;}
 .pxc-agregar input{width:92px;text-transform:uppercase;}
@@ -730,6 +746,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-sintusd" onclick="switchTab('sintusd')">Sintético USD</button>
       <button class="nav-tab" role="menuitem" id="nav-run" onclick="switchTab('run')">RUN</button>
       <button class="nav-tab" role="menuitem" id="nav-pxcierre" onclick="switchTab('pxcierre')">Px Cierre</button>
+      <button class="nav-tab" role="menuitem" id="nav-descuento" onclick="switchTab('descuento')">Descuento</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -772,6 +789,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-usd-bopreales" onclick="switchUsdTab('usd-bopreales')">Bopreales</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-equiv" onclick="switchUsdTab('usd-equiv')">Equivalencias</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-sintusd" onclick="switchUsdTab('usd-sintusd')">Sintético USD</button>
+      <button class="nav-tab" role="menuitem" id="nav-usd-descuento" onclick="switchUsdTab('usd-descuento')">Descuento</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -879,6 +897,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
           <th onclick="sortBy('tna')"    id="th-tna">TNA</th>
           <th onclick="sortBy('tir')"    id="th-tir">TIR</th>
           <th onclick="sortBy('tem')"    id="th-tem">TEM</th>
+          <th onclick="sortBy('pxCierre')" id="th-pxCierre" title="El cierre de la rueda anterior: el que archivó la app ese día; si no lo tiene, el que sale de la variación del día de data912">Px cierre</th>
+          <th onclick="sortBy('tasaCierre')" id="th-tasaCierre" title="La TIR del precio de cierre, liquidando a t+1 de esa rueda">Tasa cierre</th>
+          <th onclick="sortBy('pxEquiv')" id="th-pxEquiv" title="El precio que, operando hoy a t+1, rinde exactamente la tasa del cierre: contra el precio de ahora, separa el movimiento de lo que devengó">Px equiv. hoy</th>
           <th style="cursor:default;width:40px;"></th>
         </tr></thead>
         <tbody id="table-body"></tbody>
@@ -1067,6 +1088,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="cerSortBy('tirProy')" id="cer-th-tirProy" style="color:var(--warn)">TIR c/proy</th>
             <th onclick="cerSortBy('tnaProy')" id="cer-th-tnaProy" style="color:var(--warn)">TNA c/proy</th>
             <th onclick="cerSortBy('temProy')" id="cer-th-temProy" style="color:var(--warn)">TEM c/proy</th>
+            <th onclick="cerSortBy('pxCierre')" id="cer-th-pxCierre" title="El cierre de la rueda anterior: el que archivó la app ese día; si no lo tiene, el que sale de la variación del día de data912">Px cierre</th>
+            <th onclick="cerSortBy('tasaCierre')" id="cer-th-tasaCierre" title="La TIR real del precio de cierre, liquidando a t+1 de esa rueda">Tasa cierre</th>
+            <th onclick="cerSortBy('pxEquiv')" id="cer-th-pxEquiv" title="El precio que, operando hoy a t+1, rinde exactamente la tasa del cierre: contra el precio de ahora, separa el movimiento de lo que devengó">Px equiv. hoy</th>
             <th style="cursor:default;width:40px;"></th>
           </tr></thead>
           <tbody id="cer-table-body"></tbody>
@@ -1346,6 +1370,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th onclick="tamarSortBy('tir')"    id="tamar-th-tir">TIR</th>
             <th onclick="tamarSortBy('tna')"    id="tamar-th-tna" title="Capitalizable mensual: 12 × TEM, igual que en CER">TNA</th>
             <th onclick="tamarSortBy('tem')"    id="tamar-th-tem">TEM</th>
+            <th onclick="tamarSortBy('pxCierre')" id="tamar-th-pxCierre" title="El cierre de la rueda anterior: el que archivó la app ese día; si no lo tiene, el que sale de la variación del día de data912">Px cierre</th>
+            <th onclick="tamarSortBy('tasaCierre')" id="tamar-th-tasaCierre" title="El margen TNA del precio de cierre, liquidando a t+1 de esa rueda">Tasa cierre</th>
+            <th onclick="tamarSortBy('pxEquiv')" id="tamar-th-pxEquiv" title="El precio que, operando hoy a t+1, rinde exactamente la tasa del cierre: contra el precio de ahora, separa el movimiento de lo que devengó">Px equiv. hoy</th>
             <th style="cursor:default;width:40px;"></th>
           </tr></thead>
           <tbody id="tamar-table-body"></tbody>
@@ -1454,6 +1481,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-escenarios" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 <div id="page-run" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 <div id="page-pxcierre" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
+<div id="page-descuento" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 
 <!-- ═══════════════════════════════════════════════════════ DLK PAGE -->
 <div id="page-dlk" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
@@ -1517,6 +1545,9 @@ tbody tr.selected .c-ticker{color:var(--accent);}
             <th>Paridad</th>
             <th id="dlk-th-tir">TIR</th>
             <th id="dlk-th-tna">TNA</th>
+            <th title="El cierre de la rueda anterior: el que archivó la app ese día; si no lo tiene, el que sale de la variación del día de data912">Px cierre</th>
+            <th title="La TIR del precio de cierre, liquidando a t+1 de esa rueda, en la moneda elegida arriba: en dólares, con el A3500 de esa rueda">Tasa cierre</th>
+            <th title="El precio que, operando hoy a t+1, rinde exactamente la tasa del cierre: contra el precio de ahora, separa el movimiento de lo que devengó">Px equiv. hoy</th>
             <th style="cursor:default;width:40px;"></th>
           </tr></thead>
           <tbody id="dlk-table-body"></tbody>
@@ -2422,6 +2453,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-usd-liquidez" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-riesgo" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-sintusd" class="pg" style="flex-direction:column"></div>
+<div id="page-usd-descuento" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-spreadleg" class="pg">
   <div style="display:flex;flex-direction:column;height:100%">
     <div style="display:flex;align-items:center;gap:8px;padding:0 1rem;height:40px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
@@ -3587,7 +3619,7 @@ function usdFamRenderSummaryRows(fam){
   if(!tbody)return;
   const liq=bopFmtDate(G_LIQ||addHabiles(TODAY,1));
   if(thead)thead.innerHTML=usdSumTheadHtml(fam.id,fam.sortCol,fam.sortAsc);
-  const enriched=usdSumSort(usdSumEnrich(fam.bonds,liq),fam.sortCol,fam.sortAsc);
+  const enriched=usdSumSort(usdSumEnrich(fam.bonds,liq).map(e=>cantAdjuntarUsd(fam.id,e)),fam.sortCol,fam.sortAsc);
   const E=escala3Cols(enriched.filter(e=>e.b.lastPrecio!=null&&!e.b.manualOverride),['tir','tna']);
   tbody.innerHTML=enriched.map(e=>usdSumRowHtml(e,fam.sel===e.b.ticker,fam.selectFn,fam.id,E)).join('');
   fam.chartRender();
@@ -4260,7 +4292,7 @@ function fetchData912(endpoint,fresco){
     if(!Array.isArray(d)||!d.length)throw new Error('data912 respondió vacío');
     preciosFuenteSet(endpoint,'data912');
     return d;
-  }).catch(e=>preciosRespaldo(endpoint,e));
+  }).catch(e=>preciosRespaldo(endpoint,e)).then(d=>{try{cantUltGuardar(d);}catch(e){}return d;});
 }
 
 // ══ RESPALDO DE PRECIOS ══
@@ -4936,6 +4968,7 @@ function tfcRender(){
   if(!vs.length){el.innerHTML='';return;}
   const f=s=>s?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
   const n=(v,d=2)=>v==null||!isFinite(v)?'—':v.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
+  vs.forEach(v=>cantAdjuntar('tf',v));
   const filas=vs.map(v=>buildRow(v,{titulo:v.precio
     ?`Precio sucio por cada 100 de VN, con ${n(v.corrido)} de cupón corrido: limpio ${n(v.limpio)}, paridad ${n(v.paridad,1)}%. Próximo cupón el ${f(v.prox.fecha)}, ${n(v.prox.monto)}.`
     :'Sin precio'})).join('');
@@ -4949,7 +4982,7 @@ function tfcRender(){
     <table><thead><tr>
       <th style="text-align:left">Ticker</th><th>Tipo</th><th>Vto</th><th>Días</th><th>MD</th><th>Precio $</th><th title="Variación del día">Var%</th>
       <th title="Punta a punta, en % del medio. El color es el semáforo del monto operado.">Spread</th><th title="Monto operado hoy. Verde arriba de mil millones, rojo abajo de diez.">Monto</th>
-      <th>TNA</th><th>TIR</th><th>TEM</th><th style="cursor:default;width:40px;"></th>
+      <th>TNA</th><th>TIR</th><th>TEM</th><th title="El cierre de la rueda anterior: el que archivó la app ese día; si no lo tiene, el que sale de la variación del día de data912">Px cierre</th><th title="La TIR del precio de cierre, liquidando a t+1 de esa rueda">Tasa cierre</th><th title="El precio que, operando hoy a t+1, rinde exactamente la tasa del cierre: contra el precio de ahora, separa el movimiento de lo que devengó">Px equiv. hoy</th><th style="cursor:default;width:40px;"></th>
     </tr></thead><tbody>${filas}</tbody></table>${notas}`;
 }
 
@@ -5306,7 +5339,7 @@ async function fetchAllPrices(auto){
 // ── TABLA ─────────────────────────────────────────────────────────────────────
 let sortCol='vcto',sortAsc=true,selectedTicker=null,panelMode='precio',editingCell=null;
 
-const TH_COLS=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tna','tir','tem'];
+const TH_COLS=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tna','tir','tem','pxCierre','tasaCierre','pxEquiv'];
 function sortBy(col){
   sortAsc=sortCol===col?!sortAsc:(col==='vcto'||col==='ticker');
   sortCol=col;renderTable();
@@ -5324,6 +5357,7 @@ function renderTable(){
   const q=document.getElementById('search').value.toLowerCase();
   const showV=document.getElementById('show-vencidas').checked;
   let rows=DATA.filter(r=>(showV||r.dias>0)&&(!q||r.ticker.toLowerCase().includes(q)));
+  rows.forEach(r=>cantAdjuntar('tf',r));
   rows.sort((a,b)=>{
     let av=filaValor(a,sortCol),bv=filaValor(b,sortCol);
     // string sort for ticker and vcto (vcto is ISO string → lexicographic = chronological)
@@ -5342,7 +5376,7 @@ function renderTable(){
     th.classList.toggle('sorted',c===sortCol);
   });
   const tbody=document.getElementById('table-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="13" class="no-rows">Sin resultados. Agregá letras con + Nueva y actualizá precios.</td></tr>';set('st-count','0 letras');renderChart();return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="16" class="no-rows">Sin resultados. Agregá letras con + Nueva y actualizá precios.</td></tr>';set('st-count','0 letras');renderChart();return;}
   // cache heat ranges for visible rows
   window._heatRanges={
     tna:heatRange('tna'),
@@ -5455,6 +5489,7 @@ function buildRow(r,cup){
     <td>${cellContent('tna')}</td>
     <td>${cellContent('tir')}</td>
     <td>${cellContent('tem')}</td>
+    ${cantTds('tf',r)}
     <td onclick="event.stopPropagation()"><div class="row-act">
       ${cup?'':`<button class="rbtn del" title="Eliminar" onclick="deleteRow('${r.ticker}')" style="display:${isAdmin()?'':'none'}">✕</button>`}
     </div></td>
@@ -5946,13 +5981,13 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-liquidez','usd-riesgo','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-curvas','usd-series','usd-comentario'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-liquidez','usd-riesgo','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-descuento','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-comentario','page-dual','page-escenarios','page-run','page-pxcierre','page-retornos','page-cartera','page-licitaciones','page-futuros','page-liquidez','page-sintusd'];
+    'page-comentario','page-dual','page-escenarios','page-run','page-pxcierre','page-descuento','page-retornos','page-cartera','page-licitaciones','page-futuros','page-liquidez','page-sintusd'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -6040,6 +6075,7 @@ function switchUsdTab(tab){
   if(tab==='usd-riesgo') rpsInit();
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
+  if(tab==='usd-descuento') descRender('usd');
   if(tab==='usd-sintusd'){document.getElementById('page-usd-sintusd').style.display='flex';susInit('usd');}
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();desvMontar('usd');}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
@@ -6134,6 +6170,9 @@ function switchTab(tab){
     document.getElementById('page-pxcierre').style.display='block';
     pxcRender();
     pxcResolver();
+  } else if(tab==='descuento'){
+    document.getElementById('page-descuento').style.display='block';
+    descRender('pesos');
   } else if(tab==='escenarios'){
     document.getElementById('page-escenarios').style.display='block';
     updateIndexBanners();
@@ -6693,7 +6732,7 @@ async function cerFetchPrices(){
 }
 
 // ── CER TABLE ─────────────────────────────────────────────────────────────────
-const CER_TH=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tir','tirProy','tnaProy','temProy'];
+const CER_TH=['ticker','tipo','vcto','dias','modDuration','precio','pct_change','spread','monto','tir','tirProy','tnaProy','temProy','pxCierre','tasaCierre','pxEquiv'];
 function cerSortBy(col){
   cerSortAsc=cerSortCol===col?!cerSortAsc:(col==='vcto'||col==='ticker');
   cerSortCol=col;cerRenderTable();
@@ -6708,6 +6747,7 @@ function cerRenderTable(){
   const q=document.getElementById('cer-search').value.toLowerCase();
   const showV=document.getElementById('cer-show-vencidas').checked;
   let rows=CER_DATA.filter(r=>(showV||r.dias>0)&&(!q||r.ticker.toLowerCase().includes(q)));
+  rows.forEach(r=>cantAdjuntar('cer',r));
   rows.sort((a,b)=>{
     if(cerSortCol==='ticker'||cerSortCol==='vcto'||cerSortCol==='tipo'){
       const av=a[cerSortCol]||'',bv=b[cerSortCol]||'';
@@ -6726,7 +6766,7 @@ function cerRenderTable(){
   });
   const tbody=document.getElementById('cer-table-body');
   const hasProy=CER_PROJ.size>0;
-  if(!rows.length){tbody.innerHTML=`<tr><td colspan="13" class="no-rows">Agregá bonos CER con + Nueva y actualizá precios.</td></tr>`;set('st-count','0 bonos');return;}
+  if(!rows.length){tbody.innerHTML=`<tr><td colspan="16" class="no-rows">Agregá bonos CER con + Nueva y actualizá precios.</td></tr>`;set('st-count','0 bonos');return;}
 
   tbody.innerHTML=rows.map(r=>{
     const v=r.dias<=0;
@@ -6780,6 +6820,7 @@ function cerRenderTable(){
       <td>${cercProy(r.tirProy,'tirProy')}</td>
       <td>${cercProy(r.tnaProy,'tnaProy')}</td>
       <td>${cercProy(r.temProy,'temProy')}</td>
+      ${cantTds('cer',r)}
       <td onclick="event.stopPropagation()"><div class="row-act">
         <button class="rbtn del" onclick="cerDeleteRow('${r.ticker}')" style="display:${isAdmin()?'':'none'}">✕</button>
       </div></td>
@@ -7477,6 +7518,7 @@ function maeTickerFromVcto(vcto){
 const CAUCION_URL='https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cauciones';
 const CAUCION_TTL=10*60*1000;
 let CAUCION_ARS=[];   // [{dias,tna,monto,ops}] ascendente por plazo
+let CAUCION_USD=[];   // lo mismo, la caución en dólares (la usa Descuento)
 let _caucionTs=0;
 
 async function caucionFetch(forzar){
@@ -7489,12 +7531,14 @@ async function caucionFetch(forzar){
     if(!res.ok)throw new Error('BYMA HTTP '+res.status);
     const crudo=await res.json();
     const arr=Array.isArray(crudo)?crudo:((crudo&&crudo.data)||[]);
-    const lista=arr
-      .filter(x=>x&&x.denominationCcy==='ARS'&&x.settlementPrice>0&&x.daysToMaturity>0)
+    const deMoneda=ccy=>arr
+      .filter(x=>x&&x.denominationCcy===ccy&&x.settlementPrice>0&&x.daysToMaturity>0)
       .map(x=>({dias:+x.daysToMaturity,tna:+x.settlementPrice,
                 monto:+(x.volumeAmount||0),ops:+(x.numberOfOrders||0)}))
       .sort((a,b)=>a.dias-b.dias);
+    const lista=deMoneda('ARS'),usd=deMoneda('USD');
     if(lista.length){CAUCION_ARS=lista;_caucionTs=Date.now();}
+    if(usd.length)CAUCION_USD=usd;
   }catch(e){console.warn('[caución]',e.message);}
   return CAUCION_ARS;
 }
@@ -7512,6 +7556,7 @@ async function caucionRefrescar(forzar){
   await caucionFetch(forzar);
   const ahora=CAUCION_ARS.length?CAUCION_ARS[0].tna:null;
   try{if(typeof sintPintarTasaDesc==='function')sintPintarTasaDesc();}catch(e){}
+  try{if(typeof descPintar==='function')descPintar();}catch(e){}
   // La tasa de descuento entra en la valuación de los sintéticos, y los
   // sintéticos se grafican en el Resumen.
   if(antes!==ahora){
@@ -10233,7 +10278,7 @@ const LS_TAMAR='bonosAR_tamar_bonds_v1';
 let TAMAR_BONDS=[];
 let TAMAR_DATA=[];
 let tamarSortCol='vcto', tamarSortAsc=true;
-const TAMAR_TH=['ticker','vcto','dias','modDuration','precio','pct_change','spread','monto','margenTNA','tir','tna','tem'];
+const TAMAR_TH=['ticker','vcto','dias','modDuration','precio','pct_change','spread','monto','margenTNA','tir','tna','tem','pxCierre','tasaCierre','pxEquiv'];
 
 // ── TAMAR ENRICH ─────────────────────────────────────────────────────────────
 function tamarEnrich(r){
@@ -10374,6 +10419,7 @@ function tamarRenderTable(){
   const q=(document.getElementById('tamar-search')?.value||'').toLowerCase();
   const showV=document.getElementById('tamar-show-vencidas')?.checked;
   let rows=TAMAR_DATA.filter(r=>(showV||r.dias>0)&&(!q||r.ticker.toLowerCase().includes(q)));
+  rows.forEach(r=>cantAdjuntar('tamar',r));
   rows.sort((a,b)=>{
     if(tamarSortCol==='ticker'||tamarSortCol==='vcto'){
       const av=a[tamarSortCol]||'',bv=b[tamarSortCol]||'';
@@ -10392,7 +10438,7 @@ function tamarRenderTable(){
   });
   const tbody=document.getElementById('tamar-table-body');
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="13" class="no-rows">Agregá bonos TAMAR con + Nueva y actualizá precios.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="16" class="no-rows">Agregá bonos TAMAR con + Nueva y actualizá precios.</td></tr>`;
     document.getElementById('tamar-st-count').textContent='0 bonos';return;
   }
   const E=escala3Cols(TAMAR_DATA.filter(r=>r.dias>0),['margenTNA','tir','tna','tem']);
@@ -10422,6 +10468,7 @@ function tamarRenderTable(){
       <td><div class="cv no-edit c-amber" style="${v?'':escala3Estilo(r.tir,E.tir)}">${f(r.tir)}</div></td>
       <td><div class="cv no-edit c-muted" style="${v?'':escala3Estilo(r.tna,E.tna)}">${f(r.tna)}</div></td>
       <td><div class="cv no-edit c-muted" style="${v?'':escala3Estilo(r.tem,E.tem)}">${f(r.tem)}</div></td>
+      ${cantTds('tamar',r)}
       <td onclick="event.stopPropagation()"><div class="row-act">
         <button class="rbtn del" onclick="tamarDeleteRow('${r.ticker}')" style="display:${isAdmin()?'':'none'}">✕</button>
       </div></td>
@@ -15024,6 +15071,334 @@ function calcTodos(clave,incluir){
   calcExclGuardar(o);
   calcRepintar(clave);
 }
+// ══ CIERRE ANTERIOR ══
+// Tres columnas en las siete calculadoras: PX cierre, TASA CIERRE y PX
+// equivalente a hoy.
+//
+// El cierre es el de la rueda anterior: el último precio que archivó la app ese
+// día, la foto de después de las 17:15. Si el archivo no tiene el bono, o no
+// tiene esa rueda, el que se despeja de la variación del día de data912:
+// precio / (1 + variación), con la variación redondeada a dos decimales, así
+// que puede errarle por un tick. Antes de que abra la rueda, o un día sin rueda,
+// data912 todavía muestra la anterior y el cierre es su último precio. En
+// dólares el archivo guarda MEP: con el selector en pesos o en cable, el cierre
+// sale de data912 por el ticker de esa moneda.
+//
+// La tasa del cierre es la de ese precio liquidando a t+1 de esa rueda, con el
+// motor de cada calculadora y en su tasa: TIR en tasa fija, en DLK y en dólares,
+// TIR real en CER y margen en TAMAR. El PX equivalente es el precio que,
+// operando hoy a t+1, rinde exactamente esa tasa: contra el precio de ahora,
+// separa el movimiento del bono de lo que devengó entre las dos liquidaciones.
+//
+// Estado en var: las tablas se pintan durante la carga.
+var CANT={r:null,p:null,hoy:null,err:null,ts:0},CANT_ULT={},CANT_MEMO={};
+var CANT_SEC={tf:'TF',cer:'CER',tamar:'TAMAR',dlk:'DLK',bon:'BON',glo:'GLO',bop:'BOP'};
+function cantUltGuardar(d){
+  if(!Array.isArray(d))return;
+  d.forEach(x=>{if(x&&x.symbol&&x._fuente!=='archivo'&&x.c>0)
+    CANT_ULT[x.symbol]={c:+x.c,pct:x.pct_change==null||x.pct_change===''?null:+x.pct_change};});
+}
+function cantRuedaAnt(){return licHabilAnterior(hoyAR());}
+// data912 sigue mostrando la rueda anterior hasta que abre la de hoy.
+function cantSinRuedaHoy(){
+  if(!esHabil(parseDate(hoyAR())))return true;
+  const h=parseInt(new Date().toLocaleString('en-US',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',hour12:false}),10)%24;
+  return h<11;
+}
+function cantDerivado(sym){
+  const u=sym&&CANT_ULT[sym];
+  if(!u||!(u.c>0))return null;
+  if(cantSinRuedaHoy())return u.c;
+  if(u.pct==null||!isFinite(u.pct)||u.pct<=-100)return null;
+  const dec=Math.min(6,Math.max(2,(String(u.c).split('.')[1]||'').length));
+  return +(u.c/(1+u.pct/100)).toFixed(dec);
+}
+function cantArchivo(){
+  const hoy=hoyAR();
+  if(CANT.p&&CANT.hoy===hoy&&(!CANT.err||Date.now()-CANT.ts<300000))return CANT.p;
+  CANT.hoy=hoy;CANT.err=null;CANT.ts=Date.now();
+  const p=(async()=>{
+    if(typeof supa==='undefined'||!supa)throw new Error('sin conexión al archivo');
+    const desde=fmtDate(new Date(parseDate(hoy).getTime()-10*864e5));
+    const{data,error}=await supa.from('bond_price_snapshots').select('ticker,sector,price,snapshot_date')
+      .gte('snapshot_date',desde).lt('snapshot_date',hoy).gt('price',0)
+      .order('snapshot_date',{ascending:false}).limit(1000);
+    if(error)throw new Error(error.message);
+    const fecha=data&&data.length?data[0].snapshot_date:null,m=new Map();
+    (data||[]).forEach(x=>{if(x.snapshot_date===fecha)m.set(x.sector+'|'+x.ticker,+x.price);});
+    return{fecha,m};
+  })();
+  CANT.p=p;
+  p.then(r=>{if(CANT.p!==p)return;CANT.r=r;CANT_MEMO={};cantRepintar();})
+   .catch(e=>{if(CANT.p!==p)return;CANT.err=e.message||String(e);console.warn('[cierre anterior]',CANT.err);});
+  return p;
+}
+function cantRepintar(){
+  try{
+    const c=currentSection==='usd'?{'usd-bonares':'bon','usd-globales':'glo','usd-bopreales':'bop'}[currentUsdTab]
+      :{lecap:'tf',cer:'cer',tamar:'tamar',dlk:'dlk'}[currentTab];
+    if(c)calcRepintar(c);
+  }catch(e){}
+}
+function cantCierre(sec,ticker,sym,conArchivo){
+  const ant=cantRuedaAnt(),R=CANT.r;
+  if(conArchivo!==false&&R&&R.fecha===ant){
+    const v=R.m.get(sec+'|'+ticker);
+    if(v>0)return{px:v,fecha:ant,fuente:'archivo'};
+  }
+  const d=cantDerivado(sym);
+  return d>0?{px:d,fecha:ant,fuente:'data912'}:null;
+}
+// La tasa de un precio por cada 100 VN, en la de la calculadora, liquidando en
+// liq. En dólares el precio va en dólares; en DLK, en pesos, con el tipo de
+// cambio tc si se mira en dólares.
+function cantTasa(k,b,precio,liq,tc){
+  if(!b||!(precio>0)||!liq)return null;
+  const g=G_LIQ;G_LIQ=liq;
+  try{
+    let v=null;
+    if(k==='tf'){
+      if(b.cupon){
+        const base=(typeof TF_CUPON!=='undefined'?TF_CUPON:[]).find(x=>x.ticker===b.base);
+        const c=base?tfcCalc({...base,precio},liq):null;
+        const x=c?(/ put$/.test(b.ticker)?c.put:c.vto):null;
+        v=x?x.tir:null;
+      }else v=enrich({...b,precio}).tir;
+    }
+    else if(k==='cer')v=cerEnrich({...b,precio}).tir;
+    else if(k==='tamar')v=tamarVista(tamarEnrich({...b,precio})).margenTNA;
+    else if(k==='dlk')v=(PROJ_FUENTE.dlkModo||'usd')==='pesos'?dlkCalcTIRPesos(precio,b,liq):(tc>0?dlkCalcTIR(precio,b,liq,tc):null);
+    else v=bopTIR(b,fmtDate(liq),precio);
+    return v!=null&&isFinite(v)?v:null;
+  }catch(e){return null;}
+  finally{G_LIQ=g;}
+}
+// El precio que rinde `tasa` liquidando en liq. La tasa baja cuando el precio
+// sube: se encierra la raíz alrededor del cierre y se busca por falsa posición.
+function cantPxPara(k,b,tasa,liq,tc,p0){
+  const f=p=>{const v=cantTasa(k,b,p,liq,tc);return v==null?NaN:v-tasa;};
+  let a=p0*0.99,z=p0*1.01,fa=f(a),fz=f(z);
+  for(let i=0;i<12&&isFinite(fa)&&isFinite(fz)&&fa*fz>0;i++){
+    if(fa>0){a=z;fa=fz;z*=1.2;fz=f(z);}else{z=a;fz=fa;a*=0.8;fa=f(a);}
+  }
+  if(!isFinite(fa)||!isFinite(fz)||fa*fz>0)return null;
+  if(fa===0)return a;
+  if(fz===0)return z;
+  let lado=0;
+  for(let i=0;i<100;i++){
+    const m=(a*fz-z*fa)/(fz-fa),fm=f(m);
+    if(!isFinite(fm))return null;
+    if(Math.abs(fm)<1e-9)return m;
+    if(fm*fz>0){z=m;fz=fm;if(lado===-1)fa/=2;lado=-1;}
+    else{a=m;fa=fm;if(lado===1)fz/=2;lado=1;}
+    if(Math.abs(z-a)<=1e-12*Math.abs(m))return m;
+  }
+  return(a+z)/2;
+}
+// {px, tasa, eq, ci, liqC, liqH} de un bono, o null si no hay cierre.
+function cantFila(k,b){
+  if(!b)return null;
+  if(!CANT.r)cantArchivo();
+  const usd=k==='bon'||k==='glo'||k==='bop',sec=CANT_SEC[k];
+  const ant=cantRuedaAnt(),liqC=addHabiles(parseDate(ant),1),liqH=addHabiles(parseDate(hoyAR()),1);
+  let ci=null,conv=1,convH=1,tcC=null,tcH=null,ctx='';
+  if(usd){
+    const row=((typeof EQUIV_DATA!=='undefined'&&EQUIV_DATA)||[]).find(e=>e.ticker===b.ticker);
+    if(!row)return null;
+    const mon=usdCurrency;
+    ci=mon==='MEP'?cantCierre(sec,b.ticker,row.mep):cantCierre(sec,b.ticker,mon==='ARS'?row.ars:row.cable,false);
+    if(ci&&mon==='ARS'){
+      // El ticker en pesos pasa a dólares con el MEP de cada momento, como la tabla.
+      const a=cantDerivado('AL30'),d=cantDerivado('AL30D'),ua=CANT_ULT.AL30,ud=CANT_ULT.AL30D;
+      if(!(a>0&&d>0&&ua&&ud&&ud.c>0))return{px:ci.px,tasa:null,eq:null,ci,liqC,liqH};
+      conv=a/d;convH=ua.c/ud.c;
+    }
+    ctx=mon+'|'+conv+'|'+convH;
+  }else{
+    const t=b.cupon?b.base:b.ticker;
+    ci=cantCierre(sec,t,t);
+    try{
+      if(k==='dlk'){
+        const modo=PROJ_FUENTE.dlkModo||'usd';
+        if(modo!=='pesos'){tcC=licA3500En(ant);tcH=dlkTCHoy();}
+        ctx=modo+'|'+tcC+'|'+tcH+'|'+DLK_INDEX.length;
+      }else if(k==='tamar')ctx=(PROJ_FUENTE.tamar||'5dias')+'|'+TAMAR_INDEX.length;
+      else if(k==='cer')ctx=String(CER_INDEX.length);
+    }catch(e){}
+  }
+  if(!ci)return null;
+  const clave=[k,b.ticker,ci.px,ant,fmtDate(liqH),ctx].join('|');
+  if(CANT_MEMO[clave])return CANT_MEMO[clave];
+  const tasa=cantTasa(k,b,ci.px/conv,liqC,tcC);
+  let eq=null;
+  if(tasa!=null){
+    if(usd){const p=bopPrecio(b,fmtDate(liqH),tasa);eq=p>0?p*convH:null;}
+    else eq=cantPxPara(k,b,tasa,liqH,tcH,ci.px);
+  }
+  const out={px:ci.px,tasa,eq,ci,liqC,liqH};
+  // Sin tasa puede faltar un índice que todavía no llegó: no se guarda.
+  if(tasa!=null)CANT_MEMO[clave]=out;
+  return out;
+}
+function cantAdjuntar(k,r){
+  let x=null;
+  try{x=r&&!(r.dias<=0)?cantFila(k,r):null;}catch(e){x=null;}
+  r._cant=x;r.pxCierre=x?x.px:null;r.tasaCierre=x?x.tasa:null;r.pxEquiv=x?x.eq:null;
+  return r;
+}
+function cantAdjuntarUsd(g,e){
+  let x=null;
+  try{const b=e.b;x=b&&!(b.vencimiento&&b.vencimiento<=hoyAR())?cantFila(g,b):null;}catch(err){x=null;}
+  e._cant=x;e.pxCierre=x?x.px:null;e.tasaCierre=x?x.tasa:null;e.pxEquiv=x?x.eq:null;
+  return e;
+}
+function cantFec(f){return f?String(f).slice(8,10)+'/'+String(f).slice(5,7):'';}
+function cantTitulos(k,x,ahora){
+  const ci=x.ci,fec=cantFec(ci.fecha);
+  const de=ci.fuente==='archivo'?`Cierre del ${fec}, archivado por la app`
+    :`Cierre del ${fec} según data912: sale de la variación del día, que viene redondeada, y puede diferir en un tick`;
+  const unidad={tf:'TIR',cer:'TIR real',tamar:'Margen TNA',bon:'TIR',glo:'TIR',bop:'TIR',
+    dlk:(PROJ_FUENTE.dlkModo||'usd')==='pesos'?'TIR en pesos':'TIR en dólares, con el A3500 de esa rueda,'}[k];
+  const tasa=x.tasa!=null?`${unidad} del precio de cierre, liquidando el ${cantFec(fmtDate(x.liqC))}`
+    :'Sin tasa para ese precio';
+  let eq='Sin precio equivalente';
+  if(x.eq!=null){
+    eq=`Operando hoy a t+1 (liquida el ${cantFec(fmtDate(x.liqH))}) rinde ${x.tasa.toFixed(2)}%, la tasa del cierre`;
+    if(ahora>0){const d=(ahora/x.eq-1)*100;eq+=` · el precio de ahora está ${d>=0?'+':''}${d.toFixed(2).replace('.',',')}% contra el equivalente`;}
+  }
+  return{de,tasa,eq};
+}
+function cantTds(k,r){
+  const x=r._cant,e=v=>String(v).replace(/"/g,'&quot;');
+  if(!x)return'<td><div class="cv no-edit c-muted">—</div></td>'.repeat(3);
+  const T=cantTitulos(k,x,r.precio);
+  return`<td><div class="cv no-edit c-muted" title="${e(T.de)}">${fmtPx(x.px)}</div></td>`
+    +`<td><div class="cv no-edit c-muted" title="${e(T.tasa)}">${x.tasa!=null?fmtP2(x.tasa):'—'}</div></td>`
+    +`<td><div class="cv no-edit" title="${e(T.eq)}">${x.eq!=null?fmtPx(x.eq):'—'}</div></td>`;
+}
+function cantTdsUsd(g,e){
+  const x=e._cant,st='padding:9px 12px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;';
+  if(!x)return`<td style="${st}color:var(--text3)">—</td>`.repeat(3);
+  const b=e.b,ahora=b.lastPrecioDisplay??b.lastPrecio,q=v=>String(v).replace(/"/g,'&quot;');
+  const T=cantTitulos(g,x,ahora);
+  const px=v=>v==null||!isFinite(v)?'—':v>=1000?Math.round(v).toLocaleString('es-AR'):v.toFixed(2);
+  return`<td style="${st}color:var(--text2)" title="${q(T.de)}">${px(x.px)}</td>`
+    +`<td style="${st}color:var(--text2)" title="${q(T.tasa)}">${x.tasa!=null?x.tasa.toFixed(2)+'%':'—'}</td>`
+    +`<td style="${st}color:var(--text)" title="${q(T.eq)}">${px(x.eq)}</td>`;
+}
+
+// ══ DESCUENTO: t+0 ⇄ t+1 ══
+// Lleva un precio de contado inmediato a 24 horas, y al revés, con una tasa:
+// t+1 = t+0 × (1 + TNA × días / 365), con los días corridos entre las dos
+// liquidaciones (un viernes son tres). Se escribe en cualquiera de las dos
+// puntas y la otra sale sola. La tasa, si no escribís una, es la caución de
+// BYMA al plazo de esos días, o la más corta que operó; en pesos, si BYMA no
+// responde, los pases entre terceros a un día del BCRA, que son el mismo
+// mercado con dos ruedas de atraso. En dólares no hay serie del BCRA: sin BYMA,
+// la tasa se escribe. Está en las dos secciones, con su caución cada una.
+var DESC={pesos:{tasa:null,px0:null,px1:null,ult:0,fecha:''},usd:{tasa:null,px0:null,px1:null,ult:0,fecha:''}};
+var DESC_BCRA={v:null,fecha:null,pidiendo:false,ts:0};
+function descPg(s){return document.getElementById(s==='usd'?'page-usd-descuento':'page-descuento');}
+function descEl(s,x){return document.getElementById('desc-'+x+'-'+s);}
+function descFechas(s){
+  const t0=siguienteHabil(parseDate(DESC[s].fecha||hoyAR()));
+  const t1=addHabiles(t0,1);
+  return{t0,t1,dias:diasACT(t0,t1)};
+}
+function descDefecto(s,dias){
+  let L=[];
+  try{L=(s==='usd'?CAUCION_USD:CAUCION_ARS).filter(x=>x.tna>0);}catch(e){}
+  const c=L.find(x=>x.dias===dias&&x.monto>0)||L.find(x=>x.dias===dias)||L[0];
+  if(c)return{tna:c.tna,txt:`caución ${s==='usd'?'en dólares ':''}de BYMA a ${c.dias} día${c.dias===1?'':'s'}`,aviso:false};
+  if(s!=='usd'&&DESC_BCRA.v!=null)
+    return{tna:DESC_BCRA.v,txt:`BYMA no responde: pases entre terceros a 1 día del BCRA, del ${cantFec(DESC_BCRA.fecha)}`,aviso:true};
+  return null;
+}
+async function descTraerBcra(){
+  if(DESC_BCRA.pidiendo||(DESC_BCRA.v!=null&&Date.now()-DESC_BCRA.ts<3600000))return;
+  DESC_BCRA.pidiendo=true;
+  try{
+    // 150: pases entre terceros a un día (DINERO_ID_PASES), la misma serie del
+    // costo del dinero.
+    const desde=fmtDate(new Date(parseDate(hoyAR()).getTime()-20*864e5));
+    const m=await bcraSerieDiaria(150,desde);
+    const f=[...m.keys()].filter(k=>m.get(k)>0).sort().pop();
+    if(f){DESC_BCRA.v=m.get(f);DESC_BCRA.fecha=f;DESC_BCRA.ts=Date.now();}
+  }catch(e){console.warn('[descuento] BCRA:',e.message);}
+  finally{DESC_BCRA.pidiendo=false;}
+  descPintar();
+}
+function descRender(s){
+  s=s==='usd'?'usd':'pesos';
+  const pg=descPg(s);
+  if(!pg)return;
+  if(!pg.querySelector('.desc-cuerpo')){
+    const id=x=>'desc-'+x+'-'+s;
+    const nota=s==='usd'
+      ?'Si no escribís una tasa, va la caución en dólares de BYMA al plazo de esos días, o la más corta que operó.'
+      :'Si no escribís una tasa, va la caución de BYMA al plazo de esos días, o la más corta que operó; si BYMA no responde, los pases entre terceros a un día del BCRA, que son el mismo mercado con dos ruedas de atraso.';
+    pg.insertAdjacentHTML('beforeend',`<div class="run-cab"><span class="pane-title">Descuento t+0 ⇄ t+1</span></div>
+    <div class="run-nota" style="padding:0 16px">Escribí el precio en una de las dos puntas y la otra sale sola: t+1 = t+0 × (1 + TNA × días / 365), con los días corridos entre las dos liquidaciones (un viernes son tres). ${nota}</div>
+    <div class="desc-cuerpo">
+      <div class="desc-fila"><label for="${id('fecha')}">Operación</label><input type="date" class="desc-in" id="${id('fecha')}"><span class="desc-dato" id="${id('dias')}"></span></div>
+      <div class="desc-fila"><label for="${id('tasa')}">Tasa TNA %</label><input type="number" step="any" inputmode="decimal" class="desc-in" id="${id('tasa')}"><span class="desc-dato" id="${id('fuente')}"></span><button type="button" class="btn" id="${id('volver')}" hidden>↺ Volver a la caución</button></div>
+      <div class="desc-par">
+        <div class="desc-punta"><label for="${id('px0')}">Precio t+0</label><input type="number" step="any" inputmode="decimal" class="desc-in desc-px" id="${id('px0')}"><span class="desc-dato" id="${id('l0')}"></span></div>
+        <span class="desc-flecha" aria-hidden="true">⇄</span>
+        <div class="desc-punta"><label for="${id('px1')}">Precio t+1</label><input type="number" step="any" inputmode="decimal" class="desc-in desc-px" id="${id('px1')}"><span class="desc-dato" id="${id('l1')}"></span></div>
+      </div>
+      <div class="desc-res" id="${id('res')}" role="status" aria-live="polite"></div>
+    </div>`);
+    // El estado se lee en cada evento, no se guarda acá.
+    const num=v=>{const n=parseFloat(String(v).replace(',','.'));return isFinite(n)?n:null;};
+    descEl(s,'fecha').addEventListener('change',ev=>{DESC[s].fecha=ev.target.value||'';descCalc(s);});
+    descEl(s,'tasa').addEventListener('input',ev=>{DESC[s].tasa=num(ev.target.value);descCalc(s);});
+    descEl(s,'volver').addEventListener('click',()=>{DESC[s].tasa=null;descEl(s,'tasa').value='';descCalc(s);});
+    descEl(s,'px0').addEventListener('input',ev=>{const v=num(ev.target.value);DESC[s].px0=v>0?v:null;DESC[s].ult=0;descCalc(s);});
+    descEl(s,'px1').addEventListener('input',ev=>{const v=num(ev.target.value);DESC[s].px1=v>0?v:null;DESC[s].ult=1;descCalc(s);});
+  }
+  descCalc(s);
+  setTimeout(()=>{
+    try{if(typeof caucionFetch==='function')caucionFetch().then(()=>descPintar(),()=>{});}catch(e){}
+    let hay=false;try{hay=CAUCION_ARS.length>0;}catch(e){}
+    if(s==='pesos'&&!hay)descTraerBcra();
+  },0);
+}
+function descCalc(s){
+  const pg=descPg(s);
+  if(!pg||!pg.querySelector('.desc-cuerpo'))return;
+  const E=DESC[s],F=descFechas(s),def=descDefecto(s,F.dias),manual=E.tasa!=null;
+  const tna=manual?E.tasa:(def?def.tna:null);
+  const fe=descEl(s,'fecha');
+  if(document.activeElement!==fe)fe.value=E.fecha||hoyAR();
+  const it=descEl(s,'tasa'),fu=descEl(s,'fuente');
+  if(document.activeElement!==it)it.value=manual?String(E.tasa):'';
+  it.placeholder=!manual&&def?def.tna.toFixed(2):'—';
+  it.classList.toggle('desc-manual',manual);
+  fu.textContent=manual?'escrita a mano':def?def.txt
+    :s==='usd'?'BYMA no responde: escribí la tasa':'ni BYMA ni el BCRA responden: escribí la tasa';
+  fu.className='desc-dato'+(manual||!def||def.aviso?' desc-aviso':'');
+  descEl(s,'volver').hidden=!manual;
+  const dia=d=>d.toLocaleDateString('es-AR',{weekday:'short'}).replace('.','')+' '+cantFec(fmtDate(d));
+  descEl(s,'dias').textContent=`${F.dias} día${F.dias===1?'':'s'} entre las dos liquidaciones`;
+  descEl(s,'l0').textContent='liquida '+dia(F.t0);
+  descEl(s,'l1').textContent='liquida '+dia(F.t1);
+  const fac=tna!=null&&isFinite(tna)?1+tna/100*F.dias/365:null;
+  const i0=descEl(s,'px0'),i1=descEl(s,'px1'),r4=v=>String(+v.toFixed(4));
+  const[orig,dest,io,idst]=E.ult===1?['px1','px0',i1,i0]:['px0','px1',i0,i1];
+  if(fac&&E[orig]!=null)E[dest]=E.ult===1?E.px1/fac:E.px0*fac;
+  else if(E[orig]==null)E[dest]=null;
+  if(document.activeElement!==idst)idst.value=fac&&E[dest]!=null?r4(E[dest]):'';
+  io.classList.remove('desc-calc');
+  idst.classList.toggle('desc-calc',E[dest]!=null);
+  const res=descEl(s,'res');
+  if(fac&&E.px0!=null&&E.px1!=null){
+    const d=E.px1-E.px0,n=(v,k)=>v.toLocaleString('es-AR',{minimumFractionDigits:k,maximumFractionDigits:k});
+    res.textContent=`factor ${n(fac,6)} · t+1 − t+0 = ${n(d,4)} (${n((fac-1)*100,4)}%) · TNA ${n(tna,2)}%`;
+  }else res.textContent=fac?'':'Falta la tasa.';
+}
+function descPintar(){['pesos','usd'].forEach(s=>{try{descCalc(s);}catch(e){}});}
+
 function calcRepintar(clave){
   try{calcClave(clave).repintar();}catch(e){console.warn('[calculadoras]',clave,e);}
   calcBonosPintar(clave);
@@ -15084,8 +15459,8 @@ function calcBonosPintar(clave){
 // desde el arranque, antes de que el script llegue hasta acá.
 var CALC_LS='bonosAR_calc_vista_v1';
 var CALC_SUBSOLAPAS={
-  pesos:[['lecap','Tasa fija'],['cer','CER'],['tamar','TAMAR'],['dlk','DLK'],['sintetico','Sint. ARS'],['sintusd','Sint. USD'],['run','RUN'],['pxcierre','Px Cierre']],
-  usd:[['usd-bonares','Bonares'],['usd-globales','Globales'],['usd-bopreales','Bopreales'],['usd-equiv','Equivalencias'],['usd-sintusd','Sint. USD']],
+  pesos:[['lecap','Tasa fija'],['cer','CER'],['tamar','TAMAR'],['dlk','DLK'],['sintetico','Sint. ARS'],['sintusd','Sint. USD'],['run','RUN'],['pxcierre','Px Cierre'],['descuento','Descuento']],
+  usd:[['usd-bonares','Bonares'],['usd-globales','Globales'],['usd-bopreales','Bopreales'],['usd-equiv','Equivalencias'],['usd-sintusd','Sint. USD'],['usd-descuento','Descuento']],
 };
 // raiz: dónde va la fila de subsolapas (barra: en la barra de arriba que ya
 // tiene la página, en lugar del título); area: el panel de abajo; tabla: la
@@ -15103,6 +15478,8 @@ var CALC_DEF={
   'usd-equiv':{sec:'usd',raiz:'page-usd-equiv',barra:true},
   run:{sec:'pesos',raiz:'page-run'},
   pxcierre:{sec:'pesos',raiz:'page-pxcierre'},
+  descuento:{sec:'pesos',raiz:'page-descuento'},
+  'usd-descuento':{sec:'usd',raiz:'page-usd-descuento'},
   'usd-sintusd':{sec:'usd',raiz:'page-usd-sintusd',area:'usus-chart-area',tabla:'#page-usd-sintusd .table-scroll table',chart:()=>SUS_CHARTS.usd},
 };
 var CALC_POR_CLAVE={tf:'lecap',cer:'cer',tamar:'tamar',dlk:'dlk',bon:'usd-bonares',glo:'usd-globales',bop:'usd-bopreales'};
@@ -17261,11 +17638,12 @@ function dlkRenderTable(){
   const tbody=document.getElementById('dlk-table-body');
   if(!tbody)return;
   if(!DLK_BONDS.length){
-    tbody.innerHTML=`<tr><td colspan="11" class="no-rows">Agregá bonos DLK con + Nueva.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="14" class="no-rows">Agregá bonos DLK con + Nueva.</td></tr>`;
     return;
   }
   const liq=G_LIQ||addHabiles(TODAY,1);
   const rows=DLK_DATA.filter(r=>r.dias>0).sort((a,b)=>a.vcto.localeCompare(b.vcto));
+  rows.forEach(r=>cantAdjuntar('dlk',r));
   const E=escala3Cols(rows,['tir','tna']);
   const f2=(v,s='%')=>v==null||isNaN(v)?'—':v.toFixed(2)+s;
   tbody.innerHTML=rows.map(r=>{
@@ -17291,6 +17669,7 @@ function dlkRenderTable(){
       <td><div class="cv no-edit c-amber">${parStr}</div></td>
       <td><div class="cv no-edit c-blue" style="${escala3Estilo(r.tir,E.tir)}">${f2(r.tir)}</div></td>
       <td><div class="cv no-edit c-amber" style="${escala3Estilo(r.tna,E.tna)}">${f2(r.tna)}</div></td>
+      ${cantTds('dlk',r)}
       <td onclick="event.stopPropagation()"><div class="row-act">
         <button class="rbtn del" onclick="dlkDeleteRow('${r.ticker}')" style="display:${isAdmin()?'':'none'}">✕</button>
       </div></td>
@@ -19719,6 +20098,9 @@ const USD_SUM_COLS=[
   {key:'paridad',    label:'PARIDAD', align:'right'},
   {key:'tir',        label:'TIR',     align:'right'},
   {key:'tna',        label:'TNA',     align:'right'},
+  {key:'pxCierre',   label:'PX CIERRE',align:'right',title:"El cierre de la rueda anterior: el que archivó la app ese día; si no lo tiene, el que sale de la variación del día de data912, en la moneda elegida arriba (el archivo guarda MEP: en pesos y en cable sale de data912)"},
+  {key:'tasaCierre', label:'TASA CIERRE',align:'right',title:'La TIR del precio de cierre, liquidando a t+1 de esa rueda'},
+  {key:'pxEquiv',    label:'PX EQUIV. HOY',align:'right',title:"El precio que, operando hoy a t+1, rinde exactamente la tasa del cierre: contra el precio de ahora, separa el movimiento de lo que devengó"},
 ];
 function usdSumTheadHtml(pfx,sortCol,sortAsc){
   const trSt='border-bottom:2px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:1';
@@ -19728,7 +20110,7 @@ function usdSumTheadHtml(pfx,sortCol,sortAsc){
     const ind=active?(sortAsc?' ▲':' ▼'):'';
     const pad=c.align==='left'?'padding:7px 14px':'padding:7px 12px';
     const col=active?'var(--accent)':'var(--text3)';
-    h+=`<th style="${pad};text-align:${c.align};font-weight:500;color:${col};font-size:var(--fs10);letter-spacing:.045em;cursor:pointer;user-select:none;white-space:nowrap" onclick="${pfx}SortBy('${c.key}')">${c.label}${ind}</th>`;
+    h+=`<th style="${pad};text-align:${c.align};font-weight:500;color:${col};font-size:var(--fs10);letter-spacing:.045em;cursor:pointer;user-select:none;white-space:nowrap"${c.title?` title="${c.title}"`:''} onclick="${pfx}SortBy('${c.key}')">${c.label}${ind}</th>`;
   }
   return h+'</tr>';
 }
@@ -19765,6 +20147,9 @@ function usdSumSort(enriched,col,asc){
       case'paridad':     va=a.par??-Infinity;         vz=z.par??-Infinity;        break;
       case'tir':         va=a.tir??-Infinity;         vz=z.tir??-Infinity;        break;
       case'tna':         va=a.tna??-Infinity;         vz=z.tna??-Infinity;        break;
+      case'pxCierre':    va=a.pxCierre??-Infinity;    vz=z.pxCierre??-Infinity;   break;
+      case'tasaCierre':  va=a.tasaCierre??-Infinity;  vz=z.tasaCierre??-Infinity; break;
+      case'pxEquiv':     va=a.pxEquiv??-Infinity;     vz=z.pxEquiv??-Infinity;    break;
       default:           va='';vz='';
     }
     if(va<vz)return asc?-1:1;
@@ -19809,6 +20194,7 @@ function usdSumRowHtml(e,isSel,onClickFn,group,esc){
     <td style="padding:9px 12px;text-align:right;color:var(--text);font-variant-numeric:tabular-nums">${parStr}</td>
     <td onclick="usdRowEdit(event,'${g}','${b.ticker}','tir',this,'${tirVal}')" title="Click para editar TIR" style="padding:9px 12px;text-align:right;color:${ovr?'var(--warn)':'var(--accent2)'};font-weight:600;font-variant-numeric:tabular-nums;cursor:text;${ovrStyle}${!ovr&&esc?escala3Estilo(tirRaw,esc.tir):''}">${tirStr}</td>
     <td style="padding:9px 12px;text-align:right;color:var(--accent2);font-variant-numeric:tabular-nums;${!ovr&&esc&&precioRaw!=null?escala3Estilo(e.tna,esc.tna):''}">${tnaStr}</td>
+    ${cantTdsUsd(g,e)}
   </tr>`;
 }
 
