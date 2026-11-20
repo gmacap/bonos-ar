@@ -7187,8 +7187,15 @@ const omitir = (label, motivo) =>
       out.ambos = { abajo: fA().left >= gA().right - 1 && Math.abs(fA().top - gA().top) <= 2 && gA().width > 100, filas: document.querySelectorAll('#calc-fwd-cer tbody tr').length };
       calcPanelParte('cer', 0.3); await espera(100);
       out.ambos.parte = Math.abs(gA().width / areaC.querySelector('.calc-cuerpo').getBoundingClientRect().width - 0.3) < 0.03;
+      // Con la curva tirada hasta el borde, los forwards guardan su piso: 440 px
+      // de ancho abajo, 220 px de alto al costado
+      const cuA = () => areaC.querySelector('.calc-cuerpo').getBoundingClientRect();
+      calcPanelParte('cer', 0.85); await espera(100);
+      out.ambos.piso = cuA().width < 760 || fA().width >= 438;
       calcLado('cer', true); await espera(400);
       out.ambos.costado = fA().top >= gA().bottom - 1 && Math.abs(fA().left - gA().left) <= 2;
+      calcPanelParte('cer', 0.85); await espera(100);
+      out.ambos.pisoAlto = cuA().height < 500 || fA().height >= 218;
       calcLado('cer', false); calcPanelVista('cer', 'curva'); await espera(200);
       out.ambos.vuelve = getComputedStyle(areaC.querySelector('.calc-fwd')).display === 'none' && getComputedStyle(calcPanelGrafico(areaC)).display !== 'none';
       out.lado.vuelve = !document.querySelector('#page-cer .calc-lado') && areaC.getBoundingClientRect().top >= document.getElementById('cer-table-body').closest('.table-scroll').getBoundingClientRect().bottom - 2;
@@ -7322,6 +7329,7 @@ const omitir = (label, motivo) =>
   const am = cvista.ambos || {};
   check(am.abajo && am.filas >= 3 && am.parte && am.costado && am.vuelve,
         'curva y forwards a la vez: abajo uno al lado del otro, al costado uno arriba del otro, con el reparto a elección', JSON.stringify(am));
+  check(am.piso && am.pisoAlto, 'con la curva tirada hasta el borde, los forwards no se esconden: 440 px de ancho abajo, 220 px de alto al costado', JSON.stringify(am));
   const la = cvista.lado || {};
   check(la.env && la.costado && Math.abs(la.alto - la.altoTabla) <= 2 && /abajo/.test(la.boton || '') && la.guardado && la.vuelve,
         'la curva va al costado de la tabla, a toda la altura, y vuelve abajo', JSON.stringify(la));

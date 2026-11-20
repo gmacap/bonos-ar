@@ -16011,14 +16011,27 @@ function calcPanelAplicar(k){
 }
 function calcPanelVista(k,v){calcEstadoGuardar(k,{vista:v==='fwd'||v==='ambos'?v:'curva'});calcPanelAplicar(k);}
 // Cuánto del panel va para la curva cuando se ven los dos (de 0,15 a 0,85).
+// Los forwards guardan siempre un mínimo: al lado de la curva, 440 px, lo que
+// ocupan el bono, el precio, los años y tres o cuatro columnas de la matriz;
+// abajo de la curva, 220 px de alto. Sin ese piso, tirar la curva hasta el
+// borde dejaba la matriz en una franja donde no se veía. Va en el CSS, así que
+// se respeta también al achicar la ventana; si no entran los dos, la curva
+// conserva su 15%.
+const CALC_FWD_MIN={fila:440,col:220};
 function calcPanelParte(k,p){
   const D=CALC_DEF[k],area=D&&D.area&&document.getElementById(D.area),cu=area&&area.querySelector(':scope>.calc-cuerpo');
   if(!cu)return;
   const g=cu.firstElementChild;
   if(g.dataset.flexOrig===undefined)g.dataset.flexOrig=g.style.flex;
-  if(cu.classList.contains('calc-ambos')){g.style.flex=`0 0 calc(${(p*100).toFixed(1)}% - 3px)`;cu.dataset.parte=String(p);}
+  if(cu.classList.contains('calc-ambos')){
+    const piso=CALC_FWD_MIN[cu.classList.contains('fila')?'fila':'col']+6;
+    g.style.flex=`0 0 clamp(calc(15% - 3px), calc(${(p*100).toFixed(1)}% - 3px), calc(100% - ${piso}px))`;
+    cu.dataset.parte=String(p);
+  }
   else g.style.flex=g.dataset.flexOrig;
 }
+// El tope de la curva con el piso de los forwards, para un panel de 'tam' px.
+function calcPanelTope(tam,fila){return Math.min(.85,(tam-CALC_FWD_MIN[fila?'fila':'col']-3)/tam);}
 function calcDivArrastrar(k,e){
   if(e.button!==0)return;
   const D=CALC_DEF[k],area=document.getElementById(D.area),cu=area&&area.querySelector(':scope>.calc-cuerpo');
@@ -16026,9 +16039,11 @@ function calcDivArrastrar(k,e){
   e.preventDefault();
   const fila=cu.classList.contains('fila'),r=cu.getBoundingClientRect();
   document.body.classList.add(fila?'anc-arrastrando':'calc-div-alto');
+  // Se guarda lo que se ve: si el mouse pasa el tope, la división queda en el tope.
   let p=calcEstado(k).parte;
+  const tope=calcPanelTope(fila?r.width:r.height,fila);
   const mover=ev=>{
-    p=Math.max(.15,Math.min(.85,fila?(ev.clientX-r.left)/r.width:(ev.clientY-r.top)/r.height));
+    p=Math.max(.15,Math.min(tope,fila?(ev.clientX-r.left)/r.width:(ev.clientY-r.top)/r.height));
     calcPanelParte(k,p);
   };
   const soltar=()=>{
