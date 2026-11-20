@@ -1832,7 +1832,11 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <div data-pleg="be-infla">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
           <button type="button" class="res-pleg-btn" onclick="resPlegar('be-infla')" aria-expanded="true" title="Achicar"><span class="res-ev-chev">▾</span><span style="font-family:var(--serif);font-size:var(--fs13);font-weight:300;font-style:italic;color:var(--accent)">BE · Inflación</span></button>
-          <div style="display:flex;gap:3px;">
+          <div style="display:flex;gap:3px;align-items:center;">
+            <label title="Contra qué se mide la columna vs: el REM, la proyección GMA o tu sendero manual de inflación" style="display:inline-flex;align-items:center;gap:3px;margin-right:3px;font-size:var(--fs9);font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.04em">vs
+              <select id="be-ref-sel" onchange="beSetRef(this.value)" style="background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:0 3px;font-size:var(--fs10);font-family:var(--mono);color:var(--text);outline:none;cursor:pointer;text-transform:none;letter-spacing:0">
+                <option value="rem">REM</option><option value="gma">GMA</option><option value="manual">Manual</option>
+              </select></label>
             <button class="btn" style="margin:0;padding:2px 6px;font-size:var(--fs10)" onclick="beToggleSelector()">+/−</button>
             <button class="btn primary" style="margin:0;padding:2px 6px;font-size:var(--fs10)" onclick="beRecalc()">↻</button>
           </div>
@@ -1846,8 +1850,8 @@ tbody tr.selected .c-ticker{color:var(--accent);}
               <th title="Bono CER · abajo, la fecha de su fixing y tu sendero de inflación sobre la misma ventana" style="padding:1px 4px;font-size:var(--fs9);font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:left">CER</th>
               <th title="Último mes de inflación que toma el bono: el IPC que mueve el CER de su fixing. Abajo, cuántos días de ese IPC entran hasta el fixing, sobre los días en que mueve el CER." style="padding:1px 4px;font-size:var(--fs9);font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">IPC</th>
               <th title="Inflación mensual que descuenta el precio contra su LECAP" style="padding:1px 4px;font-size:var(--fs9);font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">BE</th>
-              <th title="Breakeven menos la inflación mensual que espera el REM para la misma ventana, en puntos porcentuales. Abajo de cada diferencia, el REM con el que se comparó." style="padding:1px 4px;font-size:var(--fs9);font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">vs REM<span style="text-transform:none"> pp</span></th>
-              <th title="Forward: la inflación mensual que el precio descuenta entre el fixing del bono anterior de la lista y el de este. Abajo, el REM del mismo tramo." style="padding:1px 4px;font-size:var(--fs9);font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">Fwd</th>
+              <th title="Breakeven menos la inflación mensual de la referencia elegida arriba (el REM, la proyección GMA o tu sendero manual) para la misma ventana, en puntos porcentuales. Abajo de cada diferencia, la referencia con la que se comparó." style="padding:1px 4px;font-size:var(--fs9);font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">vs <span id="be-ref-th">REM</span><span style="text-transform:none"> pp</span></th>
+              <th title="Forward: la inflación mensual que el precio descuenta entre el fixing del bono anterior de la lista y el de este. Abajo, la referencia elegida (REM, GMA o Manual) del mismo tramo." style="padding:1px 4px;font-size:var(--fs9);font-family:var(--mono);color:var(--text3);font-weight:400;text-transform:uppercase;text-align:right">Fwd</th>
               <th></th>
             </tr>
           </thead>
@@ -3310,7 +3314,7 @@ async function authAction(){
 // Resumen, el Resumen de dólares, la fuente de cada proyección, los dos
 // sintéticos y la configuración de Series. El tema claro u oscuro no: es de la
 // pantalla, no de la persona.
-const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_fwd_anchos_v1','bonosAR_run_v1','bonosAR_pxcierre_v1','bonosAR_cierres_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
+const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_fwd_anchos_v1','bonosAR_run_v1','bonosAR_pxcierre_v1','bonosAR_cierres_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_be_ref_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
   'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1','bonosAR_escenarios_v1','bonosAR_calc_vista_v1'];
 // Keys que van a Supabase compartidas
 const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_proy_gma_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
@@ -8417,6 +8421,52 @@ function proyMigrarInflaManual(){
   proySaveLs();
 }
 
+// ── La TAMAR mantiene su tasa real cuando cambia la inflación ──────────────
+// Si se modifica la inflación, la TAMAR se ajusta para que la tasa real de
+// cada mes no cambie, y no al revés (pedido del 20/11/2026). Corre fn, que
+// cambia la inflación, y después reescribe la TNA de los meses cuya inflación
+// cambió con la tasa real que tenían antes: tamarRealAtna, la inversa exacta de
+// tamarRealDe. Los meses cuya inflación no cambió quedan con la misma TNA.
+//
+// El ajuste va adonde iría escribir esa tasa real a mano en la tabla de TAMAR:
+// a tu Manual, que se arma con el sendero que se estaba viendo si la TAMAR
+// estaba en 5 días o en el REM. A GMA sólo si lo que se editó es la inflación
+// de GMA siendo admin: tocar tu inflación personal no mueve la TAMAR que ven
+// todos. El sendero se guarda entero, mes por mes, para que los meses que
+// arrastraban el valor anterior no cambien solos.
+//
+// Sólo cuando se editan valores de inflación: cambiar la fuente en el selector
+// es elegir otro escenario, no modificar éste. Devuelve los meses ajustados.
+function proyConTamarReal(fn,inflaGma){
+  // Sin la serie de la TAMAR no hay tasa real que mantener.
+  if(typeof TAMAR_INDEX==='undefined'||!TAMAR_INDEX.length){fn();return 0;}
+  const hoy=proyMesHoy();
+  projResolverInflacion();_proyInflMes=null;
+  const antes=new Map(proyInflMesMapa());
+  const lista=tamarSenderoLista().filter(p=>p&&p.mes>=hoy&&p.v!=null&&isFinite(p.v));
+  const real=new Map();
+  lista.forEach(p=>{const r=tamarRealDe(p.mes,p.v);if(r!=null&&isFinite(r))real.set(p.mes,r);});
+  fn();
+  projResolverInflacion();_proyInflMes=null;
+  const desp=proyInflMesMapa();
+  const nueva=lista.map(p=>({mes:p.mes,v:+(+p.v).toFixed(4)}));
+  let n=0;
+  nueva.forEach(p=>{
+    const a=antes.get(p.mes),d=desp.get(p.mes);
+    if(!real.has(p.mes)||a==null||d==null||Math.abs(d-a)<1e-9)return;
+    const tna=tamarRealAtna(p.mes,real.get(p.mes));
+    if(tna!=null&&isFinite(tna)&&tna>=0){p.v=+tna.toFixed(4);n++;}
+  });
+  if(!n)return 0;
+  if(inflaGma&&PROJ_FUENTE.tamar==='gma'&&isAdmin()){PROJ_GMA.tamar=nueva;proyGmaGuardar('tamar');}
+  else{PROJ_TAMAR=nueva;PROJ_FUENTE.tamar='manual';}
+  proySaveLs();proyInvalidar();proyPintarSelectores();
+  return n;
+}
+function proyAvisoTamarReal(n){
+  if(n>0)set('proj-status',`TAMAR ajustada en ${n} ${n===1?'mes':'meses'} para mantener la tasa real`);
+}
+
 // ── Proyecciones GMA: lectura y escritura ───────────────────────────────────
 function proyGmaNormalizar(o){
   const lim=a=>Array.isArray(a)
@@ -9305,12 +9355,15 @@ function proyAplicarREM(serie){
   if(serie==='infla'){
     const path=proyExtender(REM_DATA.ipc,(REM_DATA.anclas||{}).ipc,'ipc',hasta);
     const publicados=new Set(PROJ_INFLACION.filter(r=>r.tipo==='publicado').map(r=>r.mes));
-    PROJ_INFLA_MANUAL=path.filter(p=>!publicados.has(p.mes))
-      .map(p=>({mes:p.mes,v:+(+p.v).toFixed(4)}));
-    PROJ_FUENTE.infla='manual';
+    const ajTamar=proyConTamarReal(()=>{
+      PROJ_INFLA_MANUAL=path.filter(p=>!publicados.has(p.mes))
+        .map(p=>({mes:p.mes,v:+(+p.v).toFixed(4)}));
+      PROJ_FUENTE.infla='manual';
+    },false);
     proySaveLs();proyPintarSelectores();projRecalc();
     try{beRecalc();}catch(e){}
     proyRepropagar();
+    proyAvisoTamarReal(ajTamar);
     alert(`${PROJ_INFLA_MANUAL.length} meses copiados al sendero manual con el REM del ${remRelevamiento()}.`);
     return;
   }
@@ -9325,11 +9378,13 @@ function proyAplicarREM(serie){
   proyPintarSelectores();projRecalc();proyRepropagar();
 }
 function proyLimpiar(serie){
+  let ajTamar=0;
   if(serie==='tamar')PROJ_TAMAR=[];
   else if(serie==='tcn')PROJ_TCN=[];
-  else if(serie==='infla')PROJ_INFLA_MANUAL=[];
+  else if(serie==='infla')ajTamar=proyConTamarReal(()=>{PROJ_INFLA_MANUAL=[];},false);
   else return;
   proySaveLs();proyInvalidar();projRecalc();proyRepropagar();
+  proyAvisoTamarReal(ajTamar);
 }
 function proySetValor(serie,mes,val){
   // Con otra fuente activa, editar no la pisa: congela lo que estás viendo como
@@ -10409,15 +10464,19 @@ function projSetInfla(mes, val){
   // Con el REM activo, editar no lo pisa: congela el sendero que estás viendo
   // como tu sendero manual y el cambio se aplica ahí. El REM sigue entero. Con
   // GMA elegida, el admin edita GMA y cualquier otro bifurca igual que con el REM.
+  // La TAMAR acompaña y mantiene su tasa real (proyConTamarReal).
   const n=parseFloat(val),nv=isNaN(n)||val===''?null:n;
-  if(proyEditaGma('infla'))proyGmaFijar('infla',mes,nv);
-  else{
-    if((PROJ_FUENTE.infla||'manual')!=='manual'){
-      inflaBifurcarAManual();
-      proyPintarSelectores();
+  const gma=proyEditaGma('infla');
+  const ajTamar=proyConTamarReal(()=>{
+    if(gma)proyGmaFijar('infla',mes,nv);
+    else{
+      if((PROJ_FUENTE.infla||'manual')!=='manual'){
+        inflaBifurcarAManual();
+        proyPintarSelectores();
+      }
+      inflaSetManual(mes,nv);
     }
-    inflaSetManual(mes,nv);
-  }
+  },gma);
   projResolverInflacion();
   projSaveLs();
 
@@ -10440,6 +10499,9 @@ function projSetInfla(mes, val){
   projCalcularCER();
   projRenderChart();
   projRenderSummary();
+  // Si se movió la TAMAR, se repinta todo lo que cuelga de ella, el Resumen
+  // incluido, y se avisa arriba cuántos meses se ajustaron.
+  if(ajTamar){proyRepropagar();proyAvisoTamarReal(ajTamar);}
 }
 
 function projAddMes(){
@@ -11011,12 +11073,18 @@ function tamarToggleIndexTable(){
 // ── FIN TAMAR TAB ─────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════ BREAKEVEN
 const BE_LS_KEY='bonosAR_breakeven_v1';
+// Contra qué se mide la columna "vs" de BE · Inflación: el REM, la proyección
+// GMA o tu sendero manual. var: beLoadLs corre en el arranque.
+var BE_REF_LS='bonosAR_be_ref_v1';
+var BE_REF_OPC={rem:'REM',gma:'GMA',manual:'Manual'};
+var BE_REF='rem';
 let BE_BONOS=[];
 const BE_TAMAR_LS_KEY='bonosAR_be_tamar_excl_v1';
 let BE_TAMAR_EXCLUDED=new Set();
 
 function beLoadLs(){
   try{const r=localStorage.getItem(BE_LS_KEY);if(r)BE_BONOS=JSON.parse(r)||[];}catch(e){}
+  try{const r=localStorage.getItem(BE_REF_LS);const v=r?JSON.parse(r):null;if(BE_REF_OPC[v])BE_REF=v;}catch(e){}
   beTamarExclLoadLs();
 }
 function beSaveLs(){
@@ -11229,6 +11297,39 @@ function beRemVentana(meses,dias){
   return{mensual,conAncla,relevamiento:REM_DATA.relevamiento||null};
 }
 
+// La referencia elegida sobre la misma ventana y con la misma cuenta que el
+// REM. Para GMA y tu Manual: los meses publicados van con el IPC publicado, y
+// los que el sendero no cubre arrastran el último valor, como el relleno de
+// Proyecciones. null si ese sendero está vacío o no llega.
+function beSenderoMapa(fuente){
+  const src=fuente==='gma'?proyGmaLista('infla'):(PROJ_INFLA_MANUAL||[]);
+  const val=new Map(src.filter(o=>o&&o.mes&&o.v!=null&&isFinite(+o.v)).map(o=>[o.mes,+o.v]));
+  if(!val.size)return null;
+  const out=new Map();
+  let ult=null;
+  [...PROJ_INFLACION].sort((a,b)=>a.mes.localeCompare(b.mes)).forEach(r=>{
+    const v=r.tipo==='publicado'&&r.infla!=null?r.infla:(val.has(r.mes)?val.get(r.mes):ult);
+    if(v!=null){out.set(r.mes,v);ult=v;}
+  });
+  return out;
+}
+function beRefVentana(meses,dias,rem){
+  if(BE_REF==='rem')return rem?{...rem,fuente:'rem'}:null;
+  const mapa=beSenderoMapa(BE_REF);
+  if(!mapa)return null;
+  const mensual=beInflaVentana(meses,dias,mes=>mapa.get(mes));
+  if(mensual==null)return null;
+  return{mensual,fuente:BE_REF,conAncla:false,act:BE_REF==='gma'?proyGmaFecha('infla'):null};
+}
+function beRefEtq(f){return BE_REF_OPC[f||BE_REF]||'REM';}
+function beRefNombre(f){f=f||BE_REF;return f==='gma'?'la proyección GMA':f==='manual'?'tu sendero manual':'el REM';}
+function beSetRef(v){
+  if(!BE_REF_OPC[v])return;
+  BE_REF=v;
+  try{localStorage.setItem(BE_REF_LS,JSON.stringify(v));}catch(e){}
+  beRecalc();
+}
+
 // "15/10 → 27/11/26 · sep 30 días, oct 13"
 function beVentanaTexto(res){
   const v=res&&res.ventana;
@@ -11287,6 +11388,9 @@ function beCalcular(cerTicker){
   const fixStr=fmtDate(fixingVto);
   const ventana={desde:lastReal.fecha,hasta:fixStr,dias:diasRestantes,meses:beMesesVentana(lastReal.fecha,fixStr)};
   const rem=beRemVentana(ventana.meses,diasRestantes);
+  // La columna "vs" usa la referencia elegida; rem y difRem siguen siendo el
+  // REM, que es lo que lee la ficha del comentario.
+  const ref=beRefVentana(ventana.meses,diasRestantes,rem);
   const cerProy=CER_PROJ.get(fixStr);
   const promInfla=cerProy>0?(Math.pow(cerProy/lastReal.valor,30.4/diasRestantes)-1)*100:null;
 
@@ -11298,7 +11402,8 @@ function beCalcular(cerTicker){
     fixingVto:fmtDate(fixingVto).split('-').reverse().join('/'),
     diasRestantes,varDiaria,inflaBE,promInfla,ventana,
     rem:rem?{...rem}:null,
-    difRem:(rem&&isFinite(inflaBE))?inflaBE-rem.mensual:null};
+    difRem:(rem&&isFinite(inflaBE))?inflaBE-rem.mensual:null,
+    ref,difRef:(ref&&isFinite(inflaBE))?inflaBE-ref.mensual:null};
 }
 
 // ── El forward entre bonos ──────────────────────────────────────────────────
@@ -11328,13 +11433,13 @@ function beForward(item,anteriores){
   const dias=Math.round((parseDate(r.ventana.hasta)-parseDate(pr.ventana.hasta))/86400000);
   if(!(dias>0))return null;
   const mens=crec=>(Math.pow(crec,30.4/dias)-1)*100;
-  // El REM: el crecimiento del CER que da su sendero hasta cada fixing.
-  const fRem=x=>x.rem?Math.pow(1+x.rem.mensual/100,x.diasRestantes/30.4):null;
-  const fi=fRem(r),fj=fRem(pr);
+  // La referencia elegida: el crecimiento del CER que da su sendero hasta cada fixing.
+  const fRef=x=>x.ref?Math.pow(1+x.ref.mensual/100,x.diasRestantes/30.4):null;
+  const fi=fRef(r),fj=fRef(pr);
   return{valor:mens(r.cerFinalBE/pr.cerFinalBE),desde:prev.ticker,dias,
     desdeFecha:pr.ventana.hasta,hastaFecha:r.ventana.hasta,
     meses:beMesesVentana(pr.ventana.hasta,r.ventana.hasta),
-    rem:fi&&fj?mens(fi/fj):null,corto:dias<BE_FWD_DIAS_MIN};
+    ref:fi&&fj?mens(fi/fj):null,refFuente:(r.ref&&r.ref.fuente)||BE_REF,corto:dias<BE_FWD_DIAS_MIN};
 }
 
 // "16/04 → 14/05/27 (28 días) · mar 28 días"
@@ -11348,11 +11453,11 @@ function beCeldaFwd(f,ticker){
   const base='padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle';
   if(!f)return`<td style="${base};color:var(--text3);font-size:var(--fs10)" title="${betrEsc(`${ticker} es el primero de la lista: su breakeven ya es el tramo desde el último CER publicado`)}">—</td>`;
   const t=`Forward ${f.desde} → ${ticker}: lo que el precio descuenta entre los dos fixings, ${beForwardTexto(f)}`
-    +(f.rem!=null?` · REM del mismo tramo ${fmtP2(f.rem)}`:'')
+    +(f.ref!=null?` · ${beRefEtq(f.refFuente)} del mismo tramo ${fmtP2(f.ref)}`:'')
     +(f.corto?` · tramo corto: un 0,1% de precio en cualquiera de los dos bonos lo mueve mucho`:'');
   return`<td style="${base}" title="${betrEsc(t)}">
     <div style="font-size:var(--fs11);color:var(--accent);font-weight:600">${fmtP2(f.valor)}${f.corto?' <span style="color:var(--warn)">⚠</span>':''}</div>
-    <div style="font-size:var(--fs9);color:var(--text3)">${f.rem!=null?fmtP2(f.rem):`${f.dias} días`}</div>
+    <div style="font-size:var(--fs9);color:var(--text3)">${f.ref!=null?fmtP2(f.ref):`${f.dias} días`}</div>
   </td>`;
 }
 
@@ -11414,6 +11519,10 @@ function beCeldaIpc(res){
 function beRenderTabla(resultados){
   const tbody=document.getElementById('be-tbody');
   if(!tbody)return;
+  const sel=document.getElementById('be-ref-sel');
+  if(sel&&sel.value!==BE_REF)sel.value=BE_REF;
+  const thRef=document.getElementById('be-ref-th');
+  if(thRef)thRef.textContent=beRefEtq();
 
   if(!resultados.length){
     tbody.innerHTML=`<tr><td colspan="6" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:var(--fs11)">Elegí bonos CER con +/−</td></tr>`;
@@ -11447,8 +11556,8 @@ function beRenderTabla(resultados){
   }).join('');
 }
 
-// La diferencia contra el REM, en puntos porcentuales de inflación mensual, y
-// abajo el REM con el que se comparó.
+// La diferencia contra la referencia elegida —REM, GMA o tu Manual—, en puntos
+// porcentuales de inflación mensual, y abajo la referencia con la que se comparó.
 //
 // El color separa el signo y no dice bueno ni malo: no es un movimiento de
 // precio sino una brecha entre dos medidas. Ámbar cuando el mercado descuenta
@@ -11458,20 +11567,26 @@ function beRenderTabla(resultados){
 const BE_REM_NEUTRO=0.05;
 function beCeldaRem(res){
   const base='padding:1px 4px;font-family:var(--mono);white-space:nowrap;text-align:right;vertical-align:middle';
-  if(res.difRem==null)
-    return`<td style="${base}" title="El REM no cubre esos meses, ni con su ancla anual"><span style="font-size:var(--fs10);color:var(--text3)">—</span></td>`;
-  const signo=res.difRem>0?'+':'';
-  const chico=Math.abs(res.difRem)<BE_REM_NEUTRO;
-  const col=chico?'var(--text3)':(res.difRem>0?'var(--warn)':'var(--info)');
-  const t=`Breakeven ${fmtP2(res.inflaBE)} menos REM ${fmtP2(res.rem.mensual)}, sobre la misma ventana: ${beVentanaTexto(res)}`
-    +(res.rem.conAncla?' · completado con el ancla anual del REM':'')
-    +(res.rem.relevamiento?` · relevamiento del ${betrF(res.rem.relevamiento)}`:'')
+  const ref=res.ref,f=(ref&&ref.fuente)||BE_REF,etq=beRefEtq(f),nom=beRefNombre(f);
+  if(res.difRef==null||!ref){
+    const t=f==='gma'?(proyGmaLista('infla').length?'La proyección GMA de inflación no llega a esos meses':'La proyección GMA de inflación todavía no está cargada')
+      :f==='manual'?'Tu sendero manual de inflación está vacío: se carga en Proyecciones'
+      :'El REM no cubre esos meses, ni con su ancla anual';
+    return`<td style="${base}" title="${t}"><span style="font-size:var(--fs10);color:var(--text3)">—</span></td>`;
+  }
+  const signo=res.difRef>0?'+':'';
+  const chico=Math.abs(res.difRef)<BE_REM_NEUTRO;
+  const col=chico?'var(--text3)':(res.difRef>0?'var(--warn)':'var(--info)');
+  const t=`Breakeven ${fmtP2(res.inflaBE)} menos ${etq} ${fmtP2(ref.mensual)}, sobre la misma ventana: ${beVentanaTexto(res)}`
+    +(ref.conAncla?' · completado con el ancla anual del REM':'')
+    +(ref.relevamiento?` · relevamiento del ${betrF(ref.relevamiento)}`:'')
+    +(ref.act?` · GMA actualizada el ${ref.act}`:'')
     +(chico?' · diferencia chica: con el rezago del CER la comparación es aproximada'
-           :res.difRem>0?' · el mercado descuenta MÁS inflación que el REM'
-                        :' · el mercado descuenta MENOS inflación que el REM');
+           :res.difRef>0?` · el mercado descuenta MÁS inflación que ${nom}`
+                        :` · el mercado descuenta MENOS inflación que ${nom}`);
   return`<td style="${base}" title="${betrEsc(t)}">
-    <div style="font-size:var(--fs11);color:${col};font-weight:600">${signo}${res.difRem.toFixed(2)}</div>
-    <div style="font-size:var(--fs9);color:var(--text3)">${fmtP2(res.rem.mensual)}${res.rem.conAncla?'*':''}</div>
+    <div style="font-size:var(--fs11);color:${col};font-weight:600">${signo}${res.difRef.toFixed(2)}</div>
+    <div style="font-size:var(--fs9);color:var(--text3)">${fmtP2(ref.mensual)}${ref.conAncla?'*':''}</div>
   </td>`;
 }
 
@@ -11491,7 +11606,7 @@ function beRenderDetalle(resultados){
     return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span style="font-size:var(--fs13);color:var(--accent);font-family:var(--mono);font-weight:500">${ticker}
-          <span style="font-size:var(--fs11);color:var(--text3);font-weight:400;margin-left:8px">par TF: ${res.tfTicker} · BE: <span style="color:var(--accent)">${fmtP2(res.inflaBE)}</span>${res.rem?` · REM en la misma ventana: ${fmtP2(res.rem.mensual)}`:''}</span>
+          <span style="font-size:var(--fs11);color:var(--text3);font-weight:400;margin-left:8px">par TF: ${res.tfTicker} · BE: <span style="color:var(--accent)">${fmtP2(res.inflaBE)}</span>${res.ref?` · ${beRefEtq(res.ref.fuente)} en la misma ventana: ${fmtP2(res.ref.mensual)}`:''}</span>
         </span>
       </div>
       <div style="display:grid;gap:0;">

@@ -3521,11 +3521,11 @@ const omitir = (label, motivo) =>
     const out = {};
     // Sintético: el anterior fija el 16/04 con CER de breakeven 1000 y éste el
     // 14/05 con 1015; son 28 días.
-    const mk = (t, hasta, cer, rem, dR) => ({ ticker: t, res: { ventana: { hasta }, cerFinalBE: cer, rem: { mensual: rem }, diasRestantes: dR } });
+    const mk = (t, hasta, cer, rem, dR) => ({ ticker: t, res: { ventana: { hasta }, cerFinalBE: cer, ref: { mensual: rem, fuente: 'rem' }, diasRestantes: dR } });
     const a = mk('A', '2027-04-16', 1000, 1.6, 183), b = mk('B', '2027-05-14', 1015, 1.6, 211);
     const f = beForward(b, [a]);
     out.sint = f && { valor: f.valor, esperado: (Math.pow(1.015, 30.4 / 28) - 1) * 100, dias: f.dias,
-      meses: f.meses.map(m => m.mes + ':' + m.dias).join(' '), rem: f.rem, corto: f.corto };
+      meses: f.meses.map(m => m.mes + ':' + m.dias).join(' '), rem: f.ref, corto: f.corto };
     // Mismo fixing: no hay forward; el primero tampoco.
     out.mismo = beForward(mk('C', '2027-04-16', 1001, 1.6, 183), [a]);
     out.primero = beForward(a, []);
@@ -6359,10 +6359,10 @@ const omitir = (label, motivo) =>
     const rem = { mensual: 1.8, meses: 3, desde: '2026-09', hasta: '2026-11', conAncla: false, relevamiento: '2026-08-31' };
     const color = t => (t.match(/color:(var\(--[a-z0-9]+\))/) || [])[1];
     out.colores = {
-      arriba: color(beCeldaRem({ difRem: 0.2, inflaBE: 2, rem })),
-      abajo: color(beCeldaRem({ difRem: -0.2, inflaBE: 1.6, rem })),
-      chica: color(beCeldaRem({ difRem: 0.01, inflaBE: 1.81, rem })),
-      sinRem: beCeldaRem({ difRem: null }).includes('—'),
+      arriba: color(beCeldaRem({ difRef: 0.2, inflaBE: 2, ref: { ...rem, fuente: 'rem' } })),
+      abajo: color(beCeldaRem({ difRef: -0.2, inflaBE: 1.6, ref: { ...rem, fuente: 'rem' } })),
+      chica: color(beCeldaRem({ difRef: 0.01, inflaBE: 1.81, ref: { ...rem, fuente: 'rem' } })),
+      sinRem: beCeldaRem({ difRef: null }).includes('—'),
     };
     return out;
   });
@@ -6599,8 +6599,10 @@ const omitir = (label, motivo) =>
     SUPA_USER = { id: 'smoke-sesion', email: 'smoke@bonosar.test' };
     const mes = proyMesAdd(proyMesHoy(), 3);
     switchSection('pesos'); switchTab('proyecciones');
-    proySubtabGo('tamar'); proySetValor('tamar', mes, '77.7');
+    // La inflación primero: editarla ajusta la TAMAR de ese mes para mantener
+    // la tasa real, y el 77,7 tiene que ser lo último que se escribió.
     proySubtabGo('infla'); projSetInfla(mes, '8.88');
+    proySubtabGo('tamar'); proySetValor('tamar', mes, '77.7');
     await new Promise(r => setTimeout(r, 800));
     return { mes,
       tamar: (PROJ_TAMAR.find(o => o.mes === mes) || {}).v,
@@ -7768,6 +7770,114 @@ const omitir = (label, motivo) =>
   check(gmaP.publicar === true, '→ GMA carga como GMA el sendero que se está viendo', JSON.stringify(gmaP));
   if (gmaP.remTabla === undefined) omitir('tabla de TAMAR con el REM', 'sin REM');
   else check(gmaP.remTabla === true, 'con el REM elegido, la tabla de TAMAR muestra el REM y no el Manual guardado', JSON.stringify(gmaP));
+
+  // Editar la inflación mueve la TAMAR para que su tasa real no cambie.
+  console.log('\nLa TAMAR mantiene su tasa real cuando cambia la inflación');
+  const treal = await page.evaluate(async () => {
+    const out = {};
+    const bk = { fuente: { ...PROJ_FUENTE }, tamar: PROJ_TAMAR.slice(), infla: PROJ_INFLA_MANUAL.slice(),
+      gma: JSON.parse(JSON.stringify(PROJ_GMA)), isAdmin: window.isAdmin, gmaLs: localStorage.getItem(PROY_GMA_LS) };
+    try {
+      if (!TAMAR_INDEX.length) return { sinTamar: true };
+      const hoy = proyMesHoy(), m = proyMesAdd(hoy, 2), m4 = proyMesAdd(hoy, 4);
+      const tna = x => tamarSendero().mapa.get(x).v;
+      // Inflación manual explícita en cada mes, para que editar uno no arrastre a otros
+      const pareja = v => Array.from({ length: 8 }, (_, k) => ({ mes: proyMesAdd(hoy, k), v }));
+      PROJ_FUENTE.infla = 'manual'; PROJ_INFLA_MANUAL = pareja(2);
+      PROJ_FUENTE.tamar = '5dias'; proySaveLs(); proyInvalidar(); projRecalc();
+      // Con la TAMAR en 5 días: pasa a Manual, ese mes sube y su real no se mueve
+      const tna0 = tna(m), real0 = tamarRealDe(m, tna0), tna4 = tna(m4);
+      projSetInfla(m, '3');
+      const tna1 = tna(m);
+      out.cinco = PROJ_FUENTE.tamar === 'manual' && Math.abs(tamarRealDe(m, tna1) - real0) < 1e-3
+        && tna1 > tna0 + 1 && Math.abs(tna(m4) - tna4) < 1e-6;
+      // Con la TAMAR ya en Manual, de nuevo
+      const real1 = tamarRealDe(m, tna1);
+      projSetInfla(m, '1.5');
+      out.manual = PROJ_FUENTE.tamar === 'manual' && Math.abs(tamarRealDe(m, tna(m)) - real1) < 1e-3 && tna(m) < tna1;
+      // Limpiar la inflación también la mueve
+      const real2 = tamarRealDe(m, tna(m));
+      proyLimpiar('infla');
+      out.limpiar = Math.abs(tamarRealDe(m, tna(m)) - real2) < 1e-3;
+      // Admin con la TAMAR en GMA: tu inflación personal no toca la TAMAR de todos
+      window.isAdmin = () => true;
+      PROJ_INFLA_MANUAL = pareja(2); proySaveLs();
+      PROJ_GMA = proyGmaNormalizar({ tamar: [{ mes: hoy, v: 25 }] });
+      proySetFuente('tamar', 'gma');
+      projSetInfla(m, '2.5');
+      out.gmaIntacta = PROJ_GMA.tamar.length === 1 && PROJ_GMA.tamar[0].v === 25 && PROJ_FUENTE.tamar === 'manual';
+      // ...y la inflación de GMA sí mueve la TAMAR de GMA
+      PROJ_GMA = proyGmaNormalizar({ infla: pareja(2), tamar: [{ mes: hoy, v: 25 }] });
+      proySetFuente('infla', 'gma'); proySetFuente('tamar', 'gma');
+      const rg = tamarRealDe(m, tna(m));
+      projSetInfla(m, '2.8');
+      out.gmaAdmin = PROJ_FUENTE.tamar === 'gma' && PROJ_GMA.infla.find(o => o.mes === m).v === 2.8
+        && Math.abs(tamarRealDe(m, tna(m)) - rg) < 1e-3 && tamarSendero().mapa.get(m).origen === 'gma';
+      // Cambiar la fuente en el selector no es editar: la TAMAR no se toca
+      const antesSel = tna(m);
+      proySetFuente('infla', 'manual');
+      out.selector = PROJ_FUENTE.tamar === 'gma' && tna(m) === antesSel;
+    } catch (e) { out.err = e.message; }
+    finally {
+      window.isAdmin = bk.isAdmin;
+      PROJ_GMA = bk.gma; PROJ_TAMAR = bk.tamar; PROJ_INFLA_MANUAL = bk.infla; PROJ_FUENTE = bk.fuente;
+      if (bk.gmaLs == null) localStorage.removeItem(PROY_GMA_LS); else localStorage.setItem(PROY_GMA_LS, bk.gmaLs);
+      proySaveLs(); proyInvalidar(); projRecalc(); proyRepropagar();
+    }
+    return out;
+  });
+  if (treal.sinTamar) omitir('TAMAR real al editar la inflación', 'sin la serie de la TAMAR');
+  else {
+    check(treal.cinco === true, 'con la TAMAR en 5 días, editar la inflación de un mes pasa a Manual y mantiene su tasa real; los otros meses no cambian', JSON.stringify(treal));
+    check(treal.manual && treal.limpiar, 'con la TAMAR en Manual, editar o limpiar la inflación mantiene la tasa real', JSON.stringify(treal));
+    check(treal.gmaIntacta && treal.gmaAdmin, 'la TAMAR de GMA sólo se mueve con la inflación de GMA', JSON.stringify(treal));
+    check(treal.selector === true, 'cambiar la fuente de inflación en el selector no toca la TAMAR', JSON.stringify(treal));
+  }
+
+  // La columna "vs" de BE · Inflación se mide contra REM, GMA o tu Manual.
+  console.log('\nBE · Inflación contra REM, GMA o tu Manual');
+  const beRef = await page.evaluate(() => {
+    const out = {};
+    const bk = { ref: BE_REF, bonos: BE_BONOS, gma: JSON.parse(JSON.stringify(PROJ_GMA)), man: PROJ_INFLA_MANUAL.slice(),
+      ls: localStorage.getItem(BE_REF_LS) };
+    try {
+      switchSection('pesos'); switchTab('breakeven');
+      BE_BONOS = beCandidatos().map(c => c.ticker).slice(0, 4);
+      const hoy = proyMesHoy();
+      const pareja = v => Array.from({ length: 36 }, (_, k) => ({ mes: proyMesAdd(hoy, k - 3), v }));
+      PROJ_GMA = proyGmaNormalizar({ infla: pareja(1.7) });
+      PROJ_INFLA_MANUAL = pareja(2.4);
+      const fila = () => BE_BONOS.map(t => beCalcular(t)).find(x => x && !x.error && x.ref);
+      const th = () => document.querySelector('#be-col1 table thead').textContent.replace(/\s+/g, ' ');
+      beSetRef('gma');
+      const g = fila();
+      out.gma = !!g && g.ref.fuente === 'gma' && Math.abs(g.difRef - (g.inflaBE - g.ref.mensual)) < 1e-9
+        && /vs GMA pp/i.test(th()) && document.getElementById('be-ref-sel').value === 'gma'
+        && JSON.parse(localStorage.getItem(BE_REF_LS)) === 'gma';
+      beSetRef('manual');
+      const m = fila();
+      out.manual = !!m && m.ref.fuente === 'manual' && m.ref.mensual > g.ref.mensual && /vs Manual pp/i.test(th());
+      // El REM de la ficha no cambia con la referencia
+      out.remIgual = !!m && !!g && (m.difRem == null ? g.difRem == null : Math.abs(m.difRem - g.difRem) < 1e-12);
+      beSetRef('rem');
+      const r = BE_BONOS.map(t => beCalcular(t)).find(x => x && !x.error);
+      out.rem = !!r && (r.rem ? Math.abs(r.difRef - r.difRem) < 1e-12 && r.ref.fuente === 'rem' : r.ref === null) && /vs REM pp/i.test(th());
+      // GMA sin cargar: no hay número, y el cartel lo dice
+      PROJ_GMA = proyGmaNormalizar(null);
+      beSetRef('gma');
+      const v = BE_BONOS.map(t => beCalcular(t)).find(x => x && !x.error);
+      out.vacia = !!v && v.ref === null && /todavía no está cargada/.test(beCeldaRem(v));
+    } catch (e) { out.err = e.message; }
+    finally {
+      PROJ_GMA = bk.gma; PROJ_INFLA_MANUAL = bk.man; BE_BONOS = bk.bonos; BE_REF = bk.ref;
+      if (bk.ls == null) localStorage.removeItem(BE_REF_LS); else localStorage.setItem(BE_REF_LS, bk.ls);
+      beRecalc(); switchTab('lecap');
+    }
+    return out;
+  });
+  check(beRef.gma && beRef.manual && !beRef.err, 'la columna vs de BE · Inflación se mide contra GMA o tu Manual, y el encabezado lo dice', JSON.stringify(beRef));
+  check(beRef.remIgual && beRef.rem, 'con REM, la columna es la de siempre, y el REM de la ficha no cambia con la referencia', JSON.stringify(beRef));
+  check(beRef.vacia === true, 'con GMA sin cargar no hay número y el cartel lo explica', JSON.stringify(beRef));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
