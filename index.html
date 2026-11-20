@@ -2088,6 +2088,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="proy-subtab" id="proy-sub-tamar" onclick="proySubtabGo('tamar')">TAMAR</button>
       <button class="proy-subtab" id="proy-sub-tcn" onclick="proySubtabGo('tcn')">Dólar</button>
       <div style="margin-left:auto;display:flex;align-items:center;gap:10px;padding-bottom:5px;">
+        <span style="font-size:var(--fs10);color:#2dd4bf;cursor:help" id="proy-gma-sello"></span>
         <span style="font-size:var(--fs10);color:var(--text3)" id="proy-rem-sello">REM —</span>
         <button class="btn" style="margin:0;padding:3px 9px;font-size:var(--fs11)" onclick="remRefrescar()">↻ REM</button>
       </div>
@@ -2155,6 +2156,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <div style="display:flex;align-items:center;gap:8px;">
           <span data-proy-sel="infla"></span>
           <button class="btn" style="margin:0;padding:3px 9px;font-size:var(--fs11)" onclick="proyAplicarREM('infla')" title="Copia el REM al sendero manual como punto de partida y pasa a esa fuente">← REM</button>
+          <button class="btn proy-admin-btn" style="display:none;margin:0;padding:3px 9px;font-size:var(--fs11);color:#2dd4bf;border-color:#2dd4bf" onclick="proyGmaPublicar('infla')" title="Admin: el sendero que estás viendo pasa a ser la proyección GMA de inflación, que ven todos">→ GMA</button>
           <button class="btn" style="margin:0;padding:3px 9px;font-size:var(--fs11)" onclick="proyLimpiar('infla')" title="Borra el sendero manual de inflación">Limpiar</button>
           <select id="proj-tabla-desde" class="sbar-input" style="width:80px" onchange="projRenderTabla()"></select>
           <div style="font-size:var(--fs11);color:var(--text3)" id="proj-last-pub"></div>
@@ -2233,6 +2235,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <div style="display:flex;align-items:center;gap:8px;">
           <span data-proy-sel="tamar"></span>
           <button class="btn" style="margin:0;padding:3px 9px;font-size:var(--fs11)" onclick="proyAplicarREM('tamar')" title="Copia las medianas del REM como overrides manuales">← REM</button>
+          <button class="btn proy-admin-btn" style="display:none;margin:0;padding:3px 9px;font-size:var(--fs11);color:#2dd4bf;border-color:#2dd4bf" onclick="proyGmaPublicar('tamar')" title="Admin: el sendero que estás viendo pasa a ser la proyección GMA de TAMAR, que ven todos">→ GMA</button>
           <button class="btn" style="margin:0;padding:3px 9px;font-size:var(--fs11)" onclick="proyLimpiar('tamar')">Limpiar</button>
         </div>
       </div>
@@ -2298,6 +2301,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
         <div style="display:flex;align-items:center;gap:8px;">
           <span data-proy-sel="tcn"></span>
           <button class="btn" style="margin:0;padding:3px 9px;font-size:var(--fs11)" onclick="proyAplicarREM('tcn')" title="Copia las medianas del REM como overrides manuales">← REM</button>
+          <button class="btn proy-admin-btn" style="display:none;margin:0;padding:3px 9px;font-size:var(--fs11);color:#2dd4bf;border-color:#2dd4bf" onclick="proyGmaPublicar('tcn')" title="Admin: el sendero que estás viendo pasa a ser la proyección GMA de dólar, que ven todos">→ GMA</button>
           <button class="btn" style="margin:0;padding:3px 9px;font-size:var(--fs11)" onclick="proyLimpiar('tcn')">Limpiar</button>
         </div>
       </div>
@@ -3189,6 +3193,11 @@ function authUpdateAdminUI(){
   document.querySelectorAll('.usd-admin-btn').forEach(el=>{
     el.style.display=admin?'':'none';
   });
+  // Proyecciones GMA: cargarlas es del admin.
+  document.querySelectorAll('.proy-admin-btn').forEach(el=>{
+    el.style.display=admin?'':'none';
+  });
+  try{proyPintarSello();}catch(e){}
   // Solapas en desarrollo: sólo las ve el admin.
   document.querySelectorAll('.nav-dev').forEach(el=>{
     el.style.display=admin?'':'none';
@@ -3304,7 +3313,7 @@ async function authAction(){
 const SUPA_USER_KEYS=['bonosAR_fwd_v1','bonosAR_fwd_anchos_v1','bonosAR_run_v1','bonosAR_pxcierre_v1','bonosAR_cierres_v1','bonosAR_cp_v1','bonosAR_breakeven_v1','bonosAR_chart_sel_v1','bonosAR_usd_fwd_v1','bonosAR_proy_tamar_v1','bonosAR_proy_tcn_v1','bonosAR_proy_infla_manual_v1','bonosAR_be_tamar_cer_v1','bonosAR_be_tamar_tf_v1','bonosAR_curva_modelo_v1','bonosAR_dual_v1','bonosAR_retornos_v1','bonosAR_retornos_ars_v1','bonosAR_sleg_hist_v1','bonosAR_desvio_v1','bonosAR_series_ab_v1','bonosAR_carteras_v1','bonosAR_tablero_v1',
   'bonosAR_be_tamar_excl_v1','bonosAR_be_colwidths','bonosAR_usd_res_v1','bonosAR_proy_fuente_v1','bonosAR_sint_bonds_v1','bonosAR_sint_tasa_desc_v1','bonosAR_sintusd_v1','bonosAR_series_fwd_v1','bonosAR_futuros_v1','bonosAR_riesgo_v1','bonosAR_lic_ordenes_v1','bonosAR_lic_ordenes_hist_v1','bonosAR_calc_excluidos_v1','bonosAR_res_eventos_v1','bonosAR_res_plegados_v1','bonosAR_escenarios_v1','bonosAR_calc_vista_v1'];
 // Keys que van a Supabase compartidas
-const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
+const SUPA_SHARED_KEYS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1','bonosAR_feriados_extra_v1','bonosAR_proyecciones_v1','bonosAR_proy_gma_v1','bonosAR_calendario_v1','bonosAR_glo_v1','bonosAR_bon_v1','bonosAR_bop_v1','bonosAR_equiv_v1','bonosAR_altas_descartadas_v1'];
 
 // Trae lo de la cuenta al navegador. Devuelve qué claves tiene la cuenta y si
 // alguna difiere de lo que había, o null si no se pudo leer.
@@ -8246,6 +8255,16 @@ let PROJ_TCN=[];
 // sendero ya resuelto, que es lo que consume el CER y todo lo demás.
 let PROJ_INFLA_MANUAL=[];
 let PROJ_FUENTE={infla:'manual',tamar:'5dias',tcn:'futuros',dlkModo:'usd'};
+// ── Proyecciones GMA ─────────────────────────────────────────────────────────
+// El sendero de la casa, uno por serie, en shared_data: lectura pública y
+// escritura sólo del admin por RLS, así que lo que carga el admin lo ven todos
+// al abrir la app. Cada uno elige si lo usa con el selector, como el REM. Con
+// GMA elegida, el admin que edita la tabla edita GMA; cualquier otro bifurca a
+// su Manual, igual que con el REM, y GMA queda intacta.
+//   {infla:[{mes,v}], tamar:[{mes,v}], tcn:[{mes,v}], act:{serie: ISO}}
+const PROY_GMA_LS='bonosAR_proy_gma_v1';
+const PROY_GMA_COLOR='#2dd4bf';
+let PROJ_GMA={infla:[],tamar:[],tcn:[],act:{}};
 let REM_DATA=null;
 let projTamarChart=null,projTcnChart=null;
 let projSubtab='infla';
@@ -8256,7 +8275,7 @@ let _proySendero={tamar:null,tcn:null};
 // llama desde el arranque, así que la declaración tiene que verse antes.
 let _proyInflMes=null;
 let _projHistStart=null;
-function proyInvalidar(){_proySendero={tamar:null,tcn:null};_proyInflMes=null;_projHistStart=null;tabProgramar();}
+function proyInvalidar(){_proySendero={tamar:null,tcn:null};_proyInflMes=null;_projHistStart=null;try{CANT_MEMO={};}catch(e){}tabProgramar();}
 
 function proyMesAdd(mesStr,n){
   const[y,m]=mesStr.split('-').map(Number);
@@ -8383,6 +8402,7 @@ function proyLoadLs(){
     const r=localStorage.getItem(PROY_FUENTE_LS);const p=r?JSON.parse(r):null;
     if(p&&typeof p==='object')PROJ_FUENTE={...PROJ_FUENTE,...p};
   }catch(e){}
+  try{const r=localStorage.getItem(PROY_GMA_LS);PROJ_GMA=proyGmaNormalizar(r?JSON.parse(r):null);}catch(e){}
   proyInvalidar();
 }
 
@@ -8395,6 +8415,79 @@ function proyMigrarInflaManual(){
     .filter(r=>r&&r.tipo!=='publicado'&&r.infla!=null&&isFinite(r.infla))
     .map(r=>({mes:r.mes,v:+r.infla}));
   proySaveLs();
+}
+
+// ── Proyecciones GMA: lectura y escritura ───────────────────────────────────
+function proyGmaNormalizar(o){
+  const lim=a=>Array.isArray(a)
+    ?a.filter(p=>p&&/^\d{4}-\d{2}$/.test(p.mes)&&p.v!=null&&p.v!==''&&isFinite(+p.v))
+      .map(p=>({mes:p.mes,v:+p.v})).sort((a,b)=>a.mes.localeCompare(b.mes))
+    :[];
+  o=o&&typeof o==='object'?o:{};
+  return{infla:lim(o.infla),tamar:lim(o.tamar),tcn:lim(o.tcn),act:o.act&&typeof o.act==='object'?{...o.act}:{}};
+}
+function proyGmaLista(serie){return PROJ_GMA&&Array.isArray(PROJ_GMA[serie])?PROJ_GMA[serie]:[];}
+// Sólo la escribe el admin; el localStorage envuelto la sube a shared_data.
+function proyGmaGuardar(serie){
+  PROJ_GMA.act={...(PROJ_GMA.act||{}),[serie]:new Date().toISOString()};
+  try{localStorage.setItem(PROY_GMA_LS,JSON.stringify(PROJ_GMA));}catch(e){}
+}
+// Un mes de GMA; v null lo quita.
+function proyGmaFijar(serie,mes,v){
+  if(!Array.isArray(PROJ_GMA[serie]))PROJ_GMA[serie]=[];
+  const arr=PROJ_GMA[serie],i=arr.findIndex(o=>o&&o.mes===mes);
+  if(v==null){if(i>=0)arr.splice(i,1);}
+  else if(i>=0)arr[i]={mes,v};
+  else arr.push({mes,v});
+  arr.sort((a,b)=>a.mes.localeCompare(b.mes));
+  proyGmaGuardar(serie);
+}
+// Lo que se edite con esta fuente va a GMA sólo con GMA elegida y siendo admin.
+function proyEditaGma(serie){return PROJ_FUENTE[serie]==='gma'&&isAdmin();}
+// Los meses cargados de la fuente activa, Manual o GMA: los que la tabla
+// pinta como fijos. Con cualquier otra fuente no hay.
+function proyFijos(serie){
+  const f=PROJ_FUENTE[serie];
+  if(f==='gma')return proyGmaLista(serie);
+  if(f==='manual')return(serie==='tamar'?PROJ_TAMAR:serie==='tcn'?PROJ_TCN:PROJ_INFLA_MANUAL)||[];
+  return[];
+}
+function proyGmaFecha(serie){
+  const a=PROJ_GMA&&PROJ_GMA.act&&PROJ_GMA.act[serie];
+  const d=a?new Date(a):null;
+  return d&&!isNaN(d)?d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}):null;
+}
+function proyGmaDet(serie){
+  const n=proyGmaLista(serie).length;
+  if(!n)return'todavía sin cargar';
+  const f=proyGmaFecha(serie);
+  return`${f?'actualizada el '+f+' · ':''}${n} meses${isAdmin()?' · lo que edites lo ven todos':''}`;
+}
+// Admin: el sendero que se está viendo, con la fuente que sea, pasa a ser el
+// de GMA para todos. Es el camino para armarla: un escenario en Manual, o el
+// REM retocado, y después → GMA.
+function proyGmaPublicar(serie){
+  if(!isAdmin()){alert('Sólo el admin puede cargar las proyecciones GMA.');return;}
+  const tit=PROY_TITULOS[serie]||serie;
+  let lista;
+  if(serie==='infla'){
+    projResolverInflacion();
+    lista=PROJ_INFLACION.filter(r=>r&&r.tipo!=='publicado'&&r.infla!=null&&isFinite(r.infla))
+      .map(r=>({mes:r.mes,v:+(+r.infla).toFixed(4)}));
+  }else{
+    const hoy=proyMesHoy();
+    lista=(serie==='tamar'?tamarSenderoLista():dlkSenderoLista())
+      .filter(p=>p&&p.mes>=hoy&&p.v!=null&&isFinite(p.v))
+      .map(p=>({mes:p.mes,v:+(+p.v).toFixed(4)}));
+  }
+  if(!lista.length){alert(`No hay un sendero de ${tit} para cargar: la fuente ${proyFuenteLabel(serie)} está vacía.`);return;}
+  if(!confirm(`La proyección GMA de ${tit} pasa a ser el sendero que estás viendo (${proyFuenteLabel(serie)}, ${lista.length} meses). La ven todos. ¿Seguir?`))return;
+  PROJ_GMA[serie]=lista;
+  proyGmaGuardar(serie);
+  PROJ_FUENTE[serie]='gma';
+  proySaveLs();proyInvalidar();proyPintarSelectores();projRecalc();
+  if(serie==='infla'){try{beRecalc();}catch(e){}}
+  proyRepropagar();
 }
 
 // ── Sendero de inflación: los meses no publicados salen de la fuente activa ──
@@ -8411,6 +8504,10 @@ function inflaFuenteMapa(){
       :proyMesAdd(proyMesHoy(),PROY_MESES);
     proyExtender(REM_DATA.ipc,(REM_DATA.anclas||{}).ipc,'ipc',hasta)
       .forEach(p=>m.set(p.mes,{v:+(+p.v).toFixed(4),origen:p.origen}));
+    return m;
+  }
+  if(fuente==='gma'){
+    proyGmaLista('infla').forEach(o=>m.set(o.mes,{v:+o.v,origen:'gma'}));
     return m;
   }
   (PROJ_INFLA_MANUAL||[]).forEach(o=>{
@@ -8481,25 +8578,26 @@ function tamarSenderoLista(){
     let p=porMes.get(mes);
     if(!p){
       // Antes del primer mes del REM, o sin REM: el promedio de 5 días plano.
-      p={mes,v:ultimo!=null?ultimo:plano,origen:fuente==='rem'?'auto':(fuente==='manual'?'auto':'5dias')};
+      p={mes,v:ultimo!=null?ultimo:plano,origen:(fuente==='rem'||fuente==='manual'||fuente==='gma')?'auto':'5dias'};
     }
     ultimo=p.v;
     out.push({mes,v:p.v,origen:p.origen});
   }
   // El sendero manual sólo entra si es la fuente elegida. Aplicarlo siempre era
   // lo que hacía que, después de tocar una celda, el selector no cambiara nada.
-  if(fuente==='manual'){
+  // GMA es lo mismo con los meses que cargó el admin.
+  if(fuente==='manual'||fuente==='gma'){
     const idx=new Map(out.map((p,i)=>[p.mes,i]));
-    (PROJ_TAMAR||[]).forEach(o=>{
+    (fuente==='gma'?proyGmaLista('tamar'):(PROJ_TAMAR||[])).forEach(o=>{
       if(!o||!o.mes||o.v==null||!isFinite(+o.v))return;
       const i=idx.get(o.mes);
-      if(i!=null)out[i]={mes:o.mes,v:+o.v,origen:'manual'};
+      if(i!=null)out[i]={mes:o.mes,v:+o.v,origen:fuente};
     });
-    // Un valor manual arrastra a los meses siguientes que nadie fijó, igual
+    // Un valor cargado arrastra a los meses siguientes que nadie fijó, igual
     // que hace la tabla de inflación con su relleno automático.
     let arrastre=null;
     for(const p of out){
-      if(p.origen==='manual')arrastre=p.v;
+      if(p.origen===fuente)arrastre=p.v;
       else if(arrastre!=null){p.v=arrastre;p.origen='auto';}
     }
   }
@@ -8577,17 +8675,18 @@ function dlkSenderoLista(){
     if(p){ultimo=p.v;out.push({mes,v:p.v,origen:p.origen});}
     else out.push({mes,v:ultimo,origen:'auto'});
   }
-  // Igual que en TAMAR: el sendero manual sólo entra si es la fuente elegida.
-  if(fuente==='manual'){
+  // Igual que en TAMAR: el sendero manual, o el de GMA, sólo entra si es la
+  // fuente elegida.
+  if(fuente==='manual'||fuente==='gma'){
     const idx=new Map(out.map((p,i)=>[p.mes,i]));
-    (PROJ_TCN||[]).forEach(o=>{
+    (fuente==='gma'?proyGmaLista('tcn'):(PROJ_TCN||[])).forEach(o=>{
       if(!o||!o.mes||o.v==null||!isFinite(+o.v))return;
       const i=idx.get(o.mes);
-      if(i!=null)out[i]={mes:o.mes,v:+o.v,origen:'manual'};
+      if(i!=null)out[i]={mes:o.mes,v:+o.v,origen:fuente};
     });
     let arrastre=null;
     for(const p of out){
-      if(p.origen==='manual')arrastre=p.v;
+      if(p.origen===fuente)arrastre=p.v;
       else if(arrastre!=null){p.v=arrastre;p.origen='auto';}
     }
   }
@@ -8824,6 +8923,7 @@ function tamarRealAtna(mes,real){
 
 function proyFuenteLabel(serie){
   const f=PROJ_FUENTE[serie];
+  if(f==='gma')return'GMA';
   if(serie==='tamar')return f==='rem'?'REM':(f==='manual'?'Manual':'5 días');
   if(serie==='tcn')return f==='rem'?'REM':(f==='manual'?'Manual':'Futuros');
   return f==='rem'?'REM':'Manual';
@@ -8834,9 +8934,9 @@ function proyFuenteLabel(serie){
 // selector de TAMAR aparece en Proyecciones, en la solapa TAMAR y en el Resumen
 // sin que haya tres estados que se puedan desincronizar.
 const PROY_OPCIONES={
-  infla:[['manual','Manual'],['rem','REM']],
-  tamar:[['5dias','5 días'],['rem','REM'],['manual','Manual']],
-  tcn:[['futuros','Futuros'],['rem','REM'],['manual','Manual']],
+  infla:[['manual','Manual'],['rem','REM'],['gma','GMA']],
+  tamar:[['5dias','5 días'],['rem','REM'],['gma','GMA'],['manual','Manual']],
+  tcn:[['futuros','Futuros'],['rem','REM'],['gma','GMA'],['manual','Manual']],
 };
 const PROY_TITULOS={infla:'Inflación',tamar:'TAMAR',tcn:'Dólar'};
 
@@ -9047,6 +9147,8 @@ function projInflaRealDeMes(mesStr){
 // Calcular y guardar CER_PROJ: serie diaria desde el último CER real hasta 10 años
 function projCalcularCER(){
   CER_PROJ=new Map();
+  // Con otro CER proyectado cambia la tasa del cierre anterior de los CER.
+  try{CANT_MEMO={};}catch(e){}
   const lastReal=projGetLastCerReal();
   if(!lastReal||!PROJ_INFLACION.length)return;
 
@@ -9176,6 +9278,15 @@ async function remRefrescar(){
   proyRepropagar();
 }
 function proyPintarSello(){
+  // GMA: la última vez que el admin la tocó, con el detalle por serie al pasar.
+  const g=document.getElementById('proy-gma-sello');
+  if(g){
+    const fs=['infla','tamar','tcn'].map(s=>PROJ_GMA&&PROJ_GMA.act&&PROJ_GMA.act[s]).filter(Boolean).sort();
+    const ult=fs.length?new Date(fs[fs.length-1]):null;
+    g.textContent=ult&&!isNaN(ult)?`GMA ${ult.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})}`:'';
+    g.title=['infla','tamar','tcn'].map(s=>`${PROY_TITULOS[s]}: ${proyGmaDet(s)}`).join('\n')
+      +(isAdmin()?'\n\nCon GMA elegida, lo que edites en la tabla lo ven todos. → GMA carga el sendero que estás viendo.':'');
+  }
   const el=document.getElementById('proy-rem-sello');
   if(!el)return;
   const f=remRelevamiento();
@@ -9223,15 +9334,20 @@ function proyLimpiar(serie){
 function proySetValor(serie,mes,val){
   // Con otra fuente activa, editar no la pisa: congela lo que estás viendo como
   // tu sendero manual y el cambio se aplica ahí. La fuente original sigue
-  // intacta y volvés a ella con el selector.
-  if((PROJ_FUENTE[serie]||'')!=='manual')proyBifurcarAManual(serie);
+  // intacta y volvés a ella con el selector. Con GMA elegida, el admin edita
+  // GMA, que es de todos; cualquier otro bifurca a su Manual, como con el REM.
+  const gma=proyEditaGma(serie);
+  if(!gma&&(PROJ_FUENTE[serie]||'')!=='manual')proyBifurcarAManual(serie);
   const v=parseFloat(val);
-  const arr=serie==='tamar'?PROJ_TAMAR:PROJ_TCN;
-  const i=arr.findIndex(o=>o&&o.mes===mes);
-  if(val===''||isNaN(v)){if(i>=0)arr.splice(i,1);}
-  else if(i>=0)arr[i]={mes,v};
-  else arr.push({mes,v});
-  arr.sort((a,b)=>a.mes.localeCompare(b.mes));
+  if(gma)proyGmaFijar(serie,mes,val===''||isNaN(v)?null:v);
+  else{
+    const arr=serie==='tamar'?PROJ_TAMAR:PROJ_TCN;
+    const i=arr.findIndex(o=>o&&o.mes===mes);
+    if(val===''||isNaN(v)){if(i>=0)arr.splice(i,1);}
+    else if(i>=0)arr[i]={mes,v};
+    else arr.push({mes,v});
+    arr.sort((a,b)=>a.mes.localeCompare(b.mes));
+  }
   proySaveLs();proyInvalidar();projRecalc();proyRepropagar();
 }
 
@@ -9255,6 +9371,7 @@ const PROY_ORIGEN_ESTILO={
   rem:['REM','#6366f1'],ancla:['ancla REM','#6366f1'],extrap:['extrap','#6b7280'],
   futuro:['futuro','#f59e0b'],respaldo:['respaldo','#6b7280'],
   manual:['manual','#f59e0b'],auto:['auto','#6b7280'],'5dias':['5 días','#38bdf8'],
+  gma:['GMA',PROY_GMA_COLOR],
 };
 function proyBadge(origen){
   const[txt,color]=PROY_ORIGEN_ESTILO[origen]||[origen,'#6b7280'];
@@ -9338,7 +9455,12 @@ function proyRenderTablaTamar(){
   if(!tb)return;
   proyPintarRango('tamar');
   const lista=proyVentanaTabla('tamar');
-  const ovr=new Map((PROJ_TAMAR||[]).map(o=>[o.mes,o.v]));
+  // Los meses cargados de la fuente activa, Manual o GMA. Con otra fuente no
+  // hay: antes se mostraban los del Manual guardado, y con el REM elegido la
+  // celda tenía un número que el sendero no estaba usando.
+  const ovr=new Map(proyFijos('tamar').map(o=>[o.mes,o.v]));
+  const quita=PROJ_FUENTE.tamar==='manual'||proyEditaGma('tamar');
+  const colFijo=PROJ_FUENTE.tamar==='gma'?PROY_GMA_COLOR:'var(--warn)';
   const inp='background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:var(--fs12);outline:none;text-align:right';
   const vacio='<span style="color:var(--text3);font-size:var(--fs12)">—</span>';
   let html='',anioActual=null;
@@ -9367,14 +9489,14 @@ function proyRenderTablaTamar(){
       ?`<span style="font-family:var(--mono);font-size:var(--fs12);color:var(--text2)">${p.v.toFixed(2)}</span>`
       :`<input type="number" step="0.01" min="0" max="500" value="${esManual?ovr.get(p.mes):p.v.toFixed(2)}"
           onchange="proySetValor('tamar','${p.mes}',this.value)"
-          style="width:88px;${inp};color:${esManual?'var(--warn)':'var(--text)'}">`;
+          style="width:88px;${inp};color:${esManual?colFijo:'var(--text)'}">`;
     const celdaReal=(real==null)?vacio
       :cerrado
         ?`<span style="font-family:var(--mono);font-size:var(--fs12);color:#22c55e">${real.toFixed(2)}</span>`
         :`<input type="number" step="0.01" value="${real.toFixed(2)}"
             onchange="proySetTamarReal('${p.mes}',this.value)"
             title="Escribí la tasa real y se despeja la TNA que la produce"
-            style="width:88px;${inp};color:${esManual?'var(--warn)':'#22c55e'}">`;
+            style="width:88px;${inp};color:${esManual?colFijo:'#22c55e'}">`;
     html+=`<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:4px 8px;font-size:var(--fs12);font-family:var(--mono);color:var(--text2);text-align:left">${proyMesLabel(p.mes)}</td>
       <td style="padding:4px 8px;text-align:left">${proyBadge(p.origen)}</td>
@@ -9382,7 +9504,7 @@ function proyRenderTablaTamar(){
       <td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-size:var(--fs12);color:var(--text3)">${isFinite(tem)?tem.toFixed(2)+'%':'—'}</td>
       <td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-size:var(--fs12);color:var(--text3)"${imes!=null?` title="${imes.toFixed(2)}% mensual, anualizado"`:''}>${teaI!=null?teaI.toFixed(1)+'%':'—'}</td>
       <td style="padding:4px 8px;text-align:right">${celdaReal}</td>
-      <td style="padding:4px 8px;text-align:center">${esManual?`<span onclick="proySetValor('tamar','${p.mes}','')" style="cursor:pointer;color:var(--text3);font-size:var(--fs12)" title="Quitar el override">×</span>`:''}</td>
+      <td style="padding:4px 8px;text-align:center">${esManual&&quita?`<span onclick="proySetValor('tamar','${p.mes}','')" style="cursor:pointer;color:var(--text3);font-size:var(--fs12)" title="Quitar el override">×</span>`:''}</td>
     </tr>`;
   }
   tb.innerHTML=html;
@@ -9405,6 +9527,7 @@ function proyRenderTablaTamar(){
   const det=PROJ_FUENTE.tamar==='rem'
     ?(remRelevamiento()?'relevamiento '+remRelevamiento().split('-').reverse().join('/'):'sin REM descargado')
     :PROJ_FUENTE.tamar==='manual'?`${(PROJ_TAMAR||[]).length} meses cargados`
+    :PROJ_FUENTE.tamar==='gma'?proyGmaDet('tamar')
     :'promedio de las últimas 5 ruedas';
   set('proy-tamar-fuente-det',det);
 }
@@ -9415,7 +9538,10 @@ function proyRenderTablaTcn(){
   proyPintarRango('tcn');
   const todo=proySerieCompleta('tcn');
   const lista=proyVentanaTabla('tcn');
-  const ovr=new Map((PROJ_TCN||[]).map(o=>[o.mes,o.v]));
+  // Como en TAMAR: sólo los meses cargados de la fuente activa.
+  const ovr=new Map(proyFijos('tcn').map(o=>[o.mes,o.v]));
+  const quita=PROJ_FUENTE.tcn==='manual'||proyEditaGma('tcn');
+  const colFijo=PROJ_FUENTE.tcn==='gma'?PROY_GMA_COLOR:'var(--warn)';
   const spot=dlkTCHoy();
   const idx=new Map(todo.map((p,i)=>[p.mes,i]));
   let html='',anioActual=null;
@@ -9453,13 +9579,13 @@ function proyRenderTablaTcn(){
       ?`<span style="font-family:var(--mono);font-size:var(--fs12);color:var(--text2)">${p.v.toFixed(2)}</span>`
       :`<input type="number" step="0.01" min="0" value="${esManual?ovr.get(p.mes):p.v.toFixed(2)}"
           onchange="proySetValor('tcn','${p.mes}',this.value)"
-          style="width:100px;text-align:right;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:var(--fs12);color:${esManual?'var(--warn)':'var(--text)'};outline:none">`;
+          style="width:100px;text-align:right;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:var(--fs12);color:${esManual?colFijo:'var(--text)'};outline:none">`;
     html+=`<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:4px 8px;font-size:var(--fs12);font-family:var(--mono);color:var(--text2);text-align:left">${proyMesLabel(p.mes)}</td>
       <td style="padding:4px 8px;text-align:left">${proyBadge(p.origen)}</td>
       <td style="padding:4px 8px;text-align:right">${celda}</td>
       <td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-size:var(--fs12);color:var(--text3)">${dev!=null&&isFinite(dev)?dev.toFixed(2)+'%':'—'}</td>
-      <td style="padding:4px 8px;text-align:center">${esManual?`<span onclick="proySetValor('tcn','${p.mes}','')" style="cursor:pointer;color:var(--text3);font-size:var(--fs12)" title="Quitar el override">×</span>`:''}</td>
+      <td style="padding:4px 8px;text-align:center">${esManual&&quita?`<span onclick="proySetValor('tcn','${p.mes}','')" style="cursor:pointer;color:var(--text3);font-size:var(--fs12)" title="Quitar el override">×</span>`:''}</td>
     </tr>`;
   }
   tb.innerHTML=html;
@@ -9474,6 +9600,7 @@ function proyRenderTablaTcn(){
   const det=PROJ_FUENTE.tcn==='rem'
     ?(remRelevamiento()?'relevamiento '+remRelevamiento().split('-').reverse().join('/'):'sin REM descargado')
     :PROJ_FUENTE.tcn==='manual'?`${(PROJ_TCN||[]).length} meses cargados`
+    :PROJ_FUENTE.tcn==='gma'?proyGmaDet('tcn')
     :((typeof MAE_FUTUROS!=='undefined'&&MAE_FUTUROS.length)
        ?`${MAE_FUTUROS.length} contratos del MAE`
        :'sin contratos hoy · se usa el REM');
@@ -9897,9 +10024,11 @@ function projRenderTabla(){
       ?'<span style="font-size:var(--fs10);color:var(--accent2);background:var(--accent-dim);padding:1px 6px;border-radius:3px">pub</span>'
       :esRelleno
         ?'<span style="font-size:var(--fs10);color:var(--text3);background:var(--surface2);padding:1px 6px;border-radius:3px">auto</span>'
-        :'<span style="font-size:var(--fs10);color:var(--warn);background:rgba(212,169,106,.1);padding:1px 6px;border-radius:3px">proy</span>';
+        :r.origen==='gma'
+          ?`<span style="font-size:var(--fs10);color:${PROY_GMA_COLOR};background:rgba(45,212,191,.1);padding:1px 6px;border-radius:3px">GMA</span>`
+          :'<span style="font-size:var(--fs10);color:var(--warn);background:rgba(212,169,106,.1);padding:1px 6px;border-radius:3px">proy</span>';
 
-    const inflColor=esPublicado?'var(--text2)':esRelleno?'var(--text3)':'var(--warn)';
+    const inflColor=esPublicado?'var(--text2)':esRelleno?'var(--text3)':r.origen==='gma'?PROY_GMA_COLOR:'var(--warn)';
     const inputVal=inflaEfectiva.toFixed(2);
     const inputDisabled=esPublicado?'disabled':'';
     const inputBg=esPublicado?'transparent':esRelleno?'var(--surface)':'var(--surface2)';
@@ -10278,13 +10407,17 @@ function projSetInfla(mes, val){
   const r=PROJ_INFLACION.find(r=>r.mes===mes);
   if(!r||r.tipo==='publicado')return;
   // Con el REM activo, editar no lo pisa: congela el sendero que estás viendo
-  // como tu sendero manual y el cambio se aplica ahí. El REM sigue entero.
-  if((PROJ_FUENTE.infla||'manual')!=='manual'){
-    inflaBifurcarAManual();
-    proyPintarSelectores();
+  // como tu sendero manual y el cambio se aplica ahí. El REM sigue entero. Con
+  // GMA elegida, el admin edita GMA y cualquier otro bifurca igual que con el REM.
+  const n=parseFloat(val),nv=isNaN(n)||val===''?null:n;
+  if(proyEditaGma('infla'))proyGmaFijar('infla',mes,nv);
+  else{
+    if((PROJ_FUENTE.infla||'manual')!=='manual'){
+      inflaBifurcarAManual();
+      proyPintarSelectores();
+    }
+    inflaSetManual(mes,nv);
   }
-  const n=parseFloat(val);
-  inflaSetManual(mes,isNaN(n)||val===''?null:n);
   projResolverInflacion();
   projSaveLs();
 
@@ -11788,7 +11921,7 @@ var TAB_MES_DIAS=30.4;
 // Dinero. BYMA publica la rueda del día y nada de historia.
 var TAB_CAU=null,TAB_CAU_PIDIENDO=false,TAB_CAU_FALLO=0;
 var TAB_TIMER=null;
-var TAB_ORIGEN={futuro:'Futuros',respaldo:'REM',rem:'REM',ancla:'REM',manual:'Manual',
+var TAB_ORIGEN={futuro:'Futuros',respaldo:'REM',rem:'REM',ancla:'REM',manual:'Manual',gma:'GMA',
   '5dias':'5 días',extrap:'extrapolado',real:'realizada',plano:'plano'};
 
 // La TAMAR que espera el REM sobre la ventana que proyecta el breakeven: de la
