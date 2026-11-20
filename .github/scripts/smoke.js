@@ -7700,6 +7700,75 @@ const omitir = (label, motivo) =>
   else check(Object.values(ajc.lado).every(Boolean),
         'al costado, la división se arrastra y se guarda, y las columnas llenan la tabla sin cortar números', JSON.stringify(ajc.lado));
 
+  // GMA: una cuarta fuente de proyección, compartida. La edita el admin y la
+  // ven todos; el que no es admin y edita bifurca a su Manual.
+  console.log('\nProyecciones GMA');
+  const gmaP = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const antes = { gma: JSON.parse(JSON.stringify(PROJ_GMA)), fuente: { ...PROJ_FUENTE }, tamar: PROJ_TAMAR.slice(), tcn: PROJ_TCN.slice(),
+      infla: PROJ_INFLA_MANUAL.slice(), ls: localStorage.getItem(PROY_GMA_LS), isAdmin: window.isAdmin, confirm: window.confirm };
+    try {
+      const hoy = proyMesHoy(), m1 = proyMesAdd(hoy, 1), m2 = proyMesAdd(hoy, 2), m3 = proyMesAdd(hoy, 3);
+      const libre = (PROJ_INFLACION.find(r => r.tipo !== 'publicado') || {}).mes;
+      window.isAdmin = () => false;
+      PROJ_GMA = proyGmaNormalizar({ infla: libre ? [{ mes: libre, v: 1.23 }] : [], tamar: [{ mes: hoy, v: 33.3 }], tcn: [{ mes: m1, v: 9999 }],
+        act: { tamar: new Date().toISOString() } });
+      out.opciones = ['infla', 'tamar', 'tcn'].every(s => PROY_OPCIONES[s].some(o => o[0] === 'gma'));
+      proySetFuente('tamar', 'gma'); proySetFuente('tcn', 'gma'); proySetFuente('infla', 'gma');
+      const st = tamarSendero().mapa, sd = dlkSendero().mapa;
+      // Lo cargado manda y arrastra a los meses que nadie fijó
+      out.tamar = st.get(hoy).v === 33.3 && st.get(hoy).origen === 'gma' && st.get(m1).v === 33.3 && st.get(m1).origen === 'auto'
+        && Math.abs(tamarTNAProy(fmtDate(TODAY)) - 33.3) < 1e-9;
+      out.tcn = sd.get(m1).v === 9999 && sd.get(m1).origen === 'gma' && sd.get(m2).v === 9999;
+      const ri = libre && PROJ_INFLACION.find(r => r.mes === libre);
+      out.infla = !libre || (ri.infla === 1.23 && ri.origen === 'gma');
+      out.etiqueta = proyFuenteLabel('tamar') === 'GMA' && TAB_ORIGEN.gma === 'GMA'
+        && !!document.querySelector('[data-proy-sel="tamar"] option[value="gma"]');
+      // Sin ser admin: editar con GMA elegida pasa a tu Manual y GMA no cambia
+      proySetValor('tamar', m2, '40');
+      out.noAdmin = PROJ_FUENTE.tamar === 'manual' && PROJ_GMA.tamar.length === 1 && PROJ_GMA.tamar[0].v === 33.3
+        && PROJ_TAMAR.some(o => o.mes === m2 && o.v === 40) && PROJ_TAMAR.some(o => o.mes === hoy && o.v === 33.3);
+      // Siendo admin: editar con GMA elegida edita GMA, en la clave compartida
+      window.isAdmin = () => true;
+      proySetFuente('tamar', 'gma');
+      proySetValor('tamar', m3, '41');
+      const ls = JSON.parse(localStorage.getItem(PROY_GMA_LS) || '{}');
+      out.admin = PROJ_FUENTE.tamar === 'gma' && PROJ_GMA.tamar.some(o => o.mes === m3 && o.v === 41)
+        && (ls.tamar || []).some(o => o.mes === m3 && o.v === 41) && !!(ls.act && ls.act.tamar)
+        && SUPA_SHARED_KEYS.includes(PROY_GMA_LS) && tamarSendero().mapa.get(m3).origen === 'gma';
+      // → GMA: el sendero que se está viendo pasa a ser el de GMA
+      window.confirm = () => true;
+      PROJ_TCN = [{ mes: hoy, v: 1500 }, { mes: m1, v: 1600 }]; proySetFuente('tcn', 'manual');
+      const visto = dlkSenderoLista().filter(p => p.mes >= hoy);
+      proyGmaPublicar('tcn');
+      out.publicar = PROJ_FUENTE.tcn === 'gma' && PROJ_GMA.tcn.length === visto.length && PROJ_GMA.tcn[1].v === 1600
+        && dlkSendero().mapa.get(m1).v === 1600 && dlkSendero().mapa.get(m1).origen === 'gma';
+      // Con el REM elegido, la tabla de TAMAR muestra el REM y no el Manual guardado
+      if (REM_DATA && REM_DATA.tamar && REM_DATA.tamar.length) {
+        PROJ_TAMAR = [{ mes: m1, v: 77.7 }]; proySetFuente('tamar', 'rem');
+        switchTab('proyecciones'); proySubtabGo('tamar'); proyRangoDefault('tamar'); await espera(100);
+        const inp = [...document.querySelectorAll('#proy-tamar-tbody input')].find(i => (i.getAttribute('onchange') || '').startsWith(`proySetValor('tamar','${m1}'`));
+        out.remTabla = !!inp && Math.abs(parseFloat(inp.value) - tamarSendero().mapa.get(m1).v) < 0.006 && parseFloat(inp.value) !== 77.7;
+      }
+    } catch (e) { out.err = e.message; }
+    finally {
+      window.isAdmin = antes.isAdmin; window.confirm = antes.confirm;
+      PROJ_GMA = antes.gma; PROJ_TAMAR = antes.tamar; PROJ_TCN = antes.tcn; PROJ_INFLA_MANUAL = antes.infla;
+      if (antes.ls == null) localStorage.removeItem(PROY_GMA_LS); else localStorage.setItem(PROY_GMA_LS, antes.ls);
+      PROJ_FUENTE = antes.fuente; proySaveLs(); proyInvalidar(); projRecalc(); proyRepropagar();
+      switchTab('lecap');
+    }
+    return out;
+  });
+  check(gmaP.opciones && gmaP.etiqueta && !gmaP.err, 'GMA aparece como fuente en inflación, TAMAR y dólar', JSON.stringify(gmaP));
+  check(gmaP.tamar && gmaP.tcn && gmaP.infla, 'con GMA elegida, los tres senderos salen de lo que cargó el admin', JSON.stringify(gmaP));
+  check(gmaP.noAdmin === true, 'sin ser admin, editar con GMA elegida pasa a tu Manual y GMA no cambia', JSON.stringify(gmaP));
+  check(gmaP.admin === true, 'el admin que edita con GMA elegida edita GMA, en la clave compartida', JSON.stringify(gmaP));
+  check(gmaP.publicar === true, '→ GMA carga como GMA el sendero que se está viendo', JSON.stringify(gmaP));
+  if (gmaP.remTabla === undefined) omitir('tabla de TAMAR con el REM', 'sin REM');
+  else check(gmaP.remTabla === true, 'con el REM elegido, la tabla de TAMAR muestra el REM y no el Manual guardado', JSON.stringify(gmaP));
+
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
   check(undef.length === 0, 'sin peticiones a /undefined', undef.join(', '));
