@@ -3346,12 +3346,18 @@ async function supaLoadSharedData(){
   try{
     const{data,error}=await supa.from('shared_data').select('key,value');
     if(error)throw error;
+    // Los precios escritos a mano no viajan en la lista compartida, y la lista
+    // que llega pisaba la de este navegador: el precio de un bono que ninguna
+    // fuente trae (D29E7, 24/11/2026) se perdía en cada recarga. Se toman antes
+    // y se vuelven a poner; el precio en vivo los reemplaza en cuanto alguna
+    // fuente trae ese bono, como siempre.
+    const aMano=supaPreciosAMano();
     data.forEach(row=>{
       // Sólo lo que hoy está declarado como compartido. Una key que dejó de
       // serlo deja filas viejas en la tabla, y sin este filtro seguirían
       // pisando el localStorage con un valor que ya no manda nadie.
       if(!SUPA_SHARED_KEYS.includes(row.key))return;
-      try{_origSetItem(row.key,JSON.stringify(row.value));}catch(e){}
+      try{_origSetItem(row.key,JSON.stringify(supaConAMano(row.key,row.value,aMano)));}catch(e){}
     });
     // Reload all bond data from localStorage
     loadPortfolio();
@@ -3416,15 +3422,42 @@ async function supaSaveUserKey(key){
 // mercado, que es de cada momento. Tampoco la marca de "a mano": sin el precio
 // no significa nada, y llegaba a todos como un bono escrito a mano y vacío que
 // no buscaba ningún respaldo (D29E7, 24/11/2026).
+const SUPA_LISTAS_PESOS=['bonosAR_lecaps_v1','bonosAR_cer_bonds_v1','bonosAR_tamar_bonds_v1','bonosAR_dlk_bonds_v1'];
+const SUPA_LISTAS_USD=['bonosAR_bop_v1','bonosAR_glo_v1','bonosAR_bon_v1'];
 function supaSinPrecios(key,value){
   if(!Array.isArray(value))return value;
-  if(key==='bonosAR_lecaps_v1'||key==='bonosAR_cer_bonds_v1'||key==='bonosAR_tamar_bonds_v1'||key==='bonosAR_dlk_bonds_v1')
+  if(SUPA_LISTAS_PESOS.includes(key))
     return value.map(b=>({...b,precio:null,pct_change:null,bid:null,ask:null,bidQ:null,askQ:null,vol:null,ops:null,monto:null,
       manualOverride:false,precioCierre:null,fuentePx:null}));
-  if(key==='bonosAR_bop_v1'||key==='bonosAR_glo_v1'||key==='bonosAR_bon_v1')
+  if(SUPA_LISTAS_USD.includes(key))
     return value.map(b=>({...b,lastPrecio:null,lastPrecioDisplay:null,lastPrecioMEP:null,lastPctChange:null,lastBid:null,lastAsk:null,
       lastVol:null,lastOps:null,lastMonto:null,lastLiq:null,lastPrecioCierre:null,lastFuente:null,manualOverride:false}));
   return value;
+}
+// Los precios escritos a mano en este navegador, por lista y por ticker: sólo
+// los que tienen precio.
+function supaPreciosAMano(){
+  const out={};
+  [...SUPA_LISTAS_PESOS,...SUPA_LISTAS_USD].forEach(key=>{
+    let v=null;
+    try{v=JSON.parse(localStorage.getItem(key)||'null');}catch(e){}
+    if(!Array.isArray(v))return;
+    const usd=SUPA_LISTAS_USD.includes(key),m={};
+    v.forEach(b=>{
+      if(!b||!b.ticker||!b.manualOverride)return;
+      if(usd){if(b.lastPrecio>0)m[b.ticker]={manualOverride:true,lastPrecio:b.lastPrecio,lastPrecioDisplay:b.lastPrecioDisplay>0?b.lastPrecioDisplay:b.lastPrecio,
+        lastPrecioMEP:b.lastPrecioMEP>0?b.lastPrecioMEP:null,lastPrecioCierre:null};}
+      else if(b.precio>0)m[b.ticker]={manualOverride:true,precio:b.precio,precioCierre:null};
+    });
+    if(Object.keys(m).length)out[key]=m;
+  });
+  return out;
+}
+// La lista que llega de la cuenta compartida, con los precios a mano de acá.
+function supaConAMano(key,value,aMano){
+  const m=aMano&&aMano[key];
+  if(!m||!Array.isArray(value))return value;
+  return value.map(b=>b&&m[b.ticker]?{...b,...m[b.ticker]}:b);
 }
 
 async function supaSaveSharedKey(key){

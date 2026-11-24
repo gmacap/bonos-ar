@@ -7918,6 +7918,59 @@ const omitir = (label, motivo) =>
   check(beRef.remIgual && beRef.rem, 'con REM, la columna es la de siempre, y el REM de la ficha no cambia con la referencia', JSON.stringify(beRef));
   check(beRef.vacia === true, 'con GMA sin cargar no hay número y el cartel lo explica', JSON.stringify(beRef));
 
+  // Un precio escrito a mano no viaja en la lista compartida, pero la lista que
+  // llega ya no lo pisa: se mantiene hasta que alguna fuente trae ese bono.
+  console.log('\nUn precio escrito a mano sobrevive a la lista compartida');
+  const amano = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const real = { fetch: fetchData912, hist: seriesHist912, byma: bymaCierresAnteriores };
+    const kd = 'bonosAR_dlk_bonds_v1', kg = 'bonosAR_glo_v1';
+    const bk = { d: localStorage.getItem(kd), g: localStorage.getItem(kg) };
+    const volver = (k, v) => { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); };
+    try {
+      // La mezcla: los de acá con precio vuelven, en pesos y en dólares; una marca
+      // sin precio o un precio que no es a mano, no.
+      localStorage.setItem(kd, JSON.stringify([{ ticker: 'ZZM1', precio: 150, manualOverride: true }, { ticker: 'ZZM2', precio: null, manualOverride: true },
+        { ticker: 'ZZM3', precio: 140, manualOverride: false }]));
+      localStorage.setItem(kg, JSON.stringify([{ ticker: 'ZZG1', lastPrecio: 61.5, lastPrecioDisplay: 61.5, manualOverride: true }]));
+      const am = supaPreciosAMano();
+      const d = supaConAMano(kd, [{ ticker: 'ZZM1', precio: null, manualOverride: false, vcto: '2027-01-29' }, { ticker: 'ZZM2', precio: null }, { ticker: 'ZZM3', precio: null }], am);
+      const g = supaConAMano(kg, [{ ticker: 'ZZG1', lastPrecio: null, manualOverride: false, vencimiento: '2030-07-09' }], am);
+      out.mezcla = d[0].precio === 150 && d[0].manualOverride === true && d[0].vcto === '2027-01-29' && d[1].precio === null && d[2].precio === null
+        && g[0].lastPrecio === 61.5 && g[0].manualOverride === true && g[0].vencimiento === '2030-07-09';
+      volver(kd, bk.d); volver(kg, bk.g); dlkLoadBonds();
+      // De punta a punta, con un DLK que data912 deja de traer y sin cierre en
+      // ninguna fuente, como D29E7: el precio escrito sigue después de la
+      // lista compartida, y data912 lo reemplaza cuando vuelve a traerlo.
+      const liq = G_LIQ || addHabiles(TODAY, 1);
+      const b0 = DLK_BONDS.find(b => b.precio > 0 && !b.manualOverride && b.vcto && diasACT(liq, parseDate(b.vcto)) > 5);
+      if (!b0) return { ...out, sinDatos: true };
+      const tk = b0.ticker;
+      fetchData912 = async (ep, f) => (await real.fetch(ep, f)).filter(x => x.symbol !== tk);
+      seriesHist912 = async () => new Map();
+      bymaCierresAnteriores = async () => new Map();
+      PRECIOS_ARCH = { ts: Date.now(), p: Promise.resolve([]) };
+      dlkFijarPrecio(tk, 123456);
+      await supaLoadSharedData(); await espera(2500);
+      const b1 = DLK_BONDS.find(b => b.ticker === tk);
+      out.sigue = !!b1 && b1.precio === 123456 && b1.manualOverride === true;
+      fetchData912 = real.fetch;
+      await dlkFetchPrices();
+      const b2 = DLK_BONDS.find(b => b.ticker === tk);
+      out.vuelve = !!b2 && b2.precio > 0 && b2.precio !== 123456 && b2.manualOverride === false;
+    } catch (e) { out.err = e.message; }
+    finally {
+      fetchData912 = real.fetch; seriesHist912 = real.hist; bymaCierresAnteriores = real.byma; PRECIOS_ARCH = null;
+      if (out.mezcla === undefined) { volver(kd, bk.d); volver(kg, bk.g); }
+      try { await fetchAllPrices(true); } catch (e) {}
+    }
+    return out;
+  });
+  check(amano.mezcla === true, 'la lista compartida que llega conserva los precios escritos a mano de este navegador, en pesos y en dólares', JSON.stringify(amano));
+  if (amano.sinDatos) omitir('precio a mano de punta a punta', 'ningún DLK con precio de data912');
+  else check(amano.sigue && amano.vuelve, 'un precio a mano de un bono sin fuente sigue después de cargar la lista compartida, y data912 lo reemplaza cuando vuelve a traerlo', JSON.stringify(amano));
+
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
   check(undef.length === 0, 'sin peticiones a /undefined', undef.join(', '));
