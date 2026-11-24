@@ -3412,6 +3412,21 @@ async function supaSaveUserKey(key){
   }catch(e){console.warn('supaSaveUserKey:',key,e);}
 }
 
+// Lo que va a la lista compartida: las definiciones de los bonos, sin nada de
+// mercado, que es de cada momento. Tampoco la marca de "a mano": sin el precio
+// no significa nada, y llegaba a todos como un bono escrito a mano y vacío que
+// no buscaba ningún respaldo (D29E7, 24/11/2026).
+function supaSinPrecios(key,value){
+  if(!Array.isArray(value))return value;
+  if(key==='bonosAR_lecaps_v1'||key==='bonosAR_cer_bonds_v1'||key==='bonosAR_tamar_bonds_v1'||key==='bonosAR_dlk_bonds_v1')
+    return value.map(b=>({...b,precio:null,pct_change:null,bid:null,ask:null,bidQ:null,askQ:null,vol:null,ops:null,monto:null,
+      manualOverride:false,precioCierre:null,fuentePx:null}));
+  if(key==='bonosAR_bop_v1'||key==='bonosAR_glo_v1'||key==='bonosAR_bon_v1')
+    return value.map(b=>({...b,lastPrecio:null,lastPrecioDisplay:null,lastPrecioMEP:null,lastPctChange:null,lastBid:null,lastAsk:null,
+      lastVol:null,lastOps:null,lastMonto:null,lastLiq:null,lastPrecioCierre:null,lastFuente:null,manualOverride:false}));
+  return value;
+}
+
 async function supaSaveSharedKey(key){
   if(!SUPA_USER){console.warn('[Supa] supaSaveSharedKey: sin usuario, abortando',key);return;}
   // RLS ya rechaza la escritura si no sos admin; cortamos antes para no
@@ -3420,14 +3435,7 @@ async function supaSaveSharedKey(key){
   try{
     const raw=localStorage.getItem(key);
     if(raw==null){console.warn('[Supa] supaSaveSharedKey: localStorage vacío para',key);return;}
-    let value=JSON.parse(raw);
-    // No guardar precios en Supabase — son datos de mercado en tiempo real
-    if(key==='bonosAR_lecaps_v1'||key==='bonosAR_cer_bonds_v1'||key==='bonosAR_tamar_bonds_v1'||key==='bonosAR_dlk_bonds_v1'){
-      value=value.map(b=>({...b,precio:null,pct_change:null,bid:null,ask:null,bidQ:null,askQ:null,vol:null,ops:null,monto:null}));
-    }
-    if(key==='bonosAR_bop_v1'||key==='bonosAR_glo_v1'||key==='bonosAR_bon_v1'){
-      value=value.map(b=>({...b,lastPrecio:null,lastPrecioMEP:null,lastPctChange:null,lastBid:null,lastAsk:null,lastVol:null,lastOps:null,lastMonto:null,lastLiq:null,lastPrecioCierre:null}));
-    }
+    const value=supaSinPrecios(key,JSON.parse(raw));
     console.log(`[Supa] guardando ${key} → ${value.length ?? JSON.stringify(value).length} items`,value);
     const{error}=await supa.from('shared_data').upsert({key,value,updated_at:new Date().toISOString()},{onConflict:'key'});
     if(error) console.error('[Supa] error al guardar',key,error);
@@ -4375,24 +4383,26 @@ function bymaComoData912(items){
   return out;
 }
 var BYMA_VIVO=null,BYMA_CAIDO=0;
+// Un panel de BYMA (public-bonds o lebacs), directo y por el Worker a la vez:
+// gana el primero que contesta bien. Hay redes que no llegan a BYMA directo.
+// Lo usan el respaldo en vivo y el cierre anterior de cada bono.
+async function bymaPanel(ep){
+  const leer=r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();};
+  const directo=fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/'+ep,{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({page_size:3000}),signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)}).then(leer);
+  const worker=fetch(WORKER_BYMA+'?panel='+ep,{cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)}).then(leer);
+  let j;
+  try{j=await Promise.any([directo,worker]);}
+  catch(e){throw new Error('BYMA '+ep+': '+((e.errors||[]).map(x=>x&&x.message).join(' / ')||e.message));}
+  return Array.isArray(j)?j:((j&&j.data)||[]);
+}
 function bymaVivo(){
   if(BYMA_VIVO&&Date.now()-BYMA_VIVO.ts<60000)return BYMA_VIVO.p;
   // Si BYMA no respondió hace poco no se lo vuelve a esperar: con data912
   // caído, cada refresco iría al archivo recién después de dos esperas.
   if(Date.now()<BYMA_CAIDO)return Promise.reject(new Error('BYMA no respondió hace un rato'));
-  // Directo y por el Worker a la vez: gana el primero que contesta bien.
-  const panel=async ep=>{
-    const leer=r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();};
-    const directo=fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/'+ep,{method:'POST',
-      headers:{'Content-Type':'application/json'},body:JSON.stringify({page_size:3000}),signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)}).then(leer);
-    const worker=fetch(WORKER_BYMA+'?panel='+ep,{cache:'no-store',signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)}).then(leer);
-    let j;
-    try{j=await Promise.any([directo,worker]);}
-    catch(e){throw new Error('BYMA '+ep+': '+((e.errors||[]).map(x=>x&&x.message).join(' / ')||e.message));}
-    return Array.isArray(j)?j:((j&&j.data)||[]);
-  };
   const p=(async()=>{
-    const r=await Promise.allSettled([panel('public-bonds'),panel('lebacs')]);
+    const r=await Promise.allSettled([bymaPanel('public-bonds'),bymaPanel('lebacs')]);
     const d=bymaComoData912(r.filter(x=>x.status==='fulfilled').flatMap(x=>x.value));
     if(!d.length)throw new Error(r.map(x=>x.reason&&x.reason.message).filter(Boolean).join(' · ')||'BYMA sin datos');
     return d;
@@ -5173,6 +5183,10 @@ function apiBestPrice(api){
 // cierre anterior de BYMA), igual que en dólares. Los vencidos y los precios
 // escritos a mano no se tocan.
 function pesosSinPrecioHoy(r,liq){
+  // La marca de "a mano" sin precio no es un precio escrito: así llegaba la
+  // lista compartida (ver supaSinPrecios) y el bono quedaba vacío, sin buscar
+  // ningún respaldo. Se le saca y sigue como cualquier otro.
+  if(r.manualOverride&&!(r.precio>0))r={...r,manualOverride:false};
   // Un vencido o uno escrito a mano no se tocan; sólo pierden la marca de un
   // respaldo que ya no corre.
   if(r.manualOverride||!r.vcto||diasACT(liq,parseDate(r.vcto))<=0)return r.fuentePx?{...r,fuentePx:null}:r;
@@ -5239,14 +5253,15 @@ function pesosCierreTexto(r){
   if(!ci)return'';
   const t=ci.sym||r.ticker;
   if(ci.buscando)return'Sin precio de hoy: buscando el último cierre';
-  if(ci.sinPrecio)return`Sin precio: ni data912 ni BYMA traen ${t}`;
+  if(ci.sinPrecio)return`Sin precio: ni data912, ni BYMA, ni el archivo de la app traen ${t}. Se puede escribir a mano con un clic`;
+  if(ci.fuente==='archivo')return`Sin precio de hoy (${t}): ni data912 ni BYMA lo traen; es el último que archivó la app${ci.fecha?`, del ${bopFmtDateDisp(ci.fecha)}`:''}. Sin variación, puntas ni monto del día`;
   if(ci.fecha)return`Sin precio de hoy (${t}): es el último operado, del ${bopFmtDateDisp(ci.fecha)}. Sin variación, puntas ni monto del día`;
   return`Sin precio de hoy (${t}): es el cierre anterior que informa BYMA. Sin variación, puntas ni monto del día`;
 }
 function pesosCierreMarca(r){
   if(!pesosEsCierre(r))return'';
-  const f=r.precioCierre.fecha;
-  return` <span title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="display:inline-block;margin-left:5px;padding:0 4px;border:1px solid var(--info);border-radius:3px;color:var(--info);font-size:var(--fs9);line-height:13px;font-weight:400;white-space:nowrap">${f?`cierre ${f.slice(8,10)}/${f.slice(5,7)}`:'cierre ant.'}</span>`;
+  const f=r.precioCierre.fecha,pre=r.precioCierre.fuente==='archivo'?'arch.':'cierre';
+  return` <span title="${pesosCierreTexto(r).replace(/"/g,'&quot;')}" style="display:inline-block;margin-left:5px;padding:0 4px;border:1px solid var(--info);border-radius:3px;color:var(--info);font-size:var(--fs9);line-height:13px;font-weight:400;white-space:nowrap">${f?`${pre} ${f.slice(8,10)}/${f.slice(5,7)}`:pre==='arch.'?pre:'cierre ant.'}</span>`;
 }
 // Debajo del precio de cada calculadora en pesos.
 function pesosNotaPanel(id,r){
@@ -20433,7 +20448,10 @@ function usdPrecioVivo(row,map,mepRate){
 // ayer, y la fecha viaja con el precio. data912 sólo guarda historia de los
 // tickers líquidos —tiene GD30C pero no GD29C ni BPA7C, que son justo los que
 // suelen faltar—, así que si no está, el cierre anterior que informa BYMA, que
-// no dice de qué día es.
+// no dice de qué día es. Y si BYMA tampoco, el último que archivó la app, de
+// las dos últimas semanas: la misma cadena que cuando data912 se cae entero,
+// pero para el bono que falta en una respuesta que sí llegó. En dólares el
+// archivo sólo tiene el ticker MEP.
 async function cierreAnterior(sym){
   if(!sym)return null;
   const m=await seriesHist912(sym);
@@ -20445,35 +20463,43 @@ async function cierreAnterior(sym){
   const pl=document.getElementById('g-plazo');
   const ci=pl&&String(pl.value)==='0';
   const c=b?(ci?(b.ci||b.h24):(b.h24||b.ci)):null;
-  return c>0?{fecha:null,c,fuente:'byma'}:null;
+  if(c>0)return{fecha:null,c,fuente:'byma'};
+  try{
+    const a=(await preciosArchivo()).find(x=>x.symbol===sym);
+    if(a&&a.c>0)return{fecha:a._fecha||null,c:a.c,fuente:'archivo'};
+  }catch(e){console.warn('[cierre] archivo de',sym+':',e.message);}
+  return null;
 }
 
 // El cierre anterior de todas las especies, en dos llamadas: los bonos públicos
 // y las letras —LECAP, LECER, LELINK—, que BYMA publica en otro panel.
-const BYMA_FREE='https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free';
+// Directo y por el Worker, como el respaldo en vivo (bymaPanel). Los bonos que
+// faltan piden esto todos a la vez: comparten un solo pedido. Si BYMA no
+// respondió hace un rato, acá o en vivo, no se lo vuelve a esperar.
 let _bymaCierres=null;
-async function bymaCierresAnteriores(){
-  if(_bymaCierres&&Date.now()-_bymaCierres.ts<CAUCION_TTL)return _bymaCierres.m;
-  const m=new Map();
-  const panel=async ep=>{
-    const res=await fetch(`${BYMA_FREE}/${ep}`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({page_size:3000}),signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
-    if(!res.ok)throw new Error('BYMA '+ep+' HTTP '+res.status);
-    const crudo=await res.json();
-    return Array.isArray(crudo)?crudo:((crudo&&crudo.data)||[]);
-  };
-  const r=await Promise.allSettled([panel('public-bonds'),panel('lebacs')]);
-  for(const x of r){
-    if(x.status!=='fulfilled'){console.warn('[byma] cierres anteriores:',x.reason&&x.reason.message);continue;}
-    for(const it of x.value){
-      if(!it||!it.symbol||!(it.previousClosingPrice>0))continue;
-      const e=m.get(it.symbol)||{};
-      e[String(it.settlementType)==='1'?'ci':'h24']=+it.previousClosingPrice;
-      m.set(it.symbol,e);
+function bymaCierresAnteriores(){
+  if(_bymaCierres&&Date.now()-_bymaCierres.ts<CAUCION_TTL)return _bymaCierres.p;
+  if(Date.now()<BYMA_CAIDO)return Promise.resolve(new Map());
+  const p=(async()=>{
+    const m=new Map();
+    const r=await Promise.allSettled([bymaPanel('public-bonds'),bymaPanel('lebacs')]);
+    for(const x of r){
+      if(x.status!=='fulfilled'){console.warn('[byma] cierres anteriores:',x.reason&&x.reason.message);continue;}
+      for(const it of x.value){
+        if(!it||!it.symbol||!(it.previousClosingPrice>0))continue;
+        const e=m.get(it.symbol)||{};
+        e[String(it.settlementType)==='1'?'ci':'h24']=+it.previousClosingPrice;
+        m.set(it.symbol,e);
+      }
     }
-  }
-  if(r.some(x=>x.status==='fulfilled'))_bymaCierres={ts:Date.now(),m};
-  return m;
+    if(!r.some(x=>x.status==='fulfilled')){
+      BYMA_CAIDO=Date.now()+10*60000;
+      if(_bymaCierres&&_bymaCierres.p===p)_bymaCierres=null;
+    }
+    return m;
+  })();
+  _bymaCierres={ts:Date.now(),p};
+  return p;
 }
 
 // La marca de un precio que no es de hoy, para la tabla, la calculadora y los
@@ -20486,8 +20512,8 @@ function usdEsCierre(b){
 }
 function usdCierreCorto(b){
   if(!usdEsCierre(b))return'';
-  const f=b.lastPrecioCierre.fecha;
-  return f?`cierre ${f.slice(8,10)}/${f.slice(5,7)}`:'cierre ant.';
+  const f=b.lastPrecioCierre.fecha,pre=b.lastPrecioCierre.fuente==='archivo'?'arch.':'cierre';
+  return f?`${pre} ${f.slice(8,10)}/${f.slice(5,7)}`:pre==='arch.'?pre:'cierre ant.';
 }
 function usdCierreTexto(b){
   const ci=b&&b.lastPrecioCierre;
@@ -20495,7 +20521,8 @@ function usdCierreTexto(b){
   const mon=USD_MONEDA_TXT[ci.moneda]||ci.moneda;
   if(ci.buscando)return`Sin precio de hoy en ${mon}: buscando el último cierre`;
   if(!ci.sym)return`Sin ticker en ${mon} en las equivalencias: no hay precio que mostrar`;
-  if(ci.sinPrecio)return`Sin precio en ${mon}: ni data912 ni BYMA traen ${ci.sym}`;
+  if(ci.sinPrecio)return`Sin precio en ${mon}: ni data912, ni BYMA, ni el archivo de la app traen ${ci.sym}`;
+  if(ci.fuente==='archivo')return`Sin precio de hoy en ${mon} (${ci.sym}): ni data912 ni BYMA lo traen; es el último que archivó la app${ci.fecha?`, del ${bopFmtDateDisp(ci.fecha)}`:''}. Sin variación, puntas ni monto del día`;
   if(ci.fecha)return`Sin precio de hoy en ${mon} (${ci.sym}): es el último operado, del ${bopFmtDateDisp(ci.fecha)}. Sin variación, puntas ni monto del día`;
   return`Sin precio de hoy en ${mon} (${ci.sym}): es el cierre anterior que informa BYMA. Sin variación, puntas ni monto del día`;
 }
@@ -20591,9 +20618,11 @@ async function usdRefreshPrices(){
           bond.lastFuente=(crudo[v.sym]||{})._fuente||null;
           if(fam.bop&&!bond.lastLiq)bond.lastLiq=liq;
           bond.manualOverride=false;fam.n++;
-        }else if(!bond.manualOverride){
+        }else if(!(bond.manualOverride&&bond.lastPrecio>0)){
           // Mientras se busca el cierre, sin precio: mejor un guion que el de
-          // otra moneda.
+          // otra moneda. La marca de "a mano" sin precio (así llegaba la lista
+          // compartida) tampoco frena la búsqueda.
+          bond.manualOverride=false;
           Object.assign(bond,{lastPrecio:null,lastPrecioDisplay:null,lastPrecioMEP:pxMEP(row),lastFuente:null,
             lastPctChange:null,lastBid:null,lastAsk:null,lastVol:null,lastOps:null,lastMonto:null,
             lastPrecioCierre:{fecha:null,sym:v.sym||null,moneda:usdCurrency,buscando:true}});
