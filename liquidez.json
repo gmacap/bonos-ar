@@ -1,5 +1,5 @@
 {
- "generado": "2026-11-21T02:45:38+00:00",
+ "generado": "2026-11-24T15:56:53+00:00",
  "fuente": "MAE · REPO en pesos a un día: volumen (millones de $) y tasa promedio ponderada, con y sin el BCRA; caución en pesos a un día hábil: tasa promedio ponderada y monto (millones de $)",
  "columnas": ["fecha", "volumen", "tasa", "tasaSinBCRA", "caucion", "montoCaucion"],
  "ruedas": [
@@ -216,7 +216,7 @@
   ["2026-11-16", 5906779.746, 20.3, 20.8, 20.3269, 2608587.417],
   ["2026-11-17", 6597375.499, 20.13, 20.52, 20.1503, 2747145.817],
   ["2026-11-18", 6981393.587, 20.17, 20.56, 20.0224, 2599569.852],
-  ["2026-11-19", 6724902.085, 20.16, 20.48, null, null],
-  ["2026-11-20", 6986820.919, 20.28, 21.11, null, null]
+  ["2026-11-19", 6724902.085, 20.16, 20.48, 20.0598, 2632620.4],
+  ["2026-11-20", 6986820.919, 20.28, 21.11, 20.5903, 3133606.7]
  ]
 }
