@@ -1,5 +1,5 @@
 {
- "generado": "2026-11-16T21:03:05+00:00",
+ "generado": "2026-11-24T21:12:54+00:00",
  "fuente": "Secretaría de Finanzas (argentina.gob.ar) · respaldo: MAE",
  "cronograma": [
   ["2025-01-13", "2025-01-15", "2025-01-17"],
@@ -49,7 +49,15 @@
   ["2026-11-24", "2026-11-26", "2026-11-30"],
   ["2026-12-09", "2026-12-11", "2026-12-15"]
  ],
- "llamado": null,
+ "llamado": {"fecha": "2026-11-26", "liquidacion": "2026-11-30", "fuente": "MAE", "instrumentos": [
+  {"ticker": "TMVE8", "nombre": "BONO DEL TESORO NACIONAL EN MONEDA DUAL TAMAR/DÓLAR LINKED CON VTO. 31/01/2028 - REAPERTURA", "clase": "dual", "dual": "dl", "estado": "reapertura", "vencimiento": "2028-01-31"},
+  {"nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VTO 12/03/2027", "clase": "dl", "estado": "nuevo", "vencimiento": "2027-03-12"},
+  {"ticker": "D10Y7", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VTO 10/052027", "clase": "dl", "estado": "reapertura", "vencimiento": "0001-01-01"},
+  {"ticker": "S16F7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VTO. 16/02/2027 - NUEVA", "clase": "fija", "vencimiento": "2027-02-16"},
+  {"ticker": "S16L7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VTO. 16/07/2027 - NUEVA", "clase": "fija", "vencimiento": "2027-07-16"},
+  {"ticker": "TZXY7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VTO. 31/05/2027 - REAPERTURA", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-05-31"},
+  {"ticker": "TZX28", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VTO. 30/06/2028 - REAPERTURA", "clase": "cer", "estado": "reapertura", "vencimiento": "2028-06-30"}
+ ]},
  "licitaciones": [
   {"ofertas": 2855, "ofertadoVE": 4103161.0, "adjudicadoVE": 3487488.0, "vencimientos": 1690000.0, "fecha": "2025-01-15", "url": "https://www.argentina.gob.ar/noticias/resultado-de-la-licitacion-de-lecap-boncap-y-boncer-0", "fuente": "Finanzas", "liquidacion": "2025-01-17", "vencEst": {"desde": "2024-12-13", "total": 1690940, "detalle": [["S17E5", 1289957, 131.085, 1690940, "BYMA 2025-01-15"]]}, "rolloverEst": 206.25, "instrumentos": [
    {"ticker": "S31L5", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VENCIMIENTO 31 DE JULIO DE 2025", "clase": "fija", "estado": "reapertura", "vencimiento": "2025-07-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 850908.0, "vnoAdjudicado": 735917.0, "circulacion": 1844422.0, "veAdjudicado": 940502.0, "veMoneda": "ARS", "precio": 1278.0, "tem": 2.27},
