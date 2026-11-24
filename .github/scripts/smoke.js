@@ -208,9 +208,11 @@ const omitir = (label, motivo) =>
         tablas.map(t => t.tab + ' ' + t.tds + '/' + t.ths).join(' · '));
 
   // Datos de mercado: no viajan a Supabase, igual que los precios.
-  const noViaja = await page.evaluate(() =>
-    ['bid', 'ask', 'vol', 'ops', 'monto'].every(k => /precio:null/.test(supaSaveSharedKey.toString())
-      && supaSaveSharedKey.toString().indexOf(k + ':null') >= 0));
+  const noViaja = await page.evaluate(() => {
+    // Lo que se sube a la lista compartida pasa por supaSinPrecios.
+    const b = supaSinPrecios('bonosAR_lecaps_v1', [{ ticker: 'X', precio: 1, bid: 1, ask: 1, vol: 1, ops: 1, monto: 1 }])[0];
+    return ['precio', 'bid', 'ask', 'vol', 'ops', 'monto'].every(k => b[k] === null) && /supaSinPrecios\(/.test(supaSaveSharedKey.toString());
+  });
   check(noViaja, 'el libro no se sincroniza: es dato de mercado, no definición');
 
   // Volumen en las series: barras bajo la línea de la tasa, con un solo bono
@@ -376,8 +378,14 @@ const omitir = (label, motivo) =>
       await usdRefreshPrices();
       out.byma = { precio: bond.lastPrecio, ci: bond.lastPrecioCierre,
         marca: /cierre ant\./.test(usdSumRowHtml({ b: bond }, false, 'x', 'glo')) };
+      // La marca de "a mano" sin precio —así llegaba la lista compartida— no
+      // frena la búsqueda del cierre.
+      bond.manualOverride = true; bond.lastPrecio = null; bond.lastPrecioCierre = null;
+      await usdRefreshPrices();
+      out.marcaVacia = { precio: bond.lastPrecio, manual: bond.manualOverride, fuente: bond.lastPrecioCierre && bond.lastPrecioCierre.fuente };
       // Sin cierre en ninguno de los dos: sin precio, nunca el MEP.
       bymaCierresAnteriores = async () => new Map();
+      PRECIOS_ARCH = { ts: Date.now(), p: Promise.resolve([]) };
       await usdRefreshPrices();
       out.nada = { precio: bond.lastPrecio, ci: bond.lastPrecioCierre,
         sinMarca: !/cierre (\d\d\/\d\d|ant\.)/.test(usdSumRowHtml({ b: bond }, false, 'x', 'glo')) };
@@ -393,7 +401,7 @@ const omitir = (label, motivo) =>
       usdCurrency = 'Cable'; await usdRefreshPrices();
       out.vuelta = { precio: bond.lastPrecio, ci: bond.lastPrecioCierre, cable: base.map[row.cable], enMemoria: enMemoria() };
     } finally {
-      usdFetchPriceMap = realMapa; seriesHist912 = realHist; bymaCierresAnteriores = realByma; usdCurrency = monedaPrev;
+      usdFetchPriceMap = realMapa; seriesHist912 = realHist; bymaCierresAnteriores = realByma; usdCurrency = monedaPrev; PRECIOS_ARCH = null;
       await usdRefreshPrices();
     }
     return out;
@@ -409,6 +417,8 @@ const omitir = (label, motivo) =>
     check(sinHoy.marca, 'la tabla lo marca con la fecha del cierre');
     check(sinHoy.byma.precio === 45.67 && sinHoy.byma.ci && sinHoy.byma.ci.fuente === 'byma' && sinHoy.byma.marca,
           'si data912 no tiene historia del ticker, usa el cierre anterior de BYMA, del mismo plazo', JSON.stringify(sinHoy.byma));
+    check(sinHoy.marcaVacia.precio === 45.67 && sinHoy.marcaVacia.manual === false && sinHoy.marcaVacia.fuente === 'byma',
+          'una marca de "a mano" sin precio no frena la búsqueda del cierre', JSON.stringify(sinHoy.marcaVacia));
     check(sinHoy.nada.precio == null && sinHoy.nada.ci && sinHoy.nada.ci.sinPrecio && sinHoy.nada.sinMarca,
           'sin cierre en ninguno queda sin precio, nunca con el de otra moneda', JSON.stringify(sinHoy.nada));
     check(sinHoy.archivo.precio === 23.45 && !sinHoy.archivo.enMemoria && sinHoy.vuelta.enMemoria,
@@ -450,8 +460,16 @@ const omitir = (label, motivo) =>
       };
       out.estado = (document.getElementById('api-status') || {}).textContent || '';
       out.enMemoria = curvasSnapshotFromMemory('TF').some(r => r.ticker === elegidos.TF);
-      // Sin cierre en ninguna fuente: sin precio, no el de antes.
+      // Sin BYMA: lo último que archivó la app, con su fecha y su marca.
       bymaCierresAnteriores = async () => new Map();
+      const fArch = fmtDate(restarHabiles(parseDate(hoyAR()), 2)), dm = fArch.slice(8, 10) + '/' + fArch.slice(5, 7);
+      PRECIOS_ARCH = { ts: Date.now(), p: Promise.resolve([...quitar].map((t, i) => ({ symbol: t, c: 200 + i, _fecha: fArch, _fuente: 'archivo' }))) };
+      await fetchAllPrices(true);
+      out.arch = [...quitar].map((t, i) => { const b = de(t); return { t, ok: b.precio === 200 + i && !!b.precioCierre && b.precioCierre.fuente === 'archivo' && b.precioCierre.fecha === fArch }; });
+      out.marcasArch = ['table-body', 'cer-table-body', 'tamar-table-body', 'dlk-table-body'].every(id => html(id).includes('arch. ' + dm));
+      out.textoArch = /archivó la app/.test(pesosCierreTexto(de(elegidos.DLK)));
+      // Sin cierre en ninguna fuente: sin precio, no el de antes.
+      PRECIOS_ARCH = { ts: Date.now(), p: Promise.resolve([]) };
       await fetchAllPrices(true);
       out.sin = Object.values(elegidos).map(t => { const b = de(t); return { t, precio: b.precio, sinPrecio: !!(b.precioCierre && b.precioCierre.sinPrecio) }; });
       out.estadoSin = (document.getElementById('api-status') || {}).textContent || '';
@@ -459,8 +477,17 @@ const omitir = (label, motivo) =>
       // llega sin ella.
       const manual = pesosSinPrecioHoy({ ...de(elegidos.TF), manualOverride: true, precio: 99, precioCierre: null }, liq);
       out.manualIntacto = manual.precio === 99 && !manual.precioCierre;
+      // La marca de "a mano" sin precio —así llegaba la lista compartida— no es
+      // un precio escrito: el bono busca su cierre como cualquier otro.
+      const vacio = pesosSinPrecioHoy({ ...de(elegidos.DLK), manualOverride: true, precio: null, precioCierre: null }, liq);
+      out.marcaVacia = vacio.manualOverride === false && !!(vacio.precioCierre && vacio.precioCierre.buscando);
+      // ...y la lista compartida ya no la lleva: sólo las definiciones.
+      const sp = supaSinPrecios('bonosAR_dlk_bonds_v1', [{ ticker: 'D29E7', vcto: '2027-01-29', precio: 157000, manualOverride: true, precioCierre: { fecha: '2026-11-20' }, fuentePx: 'byma' }])[0];
+      const su = supaSinPrecios('bonosAR_glo_v1', [{ ticker: 'GD30', vencimiento: '2030-07-09', lastPrecio: 60, lastPrecioDisplay: 60, manualOverride: true }])[0];
+      out.compartida = sp.precio === null && sp.manualOverride === false && sp.precioCierre === null && sp.fuentePx === null && sp.vcto === '2027-01-29'
+        && su.lastPrecio === null && su.lastPrecioDisplay === null && su.manualOverride === false && su.vencimiento === '2030-07-09';
     } finally {
-      fetchData912 = realFetch; seriesHist912 = realHist; bymaCierresAnteriores = realByma;
+      fetchData912 = realFetch; seriesHist912 = realHist; bymaCierresAnteriores = realByma; PRECIOS_ARCH = null;
       await fetchAllPrices(true);
     }
     out.vuelta = Object.values(elegidos).map(t => { const b = de(t); return { t, precio: b.precio, ci: b.precioCierre || null }; });
@@ -476,9 +503,13 @@ const omitir = (label, motivo) =>
     check(Object.values(pesosHoy.marcas).every(Boolean), 'las cuatro tablas lo marcan', JSON.stringify(pesosHoy.marcas));
     check(/al cierre anterior:/.test(pesosHoy.estado), 'el estado de ↻ Precios dice cuáles quedaron al cierre', pesosHoy.estado);
     check(!pesosHoy.enMemoria, 'el cierre anterior no entra a la curva de hoy');
+    check(pesosHoy.arch.every(x => x.ok) && pesosHoy.marcasArch && pesosHoy.textoArch,
+          'sin data912 ni BYMA para ese bono, toma lo último que archivó la app, con su fecha y la marca arch. en las cuatro tablas', JSON.stringify(pesosHoy.arch) + ' marcas ' + pesosHoy.marcasArch);
     check(pesosHoy.sin.every(x => x.precio == null && x.sinPrecio) && /sin precio:/.test(pesosHoy.estadoSin),
           'sin cierre en ninguna fuente queda sin precio, no con el de antes', JSON.stringify(pesosHoy.sin));
     check(pesosHoy.manualIntacto, 'un precio escrito a mano no se reemplaza');
+    check(pesosHoy.marcaVacia, 'una marca de "a mano" sin precio no frena la búsqueda del cierre');
+    check(pesosHoy.compartida, 'la lista compartida lleva sólo las definiciones: ni precios ni la marca de "a mano", en pesos y en dólares');
     check(pesosHoy.vuelta.every(x => x.precio > 0 && !x.ci), 'con precio en vivo otra vez, la marca se va',
           JSON.stringify(pesosHoy.vuelta));
   }
