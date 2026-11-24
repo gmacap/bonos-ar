@@ -15,6 +15,9 @@ Del mismo MAE sale la caución en pesos (CAARS): por día, la tasa promedio
 ponderada y el monto del plazo con más monto, que es el de un día hábil: tres
 días corridos los viernes, y más antes de un feriado (el 05/11/2026 operó 2,88
 billones a 6 días y 0,01 a uno). Va en las mismas filas, para comparar tasas.
+Si el histórico de cauciones no responde —desde el 19/11/2026 da 400 con "Could
+not find stored procedure"—, sale de las series de tasa y volumen de cada plazo
+del mismo MAE, con la misma regla.
 
 Lo que el MAE no publica es cuánto puso o tomó el BCRA. La app lo estima con
 esas dos tasas: si el BCRA toma a una tasa fija, la tasa de todo el REPO es el
@@ -42,6 +45,7 @@ SALIDA = os.path.join(RAIZ, 'liquidez.json')
 
 API = 'https://api.marketdata.mae.com.ar/api/mercado/repo/titulosfecha'
 API_CAU = 'https://api.marketdata.mae.com.ar/api/mercado/titulo/historicocauciones'
+API_CAU_SERIE = 'https://api.marketdata.mae.com.ar/api/mercado/cauciones/valorescierre/volumentasas'
 DESDE_HIST = '2026-01-01'   # desde acá el BCRA toma en el REPO a una tasa fija
 VENTANA = 40                # días corridos que se piden en cada pasada diaria
 
@@ -105,6 +109,31 @@ def cauciones(desde, hasta):
     return out
 
 
+def cauciones_por_plazo(desde, hasta):
+    """Lo mismo que cauciones(), desde las series de tasa y volumen de cada
+    plazo de uno a diez días: por día, el plazo con más volumen. La tasa es la
+    del histórico al decimal; el monto es el volumen de la serie, que difiere
+    del montoConcertado del histórico en torno al 0,1%."""
+    cand = {}
+    for pl in range(1, 11):
+        try:
+            d = pedir(API_CAU_SERIE, {'codTitulo': 'CAARS', 'plazo': '%03d' % pl,
+                                      'fechaDesde': desde, 'fechaHasta': hasta}) or {}
+        except Exception as e:
+            log('  caución a %d días:' % pl, e)
+            continue
+        vol = {x.get('time'): num(x.get('value')) for x in d.get('volumen') or []}
+        for x in d.get('tasa') or []:
+            tasa, v = num(x.get('value')), vol.get(x.get('time'))
+            if not (tasa and tasa > 0 and v and v > 0):
+                continue
+            # time: segundos UTC, a la medianoche del día de la rueda.
+            f = dt.datetime.fromtimestamp(x['time'], tz=dt.timezone.utc).date().isoformat()
+            if f not in cand or v > cand[f][1]:
+                cand[f] = [tasa, v]
+    return {f: [round(tasa, 4), round(v / 1e6, 3)] for f, (tasa, v) in cand.items()}
+
+
 def volcar(datos):
     """Una línea por rueda: el diff de cada día se lee."""
     j = lambda o: json.dumps(o, ensure_ascii=False, separators=(', ', ': '))
@@ -142,12 +171,23 @@ def main():
     try:
         cau = cauciones(desde, hoy.isoformat())
     except Exception as e:
-        log('  sin cauciones:', e)
+        log('  sin el histórico de cauciones:', e)
         cau = {}
     log('cauciones del MAE desde', desde, ':', len(cau))
+    # Lo que el histórico no trajo, de las series por plazo. Una rueda que ya
+    # tenía caución la conserva —no se reescribe la historia por la diferencia
+    # de monto entre las dos fuentes—, salvo las de los últimos días, por si
+    # alguna pasada las tomó con la rueda a medio hacer.
+    serie = {}
+    if any(f not in cau for f in nuevas):
+        serie = cauciones_por_plazo(desde, hoy.isoformat())
+        log('cauciones de las series por plazo:', len(serie))
+    reciente = (hoy - dt.timedelta(days=4)).isoformat()
     for f, r in nuevas.items():
         viejo = por.get(f) or []
-        r += cau.get(f) or (viejo[4:6] if len(viejo) >= 6 else [None, None])
+        previa = viejo[4:6] if len(viejo) >= 6 and viejo[4] is not None else None
+        r += (cau.get(f) or (serie.get(f) if f >= reciente else None)
+              or previa or serie.get(f) or [None, None])
     por.update({f: r for f, r in nuevas.items() if f >= DESDE_HIST})
     por = {f: (r + [None] * 6)[:6] for f, r in por.items()}
     datos = {'fuente': 'MAE · REPO en pesos a un día: volumen (millones de $) y tasa promedio ponderada, con y sin el BCRA; caución en pesos a un día hábil: tasa promedio ponderada y monto (millones de $)',
