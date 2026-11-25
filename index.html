@@ -258,8 +258,16 @@ tr.run-fuera>td{opacity:.38;}
 .run-acc{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
 .run-aviso{font-size:var(--fs10);color:var(--accent);font-family:var(--mono);flex-basis:100%;min-height:1em;}
 /* FX: el dólar en todas sus formas, con bid y offer. */
-.fx-cuerpo{display:flex;flex-direction:column;gap:18px;padding:8px 16px 40px;max-width:940px;}
-.fx-tabla{width:100%;border:1px solid var(--border2);font-variant-numeric:tabular-nums;table-layout:fixed;border-collapse:collapse;}
+.fx-cuerpo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(290px,100%),1fr));gap:14px;align-items:start;padding:8px 16px 40px;max-width:1200px;}
+.fx-cuerpo>.fx-aviso{grid-column:1/-1;}
+.fx-caja{border:1px solid var(--border2);background:var(--surface);min-width:0;}
+.fx-caja-tit{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border2);background:var(--surface2);font-family:var(--mono);font-size:var(--fs12);font-weight:600;color:var(--text);letter-spacing:.06em;cursor:help;}
+.fx-caja-tit span{font-weight:400;letter-spacing:0;color:var(--text3);font-size:var(--fs10);}
+.fx-caja .fx-tabla{border:0;}
+.fx-caja .fx-tabla tr:last-child td{border-bottom:0;}
+.fx-spot{padding:10px 12px;font-family:var(--mono);}
+.fx-spot b{display:block;font-size:22px;font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
+.fx-tabla{width:100%;min-width:0;border:1px solid var(--border2);font-variant-numeric:tabular-nums;table-layout:fixed;border-collapse:collapse;}
 .fx-tabla thead tr{position:static;}
 .fx-tabla thead th{cursor:default;padding:6px 10px;text-align:right;}
 .fx-tabla thead th.fx-izq{text-align:left;}
@@ -15869,7 +15877,7 @@ function fxRender(s){
     pg.insertAdjacentHTML('beforeend',`<div class="run-cab"><span class="pane-title">FX</span>
       <button type="button" class="btn" onclick="fxTraer(true)" title="Vuelve a pedir el libro del AL30 a data912 y el mayorista al MAE">↻ Actualizar</button>
       <span class="run-nota fx-hora"></span></div>
-    <div class="run-nota" style="padding:0 16px">El dólar con bid y offer, calculado con el AL30. Bid es lo que te pagan por vender dólares; offer, lo que pagás por comprarlos. MEP = AL30 / AL30D y cable = AL30 / AL30C, cruzando las puntas; canje = AL30D / AL30C − 1, directo entre los dos dólares, sin pasar por pesos; brecha = MEP / spot − 1, los dos de contado. T+1 sale del libro de data912. T+0 se agrega más adelante: hace falta el libro de contado inmediato, y la única fuente que lo tenía, BYMA, no responde desde el 16/11.</div>
+    <div class="run-nota" style="padding:0 16px">El dólar con bid y offer, calculado con el AL30. Bid es lo que te pagan por vender dólares; offer, lo que pagás por comprarlos. MEP = AL30 / AL30D y cable = AL30 / AL30C, cruzando las puntas; canje = AL30D / AL30C − 1, directo entre los dos dólares, sin pasar por pesos; brecha = MEP / spot − 1, los dos de contado. T+1 sale del libro de data912. T+0 se agrega más adelante: hace falta el libro de contado inmediato, y la única fuente que lo tenía, BYMA, no responde desde el 16/11. Pasá el mouse por el título de cada caja para ver cómo se calcula.</div>
     <div class="fx-cuerpo"></div>`);
   }
   fxPintar();
@@ -15902,38 +15910,37 @@ function fxPintarSec(s){
   const pc=v=>v!=null&&isFinite(v)?(v>=0?'+':'')+n2(v*100)+'%':'—';
   const e=betrEsc;
   const T0='T+0 se agrega más adelante: hace falta el libro de contado inmediato, y la única fuente que lo tenía, BYMA, no responde desde el 16/11';
-  const plazo=n=>`<td class="fx-plazo">T+${n}<span class="fx-liq">liquida ${e(dia(n?t1:t0))}</span></td>`;
   const de=L1&&FX.fuente&&FX.fuente!=='data912'?(FX.fuente==='byma'?'BYMA (data912 no responde)':'el archivo (sin puntas: ni data912 ni BYMA responden)'):'data912';
-  const fila=(inst,n,par,f,nota,tit,span)=>{
-    const vacio=!par||(par.bid==null&&par.ask==null);
-    return`<tr${vacio?' class="fx-vacio"':''}>${inst?`<td class="fx-inst"${span>1?` rowspan="${span}"`:''}>${inst}</td>`:''}${plazo(n)}`
-      +`<td title="${e(tit||'')}">${f(par&&par.bid)}</td><td title="${e(tit||'')}">${f(par&&par.ask)}</td>`
-      +`<td class="fx-nota"${!L0&&n===0?` title="${e(T0)}"`:''}>${nota}</td></tr>`;
+  // Cada instrumento en su caja. Lo que antes iba en "De dónde sale" queda en
+  // el globo del título.
+  const plazo=n=>`<td class="fx-plazo" title="Liquida el ${e(dia(n?t1:t0))}">T+${n}<span class="fx-liq">${e(dia(n?t1:t0))}</span></td>`;
+  const fila=(n,par,f)=>{
+    const vacio=!par||(par.bid==null&&par.ask==null),tit=!L0&&n===0?` title="${e(T0)}"`:'';
+    return`<tr${vacio?' class="fx-vacio"':''}${tit}>${plazo(n)}<td>${f(par&&par.bid)}</td><td>${f(par&&par.ask)}</td></tr>`;
   };
-  const pend='T+0: pendiente';
-  let h=`<table class="fx-tabla" aria-label="Cotizaciones del dólar"><colgroup><col style="width:13%"><col style="width:17%"><col style="width:17%"><col style="width:17%"><col style="width:36%"></colgroup>
-    <thead><tr><th class="fx-izq">Instrumento</th><th class="fx-izq">Plazo</th><th>Bid</th><th>Offer</th><th class="fx-izq">De dónde sale</th></tr></thead><tbody>`;
+  const caja=(k,nombre,tit,filas)=>`<section class="fx-caja" data-fx="${k}" aria-label="${nombre}"><div class="fx-caja-tit" title="${e(tit)}">${nombre}</div>`
+    +`<table class="fx-tabla"><colgroup><col style="width:34%"><col style="width:33%"><col style="width:33%"></colgroup>`
+    +`<thead><tr><th class="fx-izq">Plazo</th><th>Bid</th><th>Offer</th></tr></thead><tbody>${filas}</tbody></table></section>`;
+  let h='';
+  if(L1&&FX.fuente==='archivo')h+=`<div class="fx-aviso">⚠ Ni data912 ni BYMA responden: los precios archivados no tienen puntas, así que no hay bid ni offer.</div>`;
   // El spot: uno solo, el último operado.
-  h+=`<tr${sp?'':' class="fx-vacio"'}><td class="fx-inst">SPOT</td>${plazo(0)}<td colspan="2" class="fx-unico" title="El MAE no publica puntas del mayorista: es el último operado">${sp?`${px(sp.valor)} <span class="fx-liq">último${sp.hora?' · '+e(sp.hora):''} · sin puntas</span>`:'—'}</td>`
-    +`<td class="fx-nota">${sp?'MAE, mayorista contado (UST$T). El MAE no publica puntas: es el último operado'+(maeRuedaAbierta()?'':'; con la rueda cerrada, el cierre'):'Sin dato del MAE: probá ↻ Actualizar'}</td></tr>`;
-  const libro=(a,b)=>`${a} / ${b} · ${de}`;
-  h+=fila('MEP',0,c0.mep,px,pend,'Bid = AL30 bid / AL30D offer · Offer = AL30 offer / AL30D bid',2)
-    +fila('',1,c1.mep,px,libro('AL30','AL30D'),'Bid = AL30 bid / AL30D offer · Offer = AL30 offer / AL30D bid');
-  h+=fila('CABLE',0,c0.ccl,px,pend,'Bid = AL30 bid / AL30C offer · Offer = AL30 offer / AL30C bid',2)
-    +fila('',1,c1.ccl,px,libro('AL30','AL30C'),'Bid = AL30 bid / AL30C offer · Offer = AL30 offer / AL30C bid');
-  h+=fila('CANJE',0,c0.canje,pc,pend,'Bid = AL30D bid / AL30C offer − 1 · Offer = AL30D offer / AL30C bid − 1',2)
-    +fila('',1,c1.canje,pc,libro('AL30D','AL30C')+', sin pasar por pesos','Bid = AL30D bid / AL30C offer − 1 · Offer = AL30D offer / AL30C bid − 1');
-  h+=fila('BRECHA',0,c0.brecha,pc,L0?'MEP T+0 / spot − 1':'T+0: pendiente; necesita el MEP de contado','MEP T+0 / spot − 1',1);
-  h+='</tbody></table>';
+  h+=`<section class="fx-caja" data-fx="spot" aria-label="SPOT"><div class="fx-caja-tit" title="Mayorista contado (UST$T) del MAE. El MAE no publica puntas: es el último operado${maeRuedaAbierta()?'':'; con la rueda cerrada, el cierre'}">SPOT<span>T+0 · liquida ${e(dia(t0))}</span></div>`
+    +`<div class="fx-spot${sp?'':' fx-vacio'}"><b>${sp?px(sp.valor):'—'}</b><span class="fx-liq">${sp?`último${sp.hora?' · '+e(sp.hora):''} · sin puntas`:'Sin dato del MAE: probá ↻ Actualizar'}</span></div></section>`;
+  const fMep='AL30 / AL30D · bid = AL30 bid / AL30D offer · offer = AL30 offer / AL30D bid · T+1 de '+de;
+  const fCcl='AL30 / AL30C · bid = AL30 bid / AL30C offer · offer = AL30 offer / AL30C bid · T+1 de '+de;
+  const fCj='AL30D / AL30C − 1, directo entre los dos dólares, sin pasar por pesos · bid = AL30D bid / AL30C offer − 1 · offer = AL30D offer / AL30C bid − 1 · T+1 de '+de;
+  h+=caja('mep','MEP',fMep,fila(0,c0.mep,px)+fila(1,c1.mep,px));
+  h+=caja('cable','CABLE',fCcl,fila(0,c0.ccl,px)+fila(1,c1.ccl,px));
+  h+=caja('canje','CANJE',fCj,fila(0,c0.canje,pc)+fila(1,c1.canje,pc));
+  h+=caja('brecha','BRECHA','MEP T+0 / spot − 1, los dos de contado'+(L0?'':'. Pendiente: necesita el MEP de contado'),fila(0,c0.brecha,pc));
   // Lo que entra en la cuenta: las puntas de cada bono.
   const p3=(v,d)=>v!=null&&isFinite(v)?v.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
   const bono=(sym,k,d)=>{const x1=L1&&L1[k],x0=L0&&L0[k];
-    return`<tr><td class="fx-inst">${sym}</td><td>${p3(x0&&x0.bid,d)}</td><td>${p3(x0&&x0.ask,d)}</td><td>${p3(x1&&x1.bid,d)}</td><td>${p3(x1&&x1.ask,d)}</td></tr>`;};
-  h+=`<div><div class="fx-sub">Las puntas del AL30 con las que se calcula (T+1, ${e(de)})</div>
-    <table class="fx-tabla" aria-label="Puntas del AL30"><colgroup><col style="width:16%"><col style="width:21%"><col style="width:21%"><col style="width:21%"><col style="width:21%"></colgroup>
+    return`<tr><td class="fx-inst">${sym}</td><td title="${e(T0)}">${p3(x0&&x0.bid,d)}</td><td title="${e(T0)}">${p3(x0&&x0.ask,d)}</td><td>${p3(x1&&x1.bid,d)}</td><td>${p3(x1&&x1.ask,d)}</td></tr>`;};
+  h+=`<section class="fx-caja" data-fx="al30" aria-label="Puntas del AL30" style="grid-column:1/-1;max-width:760px"><div class="fx-caja-tit" title="Las puntas con las que se calcula todo lo de arriba. T+1 de ${e(de)}">PUNTAS DEL AL30</div>
+    <table class="fx-tabla"><colgroup><col style="width:16%"><col style="width:21%"><col style="width:21%"><col style="width:21%"><col style="width:21%"></colgroup>
     <thead><tr><th class="fx-izq">Bono</th><th title="${e(T0)}">T+0 bid</th><th title="${e(T0)}">T+0 offer</th><th>T+1 bid</th><th>T+1 offer</th></tr></thead><tbody>
-    ${bono('AL30','al30',2)}${bono('AL30D','al30d',3)}${bono('AL30C','al30c',3)}</tbody></table></div>`;
-  if(L1&&FX.fuente==='archivo')h=`<div class="fx-aviso">⚠ Ni data912 ni BYMA responden: los precios archivados no tienen puntas, así que no hay bid ni offer.</div>`+h;
+    ${bono('AL30','al30',2)}${bono('AL30D','al30d',3)}${bono('AL30C','al30c',3)}</tbody></table></section>`;
   cu.innerHTML=h;
   const hora=pg.querySelector('.fx-hora');
   if(hora){

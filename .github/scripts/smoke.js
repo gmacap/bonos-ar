@@ -8045,26 +8045,35 @@ const omitir = (label, motivo) =>
         && fxCalc({ al30: { bid: 1000, ask: null }, al30d: L.al30d, al30c: L.al30c }).mep.ask === null && fxLibro(0) === null;
       switchSection('pesos'); switchTab('fx'); await espera(300);
       FX.libro = L; fxPintar();
-      const filas = () => [...document.querySelectorAll('#page-fx .fx-tabla')[0].querySelectorAll('tbody tr')];
-      // Celda por celda: el textContent de la fila las pega ("SPOTT+0").
-      const txt = filas().map(tr => [...tr.cells].map(td => td.textContent.replace(/\s+/g, ' ').trim()).join(' '));
+      // Cada instrumento en su caja; celda por celda, porque el textContent de
+      // la fila las pega.
+      const caja = k => document.querySelector(`#page-fx .fx-caja[data-fx="${k}"]`);
+      const filasDe = k => [...(caja(k) ? caja(k).querySelectorAll('tbody tr') : [])].map(tr => [...tr.cells].map(td => td.textContent.replace(/\s+/g, ' ').trim()).join(' '));
       const n2 = v => v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      out.filas = txt.length === 8 && /^SPOT T\+0/.test(txt[0]) && /^MEP T\+0/.test(txt[1]) && /^T\+1/.test(txt[2]) && /^CABLE T\+0/.test(txt[3])
-        && /^CANJE T\+0/.test(txt[5]) && /^BRECHA T\+0/.test(txt[7]);
-      out.t1 = txt[2].includes(n2(1000 / 0.51)) && txt[2].includes(n2(1010 / 0.5)) && txt[6].includes('+' + n2((0.5 / 0.49 - 1) * 100) + '%');
-      out.t0 = [1, 3, 5, 7].every(i => /pendiente/.test(txt[i]) && (txt[i].match(/—/g) || []).length >= 2);
-      out.puntas = document.querySelectorAll('#page-fx .fx-tabla')[1].querySelectorAll('tbody tr').length === 3;
+      const pg = document.getElementById('page-fx');
+      out.orden = [...pg.querySelectorAll('.fx-caja')].map(c => c.dataset.fx).join('|');
+      out.filas = out.orden === 'spot|mep|cable|canje|brecha|al30' && !!caja('spot').querySelector('.fx-spot')
+        && ['mep', 'cable', 'canje'].every(k => filasDe(k).length === 2 && /^T\+0/.test(filasDe(k)[0]) && /^T\+1/.test(filasDe(k)[1]))
+        && filasDe('brecha').length === 1 && /^T\+0/.test(filasDe('brecha')[0]);
+      // "De dónde sale" no se ve: va en el globo del título de cada caja.
+      out.sinFuente = !/De dónde sale/i.test(pg.textContent) && /AL30D \/ AL30C/.test(caja('canje').querySelector('.fx-caja-tit').title)
+        && /AL30 \/ AL30D/.test(caja('mep').querySelector('.fx-caja-tit').title);
+      out.t1 = filasDe('mep')[1].includes(n2(1000 / 0.51)) && filasDe('mep')[1].includes(n2(1010 / 0.5)) && filasDe('canje')[1].includes('+' + n2((0.5 / 0.49 - 1) * 100) + '%');
+      out.t0 = ['mep', 'cable', 'canje', 'brecha'].every(k => { const tr = caja(k).querySelector('tbody tr');
+        return tr.classList.contains('fx-vacio') && /más adelante/.test(tr.title) && (filasDe(k)[0].match(/—/g) || []).length === 2; });
+      out.puntas = filasDe('al30').length === 3;
       out.sub = [...document.querySelectorAll('#page-fx .calc-nav button')].some(b => b.textContent === 'FX');
       switchSection('usd'); switchUsdTab('usd-fx'); await espera(300);
       out.usd = getComputedStyle(document.getElementById('page-usd-fx')).display !== 'none'
-        && document.querySelectorAll('#page-usd-fx .fx-tabla')[0].querySelectorAll('tbody tr').length === 8
+        && document.querySelectorAll('#page-usd-fx .fx-caja').length === 6
         && [...document.querySelectorAll('#page-usd-fx .calc-nav button')].some(b => b.textContent === 'FX');
     } catch (e) { out.err = e.message; }
     finally { FX.libro = antes; fxPintar(); switchSection('pesos'); switchTab('breakeven'); }
     return out;
   });
   check(fxs.cuentas, 'FX: MEP y cable cruzando las puntas del AL30, canje directo entre AL30D y AL30C, brecha sobre el spot', JSON.stringify(fxs));
-  check(fxs.filas && fxs.t1 && fxs.puntas && fxs.sub, 'FX: spot, MEP, cable, canje y brecha con bid y offer, y las puntas del AL30 abajo', JSON.stringify(fxs));
+  check(fxs.filas && fxs.t1 && fxs.puntas && fxs.sub, 'FX: spot, MEP, cable, canje y brecha, cada uno en su caja con bid y offer, y las puntas del AL30 abajo', JSON.stringify(fxs));
+  check(fxs.sinFuente, 'FX: sin la columna «De dónde sale»; cómo se calcula va en el globo del título de cada caja', JSON.stringify(fxs));
   check(fxs.t0, 'FX: T+0 queda vacío y dice que está pendiente', JSON.stringify(fxs));
   check(fxs.usd, 'FX: también en Calculadoras de dólares', JSON.stringify(fxs));
 
