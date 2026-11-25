@@ -257,6 +257,22 @@ table.anc-fijo>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 tr.run-fuera>td{opacity:.38;}
 .run-acc{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
 .run-aviso{font-size:var(--fs10);color:var(--accent);font-family:var(--mono);flex-basis:100%;min-height:1em;}
+/* FX: el dólar en todas sus formas, con bid y offer. */
+.fx-cuerpo{display:flex;flex-direction:column;gap:18px;padding:8px 16px 40px;max-width:940px;}
+.fx-tabla{width:100%;border:1px solid var(--border2);font-variant-numeric:tabular-nums;table-layout:fixed;border-collapse:collapse;}
+.fx-tabla thead tr{position:static;}
+.fx-tabla thead th{cursor:default;padding:6px 10px;text-align:right;}
+.fx-tabla thead th.fx-izq{text-align:left;}
+.fx-tabla thead th:hover{color:var(--text3);}
+.fx-tabla td{padding:7px 10px;font-family:var(--mono);font-size:var(--fs13);text-align:right;border-bottom:1px solid var(--border);height:auto;white-space:nowrap;}
+.fx-tabla td.fx-inst{text-align:left;font-weight:600;color:var(--text);border-right:1px solid var(--border);vertical-align:middle;}
+.fx-tabla td.fx-plazo{text-align:left;color:var(--text2);font-size:var(--fs12);}
+.fx-tabla td.fx-nota{text-align:left;color:var(--text3);font-size:var(--fs10);white-space:normal;line-height:1.35;}
+.fx-tabla tr.fx-vacio td:not(.fx-inst){color:var(--text3);}
+.fx-tabla td.fx-unico{text-align:center;}
+.fx-liq{display:block;font-size:var(--fs9);color:var(--text3);}
+.fx-sub{font-size:var(--fs10);color:var(--text3);font-family:var(--mono);margin-bottom:6px;}
+.fx-aviso{font-size:var(--fs11);color:var(--warn);font-family:var(--mono);}
 /* Las tasas de cada punta: calculadas, no se editan; las ve quien arma el run. */
 .run-cuerpo.con-tasas{grid-template-columns:repeat(auto-fill,minmax(min(600px,100%),1fr));}
 .run-tabla td.run-tasa{padding:4px 8px;text-align:right;color:var(--info);font-size:var(--fs11);white-space:nowrap;}
@@ -762,6 +778,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-run" onclick="switchTab('run')">RUN</button>
       <button class="nav-tab" role="menuitem" id="nav-pxcierre" onclick="switchTab('pxcierre')">Px Cierre</button>
       <button class="nav-tab" role="menuitem" id="nav-descuento" onclick="switchTab('descuento')">Descuento</button>
+      <button class="nav-tab" role="menuitem" id="nav-fx" onclick="switchTab('fx')">FX</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -805,6 +822,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-usd-equiv" onclick="switchUsdTab('usd-equiv')">Equivalencias</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-sintusd" onclick="switchUsdTab('usd-sintusd')">Sintético USD</button>
       <button class="nav-tab" role="menuitem" id="nav-usd-descuento" onclick="switchUsdTab('usd-descuento')">Descuento</button>
+      <button class="nav-tab" role="menuitem" id="nav-usd-fx" onclick="switchUsdTab('usd-fx')">FX</button>
     </div>
   </div>
   <div class="nav-grupo" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
@@ -1497,6 +1515,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-run" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 <div id="page-pxcierre" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 <div id="page-descuento" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
+<div id="page-fx" style="display:none;height:calc(100vh - var(--alto-barras));overflow-y:auto"></div>
 
 <!-- ═══════════════════════════════════════════════════════ DLK PAGE -->
 <div id="page-dlk" style="display:none;height:calc(100vh - var(--alto-barras));overflow:hidden;flex-direction:column;">
@@ -2477,6 +2496,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
 <div id="page-usd-riesgo" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-sintusd" class="pg" style="flex-direction:column"></div>
 <div id="page-usd-descuento" class="pg" style="overflow-y:auto"></div>
+<div id="page-usd-fx" class="pg" style="overflow-y:auto"></div>
 <div id="page-usd-spreadleg" class="pg">
   <div style="display:flex;flex-direction:column;height:100%">
     <div style="display:flex;align-items:center;gap:8px;padding:0 1rem;height:40px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
@@ -6102,13 +6122,13 @@ function renderChart(){
 let currentTab='lecap';
 let currentSection='pesos';
 let currentUsdTab='usd-resumen';
-const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-liquidez','usd-riesgo','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-descuento','usd-curvas','usd-series','usd-comentario'];
+const USD_TABS=['usd-resumen','usd-forwards','usd-retornos','usd-cartera','usd-spreadleg','usd-licitaciones','usd-futuros','usd-liquidez','usd-riesgo','usd-bonares','usd-globales','usd-bopreales','usd-equiv','usd-sintusd','usd-descuento','usd-fx','usd-curvas','usd-series','usd-comentario'];
 
 function hideAllPages(){
   const ids=['lecap-workspace','chart-area','page-cer','page-feriados',
     'page-proyecciones','page-breakeven','page-tamar','page-forwards',
     'page-dlk','page-sintetico','page-calendario','page-curvas-ars','page-series-ars',
-    'page-comentario','page-dual','page-escenarios','page-run','page-pxcierre','page-descuento','page-retornos','page-cartera','page-licitaciones','page-futuros','page-liquidez','page-sintusd'];
+    'page-comentario','page-dual','page-escenarios','page-run','page-pxcierre','page-descuento','page-fx','page-retornos','page-cartera','page-licitaciones','page-futuros','page-liquidez','page-sintusd'];
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   USD_TABS.forEach(t=>{const p=document.getElementById('page-'+t);if(p)p.style.display='none';});
 }
@@ -6197,6 +6217,7 @@ function switchUsdTab(tab){
   if(tab==='usd-spreadleg'){spreadLegRender();slegHistInit();}
   if(tab==='usd-equiv') equivRender();
   if(tab==='usd-descuento') descRender('usd');
+  if(tab==='usd-fx') fxRender('usd');
   if(tab==='usd-sintusd'){document.getElementById('page-usd-sintusd').style.display='flex';susInit('usd');}
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();desvMontar('usd');}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
@@ -6294,6 +6315,9 @@ function switchTab(tab){
   } else if(tab==='descuento'){
     document.getElementById('page-descuento').style.display='block';
     descRender('pesos');
+  } else if(tab==='fx'){
+    document.getElementById('page-fx').style.display='block';
+    fxRender('pesos');
   } else if(tab==='escenarios'){
     document.getElementById('page-escenarios').style.display='block';
     updateIndexBanners();
@@ -14670,6 +14694,8 @@ function brechaPintar(){
   const f=v=>(of>0&&v>0)?(v/of-1>=0?'+':'')+((v/of-1)*100).toFixed(2)+'%':'—';
   bid.textContent=f(_usdMep.bid);
   ask.textContent=f(_usdMep.ask);
+  // Lo llaman el MEP y el mayorista: la solapa FX se repinta con los dos.
+  try{fxPintar();}catch(e){}
 }
 async function usdFetch(fresco){
   try{
@@ -14698,6 +14724,7 @@ async function usdFetch(fresco){
     document.getElementById('usd-ccl-ask').textContent  = fmt(cclAsk);
     document.getElementById('usd-canje-bid').textContent= fmtP(canjeBid);
     document.getElementById('usd-canje-ask').textContent= fmtP(canjeAsk);
+    try{FX.libro=fxDe(data);FX.ts=Date.now();FX.fuente=PRECIOS_FUENTE.fuente;}catch(e){}
     _usdMep={bid:mepBid,ask:mepAsk};
     brechaPintar();
     const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
@@ -15798,6 +15825,123 @@ function descCalc(s){
 }
 function descPintar(){['pesos','usd'].forEach(s=>{try{descCalc(s);}catch(e){}});}
 
+// ══ FX ══
+// El dólar en todas sus formas, con bid y offer, calculado con el AL30. Bid es
+// lo que te pagan por vender dólares; offer, lo que pagás por comprarlos.
+//   · SPOT: el mayorista, último operado en el MAE (UST$T contado, T+0). El MAE
+//     no publica puntas: va el último, con su hora.
+//   · MEP: bid = AL30 bid / AL30D offer; offer = AL30 offer / AL30D bid.
+//   · CABLE: lo mismo con el AL30C.
+//   · CANJE: el cable sobre el MEP, directo entre AL30D y AL30C, sin pasar por
+//     pesos: bid = AL30D bid / AL30C offer − 1 (lo que te dan de más por
+//     vender cable); offer = AL30D offer / AL30C bid − 1. La barra de arriba lo
+//     cruza por pesos, y da una punta más ancha.
+//   · BRECHA: el MEP sobre el spot, los dos de contado (T+0).
+// T+1 sale del libro de data912, que la app toma como 24 hs. T+0 queda vacío a
+// propósito (25/11/2026): la única fuente con contado inmediato era BYMA, que
+// no responde desde el 16/11; se va a agregar más adelante, y entra por
+// fxLibro(0). Está igual en las dos secciones.
+var FX={libro:null,ts:0,fuente:null,pidiendo:false};
+function fxPg(s){return document.getElementById(s==='usd'?'page-usd-fx':'page-fx');}
+// Las puntas de AL30, AL30D y AL30C de una respuesta de precios.
+function fxDe(rows){
+  const m=new Map((rows||[]).map(x=>[x.symbol,x]));
+  const p=sym=>{const x=m.get(sym);return x?{bid:+x.px_bid>0?+x.px_bid:null,ask:+x.px_ask>0?+x.px_ask:null,fuente:x._fuente||null}:null;};
+  return{al30:p('AL30'),al30d:p('AL30D'),al30c:p('AL30C')};
+}
+// El libro de un plazo: 1 es el de data912; 0, contado inmediato, todavía no.
+function fxLibro(plazo){return plazo===1?FX.libro:null;}
+// Las cotizaciones de un libro; sin alguna punta, esa queda vacía.
+function fxCalc(L,spot){
+  const q=(a,b)=>a>0&&b>0?a/b:null,cj=(a,b)=>a>0&&b>0?a/b-1:null;
+  if(!L)return{mep:{bid:null,ask:null},ccl:{bid:null,ask:null},canje:{bid:null,ask:null},brecha:{bid:null,ask:null}};
+  const A=L.al30||{},D=L.al30d||{},C=L.al30c||{};
+  const mep={bid:q(A.bid,D.ask),ask:q(A.ask,D.bid)},ccl={bid:q(A.bid,C.ask),ask:q(A.ask,C.bid)};
+  const canje={bid:cj(D.bid,C.ask),ask:cj(D.ask,C.bid)};
+  const brecha={bid:spot>0&&mep.bid?mep.bid/spot-1:null,ask:spot>0&&mep.ask?mep.ask/spot-1:null};
+  return{mep,ccl,canje,brecha};
+}
+function fxRender(s){
+  s=s==='usd'?'usd':'pesos';
+  const pg=fxPg(s);
+  if(!pg)return;
+  if(!pg.querySelector('.fx-cuerpo')){
+    pg.insertAdjacentHTML('beforeend',`<div class="run-cab"><span class="pane-title">FX</span>
+      <button type="button" class="btn" onclick="fxTraer(true)" title="Vuelve a pedir el libro del AL30 a data912 y el mayorista al MAE">↻ Actualizar</button>
+      <span class="run-nota fx-hora"></span></div>
+    <div class="run-nota" style="padding:0 16px">El dólar con bid y offer, calculado con el AL30. Bid es lo que te pagan por vender dólares; offer, lo que pagás por comprarlos. MEP = AL30 / AL30D y cable = AL30 / AL30C, cruzando las puntas; canje = AL30D / AL30C − 1, directo entre los dos dólares, sin pasar por pesos; brecha = MEP / spot − 1, los dos de contado. T+1 sale del libro de data912. T+0 se agrega más adelante: hace falta el libro de contado inmediato, y la única fuente que lo tenía, BYMA, no responde desde el 16/11.</div>
+    <div class="fx-cuerpo"></div>`);
+  }
+  fxPintar();
+  fxTraer(false);
+}
+// El libro sale de la misma tanda de precios que la barra de dólares; el spot,
+// del MAE, si todavía no está.
+async function fxTraer(fresco){
+  if(FX.pidiendo)return;
+  FX.pidiendo=true;
+  try{
+    const[rows]=await Promise.all([
+      fetchData912('arg_bonds',!!fresco).catch(()=>null),
+      fresco||!(A3500_LIVE&&A3500_LIVE.valor>0)?maeRefrescar(true).catch(()=>{}):null,
+    ]);
+    if(rows){FX.libro=fxDe(rows);FX.ts=Date.now();FX.fuente=PRECIOS_FUENTE.fuente;}
+  }finally{FX.pidiendo=false;}
+  fxPintar();
+}
+function fxPintar(){['pesos','usd'].forEach(s=>{try{fxPintarSec(s);}catch(e){console.warn('[fx]',e.message);}});}
+function fxPintarSec(s){
+  const pg=fxPg(s),cu=pg&&pg.querySelector('.fx-cuerpo');
+  if(!cu)return;
+  const sp=typeof A3500_LIVE!=='undefined'&&A3500_LIVE&&A3500_LIVE.valor>0?A3500_LIVE:null;
+  const L1=fxLibro(1),L0=fxLibro(0),c1=fxCalc(L1,null),c0=fxCalc(L0,sp&&sp.valor);
+  const t0=siguienteHabil(parseDate(hoyAR())),t1=addHabiles(t0,1);
+  const dia=d=>d.toLocaleDateString('es-AR',{weekday:'short'}).replace('.','')+' '+cantFec(fmtDate(d));
+  const n2=v=>v.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const px=v=>v!=null&&isFinite(v)?n2(v):'—';
+  const pc=v=>v!=null&&isFinite(v)?(v>=0?'+':'')+n2(v*100)+'%':'—';
+  const e=betrEsc;
+  const T0='T+0 se agrega más adelante: hace falta el libro de contado inmediato, y la única fuente que lo tenía, BYMA, no responde desde el 16/11';
+  const plazo=n=>`<td class="fx-plazo">T+${n}<span class="fx-liq">liquida ${e(dia(n?t1:t0))}</span></td>`;
+  const de=L1&&FX.fuente&&FX.fuente!=='data912'?(FX.fuente==='byma'?'BYMA (data912 no responde)':'el archivo (sin puntas: ni data912 ni BYMA responden)'):'data912';
+  const fila=(inst,n,par,f,nota,tit,span)=>{
+    const vacio=!par||(par.bid==null&&par.ask==null);
+    return`<tr${vacio?' class="fx-vacio"':''}>${inst?`<td class="fx-inst"${span>1?` rowspan="${span}"`:''}>${inst}</td>`:''}${plazo(n)}`
+      +`<td title="${e(tit||'')}">${f(par&&par.bid)}</td><td title="${e(tit||'')}">${f(par&&par.ask)}</td>`
+      +`<td class="fx-nota"${!L0&&n===0?` title="${e(T0)}"`:''}>${nota}</td></tr>`;
+  };
+  const pend='T+0: pendiente';
+  let h=`<table class="fx-tabla" aria-label="Cotizaciones del dólar"><colgroup><col style="width:13%"><col style="width:17%"><col style="width:17%"><col style="width:17%"><col style="width:36%"></colgroup>
+    <thead><tr><th class="fx-izq">Instrumento</th><th class="fx-izq">Plazo</th><th>Bid</th><th>Offer</th><th class="fx-izq">De dónde sale</th></tr></thead><tbody>`;
+  // El spot: uno solo, el último operado.
+  h+=`<tr${sp?'':' class="fx-vacio"'}><td class="fx-inst">SPOT</td>${plazo(0)}<td colspan="2" class="fx-unico" title="El MAE no publica puntas del mayorista: es el último operado">${sp?`${px(sp.valor)} <span class="fx-liq">último${sp.hora?' · '+e(sp.hora):''} · sin puntas</span>`:'—'}</td>`
+    +`<td class="fx-nota">${sp?'MAE, mayorista contado (UST$T). El MAE no publica puntas: es el último operado'+(maeRuedaAbierta()?'':'; con la rueda cerrada, el cierre'):'Sin dato del MAE: probá ↻ Actualizar'}</td></tr>`;
+  const libro=(a,b)=>`${a} / ${b} · ${de}`;
+  h+=fila('MEP',0,c0.mep,px,pend,'Bid = AL30 bid / AL30D offer · Offer = AL30 offer / AL30D bid',2)
+    +fila('',1,c1.mep,px,libro('AL30','AL30D'),'Bid = AL30 bid / AL30D offer · Offer = AL30 offer / AL30D bid');
+  h+=fila('CABLE',0,c0.ccl,px,pend,'Bid = AL30 bid / AL30C offer · Offer = AL30 offer / AL30C bid',2)
+    +fila('',1,c1.ccl,px,libro('AL30','AL30C'),'Bid = AL30 bid / AL30C offer · Offer = AL30 offer / AL30C bid');
+  h+=fila('CANJE',0,c0.canje,pc,pend,'Bid = AL30D bid / AL30C offer − 1 · Offer = AL30D offer / AL30C bid − 1',2)
+    +fila('',1,c1.canje,pc,libro('AL30D','AL30C')+', sin pasar por pesos','Bid = AL30D bid / AL30C offer − 1 · Offer = AL30D offer / AL30C bid − 1');
+  h+=fila('BRECHA',0,c0.brecha,pc,L0?'MEP T+0 / spot − 1':'T+0: pendiente; necesita el MEP de contado','MEP T+0 / spot − 1',1);
+  h+='</tbody></table>';
+  // Lo que entra en la cuenta: las puntas de cada bono.
+  const p3=(v,d)=>v!=null&&isFinite(v)?v.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
+  const bono=(sym,k,d)=>{const x1=L1&&L1[k],x0=L0&&L0[k];
+    return`<tr><td class="fx-inst">${sym}</td><td>${p3(x0&&x0.bid,d)}</td><td>${p3(x0&&x0.ask,d)}</td><td>${p3(x1&&x1.bid,d)}</td><td>${p3(x1&&x1.ask,d)}</td></tr>`;};
+  h+=`<div><div class="fx-sub">Las puntas del AL30 con las que se calcula (T+1, ${e(de)})</div>
+    <table class="fx-tabla" aria-label="Puntas del AL30"><colgroup><col style="width:16%"><col style="width:21%"><col style="width:21%"><col style="width:21%"><col style="width:21%"></colgroup>
+    <thead><tr><th class="fx-izq">Bono</th><th title="${e(T0)}">T+0 bid</th><th title="${e(T0)}">T+0 offer</th><th>T+1 bid</th><th>T+1 offer</th></tr></thead><tbody>
+    ${bono('AL30','al30',2)}${bono('AL30D','al30d',3)}${bono('AL30C','al30c',3)}</tbody></table></div>`;
+  if(L1&&FX.fuente==='archivo')h=`<div class="fx-aviso">⚠ Ni data912 ni BYMA responden: los precios archivados no tienen puntas, así que no hay bid ni offer.</div>`+h;
+  cu.innerHTML=h;
+  const hora=pg.querySelector('.fx-hora');
+  if(hora){
+    const hh=ts=>new Date(ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    hora.textContent=(FX.ts?`Libro del AL30 de las ${hh(FX.ts)}`:'Sin libro del AL30 todavía')+(sp&&sp.hora?` · mayorista de las ${sp.hora}`:'');
+  }
+}
+
 // ══ TAB EN LAS TABLAS DE LAS CALCULADORAS ══
 // Parado en un precio (o en una tasa que se edita), Tab guarda lo escrito y abre
 // la misma columna en el bono de abajo; Shift+Tab, en el de arriba. Saltea los
@@ -15905,8 +16049,8 @@ function calcBonosPintar(clave){
 // desde el arranque, antes de que el script llegue hasta acá.
 var CALC_LS='bonosAR_calc_vista_v1';
 var CALC_SUBSOLAPAS={
-  pesos:[['lecap','Tasa fija'],['cer','CER'],['tamar','TAMAR'],['dlk','DLK'],['sintetico','Sint. ARS'],['sintusd','Sint. USD'],['run','RUN'],['pxcierre','Px Cierre'],['descuento','Descuento']],
-  usd:[['usd-bonares','Bonares'],['usd-globales','Globales'],['usd-bopreales','Bopreales'],['usd-equiv','Equivalencias'],['usd-sintusd','Sint. USD'],['usd-descuento','Descuento']],
+  pesos:[['lecap','Tasa fija'],['cer','CER'],['tamar','TAMAR'],['dlk','DLK'],['sintetico','Sint. ARS'],['sintusd','Sint. USD'],['run','RUN'],['pxcierre','Px Cierre'],['descuento','Descuento'],['fx','FX']],
+  usd:[['usd-bonares','Bonares'],['usd-globales','Globales'],['usd-bopreales','Bopreales'],['usd-equiv','Equivalencias'],['usd-sintusd','Sint. USD'],['usd-descuento','Descuento'],['usd-fx','FX']],
 };
 // raiz: dónde va la fila de subsolapas (barra: en la barra de arriba que ya
 // tiene la página, en lugar del título); area: el panel de abajo; tabla: la
@@ -15926,6 +16070,8 @@ var CALC_DEF={
   pxcierre:{sec:'pesos',raiz:'page-pxcierre'},
   descuento:{sec:'pesos',raiz:'page-descuento'},
   'usd-descuento':{sec:'usd',raiz:'page-usd-descuento'},
+  fx:{sec:'pesos',raiz:'page-fx'},
+  'usd-fx':{sec:'usd',raiz:'page-usd-fx'},
   'usd-sintusd':{sec:'usd',raiz:'page-usd-sintusd',area:'usus-chart-area',tabla:'#page-usd-sintusd .table-scroll table',chart:()=>SUS_CHARTS.usd},
 };
 var CALC_POR_CLAVE={tf:'lecap',cer:'cer',tamar:'tamar',dlk:'dlk',bon:'usd-bonares',glo:'usd-globales',bop:'usd-bopreales'};

@@ -6580,9 +6580,9 @@ const omitir = (label, motivo) =>
   check(nav.pesos === 'Resumen|Análisis|Calculadoras|Gráficos|Proyecciones|Comentario|Calendario'
         && nav.usd === 'Resumen|Análisis|Calculadoras|Gráficos|Comentario',
         'la barra va agrupada: Resumen, Análisis, Calculadoras, Gráficos, Proyecciones y Comentario', `${nav.pesos} · ${nav.usd}`);
-  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd,run,pxcierre,descuento',
+  check(nav.menus.join(' ') === ['nav-pesos:Análisis=forwards,retornos,cartera,dual,escenarios,licitaciones,futuros,liquidez', 'nav-pesos:Calculadoras=lecap,cer,tamar,dlk,sintetico,sintusd,run,pxcierre,descuento,fx',
         'nav-pesos:Gráficos=curvas-ars,series-ars', 'nav-pesos:Calendario=calendario,feriados',
-        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-liquidez,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd,usd-descuento',
+        'nav-usd:Análisis=usd-forwards,usd-retornos,usd-cartera,usd-spreadleg,usd-licitaciones,usd-futuros,usd-liquidez,usd-riesgo', 'nav-usd:Calculadoras=usd-bonares,usd-globales,usd-bopreales,usd-equiv,usd-sintusd,usd-descuento,usd-fx',
         'nav-usd:Gráficos=usd-curvas,usd-series'].join(' '),
         'cada lista desplegable tiene sus solapas', nav.menus.join(' · '));
   check(nav.abre && nav.navega && nav.escape && nav.afuera,
@@ -7292,8 +7292,8 @@ const omitir = (label, motivo) =>
     }
     return out;
   });
-  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD|RUN|Px Cierre|Descuento · CER' && cvista.irTF
-        && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD|Descuento' && cvista.irGlo,
+  check(cvista.navPesos === 'Tasa fija|CER|TAMAR|DLK|Sint. ARS|Sint. USD|RUN|Px Cierre|Descuento|FX · CER' && cvista.irTF
+        && cvista.navUsd === 'Bonares|Globales|Bopreales|Equivalencias|Sint. USD|Descuento|FX' && cvista.irGlo,
         'cada calculadora tiene las subsolapas de su sección, marca la abierta y lleva a la otra con un clic', JSON.stringify(cvista));
   check(cvista.fwd && cvista.fwd.filas >= 3 && cvista.fwd.sinElSacado && cvista.fwd.grafico === 'none' && cvista.fwdUsd >= 3
         && cvista.tf && /%$/.test(cvista.tf.tem || '') && cvista.tf.fwdMode && cvista.tf.esquina === 'TEM',
@@ -8030,6 +8030,43 @@ const omitir = (label, motivo) =>
     check(rt.cuenta && rt.edita, 'RUN: la tasa es la de su calculadora para ese precio, y se mueve al editarlo', JSON.stringify(rt));
     check(rt.copiaSin && rt.copiaCon, 'RUN: las tasas van a la copia sólo con «Copiar con tasas», en el texto, la tabla y la imagen', JSON.stringify(rt));
   }
+
+  // FX: spot, MEP, cable, canje y brecha con bid y offer, con el AL30. T+1 del
+  // libro de data912; T+0 vacío a propósito hasta que haya contado inmediato.
+  console.log('\nFX');
+  const fxs = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, antes = FX.libro, cerca = (a, b) => a != null && Math.abs(a - b) < 1e-9;
+    try {
+      const L = { al30: { bid: 1000, ask: 1010 }, al30d: { bid: 0.5, ask: 0.51 }, al30c: { bid: 0.48, ask: 0.49 } };
+      const c = fxCalc(L, 1500);
+      out.cuentas = cerca(c.mep.bid, 1000 / 0.51) && cerca(c.mep.ask, 1010 / 0.5) && cerca(c.ccl.bid, 1000 / 0.49) && cerca(c.ccl.ask, 1010 / 0.48)
+        && cerca(c.canje.bid, 0.5 / 0.49 - 1) && cerca(c.canje.ask, 0.51 / 0.48 - 1) && cerca(c.brecha.bid, 1000 / 0.51 / 1500 - 1)
+        && fxCalc({ al30: { bid: 1000, ask: null }, al30d: L.al30d, al30c: L.al30c }).mep.ask === null && fxLibro(0) === null;
+      switchSection('pesos'); switchTab('fx'); await espera(300);
+      FX.libro = L; fxPintar();
+      const filas = () => [...document.querySelectorAll('#page-fx .fx-tabla')[0].querySelectorAll('tbody tr')];
+      // Celda por celda: el textContent de la fila las pega ("SPOTT+0").
+      const txt = filas().map(tr => [...tr.cells].map(td => td.textContent.replace(/\s+/g, ' ').trim()).join(' '));
+      const n2 = v => v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      out.filas = txt.length === 8 && /^SPOT T\+0/.test(txt[0]) && /^MEP T\+0/.test(txt[1]) && /^T\+1/.test(txt[2]) && /^CABLE T\+0/.test(txt[3])
+        && /^CANJE T\+0/.test(txt[5]) && /^BRECHA T\+0/.test(txt[7]);
+      out.t1 = txt[2].includes(n2(1000 / 0.51)) && txt[2].includes(n2(1010 / 0.5)) && txt[6].includes('+' + n2((0.5 / 0.49 - 1) * 100) + '%');
+      out.t0 = [1, 3, 5, 7].every(i => /pendiente/.test(txt[i]) && (txt[i].match(/—/g) || []).length >= 2);
+      out.puntas = document.querySelectorAll('#page-fx .fx-tabla')[1].querySelectorAll('tbody tr').length === 3;
+      out.sub = [...document.querySelectorAll('#page-fx .calc-nav button')].some(b => b.textContent === 'FX');
+      switchSection('usd'); switchUsdTab('usd-fx'); await espera(300);
+      out.usd = getComputedStyle(document.getElementById('page-usd-fx')).display !== 'none'
+        && document.querySelectorAll('#page-usd-fx .fx-tabla')[0].querySelectorAll('tbody tr').length === 8
+        && [...document.querySelectorAll('#page-usd-fx .calc-nav button')].some(b => b.textContent === 'FX');
+    } catch (e) { out.err = e.message; }
+    finally { FX.libro = antes; fxPintar(); switchSection('pesos'); switchTab('breakeven'); }
+    return out;
+  });
+  check(fxs.cuentas, 'FX: MEP y cable cruzando las puntas del AL30, canje directo entre AL30D y AL30C, brecha sobre el spot', JSON.stringify(fxs));
+  check(fxs.filas && fxs.t1 && fxs.puntas && fxs.sub, 'FX: spot, MEP, cable, canje y brecha con bid y offer, y las puntas del AL30 abajo', JSON.stringify(fxs));
+  check(fxs.t0, 'FX: T+0 queda vacío y dice que está pendiente', JSON.stringify(fxs));
+  check(fxs.usd, 'FX: también en Calculadoras de dólares', JSON.stringify(fxs));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
