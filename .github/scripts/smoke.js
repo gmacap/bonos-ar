@@ -7971,6 +7971,66 @@ const omitir = (label, motivo) =>
   if (amano.sinDatos) omitir('precio a mano de punta a punta', 'ningún DLK con precio de data912');
   else check(amano.sigue && amano.vuelve, 'un precio a mano de un bono sin fuente sigue después de cargar la lista compartida, y data912 lo reemplaza cuando vuelve a traerlo', JSON.stringify(amano));
 
+  // RUN: la tasa de cada precio, a la vista sólo de quien arma el run; a la
+  // copia va sólo si se pide.
+  console.log('\nRUN: las tasas de cada precio');
+  const rt = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const antes = localStorage.getItem('bonosAR_run_v1'), cm = chartMode;
+    localStorage.removeItem('bonosAR_run_v1');
+    const out = {};
+    try {
+      switchSection('pesos'); switchTab('run'); await espera(600);
+      const btn = id => document.getElementById(id);
+      const cab = g => { const s = [...document.querySelectorAll('#page-run section[data-g]')].find(x => x.dataset.g === g); return s ? [...s.querySelectorAll('thead tr:last-child th')].map(h => h.textContent).join('|') : ''; };
+      out.inicio = document.querySelectorAll('#page-run td.run-tasa').length === 0 && btn('run-tasas-ver').getAttribute('aria-pressed') === 'false'
+        && btn('run-tasas-copia').getAttribute('aria-pressed') === 'false';
+      // Ver tasas: al lado de cada precio, con la cuenta de su calculadora
+      runTasasVer(); await espera(100);
+      const G = runGrupos(), cer = (G.find(g => g[0] === 'CER') || [null, []])[1].find(b => (runEstado().px[b.ticker] || {}).bid > 0);
+      out.ver = cab('CER') === 'Ticker|Bid Size|Tasa|Bid Px|Offer Px|Tasa|Offer Size' && runEstado().tasas === true && btn('run-tasas-ver').getAttribute('aria-pressed') === 'true';
+      if (cer) {
+        const tr = document.querySelector(`#page-run input.run-incl[data-t="${cer.ticker}"]`).closest('tr');
+        const bid = runEstado().px[cer.ticker].bid, celda = () => tr.querySelector('td.run-tasa[data-c="bid"]').textContent;
+        out.cuenta = celda() === runTasaFmt(cerEnrich({ ...cer, precio: bid }).tir) && /%$/.test(celda());
+        // Sin «Copiar con tasas», la copia va como siempre
+        out.copiaSin = !/Tasa/.test(runTexto()) && !/Tasa/.test(runHtml()) && runTexto().split('\n').includes('CER');
+        // Editar el precio mueve su tasa
+        const inp = tr.querySelector('input.run-in[data-c="bid"]'), nuevo = +(bid * 1.02).toFixed(2);
+        inp.focus(); inp.value = String(nuevo).replace('.', ','); inp.dispatchEvent(new Event('change', { bubbles: true })); inp.blur();
+        await espera(50);
+        out.edita = celda() === runTasaFmt(cerEnrich({ ...cer, precio: nuevo }).tir) && celda() !== runTasaFmt(cerEnrich({ ...cer, precio: bid }).tir);
+        // «Copiar con tasas»: en el texto, la tabla y la imagen
+        const ancho0 = runImagen().width;
+        runTasasCopia(); await espera(50);
+        const txt = runTexto().split('\n'), html = runHtml();
+        out.copiaCon = /^Ticker +Bid Size +Bid Tasa +Bid Px +Offer Px +Offer Tasa +Offer Size$/.test(txt[0]) && txt.includes('CER · TIR real')
+          && /colspan="7"/.test(html) && /Offer Tasa/.test(html) && runImagen().width > ancho0 && runEstado().tasasCopia === true;
+      }
+      // Tasa fija sigue la tasa elegida en su gráfico
+      chartMode = 'tem'; runRender(true);
+      const tf = [...document.querySelectorAll('#page-run section[data-g]')].find(x => x.dataset.g === 'TASA FIJA');
+      out.tf = !!tf && (tf.querySelector('.run-tasa-tipo') || {}).textContent === 'TEM';
+      chartMode = cm;
+      // Apagar las dos: vuelve a cinco columnas y la copia sin tasas
+      runTasasVer(); runTasasCopia(); await espera(50);
+      out.apaga = document.querySelectorAll('#page-run td.run-tasa').length === 0 && cab('CER') === 'Ticker|Bid Size|Bid Px|Offer Px|Offer Size' && !/Tasa/.test(runTexto());
+      out.cer = !!cer;
+    } catch (e) { out.err = e.message; }
+    finally {
+      chartMode = cm;
+      if (antes == null) localStorage.removeItem('bonosAR_run_v1'); else localStorage.setItem('bonosAR_run_v1', antes);
+      runRender(true); switchTab('breakeven');
+    }
+    return out;
+  });
+  check(rt.inicio && rt.ver && rt.tf && rt.apaga, 'RUN: «Ver tasas» pone la tasa al lado de cada precio (tasa fija en la de su gráfico) y apagado vuelve a lo de siempre', JSON.stringify(rt));
+  if (!rt.cer) omitir('RUN: la tasa de cada precio', 'ningún CER con precio en el run');
+  else {
+    check(rt.cuenta && rt.edita, 'RUN: la tasa es la de su calculadora para ese precio, y se mueve al editarlo', JSON.stringify(rt));
+    check(rt.copiaSin && rt.copiaCon, 'RUN: las tasas van a la copia sólo con «Copiar con tasas», en el texto, la tabla y la imagen', JSON.stringify(rt));
+  }
+
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
   check(undef.length === 0, 'sin peticiones a /undefined', undef.join(', '));
