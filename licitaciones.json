@@ -1,5 +1,5 @@
 {
- "generado": "2026-11-24T21:12:54+00:00",
+ "generado": "2026-11-25T03:50:10+00:00",
  "fuente": "Secretaría de Finanzas (argentina.gob.ar) · respaldo: MAE",
  "cronograma": [
   ["2025-01-13", "2025-01-15", "2025-01-17"],
@@ -51,8 +51,8 @@
  ],
  "llamado": {"fecha": "2026-11-26", "liquidacion": "2026-11-30", "fuente": "MAE", "instrumentos": [
   {"ticker": "TMVE8", "nombre": "BONO DEL TESORO NACIONAL EN MONEDA DUAL TAMAR/DÓLAR LINKED CON VTO. 31/01/2028 - REAPERTURA", "clase": "dual", "dual": "dl", "estado": "reapertura", "vencimiento": "2028-01-31"},
-  {"nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VTO 12/03/2027", "clase": "dl", "estado": "nuevo", "vencimiento": "2027-03-12"},
-  {"ticker": "D10Y7", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VTO 10/052027", "clase": "dl", "estado": "reapertura", "vencimiento": "0001-01-01"},
+  {"ticker": "D12M7", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VTO 12/03/2027 - NUEVA", "clase": "dl", "vencimiento": "2027-03-12"},
+  {"ticker": "D10Y7", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VTO. 10/05/2027 - REAPERTURA", "clase": "dl", "estado": "reapertura", "vencimiento": "2027-05-10"},
   {"ticker": "S16F7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VTO. 16/02/2027 - NUEVA", "clase": "fija", "vencimiento": "2027-02-16"},
   {"ticker": "S16L7", "nombre": "LETRA DEL TESORO NACIONAL CAPITALIZABLE EN PESOS CON VTO. 16/07/2027 - NUEVA", "clase": "fija", "vencimiento": "2027-07-16"},
   {"ticker": "TZXY7", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VTO. 31/05/2027 - REAPERTURA", "clase": "cer", "estado": "reapertura", "vencimiento": "2027-05-31"},
@@ -426,7 +426,7 @@
    {"ticker": "TZXM8", "nombre": "BONO DEL TESORO NACIONAL EN PESOS CERO CUPÓN CON AJUSTE POR CER VENCIMIENTO 31 DE MARZO DE 2028", "clase": "cer", "estado": "reapertura", "vencimiento": "2028-03-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 1347602.0, "vnoAdjudicado": 1115622.0, "circulacion": 17968752.0, "veAdjudicado": 1077691.0, "veMoneda": "ARS", "precio": 966.0, "tirea": 8.07},
    {"ticker": "TMG28", "nombre": "BONO DEL TESORO NACIONAL EN PESOS A TASA TAMAR CON VENCIMIENTO 31 DE AGOSTO DE 2028", "clase": "tamar", "estado": "reapertura", "vencimiento": "2028-08-31", "ronda": 1, "moneda": "ARS", "vnoOfertado": 668271.0, "vnoAdjudicado": 604538.0, "circulacion": 5393897.0, "veAdjudicado": 627511.0, "veMoneda": "ARS", "precio": 1038.0, "tirea": 34.57},
    {"ticker": "D31G6", "nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 31 DE AGOSTO DE 2026", "clase": "dl", "estado": "reapertura", "vencimiento": "2026-08-31", "ronda": 1, "moneda": "USD", "vnoOfertado": 252.0, "vnoAdjudicado": 178.0, "circulacion": 2703.0, "veAdjudicado": 259998.0, "veMoneda": "ARS", "precio": 990.9, "tirea": 7.77},
-   {"nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 10 DE MAYO DE 2027", "clase": "dl", "estado": "nuevo", "vencimiento": "2027-05-10", "ronda": 1, "moneda": "USD", "vnoOfertado": 713.0, "vnoAdjudicado": 604.0, "circulacion": 604.0, "veAdjudicado": 868063.0, "veMoneda": "ARS", "precio": 975.0, "tirea": 3.16},
+   {"nombre": "LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 10 DE MAYO DE 2027", "clase": "dl", "estado": "nuevo", "vencimiento": "2027-05-10", "ronda": 1, "moneda": "USD", "vnoOfertado": 713.0, "vnoAdjudicado": 604.0, "circulacion": 604.0, "veAdjudicado": 868063.0, "veMoneda": "ARS", "precio": 975.0, "tirea": 3.16, "ticker": "D10Y7"},
    {"ticker": "TZVD8", "nombre": "BONO DEL TESORO NACIONAL VINCULADO AL DÓLAR ESTADOUNIDENSE CERO CUPÓN CON VENCIMIENTO 15 DE DICIEMBRE DE 2028", "clase": "dl", "estado": "reapertura", "vencimiento": "2028-12-15", "ronda": 1, "moneda": "USD", "vnoOfertado": 200.0, "vnoAdjudicado": 186.0, "circulacion": 703.0, "veAdjudicado": 222177.0, "veMoneda": "ARS", "precio": 811.0, "tirea": 9.08},
    {"nombre": "BONO DEL TESORO NACIONAL EN DOLARES ESTADOUNIDENSES 6% CON VENCIMIENTO 31 DE OCTUBRE DE 2029", "clase": "usd", "estado": "nuevo", "vencimiento": "2029-10-31", "ronda": 1, "moneda": "USD", "vnoOfertado": 1046.0, "vnoAdjudicado": 499.0, "circulacion": 499.0, "veAdjudicado": 470.0, "veMoneda": "USD", "precio": 943.0, "tirea": 8.29, "tna": 7.99, "ticker": "AO29"},
    {"nombre": "BONO DEL TESORO NACIONAL EN DOLARES ESTADOUNIDENSES 6% CON VENCIMIENTO 31 DE OCTUBRE DE 2029 (**)", "clase": "usd", "estado": "nuevo", "vencimiento": "2029-10-31", "ronda": 2, "moneda": "USD", "vnoOfertado": 276.0, "vnoAdjudicado": 150.0, "circulacion": 649.0, "veAdjudicado": 141.0, "veMoneda": "USD", "precio": 943.0, "tirea": 8.29, "tna": 7.99, "fechaRonda": "2026-07-16", "ticker": "AO29"}
