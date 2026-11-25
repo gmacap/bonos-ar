@@ -7641,27 +7641,38 @@ const CAUCION_TTL=10*60*1000;
 let CAUCION_ARS=[];   // [{dias,tna,monto,ops}] ascendente por plazo
 let CAUCION_USD=[];   // lo mismo, la caución en dólares (la usa Descuento)
 let _caucionTs=0;
-
-async function caucionFetch(forzar){
-  if(!forzar&&CAUCION_ARS.length&&Date.now()-_caucionTs<CAUCION_TTL)return CAUCION_ARS;
-  try{
-    const res=await fetch(CAUCION_URL,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({T1:false,T0:true}),
-      signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
-    if(!res.ok)throw new Error('BYMA HTTP '+res.status);
-    const crudo=await res.json();
-    const arr=Array.isArray(crudo)?crudo:((crudo&&crudo.data)||[]);
-    const deMoneda=ccy=>arr
-      .filter(x=>x&&x.denominationCcy===ccy&&x.settlementPrice>0&&x.daysToMaturity>0)
-      .map(x=>({dias:+x.daysToMaturity,tna:+x.settlementPrice,
-                monto:+(x.volumeAmount||0),ops:+(x.numberOfOrders||0)}))
-      .sort((a,b)=>a.dias-b.dias);
-    const lista=deMoneda('ARS'),usd=deMoneda('USD');
-    if(lista.length){CAUCION_ARS=lista;_caucionTs=Date.now();}
-    if(usd.length)CAUCION_USD=usd;
-  }catch(e){console.warn('[caución]',e.message);}
-  return CAUCION_ARS;
+// Con BYMA sin contestar, cada pedido esperaba los 12 segundos enteros, y lo
+// que esperaba la caución —la próxima licitación— quedaba en blanco ese rato.
+// Si no contestó hace poco no se lo vuelve a esperar por diez minutos, salvo
+// con ↻ Precios (forzar); y los pedidos que caen juntos comparten uno.
+let _caucionCaida=0,_caucionPedido=null;
+function caucionFetch(forzar){
+  if(!forzar&&CAUCION_ARS.length&&Date.now()-_caucionTs<CAUCION_TTL)return Promise.resolve(CAUCION_ARS);
+  if(!forzar&&Date.now()<_caucionCaida)return Promise.resolve(CAUCION_ARS);
+  if(_caucionPedido)return _caucionPedido;
+  const p=(async()=>{
+    try{
+      const res=await fetch(CAUCION_URL,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({T1:false,T0:true}),
+        signal:AbortSignal.timeout(PRECIOS_TIMEOUT_MS)});
+      if(!res.ok)throw new Error('BYMA HTTP '+res.status);
+      const crudo=await res.json();
+      const arr=Array.isArray(crudo)?crudo:((crudo&&crudo.data)||[]);
+      const deMoneda=ccy=>arr
+        .filter(x=>x&&x.denominationCcy===ccy&&x.settlementPrice>0&&x.daysToMaturity>0)
+        .map(x=>({dias:+x.daysToMaturity,tna:+x.settlementPrice,
+                  monto:+(x.volumeAmount||0),ops:+(x.numberOfOrders||0)}))
+        .sort((a,b)=>a.dias-b.dias);
+      const lista=deMoneda('ARS'),usd=deMoneda('USD');
+      if(lista.length){CAUCION_ARS=lista;_caucionTs=Date.now();_caucionCaida=0;}
+      if(usd.length)CAUCION_USD=usd;
+    }catch(e){console.warn('[caución]',e.message);_caucionCaida=Date.now()+10*60000;}
+    finally{_caucionPedido=null;}
+    return CAUCION_ARS;
+  })();
+  _caucionPedido=p;
+  return p;
 }
 
 // La tasa del dinero al plazo más corto que haya operado. Es la que descuenta
@@ -28507,6 +28518,9 @@ async function licRenderProximo(sec){
     return`<span style="border:1px solid ${C.c};border-radius:3px;padding:2px 7px;font-family:var(--mono);font-size:var(--fs11);opacity:${en?1:.45}" title="${betrEsc(i.nombre||'')}">${betrEsc(licNombre(i))} <span style="color:var(--text3)">${C.l}${i.dual?' '+i.dual.toUpperCase()+'/TAMAR':''} · ${i.estado||''}</span></span>`;}).join('')}
     ${P.inst.url?`<a href="${P.inst.url}" target="_blank" rel="noopener" style="${LIC_SUB};margin-left:auto">llamado ↗</a>`:''}</div>`;
   if(!ins.length){h+=`<div style="${LIC_SUB}">En este llamado no hay instrumentos de esta vista${fuera?': elegí Todos para verlos':''}.</div>`;cont.innerHTML=h;return;}
+  // La primera vez, las fechas y el llamado van enseguida: lo que sigue espera
+  // la curva y la caución, y la sección quedaba en blanco mientras tanto.
+  if(!cont.innerHTML)cont.innerHTML=h+`<div style="${LIC_SUB}">Calculando el precio estimado de cada instrumento con la curva de hoy…</div>`;
   // Lo que hay que esperar va antes de tocar la página: así un refresco no deja
   // la sección vacía, ni pierde lo que se está escribiendo, mientras llegan.
   // La curva de hoy: en vivo si hay precios, si no la última rueda guardada.
