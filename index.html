@@ -283,6 +283,8 @@ tr.run-fuera>td{opacity:.38;}
 .brief-fuentes ol{margin:.3rem 0 0 1.2rem;padding:0;}
 .brief-fuentes a{color:var(--text2);word-break:break-all;}
 .brief-vacio{padding:2rem;text-align:center;color:var(--text3);font-size:var(--fs12);}
+.brief-sel{background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:4px 6px;font-size:var(--fs11);font-family:var(--mono);color:var(--text);outline:none;cursor:pointer;max-width:220px;}
+.brief-sel:focus-visible{border-color:var(--accent);}
 /* FX: el dólar en todas sus formas, con bid y offer. */
 .fx-cuerpo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(290px,100%),1fr));gap:14px;align-items:start;padding:8px 16px 40px;max-width:1200px;}
 .fx-cuerpo>.fx-aviso{grid-column:1/-1;}
@@ -366,6 +368,8 @@ table.calc-ajusta>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 .desc-punta{display:flex;flex-direction:column;gap:5px;}
 .desc-flecha{font-size:calc(18px*var(--esc));color:var(--text3);}
 .desc-res{font-family:var(--mono);font-size:var(--fs11);color:var(--text2);min-height:1.3em;font-variant-numeric:tabular-nums;}
+.desc-conv .desc-par{padding-top:0;border-top:0;}
+.desc-conv .desc-px{width:160px;}
 .pxc-cierre{color:var(--info);}
 .pxc-agregar{display:inline-flex;gap:4px;align-items:center;}
 .pxc-agregar input{width:92px;text-transform:uppercase;}
@@ -15804,6 +15808,19 @@ function descRender(s){
         <div class="desc-punta"><label for="${id('px1')}" id="${id('lab1')}">Precio t+1</label><input type="number" step="any" inputmode="decimal" class="desc-in desc-px" id="${id('px1')}"><span class="desc-dato" id="${id('l1')}"></span></div>
       </div>
       <div class="desc-res" id="${id('res')}" role="status" aria-live="polite"></div>
+    </div>
+    <div class="run-cab"><span class="pane-title">Conversor TNA ⇄ TEA ⇄ TEM</span></div>
+    <div class="run-nota" style="padding:0 16px">Escribí en cualquiera de las tres y las otras dos salen solas, con las fórmulas de las calculadoras de tasa fija: la TNA es simple sobre el plazo, TEA = (1 + TNA × días / 365)^(365 / días) − 1 y TEM = (1 + TEA)^(1/12) − 1. Los días son el plazo de la TNA: 30 para un plazo fijo, los que faltan al vencimiento para una letra. Cambiarlos recalcula desde la última que escribiste.</div>
+    <div class="desc-cuerpo desc-conv">
+      <div class="desc-fila"><label for="${id('cdias')}">Días de la TNA</label><input type="number" min="1" max="3650" step="1" inputmode="numeric" class="desc-in desc-n" id="${id('cdias')}" title="El plazo sobre el que se toma la TNA"></div>
+      <div class="desc-par">
+        <div class="desc-punta"><label for="${id('ctna')}">TNA %</label><input type="number" step="any" inputmode="decimal" class="desc-in desc-px" id="${id('ctna')}" placeholder="—"></div>
+        <span class="desc-flecha" aria-hidden="true">⇄</span>
+        <div class="desc-punta"><label for="${id('ctea')}">TEA %</label><input type="number" step="any" inputmode="decimal" class="desc-in desc-px" id="${id('ctea')}" placeholder="—"></div>
+        <span class="desc-flecha" aria-hidden="true">⇄</span>
+        <div class="desc-punta"><label for="${id('ctem')}">TEM %</label><input type="number" step="any" inputmode="decimal" class="desc-in desc-px" id="${id('ctem')}" placeholder="—"></div>
+      </div>
+      <div class="desc-res" id="${id('cres')}" role="status" aria-live="polite"></div>
     </div>`);
     // El estado se lee en cada evento, no se guarda acá.
     const num=v=>{const n=parseFloat(String(v).replace(',','.'));return isFinite(n)?n:null;};
@@ -15814,8 +15831,13 @@ function descRender(s){
     descEl(s,'volver').addEventListener('click',()=>{DESC[s].tasa=null;descEl(s,'tasa').value='';descCalc(s);});
     descEl(s,'px0').addEventListener('input',ev=>{const v=num(ev.target.value);DESC[s].px0=v>0?v:null;DESC[s].ult=0;descCalc(s);});
     descEl(s,'px1').addEventListener('input',ev=>{const v=num(ev.target.value);DESC[s].px1=v>0?v:null;DESC[s].ult=1;descCalc(s);});
+    // El conversor: la que se escribe manda; las otras dos se calculan.
+    ['tna','tea','tem'].forEach(k=>descEl(s,'c'+k).addEventListener('input',ev=>{DESC_CONV[s].ult=k;DESC_CONV[s].v=num(ev.target.value);convCalc(s);}));
+    descEl(s,'cdias').addEventListener('input',ev=>{const n=parseInt(ev.target.value,10);if(n>=1){DESC_CONV[s].dias=Math.min(n,3650);convCalc(s);}});
+    descEl(s,'cdias').addEventListener('change',()=>convCalc(s));
   }
   descCalc(s);
+  convCalc(s);
   setTimeout(()=>{
     try{if(typeof caucionFetch==='function')caucionFetch().then(()=>descPintar(),()=>{});}catch(e){}
     let hay=false;try{hay=CAUCION_ARS.length>0;}catch(e){}
@@ -15858,6 +15880,39 @@ function descCalc(s){
   }else res.textContent=fac?'':'Falta la tasa.';
 }
 function descPintar(){['pesos','usd'].forEach(s=>{try{descCalc(s);}catch(e){}});}
+
+// ══ CONVERSOR TNA ⇄ TEA ⇄ TEM ══
+// Con las fórmulas de las calculadoras de tasa fija (calcTIR, calcTEM,
+// tirToTNA): la TNA es simple sobre un plazo de d días,
+//   TEA = (1 + TNA × d / 365)^(365 / d) − 1      TEM = (1 + TEA)^(1/12) − 1
+// Se escribe en cualquiera de las tres y las otras dos salen solas. Cambiar los
+// días recalcula desde la última que se escribió. Uno por sección.
+var DESC_CONV={pesos:{dias:30,ult:'tna',v:null},usd:{dias:30,ult:'tna',v:null}};
+// Las tres desde la que se escribió, en %; null si no tiene sentido (una tasa
+// que se come todo el capital, o días sin cargar).
+function convTasas(k,v,d){
+  if(!(d>0)||v==null||!isFinite(v))return null;
+  let tea;
+  if(k==='tna'){if(1+v/100*d/365<=0)return null;tea=(Math.pow(1+v/100*d/365,365/d)-1)*100;}
+  else if(k==='tem'){if(v<=-100)return null;tea=(Math.pow(1+v/100,12)-1)*100;}
+  else{if(v<=-100)return null;tea=v;}
+  return{tna:((Math.pow(1+tea/100,d/365)-1)/d*365)*100,tea,tem:(Math.pow(1+tea/100,1/12)-1)*100};
+}
+function convCalc(s){
+  const E=DESC_CONV[s];
+  if(!E||!descEl(s,'ctna'))return;
+  const r=convTasas(E.ult,E.v,E.dias);
+  const n4=v=>v.toLocaleString('es-AR',{minimumFractionDigits:4,maximumFractionDigits:4});
+  ['tna','tea','tem'].forEach(k=>{
+    const el=descEl(s,'c'+k);
+    if(k!==E.ult&&document.activeElement!==el)el.value=r?String(+r[k].toFixed(4)):'';
+    el.classList.toggle('desc-calc',!!r&&k!==E.ult);
+  });
+  const de=descEl(s,'cdias');
+  if(document.activeElement!==de||!(parseInt(de.value,10)>=1))de.value=String(E.dias);
+  descEl(s,'cres').textContent=r?`TNA ${n4(r.tna)}% a ${E.dias} día${E.dias===1?'':'s'} · TEA ${n4(r.tea)}% · TEM ${n4(r.tem)}%`
+    :E.v!=null&&isFinite(E.v)?'Esa tasa se come todo el capital: no hay equivalente.':'';
+}
 
 // ══ FX ══
 // El dólar en todas sus formas, con bid y offer, calculado con el AL30. Bid es
@@ -31756,7 +31811,8 @@ function briefInit(sec){
   if(!box.innerHTML.trim())box.innerHTML=`<div class="brief-cab"><div><div class="brief-tit">Morning Market Brief</div>
       <div class="brief-sub" data-b="sub">—</div><div class="brief-aviso" data-b="aviso"></div></div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <button class="btn" style="margin:0;padding:5px 11px;font-size:var(--fs11)" onclick="briefCargar('${sec}',true)" title="Vuelve a pedir el brief">↻</button>
+        <select class="brief-sel" data-b="sel" id="brief-sel-${sec}" onchange="briefVer(this.value)" aria-label="Brief de otro día" title="Los briefs anteriores, uno por día"><option value="">Último</option></select>
+        <button class="btn" style="margin:0;padding:5px 11px;font-size:var(--fs11)" onclick="briefCargar('${sec}',true)" title="Vuelve a pedir el brief y la lista de anteriores">↻</button>
         <button class="btn" style="margin:0;padding:5px 11px;font-size:var(--fs11)" onclick="briefCopiar()" title="Copia el brief como texto, con sus tablas en markdown">⧉ Copiar</button>
       </div></div>
     <div data-b="cuerpo"><div class="brief-vacio">Cargando el brief…</div></div>`;
@@ -31765,6 +31821,87 @@ function briefInit(sec){
 async function briefCargar(sec,forzar){
   const B=await briefFetch(!!forzar);
   briefPintar(sec,B);
+  briefHistFetch(!!forzar).then(briefSelPintar,()=>{});
+}
+
+// ── Los anteriores ──
+// Cada corrida de la tarea es un commit de la rama: el historial de GitHub es
+// el archivo de briefs, uno por día. La lista sale de la API de GitHub —sin
+// sesión permite 60 pedidos por hora por IP, por eso se pide una vez cada media
+// hora— y cada brief, de raw.githubusercontent con el sha de su commit, que no
+// cambia nunca: se guarda una vez traído. De un día con dos corridas queda la
+// última.
+const BRIEF_API='https://api.github.com/repos/gmacap/bonos-ar/commits?sha=claude/morning-brief&path=brief.json&per_page=100';
+const BRIEF_HIST_TTL_MS=30*60*1000;
+function briefRawSha(sha){return`https://raw.githubusercontent.com/gmacap/bonos-ar/${sha}/brief.json`;}
+let BRIEF_HIST=null;      // {ts, lista:[{sha,fecha}], error}
+let BRIEF_VER=null;       // sha del anterior a la vista; null es el último
+const BRIEF_POR_SHA=new Map();
+async function briefHistFetch(forzar){
+  if(!forzar&&BRIEF_HIST&&!BRIEF_HIST.error&&Date.now()-BRIEF_HIST.ts<BRIEF_HIST_TTL_MS)return BRIEF_HIST;
+  try{
+    const res=await fetch(BRIEF_API,{headers:{Accept:'application/vnd.github+json'},cache:'no-store',signal:AbortSignal.timeout(15000)});
+    if(res.status===404||res.status===409){BRIEF_HIST={ts:Date.now(),lista:[]};return BRIEF_HIST;}
+    if(!res.ok)throw new Error(res.status===403||res.status===429?'GitHub limita los pedidos sin sesión: probá en un rato':'HTTP '+res.status);
+    const arr=await res.json(),vistos=new Set(),lista=[];
+    (Array.isArray(arr)?arr:[]).forEach(c=>{
+      const msg=(c&&c.commit&&c.commit.message)||'',m=msg.match(/del (\d{2})\/(\d{2})\/(\d{4})/);
+      const iso=((c&&c.commit&&(c.commit.committer||c.commit.author))||{}).date;
+      const fecha=m?`${m[3]}-${m[2]}-${m[1]}`
+        :iso?fmtDate(new Date(new Date(iso).toLocaleString('en-US',{timeZone:'America/Argentina/Buenos_Aires'}))):null;
+      // La API los da del más nuevo al más viejo: de cada día queda el primero.
+      if(!c||!/^[0-9a-f]{7,40}$/.test(String(c.sha||''))||!fecha||vistos.has(fecha))return;
+      vistos.add(fecha);lista.push({sha:c.sha,fecha});
+    });
+    BRIEF_HIST={ts:Date.now(),lista};
+  }catch(e){
+    console.warn('[brief] anteriores:',e.message);
+    BRIEF_HIST={ts:Date.now(),lista:(BRIEF_HIST&&BRIEF_HIST.lista)||[],error:e.message};
+  }
+  return BRIEF_HIST;
+}
+async function briefDeSha(sha){
+  if(BRIEF_POR_SHA.has(sha))return BRIEF_POR_SHA.get(sha);
+  const res=await fetch(briefRawSha(sha),{signal:AbortSignal.timeout(15000)});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const d=await res.json();
+  if(!d||typeof d.markdown!=='string'||!d.fecha)throw new Error('brief.json sin la forma esperada');
+  BRIEF_POR_SHA.set(sha,d);
+  return d;
+}
+function briefFechaTxt(f){
+  const d=parseDate(f);
+  return d.toLocaleDateString('es-AR',{weekday:'short'}).replace('.','')+' '+f.split('-').reverse().join('/');
+}
+// Las opciones: el último y, abajo, los anteriores. El del día del último no se
+// repite.
+function briefSelPintar(){
+  const H=BRIEF_HIST,ult=BRIEF_DATA&&BRIEF_DATA.data;
+  const ant=H?H.lista.filter(x=>!ult||x.fecha!==ult.fecha):[];
+  const esc=betrEsc;
+  const html=`<option value="">${ult?'Último · '+esc(briefFechaTxt(ult.fecha)):'Último'}</option>`
+    +(ant.length?`<optgroup label="Anteriores">${ant.map(x=>`<option value="${esc(x.sha)}">${esc(briefFechaTxt(x.fecha))}</option>`).join('')}</optgroup>`
+      :`<option value="" disabled>${H&&H.error?'No se pudo traer la lista: '+esc(H.error):'Todavía no hay anteriores'}</option>`);
+  ['ars','usd'].forEach(sec=>{
+    const s=document.getElementById('brief-sel-'+sec);
+    if(!s)return;
+    s.innerHTML=html;
+    s.value=BRIEF_VER&&ant.some(x=>x.sha===BRIEF_VER)?BRIEF_VER:'';
+  });
+}
+async function briefVer(sha){
+  BRIEF_VER=sha||null;
+  ['ars','usd'].forEach(sec=>{const s=document.getElementById('brief-sel-'+sec);if(s)s.value=sha||'';});
+  if(BRIEF_VER&&!BRIEF_POR_SHA.has(BRIEF_VER)){
+    ['ars','usd'].forEach(sec=>{const box=briefPg(sec)&&briefPg(sec).querySelector(':scope>.brief .brief-md');if(box)box.style.opacity='.45';});
+    try{await briefDeSha(BRIEF_VER);}
+    catch(e){
+      BRIEF_VER=null;
+      if(typeof toast==='function')toast('No se pudo traer ese brief: '+e.message);
+    }
+  }
+  ['ars','usd'].forEach(sec=>briefPintar(sec,BRIEF_DATA));
+  briefSelPintar();
 }
 // Lo que dice arriba cuando el brief no es el de hoy.
 function briefAviso(d){
@@ -31779,21 +31916,29 @@ function briefAviso(d){
 function briefPintar(sec,B){
   const el=briefPg(sec),box=el&&el.querySelector(':scope>.brief');
   if(!box)return;
-  const $=k=>box.querySelector(`[data-b="${k}"]`),d=B&&B.data;
+  const ant=BRIEF_VER&&BRIEF_POR_SHA.get(BRIEF_VER);
+  const $=k=>box.querySelector(`[data-b="${k}"]`),d=ant||(B&&B.data);
   const sub=$('sub'),av=$('aviso'),cu=$('cuerpo');
+  if(ant){
+    const ult=B&&B.data;
+    sub.textContent=`${d.actualizado||d.fecha}${d.palabras?` · ${d.palabras} palabras`:''} · anterior`;
+    av.textContent=`Estás viendo un brief anterior${ult?`: el último es el del ${ult.fecha.split('-').reverse().join('/')}`:''}. Volvé con «Último».`;
+  }
   if(!d){
     sub.textContent='—';av.textContent='';
     cu.innerHTML=`<div class="brief-vacio">${B&&B.falta?'Todavía no hay brief: el primero sale el próximo día hábil a las 9:30.':`No se pudo traer el brief${B&&B.error?' ('+betrEsc(B.error)+')':''}. Probá ↻.`}</div>`;
     return;
   }
-  sub.textContent=`${d.actualizado||d.fecha}${d.palabras?` · ${d.palabras} palabras`:''}${B.error?' · guardado: no se pudo volver a pedir':''}`;
-  av.textContent=briefAviso(d);
+  if(!ant){
+    sub.textContent=`${d.actualizado||d.fecha}${d.palabras?` · ${d.palabras} palabras`:''}${B.error?' · guardado: no se pudo volver a pedir':''}`;
+    av.textContent=briefAviso(d);
+  }
   const fu=(Array.isArray(d.fuentes)?d.fuentes:[]).filter(x=>x&&/^https?:\/\//i.test(String(x.url||'')));
   cu.innerHTML=`<div class="brief-md">${briefMd(d.markdown)}</div>`
     +(fu.length?`<div class="brief-fuentes">Fuentes<ol>${fu.map(x=>`<li><a href="${betrEsc(x.url)}" target="_blank" rel="noopener noreferrer">${betrEsc(x.titulo||x.url)}</a></li>`).join('')}</ol></div>`:'');
 }
 function briefCopiar(){
-  const d=BRIEF_DATA&&BRIEF_DATA.data;
+  const d=(BRIEF_VER&&BRIEF_POR_SHA.get(BRIEF_VER))||(BRIEF_DATA&&BRIEF_DATA.data);
   if(!d){if(typeof toast==='function')toast('No hay brief para copiar');return;}
   comCopiarTexto(`Morning Market Brief · ${d.actualizado||d.fecha}\n\n${d.markdown}`);
 }

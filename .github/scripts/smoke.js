@@ -8089,7 +8089,8 @@ const omitir = (label, motivo) =>
       '## 4. Rates', '', '| Bono | Nivel | 1D |', '|---|---:|---:|', '| UST 10Y | 4,11% | +1 pb |', '| UST 2Y | 3,52% | −2 pb |'].join('\n');
     let resp = { status: 200, body: { fecha: hoyAR(), generado: new Date().toISOString(), actualizado: 'hoy 09:34 ART', palabras: 40, markdown: md,
       fuentes: [{ titulo: 'Reuters', url: 'https://www.reuters.com/' }, { titulo: 'malo', url: 'javascript:alert(1)' }] } };
-    window.fetch = (u, o) => String(u).startsWith(BRIEF_URL)
+    window.fetch = (u, o) => String(u).startsWith(BRIEF_API) ? Promise.resolve(new Response('[]', { status: 200 }))
+      : String(u).startsWith(BRIEF_URL)
       ? Promise.resolve(new Response(resp.status === 200 ? JSON.stringify(resp.body) : 'Not Found', { status: resp.status }))
       : realFetch(u, o);
     try {
@@ -8128,6 +8129,105 @@ const omitir = (label, motivo) =>
   check(brf.seguro === true, 'el brief no ejecuta nada de lo que trae, y sus links son sólo http o https', JSON.stringify(brf));
   check(brf.viejo && brf.falta, 'si el brief no es de hoy avisa de qué día es, y antes del primero lo dice', JSON.stringify(brf));
   check(brf.usd === true, 'el mismo brief en Comentario de dólares', JSON.stringify(brf));
+
+  // Comentario: los briefs anteriores, del historial de la rama.
+  console.log('\nComentario: los briefs anteriores');
+  const bant = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, realFetch = window.fetch, ls = localStorage.getItem(BRIEF_LS);
+    const guard = { data: BRIEF_DATA, hist: BRIEF_HIST, ver: BRIEF_VER };
+    const sha = n => String(n).repeat(40);
+    // Del más nuevo al más viejo, como la API: dos corridas el 25/11 y una el 24 y el 21.
+    const commits = [
+      { sha: sha('a'), commit: { message: 'data(brief): Morning Brief del 25/11/2026', committer: { date: '2026-11-25T20:01:23Z' } } },
+      { sha: sha('b'), commit: { message: 'data(brief): Morning Brief del 25/11/2026', committer: { date: '2026-11-25T12:40:00Z' } } },
+      { sha: sha('c'), commit: { message: 'data(brief): Morning Brief del 24/11/2026', committer: { date: '2026-11-24T12:40:00Z' } } },
+      { sha: sha('d'), commit: { message: 'otro mensaje', committer: { date: '2026-11-21T12:41:00Z' } } },
+    ];
+    const brief = (f, t) => ({ fecha: f, actualizado: f.split('-').reverse().join('/') + ' 09:34 ART', palabras: 10, markdown: '## ' + t, fuentes: [] });
+    const raw = { [sha('a')]: brief('2026-11-25', 'Ultimo'), [sha('c')]: brief('2026-11-24', 'Del 24'), [sha('d')]: brief('2026-11-21', 'Del 21') };
+    let api = { status: 200, body: commits };
+    window.fetch = (u, o) => {
+      const s = String(u);
+      if (s.startsWith(BRIEF_API)) return Promise.resolve(new Response(api.status === 200 ? JSON.stringify(api.body) : '{}', { status: api.status }));
+      if (s.startsWith(BRIEF_URL)) return Promise.resolve(new Response(JSON.stringify(raw[sha('a')]), { status: 200 }));
+      const m = s.match(/bonos-ar\/([0-9a-f]{40})\/brief\.json/);
+      if (m) return Promise.resolve(raw[m[1]] ? new Response(JSON.stringify(raw[m[1]]), { status: 200 }) : new Response('x', { status: 404 }));
+      return realFetch(u, o);
+    };
+    try {
+      localStorage.removeItem(BRIEF_LS); BRIEF_DATA = null; BRIEF_HIST = null; BRIEF_VER = null;
+      switchSection('pesos'); switchTab('comentario');
+      await briefCargar('ars', true); await espera(100);
+      const sel = () => document.getElementById('brief-sel-ars');
+      const opciones = () => [...sel().options].filter(o => !o.disabled).map(o => o.value ? o.value.slice(0, 1) : 'ultimo');
+      const cuerpo = () => document.querySelector('#page-comentario > .brief .brief-md').textContent;
+      const aviso = () => document.querySelector('#page-comentario > .brief [data-b="aviso"]').textContent;
+      // El 25 no se repite con el último; de los dos del 25 queda el primero; el 21 sale de la fecha del commit
+      out.lista = opciones().join('|') === 'ultimo|c|d' && /Último · .*25\/11\/2026/.test(sel().options[0].textContent);
+      await briefVer(sha('c'));
+      out.anterior = /Del 24/.test(cuerpo()) && /anterior/.test(aviso()) && /25\/11\/2026/.test(aviso()) && sel().value === sha('c');
+      out.usd = document.getElementById('brief-sel-usd') == null || document.getElementById('brief-sel-usd').value === sha('c');
+      await briefVer('');
+      out.vuelve = /Ultimo/.test(cuerpo()) && !/anterior/.test(aviso()) && sel().value === '';
+      // GitHub sin cupo: la lista lo dice y el último se sigue viendo
+      // Sin una lista ya traída: con una, la app la sigue mostrando.
+      api = { status: 403 }; BRIEF_HIST = null;
+      await briefHistFetch(true); briefSelPintar();
+      out.sinCupo = [...sel().options].some(o => o.disabled && /limita los pedidos/.test(o.textContent)) && /Ultimo/.test(cuerpo());
+    } catch (e) { out.err = e.message; }
+    finally {
+      window.fetch = realFetch; BRIEF_DATA = guard.data; BRIEF_HIST = guard.hist; BRIEF_VER = guard.ver;
+      if (ls == null) localStorage.removeItem(BRIEF_LS); else localStorage.setItem(BRIEF_LS, ls);
+      switchSection('pesos'); switchTab('breakeven');
+    }
+    return out;
+  });
+  check(bant.lista === true, 'los briefs anteriores salen del historial de la rama, uno por día y sin repetir el último', JSON.stringify(bant));
+  check(bant.anterior && bant.vuelve && bant.usd, 'elegir un día muestra ese brief, avisa que es anterior, y «Último» vuelve', JSON.stringify(bant));
+  check(bant.sinCupo === true, 'si GitHub no da la lista, lo dice y el último se sigue viendo', JSON.stringify(bant));
+
+  // Descuento: el conversor TNA ⇄ TEA ⇄ TEM, intercambiable, en las dos secciones.
+  console.log('\nDescuento: conversor de tasas');
+  const conv = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, antes = JSON.parse(JSON.stringify(DESC_CONV));
+    const cerca = (a, b) => Math.abs(parseFloat(a) - b) < 1e-3;
+    try {
+      switchSection('pesos'); switchTab('descuento'); await espera(300);
+      const $ = x => document.getElementById('desc-' + x + '-pesos');
+      const escribir = (x, v) => { $(x).value = String(v); $(x).dispatchEvent(new Event('input', { bubbles: true })); };
+      // Las mismas cuentas que la tasa fija: calcTIR y calcTEM
+      escribir('cdias', 30); escribir('ctna', 30);
+      const tea = calcTIR(30, 30), tem = calcTEM(tea);
+      out.desdeTna = cerca($('ctea').value, tea) && cerca($('ctem').value, tem) && $('ctea').classList.contains('desc-calc') && !$('ctna').classList.contains('desc-calc');
+      // Desde la TEM: 2% mensual es 26,82% anual
+      escribir('ctem', 2);
+      const tea2 = temToTIR(2);
+      out.desdeTem = cerca($('ctea').value, tea2) && Math.abs(tea2 - 26.8242) < 1e-3 && cerca($('ctna').value, tirToTNA(tea2, 30)) && $('ctna').classList.contains('desc-calc');
+      // Desde la TEA, y de ida y vuelta da lo mismo
+      escribir('ctea', 40);
+      const tnaV = parseFloat($('ctna').value);
+      escribir('ctna', tnaV);
+      out.idaVuelta = cerca($('ctea').value, 40);
+      // Cambiar los días recalcula desde la última escrita (la TNA): la TEA cambia
+      const tea30 = parseFloat($('ctea').value);
+      escribir('cdias', 90);
+      out.dias = cerca($('ctna').value, tnaV) && cerca($('ctea').value, calcTIR(tnaV, 90)) && parseFloat($('ctea').value) < tea30;
+      // Vacío, vacía las otras
+      escribir('ctna', '');
+      out.vacio = $('ctea').value === '' && $('ctem').value === '';
+      switchSection('usd'); switchUsdTab('usd-descuento'); await espera(300);
+      const u = x => document.getElementById('desc-' + x + '-usd');
+      u('ctem').value = '1'; u('ctem').dispatchEvent(new Event('input', { bubbles: true }));
+      out.usd = cerca(u('ctea').value, temToTIR(1));
+    } catch (e) { out.err = e.message; }
+    finally { DESC_CONV = antes; switchSection('pesos'); switchTab('breakeven'); }
+    return out;
+  });
+  check(conv.desdeTna && conv.desdeTem && conv.idaVuelta, 'Descuento: el conversor pasa entre TNA, TEA y TEM desde cualquiera, con las cuentas de la tasa fija', JSON.stringify(conv));
+  check(conv.dias && conv.vacio, 'Descuento: cambiar los días recalcula desde la última escrita, y borrar la vacía', JSON.stringify(conv));
+  check(conv.usd === true, 'Descuento: el conversor también en dólares', JSON.stringify(conv));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
