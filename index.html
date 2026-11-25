@@ -257,6 +257,32 @@ table.anc-fijo>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 tr.run-fuera>td{opacity:.38;}
 .run-acc{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
 .run-aviso{font-size:var(--fs10);color:var(--accent);font-family:var(--mono);flex-basis:100%;min-height:1em;}
+/* Morning Brief: el informe de las 9:30, en la solapa Comentario. */
+.brief{max-width:980px;margin:0 auto;}
+.brief-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;}
+.brief-tit{font-family:var(--serif);font-size:20px;font-weight:300;font-style:italic;color:var(--accent);}
+.brief-sub{font-size:var(--fs11);color:var(--text3);margin-top:3px;font-family:var(--mono);}
+.brief-aviso{font-size:var(--fs11);color:var(--warn);font-family:var(--mono);margin-top:4px;}
+.brief-md{font-size:var(--fs13);line-height:1.55;color:var(--text);}
+.brief-md h2{font-family:var(--mono);font-size:var(--fs13);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin:1.6rem 0 .5rem;padding-bottom:4px;border-bottom:1px solid var(--border2);}
+.brief-md h3,.brief-md h4{font-size:var(--fs13);font-weight:600;color:var(--text);margin:1rem 0 .35rem;}
+.brief-md p{margin:.45rem 0;max-width:78ch;}
+.brief-md ul,.brief-md ol{margin:.35rem 0 .35rem 1.2rem;padding:0;max-width:78ch;}
+.brief-md li{margin:.2rem 0;}
+.brief-md a{color:var(--accent);}
+.brief-md code{font-family:var(--mono);font-size:.92em;}
+.brief-md hr{border:0;border-top:1px solid var(--border2);margin:1.2rem 0;}
+.brief-tabla{overflow-x:auto;margin:.5rem 0 .8rem;}
+.brief-md table{width:auto;min-width:0;border:1px solid var(--border2);font-size:var(--fs12);font-variant-numeric:tabular-nums;}
+.brief-md table thead tr{position:static;}
+.brief-md table th{cursor:default;padding:5px 10px;text-align:left;white-space:nowrap;}
+.brief-md table th:hover{color:var(--text3);}
+.brief-md table td{padding:4px 10px;height:auto;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
+.brief-md table td.num{text-align:right;font-family:var(--mono);white-space:nowrap;}
+.brief-fuentes{margin-top:1.6rem;font-size:var(--fs11);color:var(--text3);}
+.brief-fuentes ol{margin:.3rem 0 0 1.2rem;padding:0;}
+.brief-fuentes a{color:var(--text2);word-break:break-all;}
+.brief-vacio{padding:2rem;text-align:center;color:var(--text3);font-size:var(--fs12);}
 /* FX: el dólar en todas sus formas, con bid y offer. */
 .fx-cuerpo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(290px,100%),1fr));gap:14px;align-items:start;padding:8px 16px 40px;max-width:1200px;}
 .fx-cuerpo>.fx-aviso{grid-column:1/-1;}
@@ -6229,7 +6255,7 @@ function switchUsdTab(tab){
   if(tab==='usd-sintusd'){document.getElementById('page-usd-sintusd').style.display='flex';susInit('usd');}
   if(tab==='usd-curvas'){document.getElementById('page-usd-curvas').style.display='flex';curvasUsdInit();desvMontar('usd');}
   if(tab==='usd-series'){document.getElementById('page-usd-series').style.display='flex';seriesInit('usd');}
-  if(tab==='usd-comentario') comInit('usd');
+  if(tab==='usd-comentario') briefInit('usd');
 }
 
 function switchTab(tab){
@@ -6346,7 +6372,7 @@ function switchTab(tab){
     seriesInit('ars');
   } else if(tab==='comentario'){
     document.getElementById('page-comentario').style.display='block';
-    comInit('ars');
+    briefInit('ars');
   }
 }
 
@@ -31687,6 +31713,137 @@ function fichaTexto(f){
 // causa, y lo MEDIDO al final porque es de dónde salen los dos. La separación
 // viaja al portapapeles: el texto que se copia lleva los mismos encabezados, así
 // no se pierde al pegar.
+// ══ MORNING BRIEF ══
+// La solapa Comentario muestra el Morning Market Brief: lo escribe una tarea
+// programada en la nube de lunes a viernes a las 9:30, con el prompt del
+// usuario (25/11/2026), y lo sube sola a la rama de datos claude/morning-brief,
+// que tiene sólo brief.json: no toca main, no abre PR y no dispara el smoke. La
+// app lo lee de ahí. Es el mismo en pesos y en dólares.
+//   brief.json: {fecha:'YYYY-MM-DD', generado:ISO, actualizado:'DD/MM/AAAA HH:MM ART',
+//                markdown, fuentes:[{titulo,url}], palabras}
+// El markdown se pasa a HTML acá, escapado primero: viene de la web, y nada de
+// lo que traiga se ejecuta. Los links, sólo http y https.
+const BRIEF_URL='https://raw.githubusercontent.com/gmacap/bonos-ar/claude/morning-brief/brief.json';
+const BRIEF_LS='bonosAR_brief_v1';
+const BRIEF_TTL_MS=10*60*1000;
+let BRIEF_DATA=null;
+async function briefFetch(forzar){
+  if(!forzar&&BRIEF_DATA&&Date.now()-BRIEF_DATA.ts<BRIEF_TTL_MS)return BRIEF_DATA;
+  let cache=null;
+  try{const p=JSON.parse(localStorage.getItem(BRIEF_LS)||'null');if(p&&p.data)cache=p;}catch(e){}
+  if(!forzar&&cache&&Date.now()-cache.ts<BRIEF_TTL_MS){BRIEF_DATA=cache;return BRIEF_DATA;}
+  try{
+    // raw.githubusercontent cachea cinco minutos: con ↻ se pide de nuevo.
+    const res=await fetch(BRIEF_URL+'?_='+(forzar?Date.now():Math.floor(Date.now()/300000)),{cache:'no-store',signal:AbortSignal.timeout(15000)});
+    if(res.status===404){BRIEF_DATA={ts:Date.now(),data:null,falta:true};return BRIEF_DATA;}
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const d=await res.json();
+    if(!d||typeof d.markdown!=='string'||!d.fecha)throw new Error('brief.json sin la forma esperada');
+    BRIEF_DATA={ts:Date.now(),data:d};
+    try{localStorage.setItem(BRIEF_LS,JSON.stringify(BRIEF_DATA));}catch(e){}
+  }catch(e){
+    console.warn('[brief]',e.message);
+    BRIEF_DATA=cache?{...cache,error:e.message}:{ts:Date.now(),data:null,error:e.message};
+  }
+  return BRIEF_DATA;
+}
+function briefPg(sec){return document.getElementById(sec==='usd'?'page-usd-comentario':'page-comentario');}
+function briefInit(sec){
+  const el=briefPg(sec);
+  if(!el)return;
+  let box=el.querySelector(':scope>.brief');
+  if(!box){box=document.createElement('div');box.className='brief';el.prepend(box);}
+  if(!box.innerHTML.trim())box.innerHTML=`<div class="brief-cab"><div><div class="brief-tit">Morning Market Brief</div>
+      <div class="brief-sub" data-b="sub">—</div><div class="brief-aviso" data-b="aviso"></div></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button class="btn" style="margin:0;padding:5px 11px;font-size:var(--fs11)" onclick="briefCargar('${sec}',true)" title="Vuelve a pedir el brief">↻</button>
+        <button class="btn" style="margin:0;padding:5px 11px;font-size:var(--fs11)" onclick="briefCopiar()" title="Copia el brief como texto, con sus tablas en markdown">⧉ Copiar</button>
+      </div></div>
+    <div data-b="cuerpo"><div class="brief-vacio">Cargando el brief…</div></div>`;
+  briefCargar(sec);
+}
+async function briefCargar(sec,forzar){
+  const B=await briefFetch(!!forzar);
+  briefPintar(sec,B);
+}
+// Lo que dice arriba cuando el brief no es el de hoy.
+function briefAviso(d){
+  const hoy=hoyAR();
+  if(!d||d.fecha>=hoy)return'';
+  const ar=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Argentina/Buenos_Aires'}));
+  const dow=ar.getDay(),min=ar.getHours()*60+ar.getMinutes(),f=d.fecha.split('-').reverse().join('/');
+  if(dow===0||dow===6)return`Es del ${f}: la tarea corre de lunes a viernes a las 9:30.`;
+  if(min<9*60+50)return`Es del ${f}: el de hoy sale a las 9:30.`;
+  return`⚠ El de hoy todavía no llegó (la tarea corre a las 9:30): este es del ${f}.`;
+}
+function briefPintar(sec,B){
+  const el=briefPg(sec),box=el&&el.querySelector(':scope>.brief');
+  if(!box)return;
+  const $=k=>box.querySelector(`[data-b="${k}"]`),d=B&&B.data;
+  const sub=$('sub'),av=$('aviso'),cu=$('cuerpo');
+  if(!d){
+    sub.textContent='—';av.textContent='';
+    cu.innerHTML=`<div class="brief-vacio">${B&&B.falta?'Todavía no hay brief: el primero sale el próximo día hábil a las 9:30.':`No se pudo traer el brief${B&&B.error?' ('+betrEsc(B.error)+')':''}. Probá ↻.`}</div>`;
+    return;
+  }
+  sub.textContent=`${d.actualizado||d.fecha}${d.palabras?` · ${d.palabras} palabras`:''}${B.error?' · guardado: no se pudo volver a pedir':''}`;
+  av.textContent=briefAviso(d);
+  const fu=(Array.isArray(d.fuentes)?d.fuentes:[]).filter(x=>x&&/^https?:\/\//i.test(String(x.url||'')));
+  cu.innerHTML=`<div class="brief-md">${briefMd(d.markdown)}</div>`
+    +(fu.length?`<div class="brief-fuentes">Fuentes<ol>${fu.map(x=>`<li><a href="${betrEsc(x.url)}" target="_blank" rel="noopener noreferrer">${betrEsc(x.titulo||x.url)}</a></li>`).join('')}</ol></div>`:'');
+}
+function briefCopiar(){
+  const d=BRIEF_DATA&&BRIEF_DATA.data;
+  if(!d){if(typeof toast==='function')toast('No hay brief para copiar');return;}
+  comCopiarTexto(`Morning Market Brief · ${d.actualizado||d.fecha}\n\n${d.markdown}`);
+}
+// Markdown a HTML, lo justo para el brief: títulos, párrafos, listas, tablas,
+// negrita, cursiva, código y links. Primero se escapa todo.
+function briefMd(md){
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const enLinea=s=>esc(s)
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+    .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g,'$1<i>$2</i>');
+  const celdas=l=>l.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim());
+  const esNum=c=>/^[+\-−]?\s?[\d.,]+\s?(%|pb|bps|bp|x)?$/i.test(c.replace(/^(US\$|\$)\s?/,''));
+  const L=String(md||'').replace(/\r\n?/g,'\n').split('\n'),out=[];
+  let par=[],lista=null;
+  const cerrarPar=()=>{if(par.length){out.push(`<p>${enLinea(par.join(' '))}</p>`);par=[];}};
+  const cerrarLista=()=>{if(lista){out.push(`<${lista.t}>${lista.items.map(x=>`<li>${enLinea(x)}</li>`).join('')}</${lista.t}>`);lista=null;}};
+  for(let i=0;i<L.length;i++){
+    const l=L[i],s=l.trim();
+    if(!s){cerrarPar();cerrarLista();continue;}
+    let m;
+    if((m=s.match(/^(#{1,4})\s+(.*)$/))){cerrarPar();cerrarLista();const n=Math.max(2,Math.min(4,m[1].length));out.push(`<h${n}>${enLinea(m[2].replace(/\s+#+$/,''))}</h${n}>`);continue;}
+    if(/^(-{3,}|\*{3,}|_{3,})$/.test(s)){cerrarPar();cerrarLista();out.push('<hr>');continue;}
+    if(s.startsWith('|')&&i+1<L.length&&/^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(L[i+1].trim())){
+      cerrarPar();cerrarLista();
+      const cab=celdas(s),filas=[];
+      i+=2;
+      while(i<L.length&&L[i].trim().startsWith('|')){filas.push(celdas(L[i]));i++;}
+      i--;
+      out.push(`<div class="brief-tabla"><table><thead><tr>${cab.map(c=>`<th>${enLinea(c)}</th>`).join('')}</tr></thead><tbody>`
+        +filas.map(f=>`<tr>${cab.map((_,k)=>{const c=f[k]||'';return`<td${k>0&&esNum(c)?' class="num"':''}>${enLinea(c)}</td>`;}).join('')}</tr>`).join('')
+        +'</tbody></table></div>');
+      continue;
+    }
+    if((m=s.match(/^([-*•]|\d+[.)])\s+(.*)$/))){
+      cerrarPar();
+      const t=/^\d/.test(m[1])?'ol':'ul';
+      if(lista&&lista.t!==t)cerrarLista();
+      if(!lista)lista={t,items:[]};
+      lista.items.push(m[2]);continue;
+    }
+    if(lista&&/^\s{2,}/.test(l)){lista.items[lista.items.length-1]+=' '+s;continue;}
+    cerrarLista();
+    par.push(s);
+  }
+  cerrarPar();cerrarLista();
+  return out.join('');
+}
+
 const COM_LS='bonosAR_comentario_v1';
 const COM_URL='comentario.json';
 // El comentario se publica en dos archivos, por cadencia y por peso:
@@ -31765,10 +31922,16 @@ async function comFetch(forzar){
   }
 }
 
+// La solapa ya no lo abre: muestra el Morning Brief (ver briefInit). El panel
+// del comentario de cierre se sigue armando si se llama a comInit —lo hace el
+// smoke, y alcanza con volver a llamarlo desde switchTab para recuperarlo—, en
+// su propia caja debajo del brief. Su código lo usan /comentario y ficha.js.
 function comInit(sec){
   const el=document.getElementById(sec==='ars'?'page-comentario':'page-usd-comentario');
   if(!el)return;
-  if(!el.innerHTML.trim())el.innerHTML=comEsqueleto(sec);
+  let box=el.querySelector(':scope>.com-cierre');
+  if(!box){box=document.createElement('div');box.className='com-cierre';el.appendChild(box);}
+  if(!box.innerHTML.trim())box.innerHTML=comEsqueleto(sec);
   comCargar(sec);
 }
 

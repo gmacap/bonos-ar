@@ -2837,7 +2837,9 @@ const omitir = (label, motivo) =>
   });
   check(com404.ok, 'comFetch tolera que comentario.json no exista', com404.err || '');
 
-  await page.evaluate(() => { switchSection('pesos'); switchTab('comentario'); });
+  // La solapa muestra el Morning Brief; el panel del comentario de cierre se
+  // arma a pedido con comInit, debajo.
+  await page.evaluate(() => { switchSection('pesos'); switchTab('comentario'); comInit('ars'); });
   await page.waitForFunction(() => {
     const el = document.getElementById('com-ars-cuerpo');
     return el && !/Midiendo/.test(el.textContent);
@@ -2869,7 +2871,7 @@ const omitir = (label, motivo) =>
   check(trasPer.per === 'mes' && trasPer.rango !== antesRango,
         'el selector de periodo recarga la ficha', `${trasPer.rango.slice(0, 40)}`);
 
-  await page.evaluate(() => { switchSection('usd'); switchUsdTab('usd-comentario'); });
+  await page.evaluate(() => { switchSection('usd'); switchUsdTab('usd-comentario'); comInit('usd'); });
   await page.waitForFunction(() => {
     const el = document.getElementById('com-usd-cuerpo');
     return el && !/Midiendo/.test(el.textContent);
@@ -8076,6 +8078,56 @@ const omitir = (label, motivo) =>
   check(fxs.sinFuente, 'FX: sin la columna «De dónde sale»; cómo se calcula va en el globo del título de cada caja', JSON.stringify(fxs));
   check(fxs.t0, 'FX: T+0 queda vacío y dice que está pendiente', JSON.stringify(fxs));
   check(fxs.usd, 'FX: también en Calculadoras de dólares', JSON.stringify(fxs));
+
+  // Comentario: el Morning Brief de las 9:30, leído de la rama de datos.
+  console.log('\nComentario: el Morning Brief');
+  const brf = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, realFetch = window.fetch, ls = localStorage.getItem(BRIEF_LS), guardado = BRIEF_DATA;
+    const md = ['Actualizado: prueba. **Negrita** <script>window.__brief=1</script> <img src=x onerror="window.__brief=2">', '',
+      '## 1. Global Market Overview', '', '- Uno con [fuente](https://www.reuters.com/a?b=1&c=2)', '- Dos con [malo](javascript:alert(1))', '',
+      '## 4. Rates', '', '| Bono | Nivel | 1D |', '|---|---:|---:|', '| UST 10Y | 4,11% | +1 pb |', '| UST 2Y | 3,52% | −2 pb |'].join('\n');
+    let resp = { status: 200, body: { fecha: hoyAR(), generado: new Date().toISOString(), actualizado: 'hoy 09:34 ART', palabras: 40, markdown: md,
+      fuentes: [{ titulo: 'Reuters', url: 'https://www.reuters.com/' }, { titulo: 'malo', url: 'javascript:alert(1)' }] } };
+    window.fetch = (u, o) => String(u).startsWith(BRIEF_URL)
+      ? Promise.resolve(new Response(resp.status === 200 ? JSON.stringify(resp.body) : 'Not Found', { status: resp.status }))
+      : realFetch(u, o);
+    try {
+      localStorage.removeItem(BRIEF_LS); BRIEF_DATA = null;
+      switchSection('pesos'); switchTab('comentario'); await espera(300);
+      const box = () => document.querySelector('#page-comentario > .brief');
+      out.abre = !!box() && /Morning Market Brief/.test(box().textContent);
+      const b = box();
+      out.render = b.querySelectorAll('.brief-md h2').length === 2 && b.querySelectorAll('.brief-md tbody tr').length === 2
+        && b.querySelectorAll('.brief-md td.num').length === 4 && /hoy 09:34 ART/.test(b.querySelector('[data-b="sub"]').textContent)
+        && !b.querySelector('[data-b="aviso"]').textContent;
+      out.seguro = window.__brief === undefined && !b.querySelector('.brief-md script, .brief-md img')
+        && [...b.querySelectorAll('a')].every(a => /^https:\/\//.test(a.getAttribute('href'))) && b.querySelectorAll('a').length === 2;
+      // Uno viejo: lo muestra y avisa de qué día es
+      resp.body = { ...resp.body, fecha: '2026-11-20' };
+      await briefCargar('ars', true);
+      out.viejo = /20\/11\/2026/.test(box().querySelector('[data-b="aviso"]').textContent);
+      // Antes del primero: la rama no existe todavía
+      resp = { status: 404 };
+      await briefCargar('ars', true);
+      out.falta = /Todavía no hay brief/.test(box().textContent);
+      // El mismo en dólares
+      resp = { status: 200, body: { fecha: hoyAR(), actualizado: 'x', markdown: '## Uno', fuentes: [] } };
+      BRIEF_DATA = null;
+      switchSection('usd'); switchUsdTab('usd-comentario'); await espera(300);
+      out.usd = !!document.querySelector('#page-usd-comentario > .brief .brief-md h2');
+    } catch (e) { out.err = e.message; }
+    finally {
+      window.fetch = realFetch; BRIEF_DATA = guardado;
+      if (ls == null) localStorage.removeItem(BRIEF_LS); else localStorage.setItem(BRIEF_LS, ls);
+      switchSection('pesos'); switchTab('breakeven');
+    }
+    return out;
+  });
+  check(brf.abre && brf.render, 'la solapa Comentario abre el Morning Brief, con sus secciones y sus tablas', JSON.stringify(brf));
+  check(brf.seguro === true, 'el brief no ejecuta nada de lo que trae, y sus links son sólo http o https', JSON.stringify(brf));
+  check(brf.viejo && brf.falta, 'si el brief no es de hoy avisa de qué día es, y antes del primero lo dice', JSON.stringify(brf));
+  check(brf.usd === true, 'el mismo brief en Comentario de dólares', JSON.stringify(brf));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
