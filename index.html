@@ -257,6 +257,12 @@ table.anc-fijo>*>tr>*{overflow:hidden;text-overflow:ellipsis;}
 tr.run-fuera>td{opacity:.38;}
 .run-acc{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
 .run-aviso{font-size:var(--fs10);color:var(--accent);font-family:var(--mono);flex-basis:100%;min-height:1em;}
+/* Las tasas de cada punta: calculadas, no se editan; las ve quien arma el run. */
+.run-cuerpo.con-tasas{grid-template-columns:repeat(auto-fill,minmax(min(600px,100%),1fr));}
+.run-tabla td.run-tasa{padding:4px 8px;text-align:right;color:var(--info);font-size:var(--fs11);white-space:nowrap;}
+.run-tasa-tipo{font-size:var(--fs9);color:var(--info);font-family:var(--mono);text-transform:none;letter-spacing:0;font-weight:400;}
+.run-tasas{display:inline-flex;gap:6px;flex-wrap:wrap;}
+.run-tog.on{color:var(--accent);border-color:var(--accent);}
 /* La curva al costado de la tabla, a toda la altura. */
 .calc-lado{display:flex;flex:1;min-height:0;overflow:hidden;}
 .calc-lado>:first-child{min-width:0;}
@@ -16203,9 +16209,10 @@ function runEstado(){
   try{
     const o=JSON.parse(localStorage.getItem('bonosAR_run_v1')||'{}');
     if(o&&typeof o==='object'&&!Array.isArray(o))
-      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuenteTomado:o.fuenteTomado||null,fuera:Array.isArray(o.fuera)?o.fuera:[],gruposFuera:Array.isArray(o.gruposFuera)?o.gruposFuera:[],ocultos:Array.isArray(o.ocultos)?o.ocultos:[],tomado:o.tomado||null};
+      return{px:o.px||{},byma:o.byma||{},q:o.q||{},fuenteTomado:o.fuenteTomado||null,fuera:Array.isArray(o.fuera)?o.fuera:[],gruposFuera:Array.isArray(o.gruposFuera)?o.gruposFuera:[],ocultos:Array.isArray(o.ocultos)?o.ocultos:[],tomado:o.tomado||null,
+        tasas:!!o.tasas,tasasCopia:!!o.tasasCopia};
   }catch(e){}
-  return{px:{},byma:{},q:{},fuera:[],gruposFuera:[],ocultos:[],tomado:null};
+  return{px:{},byma:{},q:{},fuera:[],gruposFuera:[],ocultos:[],tomado:null,tasas:false,tasasCopia:false};
 }
 function runGuardar(E){try{localStorage.setItem('bonosAR_run_v1',JSON.stringify(E));}catch(e){}}
 function runVivo(b){return{bid:b&&b.bid>0?b.bid:null,ask:b&&b.ask>0?b.ask:null};}
@@ -16227,6 +16234,10 @@ function runRender(forzar){
     pg.insertAdjacentHTML('beforeend',`<div class="run-cab">
       <span class="pane-title">Run</span>
       <button type="button" class="btn" id="run-traer" onclick="runTraer()" title="Reemplaza los precios del run por los de pantalla. Las cantidades quedan">↻ Traer de BYMA</button>
+      <span class="run-tasas" role="group" aria-label="Tasas de cada precio">
+        <button type="button" class="btn run-tog" id="run-tasas-ver" onclick="runTasasVer()" aria-pressed="false" title="Muestra al lado de cada precio la tasa que implica, con la cuenta de su calculadora. Sólo en tu pantalla: a la copia van si prendés «Copiar con tasas»">Ver tasas</button>
+        <button type="button" class="btn run-tog" id="run-tasas-copia" onclick="runTasasCopia()" aria-pressed="false" title="Si las tasas van en lo que copiás o descargás para enviar: imagen, PNG y tabla">Copiar con tasas</button>
+      </span>
       <span class="run-nota" id="run-tomado"></span>
       <span class="run-acc" role="group" aria-label="Exportar todo el run">
         <button type="button" class="btn" onclick="runExportar('img')" title="Copia el run como imagen, para pegarlo en un chat">⧉ Copiar imagen</button>
@@ -16235,7 +16246,7 @@ function runRender(forzar){
       </span>
       <span class="run-aviso" id="run-aviso" role="status" aria-live="polite"></span>
     </div>
-    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda; Tab va al precio siguiente, Enter baja y Escape deja lo que había. Los bonos destildados se saltean y no salen al exportar; los que ocultás en "Bonos" de cada tabla no se ven. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Arriba se exportan las tablas tildadas; con los botones de cada tabla, sólo esa.</div>
+    <div class="run-nota" style="padding:0 16px">Todo se edita: clic en la celda; Tab va al precio siguiente, Enter baja y Escape deja lo que había. Los bonos destildados se saltean y no salen al exportar; los que ocultás en "Bonos" de cada tabla no se ven. Las cantidades son las de la mesa, como las escribas (3B, 500M), y quedan guardadas. Un precio en ámbar es distinto del que se trajo de BYMA. Arriba se exportan las tablas tildadas; con los botones de cada tabla, sólo esa. Con «Ver tasas», al lado de cada precio va la tasa que implica, en celeste: tasa fija en la tasa elegida en su gráfico, CER en TIR real, TAMAR y duales en margen, DLK en TIR. Las ves vos; a la copia van sólo con «Copiar con tasas».</div>
     <div class="run-cuerpo"></div>`);
     cuerpo=pg.querySelector('.run-cuerpo');
     runMontar(pg);
@@ -16256,33 +16267,98 @@ function runRender(forzar){
     const via=E.fuenteTomado==='byma'?' (data912 no respondía: de los datos abiertos de BYMA, con 15′ de demora)':E.fuenteTomado==='archivo'?' (ARCHIVADOS: ni data912 ni BYMA respondían)':'';
     tom.textContent=d?`Precios de BYMA del ${d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}${via}: quedan fijos hasta que los vuelvas a traer`:'Todavía sin precios de BYMA';
   }
-  const gFuera=new Set(E.gruposFuera),oc=new Set(E.ocultos),e=betrEsc;
+  const gFuera=new Set(E.gruposFuera),oc=new Set(E.ocultos),e=betrEsc,ct=E.tasas;
+  cuerpo.classList.toggle('con-tasas',ct);
+  runTasasBotones(E);
+  const cols=ct?[15,12,13,16,16,13,15]:[20,19,21,21,19];
   cuerpo.innerHTML=G.length?G.map(([tipo,bonos])=>{
-    return`<section aria-label="${tipo}" data-g="${e(tipo)}"${gFuera.has(tipo)?' class="run-sin-general"':''}><table class="run-tabla"><colgroup><col style="width:20%"><col style="width:19%"><col style="width:21%"><col style="width:21%"><col style="width:19%"></colgroup><thead>
-    <tr><th colspan="5" class="run-tipo"><div class="run-tipo-fila">
+    const tt=runTasaTipo(tipo),thT=c=>`<th title="${e(tt)} que implica el ${c}">Tasa</th>`;
+    return`<section aria-label="${tipo}" data-g="${e(tipo)}"${gFuera.has(tipo)?' class="run-sin-general"':''}><table class="run-tabla"><colgroup>${cols.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead>
+    <tr><th colspan="${cols.length}" class="run-tipo"><div class="run-tipo-fila">
       <label class="run-tk" title="Incluir ${tipo} en la copia general (los botones de arriba)"><input type="checkbox" class="run-grupo" data-g="${tipo}"${gFuera.has(tipo)?'':' checked'} aria-label="Incluir ${tipo} en la copia general">${tipo}</label>
+      ${ct?`<span class="run-tasa-tipo" title="La tasa de las columnas Tasa de esta tabla">${e(tt)}</span>`:''}
       <span id="${runVerId(tipo)}"></span>
       <span class="run-gacc">${runAccHTML(tipo)}</span></div></th></tr>
-    <tr><th style="text-align:left">Ticker</th><th>Bid Size</th><th>Bid Px</th><th>Offer Px</th><th>Offer Size</th></tr>
-  </thead><tbody>${runFilasHTML(bonos.filter(b=>!oc.has(b.ticker)),E)}</tbody></table></section>`;}).join('')
+    <tr><th style="text-align:left">Ticker</th><th>Bid Size</th>${ct?thT('Bid Px'):''}<th>Bid Px</th><th>Offer Px</th>${ct?thT('Offer Px'):''}<th>Offer Size</th></tr>
+  </thead><tbody>${runFilasHTML(bonos.filter(b=>!oc.has(b.ticker)),E,tipo)}</tbody></table></section>`;}).join('')
     :'<div class="run-nota" style="padding:8px 0">Sin bonos cargados.</div>';
   G.forEach(([tipo,bonos])=>runVerPintar(tipo,bonos,E));
 }
-// Una fila del run: la casilla y el ticker, y las cuatro celdas que se editan.
-function runFilaHTML(b,E){
+
+// ── Las tasas de cada precio ──
+// La tasa que implica cada punta del run, con la cuenta de su calculadora:
+// tasa fija en la tasa elegida en su gráfico (TNA, TIR o TEM; el TY30P, al
+// put mientras se pueda avisar), CER en TIR real, TAMAR y los duales en margen
+// sobre TAMAR, DLK en TIR, en dólares o en pesos como su solapa. Se ven con
+// «Ver tasas» y van a la copia sólo con «Copiar con tasas»: por defecto, las
+// ve sólo quien arma el run.
+function runTasaTipo(tipo){
+  if(tipo==='TASA FIJA')return({tna:'TNA',tir:'TIR',tem:'TEM'})[chartMode]||'TNA';
+  if(tipo==='CER')return'TIR real';
+  if(tipo==='TAMAR')return'Margen';
+  if(tipo==='DUALES')return'Margen TAMAR';
+  if(tipo==='DLK')return'TIR';
+  return'Tasa';
+}
+function runTasa(tipo,b,px){
+  if(!b||!(px>0))return null;
+  let v=null;
+  try{
+    if(tipo==='TASA FIJA'){
+      const m=chartMode==='tir'||chartMode==='tem'?chartMode:'tna';
+      if(typeof TF_CUPON!=='undefined'&&TF_CUPON.includes(b)){
+        const c=tfcCalc({...b,precio:px},G_LIQ||addHabiles(TODAY,1)),x=c&&(c.put||c.vto);
+        if(x&&isFinite(x.tir))v=m==='tir'?x.tir:m==='tem'?calcTEM(x.tir):tfcTnaSem(x.tir,b.freq);
+      }else v=enrich({...b,precio:px})[m];
+    }else if(tipo==='CER')v=cerEnrich({...b,precio:px}).tir;
+    else if(tipo==='TAMAR'||tipo==='DUALES')v=tamarEnrich({...b,precio:px}).margenTNA;
+    else if(tipo==='DLK')v=dlkVista(dlkEnrich({...b,precio:px})).tir;
+  }catch(e){v=null;}
+  return v!=null&&isFinite(v)?v:null;
+}
+function runTasaFmt(v){return v!=null&&isFinite(v)?v.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'';}
+function runTasasBotones(E){
+  [['run-tasas-ver',E.tasas,'Ver tasas'],['run-tasas-copia',E.tasasCopia,'Copiar con tasas']].forEach(([id,on,l])=>{
+    const b=document.getElementById(id);
+    if(!b)return;
+    b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));b.textContent=(on?'✓ ':'')+l;
+  });
+}
+function runTasasVer(){
+  const E=runEstado();E.tasas=!E.tasas;runGuardar(E);
+  runRender(true);
+  runAviso(E.tasas?`Tasas a la vista, sólo en tu pantalla${E.tasasCopia?'; también van en la copia':': no van en la copia'}.`:'Tasas ocultas.');
+}
+function runTasasCopia(){
+  const E=runEstado();E.tasasCopia=!E.tasasCopia;runGuardar(E);
+  runTasasBotones(E);
+  runAviso(E.tasasCopia?'Lo que copies o descargues va con las tasas.':'Lo que copies o descargues va sin las tasas.');
+}
+// Después de editar un precio, las tasas de esa fila.
+function runTasasFila(tr,E){
+  if(!tr||!tr.querySelector('td.run-tasa'))return;
+  const sec=tr.closest('section[data-g]'),inc=tr.querySelector('input.run-incl');
+  if(!sec||!inc)return;
+  const tipo=sec.dataset.g,t=inc.dataset.t,g=runGrupos().find(x=>x[0]===tipo),b=g&&g[1].find(x=>x.ticker===t),p=E.px[t]||{};
+  tr.querySelectorAll('td.run-tasa').forEach(td=>{td.textContent=runTasaFmt(runTasa(tipo,b,p[td.dataset.c]));});
+}
+// Una fila del run: la casilla y el ticker, y las cuatro celdas que se editan;
+// con «Ver tasas», la tasa de cada precio al lado de cada uno.
+function runFilaHTML(b,E,tipo){
   const e=betrEsc,f=s=>s?s.split('-').reverse().join('/'):'',fuera=E.fuera.includes(b.ticker);
   const t=b.ticker,p=E.px[t]||{},q=E.q[t]||{},m=E.byma[t]||{},vivo=runVivo(b),dec=runDec([p]);
   const tip=c=>`Se trajo de BYMA: ${runPx(m[c])||'—'} · pantalla ahora: ${runPx(vivo[c])||'—'}`;
   const inp=(c,val,cls,tit,ph)=>`<input class="run-in${cls?' '+cls:''}" data-t="${e(t)}" data-c="${c}" value="${e(val)}"${tit?` title="${e(tit)}"`:''}${ph?` placeholder="${ph}"`:''} aria-label="${e(t)} ${({qb:'Bid Size',bid:'Bid Px',ask:'Offer Px',qa:'Offer Size'})[c]}" spellcheck="false" autocomplete="off">`;
+  const tasa=c=>E.tasas?`<td class="run-tasa" data-c="${c}" title="${e(runTasaTipo(tipo))} que implica el ${c==='bid'?'Bid':'Offer'} Px">${runTasaFmt(runTasa(tipo,b,p[c]))}</td>`:'';
   return`<tr${fuera?' class="run-fuera"':''}><td><label class="run-tk" title="Vence el ${e(f(b.vcto))}"><input type="checkbox" class="run-incl" data-t="${e(t)}"${fuera?'':' checked'} aria-label="Incluir ${e(t)} en el run">${e(t)}</label></td>`
-    +`<td>${inp('qb',q.bid||'','run-q','','—')}</td>`
+    +`<td>${inp('qb',q.bid||'','run-q','','—')}</td>`+tasa('bid')
     +`<td>${inp('bid',runPx(p.bid,dec),runEditado(E,t,'bid')?'run-ed':'',tip('bid'),'—')}</td>`
-    +`<td>${inp('ask',runPx(p.ask,dec),runEditado(E,t,'ask')?'run-ed':'',tip('ask'),'—')}</td>`
+    +`<td>${inp('ask',runPx(p.ask,dec),runEditado(E,t,'ask')?'run-ed':'',tip('ask'),'—')}</td>`+tasa('ask')
     +`<td>${inp('qa',q.ask||'','run-q','','—')}</td></tr>`;
 }
-function runFilasHTML(bonos,E){
-  return bonos.length?bonos.map(b=>runFilaHTML(b,E)).join('')
-    :'<tr><td colspan="5" class="run-vacia">Todos ocultos: elegí cuáles ver en "Bonos".</td></tr>';
+function runFilasHTML(bonos,E,tipo){
+  return bonos.length?bonos.map(b=>runFilaHTML(b,E,tipo)).join('')
+    :`<tr><td colspan="${E.tasas?7:5}" class="run-vacia">Todos ocultos: elegí cuáles ver en "Bonos".</td></tr>`;
 }
 
 // ── Qué bonos se ven ──
@@ -16301,7 +16377,7 @@ function runSeccion(tipo){
   const g=runGrupos().find(x=>x[0]===tipo),sec=[...document.querySelectorAll('#page-run section[data-g]')].find(x=>x.dataset.g===tipo);
   if(!g||!sec){runRender(true);return;}
   const E=runEstado(),oc=new Set(E.ocultos);
-  sec.querySelector('tbody').innerHTML=runFilasHTML(g[1].filter(b=>!oc.has(b.ticker)),E);
+  sec.querySelector('tbody').innerHTML=runFilasHTML(g[1].filter(b=>!oc.has(b.ticker)),E,tipo);
   runVerPintar(tipo,g[1],E);
 }
 function runVer(tipo,t,ver){
@@ -16396,6 +16472,7 @@ function runCelda(x){
       i.value=vv==null?'':runPx(vv,dec);
       i.classList.toggle('run-ed',runEditado(E,t,cc));
     });
+    runTasasFila(tr,E);
   }
   runGuardar(E);
   x.dataset.orig=x.value;
@@ -16449,40 +16526,48 @@ function runAviso(m){
 // ── Exportar ──
 // Lo incluido, por tipo, como se ve en el run: las tablas tildadas, o con g,
 // sólo ese tipo.
+// Con «Copiar con tasas», cada punta lleva su tasa al lado y el título de cada
+// tipo dice cuál es.
 function runFilasExport(g){
-  const E=runEstado(),fuera=new Set([...E.fuera,...E.ocultos]),gFuera=new Set(E.gruposFuera);
+  const E=runEstado(),fuera=new Set([...E.fuera,...E.ocultos]),gFuera=new Set(E.gruposFuera),ct=E.tasasCopia;
   return runGrupos().filter(([tipo])=>g?tipo===g:!gFuera.has(tipo)).map(([tipo,bs])=>{
     const inc=bs.filter(b=>!fuera.has(b.ticker));
-    return[tipo,inc.map(b=>{const p=E.px[b.ticker]||{},q=E.q[b.ticker]||{},dec=runDec([p]);return[b.ticker,q.bid||'',runPx(p.bid,dec),runPx(p.ask,dec),q.ask||''];})];
+    return[ct?`${tipo} · ${runTasaTipo(tipo)}`:tipo,inc.map(b=>{
+      const p=E.px[b.ticker]||{},q=E.q[b.ticker]||{},dec=runDec([p]);
+      return ct?[b.ticker,q.bid||'',runTasaFmt(runTasa(tipo,b,p.bid)),runPx(p.bid,dec),runPx(p.ask,dec),runTasaFmt(runTasa(tipo,b,p.ask)),q.ask||'']
+        :[b.ticker,q.bid||'',runPx(p.bid,dec),runPx(p.ask,dec),q.ask||''];
+    })];
   }).filter(x=>x[1].length);
 }
 var RUN_CAB=['Ticker','Bid Size','Bid Px','Offer Px','Offer Size'];
+var RUN_CAB_TASAS=['Ticker','Bid Size','Bid Tasa','Bid Px','Offer Px','Offer Tasa','Offer Size'];
+function runCab(){return runEstado().tasasCopia?RUN_CAB_TASAS:RUN_CAB;}
 // En columnas alineadas, para letra fija.
 function runTexto(g){
-  const G=runFilasExport(g),filas=G.flatMap(x=>x[1]);
-  const w=RUN_CAB.map((h,i)=>Math.max(h.length,...filas.map(f=>f[i].length)));
+  const G=runFilasExport(g),filas=G.flatMap(x=>x[1]),cab=runCab();
+  const w=cab.map((h,i)=>Math.max(h.length,...filas.map(f=>f[i].length)));
   const lin=f=>f.map((x,i)=>i===0?x.padEnd(w[i]):x.padStart(w[i])).join('  ').replace(/\s+$/,'');
-  return[lin(RUN_CAB),...G.flatMap(([tipo,fs])=>['',tipo,...fs.map(lin)])].join('\n');
+  return[lin(cab),...G.flatMap(([tipo,fs])=>['',tipo,...fs.map(lin)])].join('\n');
 }
 // Una tabla de verdad, para lo que pega HTML (Eikon Messenger, Outlook, Teams,
 // Excel): bordes, el tipo como fila y los números a la derecha.
 function runHtml(g){
-  const e=betrEsc,G=runFilasExport(g);
+  const e=betrEsc,G=runFilasExport(g),cab=runCab();
   const b='border:1px solid #8a8f94;padding:2px 8px;';
   const td=(v,i)=>`<td style="${b}text-align:${i===0?'left':'right'};${i===0?'font-weight:bold;':''}white-space:nowrap">${e(v)}</td>`;
   return`<table style="border-collapse:collapse;font-family:Consolas,'Courier New',monospace;font-size:12px">`
-    +`<tr>${RUN_CAB.map((h,i)=>`<th style="${b}background:#e3e6e8;text-align:${i===0?'left':'right'}">${h}</th>`).join('')}</tr>`
-    +G.map(([tipo,fs])=>`<tr><td colspan="5" style="${b}background:#c9cfd4;font-weight:bold">${e(tipo)}</td></tr>`+fs.map(f=>`<tr>${f.map(td).join('')}</tr>`).join('')).join('')
+    +`<tr>${cab.map((h,i)=>`<th style="${b}background:#e3e6e8;text-align:${i===0?'left':'right'}">${h}</th>`).join('')}</tr>`
+    +G.map(([tipo,fs])=>`<tr><td colspan="${cab.length}" style="${b}background:#c9cfd4;font-weight:bold">${e(tipo)}</td></tr>`+fs.map(f=>`<tr>${f.map(td).join('')}</tr>`).join('')).join('')
     +`</table>`;
 }
 // La imagen, siempre en oscuro como el run de la mesa, al doble de resolución.
 function runImagen(g){
-  const G=runFilasExport(g),filas=G.flatMap(x=>x[1]);
+  const G=runFilasExport(g),filas=G.flatMap(x=>x[1]),cab=runCab();
   const S=2,fam=getComputedStyle(document.body).fontFamily||'monospace';
   const fN=`13px ${fam}`,fB=`600 13px ${fam}`,fH=`11px ${fam}`,fG=`600 12px ${fam}`;
   const c=document.createElement('canvas'),x=c.getContext('2d');
   const pad=12,alto=24;
-  const anchos=RUN_CAB.map((h,i)=>{
+  const anchos=cab.map((h,i)=>{
     x.font=fH;let m=x.measureText(h.toUpperCase()).width;
     x.font=i===0?fB:fN;filas.forEach(f=>{m=Math.max(m,x.measureText(f[i]).width);});
     return Math.ceil(m)+2*pad;
@@ -16504,7 +16589,7 @@ function runImagen(g){
   };
   const columnas=(y0,y1)=>{let xx=0;x.strokeStyle='#3a4047';anchos.slice(0,-1).forEach(a=>{xx+=a;x.beginPath();x.moveTo(xx+.5,y0);x.lineTo(xx+.5,y1);x.stroke();});};
   let y=0;
-  texto(RUN_CAB.map(h=>h.toUpperCase()),y,'#9aa3ab',fH);
+  texto(cab.map(h=>h.toUpperCase()),y,'#9aa3ab',fH);
   columnas(y,y+alto);
   y+=alto;raya(y);
   G.forEach(([tipo,fs])=>{
