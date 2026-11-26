@@ -285,6 +285,17 @@ tr.run-fuera>td{opacity:.38;}
 .brief-vacio{padding:2rem;text-align:center;color:var(--text3);font-size:var(--fs12);}
 .brief-sel{background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:4px 6px;font-size:var(--fs11);font-family:var(--mono);color:var(--text);outline:none;cursor:pointer;max-width:220px;}
 .brief-sel:focus-visible{border-color:var(--accent);}
+.brief-lect{margin-top:2rem;border:1px solid var(--border2);background:var(--surface);padding:0;}
+.brief-lect>summary{cursor:pointer;padding:8px 12px;font-family:var(--mono);font-size:var(--fs11);color:var(--text2);letter-spacing:.04em;text-transform:uppercase;}
+.brief-lect[open]>summary{border-bottom:1px solid var(--border2);}
+.brief-lect-cuerpo{padding:10px 12px;display:flex;flex-direction:column;gap:10px;}
+.brief-lect-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:var(--fs12);padding:3px 0;border-bottom:1px solid var(--border);}
+.brief-lect-fila button{background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text3);font-size:var(--fs10);padding:1px 8px;cursor:pointer;}
+.brief-lect-fila button:hover,.brief-lect-fila button:focus-visible{color:var(--danger);border-color:var(--danger);}
+.brief-lect form{display:flex;gap:6px;flex-wrap:wrap;}
+.brief-lect input{font-family:var(--mono);font-size:var(--fs12);background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:4px 8px;color:var(--text);min-width:240px;}
+.brief-lect input:focus{outline:none;border-color:var(--accent);}
+.brief-lect-nota{font-size:var(--fs10);color:var(--text3);font-family:var(--mono);}
 /* FX: el dólar en todas sus formas, con bid y offer. */
 .fx-cuerpo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(290px,100%),1fr));gap:14px;align-items:start;padding:8px 16px 40px;max-width:1200px;}
 .fx-cuerpo>.fx-aviso{grid-column:1/-1;}
@@ -827,7 +838,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
     </div>
   </div>
   <button class="nav-tab" id="nav-proyecciones" onclick="switchTab('proyecciones')">Proyecciones</button>
-  <button class="nav-tab nav-dev" id="nav-comentario" onclick="switchTab('comentario')" style="display:none">Comentario</button>
+  <button class="nav-tab nav-equipo" id="nav-comentario" onclick="switchTab('comentario')" style="display:none">Comentario</button>
   <div class="nav-grupo" style="margin-left:auto" onmouseenter="navGrupoHover(this,true)" onmouseleave="navGrupoHover(this,false)">
     <button class="nav-tab nav-grupo-btn" type="button" aria-haspopup="true" onclick="navGrupoAbrir(this)">Calendario<span class="nav-grupo-sub"></span><span class="nav-grupo-flecha"> ▾</span></button>
     <div class="nav-menu" role="menu">
@@ -870,7 +881,7 @@ tbody tr.selected .c-ticker{color:var(--accent);}
       <button class="nav-tab" role="menuitem" id="nav-usd-series" onclick="switchUsdTab('usd-series')">Series</button>
     </div>
   </div>
-  <button class="nav-tab nav-dev" id="nav-usd-comentario" onclick="switchUsdTab('usd-comentario')" style="display:none">Comentario</button>
+  <button class="nav-tab nav-equipo" id="nav-usd-comentario" onclick="switchUsdTab('usd-comentario')" style="display:none">Comentario</button>
 </nav>
 <!-- USD sub-bar: currency selector + price status -->
 <div id="usd-subbar" style="display:none;align-items:center;height:36px;padding:0 1rem;gap:10px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
@@ -3204,6 +3215,7 @@ async function authOnCambio(event,session){
   } else if(event==='SIGNED_OUT'){
     SUPA_USER=null;
     SESION_ESTADO='anonimo';
+    briefOlvidar();
     sesionPintar();
     authUpdateUI(null);
     authUpdateAdminUI();
@@ -3270,6 +3282,8 @@ function authUpdateAdminUI(){
   document.querySelectorAll('.nav-dev').forEach(el=>{
     el.style.display=admin?'':'none';
   });
+  // Comentario: el admin y los mails de la lista del brief.
+  briefNavPintar();
 }
 
 // Solapas que se están construyendo. Es un interruptor de visibilidad, no un
@@ -3278,12 +3292,14 @@ function authUpdateAdminUI(){
 // solapas sin sesión y tiene que poder seguir probándolas.
 //
 // Para liberar una, se le saca la clase nav-dev al botón y se la quita de acá.
-const TABS_DESARROLLO=['comentario'];
-const USD_TABS_DESARROLLO=['usd-comentario'];
+// Comentario salió de acá el 26/11/2026: es del equipo (ver briefPuedeVer).
+const TABS_DESARROLLO=[];
+const USD_TABS_DESARROLLO=[];
 
 // Un admin que cierra sesión parado en una solapa en desarrollo se quedaría
 // mirando una pantalla cuyo botón acaba de desaparecer. Se lo lleva al Resumen.
 function devSacarSiNoAdmin(){
+  briefSacarSiNoEquipo();
   if(isAdmin())return;
   if(USD_TABS_DESARROLLO.includes(currentUsdTab)){
     if(currentSection==='usd')switchUsdTab('usd-resumen');
@@ -3319,6 +3335,7 @@ async function authSetUser(user){
   authUpdateUI(user);
   authUpdateAdminUI();
   await authCargarPermisos();
+  briefEquipoComprobar();
   const cuenta=await supaLoadUserData();
   if(cuenta){
     // Lo que este navegador tenía y la cuenta no —la primera vez que entrás, o
@@ -31771,34 +31788,82 @@ function fichaTexto(f){
 // ══ MORNING BRIEF ══
 // La solapa Comentario muestra el Morning Market Brief: lo escribe una tarea
 // programada en la nube de lunes a viernes a las 9:30, con el prompt del
-// usuario (25/11/2026), y lo sube sola a la rama de datos claude/morning-brief,
-// que tiene sólo brief.json: no toca main, no abre PR y no dispara el smoke. La
-// app lo lee de ahí. Es el mismo en pesos y en dólares.
-//   brief.json: {fecha:'YYYY-MM-DD', generado:ISO, actualizado:'DD/MM/AAAA HH:MM ART',
-//                markdown, fuentes:[{titulo,url}], palabras}
+// usuario. Es privado del equipo (26/11/2026): la tarea lo manda al Worker
+// (POST /brief, con una clave que agrega la red del entorno de la nube), el
+// Worker lo guarda en la tabla briefs de Supabase, y la base sólo se lo da al
+// admin y a los mails de brief_lectores (supabase/brief.sql). Ocultar la
+// solapa es comodidad; el que no está en la lista no lo puede leer aunque la
+// abra. Por lo mismo, no se guarda en el navegador: se pide cada vez y se
+// olvida al cerrar sesión. Es el mismo en pesos y en dólares.
 // El markdown se pasa a HTML acá, escapado primero: viene de la web, y nada de
 // lo que traiga se ejecuta. Los links, sólo http y https.
-const BRIEF_URL='https://raw.githubusercontent.com/gmacap/bonos-ar/claude/morning-brief/brief.json';
-const BRIEF_LS='bonosAR_brief_v1';
-const BRIEF_TTL_MS=10*60*1000;
-let BRIEF_DATA=null;
+// En var: authUpdateAdminUI pinta la solapa antes de que el script llegue acá.
+var BRIEF_TTL_MS=10*60*1000;
+var BRIEF_DATA=null;      // {ts, data, falta, error, sinAcceso}
+var BRIEF_EQUIPO=false;   // la cuenta está en la lista de lectores
+var BRIEF_HIST=null;      // {ts, lista:[{fecha}], error}
+var BRIEF_VER=null;       // fecha del anterior a la vista; null es el último
+var BRIEF_POR_FECHA=new Map();
+// Lo de antes, cuando el brief era público y se guardaba en el navegador.
+try{localStorage.removeItem('bonosAR_brief_v1');}catch(e){}
+
+function briefPuedeVer(){return isAdmin()||BRIEF_EQUIPO;}
+async function briefEquipoComprobar(){
+  let ok=false;
+  if(SUPA_USER){
+    try{const{data,error}=await supa.rpc('es_lector_brief');if(!error)ok=!!data;}catch(e){}
+  }
+  BRIEF_EQUIPO=ok;
+  briefNavPintar();
+  briefSacarSiNoEquipo();
+}
+function briefNavPintar(){
+  const ve=briefPuedeVer();
+  document.querySelectorAll('.nav-equipo').forEach(el=>{el.style.display=ve?'':'none';});
+}
+// Quien pierde el acceso parado en la solapa vuelve al Resumen.
+function briefSacarSiNoEquipo(){
+  if(briefPuedeVer())return;
+  if(currentUsdTab==='usd-comentario'){if(currentSection==='usd')switchUsdTab('usd-resumen');else currentUsdTab='usd-resumen';}
+  if(currentTab==='comentario'){if(currentSection==='pesos')switchTab('breakeven');else currentTab='breakeven';}
+}
+function briefOlvidar(){
+  BRIEF_EQUIPO=false;BRIEF_DATA=null;BRIEF_HIST=null;BRIEF_VER=null;BRIEF_POR_FECHA.clear();
+  ['ars','usd'].forEach(sec=>{const el=briefPg(sec),box=el&&el.querySelector(':scope>.brief');if(box)box.innerHTML='';});
+}
+
+// La base. Sin la tabla todavía (antes de correr supabase/brief.sql) se dice.
+function briefErr(error){
+  const m=String((error&&error.message)||error||'');
+  return/briefs|es_lector_brief|brief_lectores/.test(m)&&/does not exist|schema cache|not find/i.test(m)
+    ?'falta crear la tabla en Supabase: corré supabase/brief.sql':m;
+}
+async function briefLeerUltimo(){
+  const{data,error}=await supa.from('briefs').select('*').order('fecha',{ascending:false}).limit(1);
+  if(error)throw new Error(briefErr(error));
+  return(data&&data[0])||null;
+}
+async function briefLeerFechas(){
+  const{data,error}=await supa.from('briefs').select('fecha').order('fecha',{ascending:false}).limit(400);
+  if(error)throw new Error(briefErr(error));
+  return(data||[]).map(r=>String(r.fecha).slice(0,10));
+}
+async function briefLeerDia(f){
+  const{data,error}=await supa.from('briefs').select('*').eq('fecha',f).maybeSingle();
+  if(error)throw new Error(briefErr(error));
+  return data||null;
+}
+function briefNormal(d){return d?{...d,fecha:String(d.fecha).slice(0,10),fuentes:Array.isArray(d.fuentes)?d.fuentes:[]}:null;}
+
 async function briefFetch(forzar){
-  if(!forzar&&BRIEF_DATA&&Date.now()-BRIEF_DATA.ts<BRIEF_TTL_MS)return BRIEF_DATA;
-  let cache=null;
-  try{const p=JSON.parse(localStorage.getItem(BRIEF_LS)||'null');if(p&&p.data)cache=p;}catch(e){}
-  if(!forzar&&cache&&Date.now()-cache.ts<BRIEF_TTL_MS){BRIEF_DATA=cache;return BRIEF_DATA;}
+  if(!forzar&&BRIEF_DATA&&!BRIEF_DATA.sinAcceso&&Date.now()-BRIEF_DATA.ts<BRIEF_TTL_MS)return BRIEF_DATA;
+  if(!briefPuedeVer()){BRIEF_DATA={ts:Date.now(),data:null,sinAcceso:true};return BRIEF_DATA;}
   try{
-    // raw.githubusercontent cachea cinco minutos: con ↻ se pide de nuevo.
-    const res=await fetch(BRIEF_URL+'?_='+(forzar?Date.now():Math.floor(Date.now()/300000)),{cache:'no-store',signal:AbortSignal.timeout(15000)});
-    if(res.status===404){BRIEF_DATA={ts:Date.now(),data:null,falta:true};return BRIEF_DATA;}
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const d=await res.json();
-    if(!d||typeof d.markdown!=='string'||!d.fecha)throw new Error('brief.json sin la forma esperada');
-    BRIEF_DATA={ts:Date.now(),data:d};
-    try{localStorage.setItem(BRIEF_LS,JSON.stringify(BRIEF_DATA));}catch(e){}
+    const d=briefNormal(await briefLeerUltimo());
+    BRIEF_DATA=d?{ts:Date.now(),data:d}:{ts:Date.now(),data:null,falta:true};
   }catch(e){
     console.warn('[brief]',e.message);
-    BRIEF_DATA=cache?{...cache,error:e.message}:{ts:Date.now(),data:null,error:e.message};
+    BRIEF_DATA={ts:Date.now(),data:(BRIEF_DATA&&BRIEF_DATA.data)||null,error:e.message};
   }
   return BRIEF_DATA;
 }
@@ -31815,86 +31880,69 @@ function briefInit(sec){
         <button class="btn" style="margin:0;padding:5px 11px;font-size:var(--fs11)" onclick="briefCargar('${sec}',true)" title="Vuelve a pedir el brief y la lista de anteriores">↻</button>
         <button class="btn" style="margin:0;padding:5px 11px;font-size:var(--fs11)" onclick="briefCopiar()" title="Copia el brief como texto, con sus tablas en markdown">⧉ Copiar</button>
       </div></div>
-    <div data-b="cuerpo"><div class="brief-vacio">Cargando el brief…</div></div>`;
+    <div data-b="cuerpo"><div class="brief-vacio">Cargando el brief…</div></div>
+    <details class="brief-lect" data-b="lect" hidden><summary>Quiénes ven el brief</summary>
+      <div class="brief-lect-cuerpo">
+        <div data-b="lectlista"><div class="brief-lect-nota">Cargando…</div></div>
+        <form onsubmit="briefLectorAgregar(event,'${sec}')">
+          <input type="email" id="brief-lect-nuevo-${sec}" placeholder="mail@ejemplo.com" aria-label="Mail a agregar" autocomplete="off" spellcheck="false">
+          <button type="submit" class="btn" style="margin:0;padding:4px 11px;font-size:var(--fs11)">Agregar</button>
+        </form>
+        <div class="brief-lect-nota" data-b="lectaviso">Lo ven estos mails y vos, al iniciar sesión con Google. Sacar a alguien le corta el acceso en el momento: la próxima vez que pida el brief, la base ya no se lo da.</div>
+      </div></details>`;
   briefCargar(sec);
 }
 async function briefCargar(sec,forzar){
   const B=await briefFetch(!!forzar);
   briefPintar(sec,B);
-  briefHistFetch(!!forzar).then(briefSelPintar,()=>{});
+  if(briefPuedeVer())briefHistFetch(!!forzar).then(briefSelPintar,()=>{});
+  briefLectoresPintar(sec);
 }
 
 // ── Los anteriores ──
-// Cada corrida de la tarea es un commit de la rama: el historial de GitHub es
-// el archivo de briefs, uno por día. La lista sale de la API de GitHub —sin
-// sesión permite 60 pedidos por hora por IP, por eso se pide una vez cada media
-// hora— y cada brief, de raw.githubusercontent con el sha de su commit, que no
-// cambia nunca: se guarda una vez traído. De un día con dos corridas queda la
-// última.
-const BRIEF_API='https://api.github.com/repos/gmacap/bonos-ar/commits?sha=claude/morning-brief&path=brief.json&per_page=100';
-const BRIEF_HIST_TTL_MS=30*60*1000;
-function briefRawSha(sha){return`https://raw.githubusercontent.com/gmacap/bonos-ar/${sha}/brief.json`;}
-let BRIEF_HIST=null;      // {ts, lista:[{sha,fecha}], error}
-let BRIEF_VER=null;       // sha del anterior a la vista; null es el último
-const BRIEF_POR_SHA=new Map();
+// Uno por día: la tabla tiene la fecha como clave, y una corrida repetida el
+// mismo día reemplaza a la anterior. Cada uno se guarda en memoria una vez
+// traído.
 async function briefHistFetch(forzar){
-  if(!forzar&&BRIEF_HIST&&!BRIEF_HIST.error&&Date.now()-BRIEF_HIST.ts<BRIEF_HIST_TTL_MS)return BRIEF_HIST;
-  try{
-    const res=await fetch(BRIEF_API,{headers:{Accept:'application/vnd.github+json'},cache:'no-store',signal:AbortSignal.timeout(15000)});
-    if(res.status===404||res.status===409){BRIEF_HIST={ts:Date.now(),lista:[]};return BRIEF_HIST;}
-    if(!res.ok)throw new Error(res.status===403||res.status===429?'GitHub limita los pedidos sin sesión: probá en un rato':'HTTP '+res.status);
-    const arr=await res.json(),vistos=new Set(),lista=[];
-    (Array.isArray(arr)?arr:[]).forEach(c=>{
-      const msg=(c&&c.commit&&c.commit.message)||'',m=msg.match(/del (\d{2})\/(\d{2})\/(\d{4})/);
-      const iso=((c&&c.commit&&(c.commit.committer||c.commit.author))||{}).date;
-      const fecha=m?`${m[3]}-${m[2]}-${m[1]}`
-        :iso?fmtDate(new Date(new Date(iso).toLocaleString('en-US',{timeZone:'America/Argentina/Buenos_Aires'}))):null;
-      // La API los da del más nuevo al más viejo: de cada día queda el primero.
-      if(!c||!/^[0-9a-f]{7,40}$/.test(String(c.sha||''))||!fecha||vistos.has(fecha))return;
-      vistos.add(fecha);lista.push({sha:c.sha,fecha});
-    });
-    BRIEF_HIST={ts:Date.now(),lista};
-  }catch(e){
+  if(!forzar&&BRIEF_HIST&&!BRIEF_HIST.error&&Date.now()-BRIEF_HIST.ts<BRIEF_TTL_MS)return BRIEF_HIST;
+  try{BRIEF_HIST={ts:Date.now(),lista:(await briefLeerFechas()).map(fecha=>({fecha}))};}
+  catch(e){
     console.warn('[brief] anteriores:',e.message);
     BRIEF_HIST={ts:Date.now(),lista:(BRIEF_HIST&&BRIEF_HIST.lista)||[],error:e.message};
   }
   return BRIEF_HIST;
 }
-async function briefDeSha(sha){
-  if(BRIEF_POR_SHA.has(sha))return BRIEF_POR_SHA.get(sha);
-  const res=await fetch(briefRawSha(sha),{signal:AbortSignal.timeout(15000)});
-  if(!res.ok)throw new Error('HTTP '+res.status);
-  const d=await res.json();
-  if(!d||typeof d.markdown!=='string'||!d.fecha)throw new Error('brief.json sin la forma esperada');
-  BRIEF_POR_SHA.set(sha,d);
+async function briefDeFecha(f){
+  if(BRIEF_POR_FECHA.has(f))return BRIEF_POR_FECHA.get(f);
+  const d=briefNormal(await briefLeerDia(f));
+  if(!d||typeof d.markdown!=='string')throw new Error('no está');
+  BRIEF_POR_FECHA.set(f,d);
   return d;
 }
 function briefFechaTxt(f){
   const d=parseDate(f);
   return d.toLocaleDateString('es-AR',{weekday:'short'}).replace('.','')+' '+f.split('-').reverse().join('/');
 }
-// Las opciones: el último y, abajo, los anteriores. El del día del último no se
-// repite.
 function briefSelPintar(){
   const H=BRIEF_HIST,ult=BRIEF_DATA&&BRIEF_DATA.data;
   const ant=H?H.lista.filter(x=>!ult||x.fecha!==ult.fecha):[];
   const esc=betrEsc;
   const html=`<option value="">${ult?'Último · '+esc(briefFechaTxt(ult.fecha)):'Último'}</option>`
-    +(ant.length?`<optgroup label="Anteriores">${ant.map(x=>`<option value="${esc(x.sha)}">${esc(briefFechaTxt(x.fecha))}</option>`).join('')}</optgroup>`
+    +(ant.length?`<optgroup label="Anteriores">${ant.map(x=>`<option value="${esc(x.fecha)}">${esc(briefFechaTxt(x.fecha))}</option>`).join('')}</optgroup>`
       :`<option value="" disabled>${H&&H.error?'No se pudo traer la lista: '+esc(H.error):'Todavía no hay anteriores'}</option>`);
   ['ars','usd'].forEach(sec=>{
     const s=document.getElementById('brief-sel-'+sec);
     if(!s)return;
     s.innerHTML=html;
-    s.value=BRIEF_VER&&ant.some(x=>x.sha===BRIEF_VER)?BRIEF_VER:'';
+    s.value=BRIEF_VER&&ant.some(x=>x.fecha===BRIEF_VER)?BRIEF_VER:'';
   });
 }
-async function briefVer(sha){
-  BRIEF_VER=sha||null;
-  ['ars','usd'].forEach(sec=>{const s=document.getElementById('brief-sel-'+sec);if(s)s.value=sha||'';});
-  if(BRIEF_VER&&!BRIEF_POR_SHA.has(BRIEF_VER)){
+async function briefVer(f){
+  BRIEF_VER=/^\d{4}-\d{2}-\d{2}$/.test(f||'')?f:null;
+  ['ars','usd'].forEach(sec=>{const s=document.getElementById('brief-sel-'+sec);if(s)s.value=BRIEF_VER||'';});
+  if(BRIEF_VER&&!BRIEF_POR_FECHA.has(BRIEF_VER)){
     ['ars','usd'].forEach(sec=>{const box=briefPg(sec)&&briefPg(sec).querySelector(':scope>.brief .brief-md');if(box)box.style.opacity='.45';});
-    try{await briefDeSha(BRIEF_VER);}
+    try{await briefDeFecha(BRIEF_VER);}
     catch(e){
       BRIEF_VER=null;
       if(typeof toast==='function')toast('No se pudo traer ese brief: '+e.message);
@@ -31915,8 +31963,8 @@ function briefAviso(d){
 }
 function briefPintar(sec,B){
   const el=briefPg(sec),box=el&&el.querySelector(':scope>.brief');
-  if(!box)return;
-  const ant=BRIEF_VER&&BRIEF_POR_SHA.get(BRIEF_VER);
+  if(!box||!box.innerHTML.trim())return;
+  const ant=BRIEF_VER&&BRIEF_POR_FECHA.get(BRIEF_VER);
   const $=k=>box.querySelector(`[data-b="${k}"]`),d=ant||(B&&B.data);
   const sub=$('sub'),av=$('aviso'),cu=$('cuerpo');
   if(ant){
@@ -31926,11 +31974,13 @@ function briefPintar(sec,B){
   }
   if(!d){
     sub.textContent='—';av.textContent='';
-    cu.innerHTML=`<div class="brief-vacio">${B&&B.falta?'Todavía no hay brief: el primero sale el próximo día hábil a las 9:30.':`No se pudo traer el brief${B&&B.error?' ('+betrEsc(B.error)+')':''}. Probá ↻.`}</div>`;
+    cu.innerHTML=`<div class="brief-vacio">${B&&B.sinAcceso?'El brief es del equipo: lo ven las cuentas de la lista al iniciar sesión con Google.'
+      :B&&B.falta?'Todavía no hay brief: el primero sale el próximo día hábil a las 9:30.'
+      :`No se pudo traer el brief${B&&B.error?' ('+betrEsc(B.error)+')':''}. Probá ↻.`}</div>`;
     return;
   }
   if(!ant){
-    sub.textContent=`${d.actualizado||d.fecha}${d.palabras?` · ${d.palabras} palabras`:''}${B.error?' · guardado: no se pudo volver a pedir':''}`;
+    sub.textContent=`${d.actualizado||d.fecha}${d.palabras?` · ${d.palabras} palabras`:''}${B.error?' · no se pudo volver a pedir':''}`;
     av.textContent=briefAviso(d);
   }
   const fu=(Array.isArray(d.fuentes)?d.fuentes:[]).filter(x=>x&&/^https?:\/\//i.test(String(x.url||'')));
@@ -31938,10 +31988,50 @@ function briefPintar(sec,B){
     +(fu.length?`<div class="brief-fuentes">Fuentes<ol>${fu.map(x=>`<li><a href="${betrEsc(x.url)}" target="_blank" rel="noopener noreferrer">${betrEsc(x.titulo||x.url)}</a></li>`).join('')}</ol></div>`:'');
 }
 function briefCopiar(){
-  const d=(BRIEF_VER&&BRIEF_POR_SHA.get(BRIEF_VER))||(BRIEF_DATA&&BRIEF_DATA.data);
+  const d=(BRIEF_VER&&BRIEF_POR_FECHA.get(BRIEF_VER))||(BRIEF_DATA&&BRIEF_DATA.data);
   if(!d){if(typeof toast==='function')toast('No hay brief para copiar');return;}
   comCopiarTexto(`Morning Market Brief · ${d.actualizado||d.fecha}\n\n${d.markdown}`);
 }
+
+// ── Quiénes lo ven: la lista la edita el admin, desde acá ──
+// La autoridad es la base: sólo el admin lee y escribe brief_lectores.
+var BRIEF_LECT=null;   // [{email}] o {error}
+async function briefLectoresTraer(){
+  const{data,error}=await supa.from('brief_lectores').select('email').order('email');
+  BRIEF_LECT=error?{error:briefErr(error)}:(data||[]);
+}
+async function briefLectoresPintar(sec,traer){
+  const box=briefPg(sec)&&briefPg(sec).querySelector(':scope>.brief [data-b="lect"]');
+  if(!box)return;
+  box.hidden=!isAdmin();
+  if(!isAdmin())return;
+  if(traer||!BRIEF_LECT)await briefLectoresTraer();
+  const lista=box.querySelector('[data-b="lectlista"]'),esc=betrEsc;
+  lista.innerHTML=BRIEF_LECT.error?`<div class="brief-lect-nota" style="color:var(--warn)">No se pudo traer la lista: ${esc(BRIEF_LECT.error)}</div>`
+    :BRIEF_LECT.length?BRIEF_LECT.map(x=>`<div class="brief-lect-fila"><span>${esc(x.email)}</span><button type="button" data-mail="${esc(x.email)}" onclick="briefLectorSacar(this.dataset.mail)" aria-label="Sacar ${esc(x.email)}">Sacar</button></div>`).join('')
+    :'<div class="brief-lect-nota">Todavía no agregaste a nadie: por ahora lo ves sólo vos.</div>';
+}
+function briefLectoresRepintar(traer){['ars','usd'].forEach(sec=>briefLectoresPintar(sec,traer));}
+function briefLectorAviso(m){['ars','usd'].forEach(sec=>{const el=briefPg(sec)&&briefPg(sec).querySelector(':scope>.brief [data-b="lectaviso"]');if(el)el.textContent=m;});}
+async function briefLectorAgregar(ev,sec){
+  ev.preventDefault();
+  const inp=document.getElementById('brief-lect-nuevo-'+sec),mail=String(inp&&inp.value||'').trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)){briefLectorAviso('Ese mail no es válido.');return;}
+  if(!isAdmin())return;
+  const{error}=await supa.from('brief_lectores').upsert({email:mail},{onConflict:'email'});
+  if(error){briefLectorAviso('No se pudo agregar: '+briefErr(error));return;}
+  if(inp)inp.value='';
+  briefLectorAviso(`${mail} ya puede ver el brief al iniciar sesión con esa cuenta de Google.`);
+  briefLectoresRepintar(true);
+}
+async function briefLectorSacar(mail){
+  if(!isAdmin())return;
+  const{error}=await supa.from('brief_lectores').delete().eq('email',mail);
+  if(error){briefLectorAviso('No se pudo sacar: '+briefErr(error));return;}
+  briefLectorAviso(`${mail} ya no ve el brief.`);
+  briefLectoresRepintar(true);
+}
+
 // Markdown a HTML, lo justo para el brief: títulos, párrafos, listas, tablas,
 // negrita, cursiva, código y links. Primero se escapa todo.
 function briefMd(md){

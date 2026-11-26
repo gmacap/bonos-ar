@@ -8079,113 +8079,89 @@ const omitir = (label, motivo) =>
   check(fxs.t0, 'FX: T+0 queda vacío y dice que está pendiente', JSON.stringify(fxs));
   check(fxs.usd, 'FX: también en Calculadoras de dólares', JSON.stringify(fxs));
 
-  // Comentario: el Morning Brief de las 9:30, leído de la rama de datos.
-  console.log('\nComentario: el Morning Brief');
+  // Comentario: el Morning Brief, privado del equipo. Lo da la base (RLS); acá
+  // se reemplaza la lectura para no depender de Supabase ni de una sesión.
+  console.log('\nComentario: el Morning Brief del equipo');
   const brf = await page.evaluate(async () => {
     const espera = ms => new Promise(r => setTimeout(r, ms));
-    const out = {}, realFetch = window.fetch, ls = localStorage.getItem(BRIEF_LS), guardado = BRIEF_DATA;
+    const out = {};
+    const real = { ultimo: briefLeerUltimo, fechas: briefLeerFechas, dia: briefLeerDia, isAdmin: window.isAdmin, user: SUPA_USER, equipo: BRIEF_EQUIPO, lectTraer: briefLectoresTraer };
+    const guard = { data: BRIEF_DATA, hist: BRIEF_HIST, ver: BRIEF_VER, lect: BRIEF_LECT };
     const md = ['Actualizado: prueba. **Negrita** <script>window.__brief=1</script> <img src=x onerror="window.__brief=2">', '',
       '## 1. Global Market Overview', '', '- Uno con [fuente](https://www.reuters.com/a?b=1&c=2)', '- Dos con [malo](javascript:alert(1))', '',
       '## 4. Rates', '', '| Bono | Nivel | 1D |', '|---|---:|---:|', '| UST 10Y | 4,11% | +1 pb |', '| UST 2Y | 3,52% | −2 pb |'].join('\n');
-    let resp = { status: 200, body: { fecha: hoyAR(), generado: new Date().toISOString(), actualizado: 'hoy 09:34 ART', palabras: 40, markdown: md,
-      fuentes: [{ titulo: 'Reuters', url: 'https://www.reuters.com/' }, { titulo: 'malo', url: 'javascript:alert(1)' }] } };
-    window.fetch = (u, o) => String(u).startsWith(BRIEF_API) ? Promise.resolve(new Response('[]', { status: 200 }))
-      : String(u).startsWith(BRIEF_URL)
-      ? Promise.resolve(new Response(resp.status === 200 ? JSON.stringify(resp.body) : 'Not Found', { status: resp.status }))
-      : realFetch(u, o);
+    const fila = (f, m) => ({ fecha: f, generado: f + 'T12:35:00+00:00', actualizado: f.split('-').reverse().join('/') + ' 09:35 ART', palabras: 40, markdown: m,
+      fuentes: [{ titulo: 'Reuters', url: 'https://www.reuters.com/' }, { titulo: 'malo', url: 'javascript:alert(1)' }], modelo: 'x' });
+    // La base de mentira: cuatro días, el último hoy.
+    const hoy = hoyAR(), dia = n => fmtDate(new Date(parseDate(hoy).getTime() - n * 864e5));
+    let base = { [hoy]: fila(hoy, md), [dia(1)]: fila(dia(1), '## Del ayer'), [dia(4)]: fila(dia(4), '## Del de hace cuatro') };
+    let falla = null;
+    briefLeerUltimo = async () => { if (falla) throw new Error(falla); const k = Object.keys(base).sort().pop(); return k ? base[k] : null; };
+    briefLeerFechas = async () => { if (falla) throw new Error(falla); return Object.keys(base).sort().reverse(); };
+    briefLeerDia = async f => base[f] || null;
     try {
-      localStorage.removeItem(BRIEF_LS); BRIEF_DATA = null;
-      switchSection('pesos'); switchTab('comentario'); await espera(300);
+      // Sin sesión: la solapa no se ve, y aunque se abra no muestra el brief
+      SUPA_USER = null; BRIEF_EQUIPO = false; authUpdateAdminUI();
+      out.oculta = getComputedStyle(document.getElementById('nav-comentario')).display === 'none' && getComputedStyle(document.getElementById('nav-usd-comentario')).display === 'none';
+      BRIEF_DATA = null; switchSection('pesos'); switchTab('comentario'); await espera(200);
       const box = () => document.querySelector('#page-comentario > .brief');
-      out.abre = !!box() && /Morning Market Brief/.test(box().textContent);
+      out.sinAcceso = /es del equipo/.test(box().textContent) && !box().querySelector('.brief-md');
+      // Una cuenta de la lista: se ve la solapa y el brief, pero no la lista de lectores
+      SUPA_USER = { id: 'x', email: 'equipo@ejemplo.com' }; BRIEF_EQUIPO = true; authUpdateAdminUI();
+      out.equipoVe = getComputedStyle(document.getElementById('nav-comentario')).display !== 'none';
+      await briefCargar('ars', true); await espera(100);
       const b = box();
       out.render = b.querySelectorAll('.brief-md h2').length === 2 && b.querySelectorAll('.brief-md tbody tr').length === 2
-        && b.querySelectorAll('.brief-md td.num').length === 4 && /hoy 09:34 ART/.test(b.querySelector('[data-b="sub"]').textContent)
-        && !b.querySelector('[data-b="aviso"]').textContent;
+        && b.querySelectorAll('.brief-md td.num').length === 4 && !b.querySelector('[data-b="aviso"]').textContent
+        && b.querySelector('[data-b="lect"]').hidden === true;
       out.seguro = window.__brief === undefined && !b.querySelector('.brief-md script, .brief-md img')
         && [...b.querySelectorAll('a')].every(a => /^https:\/\//.test(a.getAttribute('href'))) && b.querySelectorAll('a').length === 2;
-      // Uno viejo: lo muestra y avisa de qué día es
-      resp.body = { ...resp.body, fecha: '2026-11-20' };
+      // Los anteriores: uno por día, sin repetir el último
+      const sel = () => document.getElementById('brief-sel-ars');
+      const opciones = () => [...sel().options].filter(o => !o.disabled).map(o => o.value || 'ultimo');
+      out.lista = opciones().join('|') === ['ultimo', dia(1), dia(4)].join('|');
+      await briefVer(dia(4));
+      out.anterior = /Del de hace cuatro/.test(box().querySelector('.brief-md').textContent) && /anterior/.test(box().querySelector('[data-b="aviso"]').textContent);
+      await briefVer('');
+      out.vuelve = box().querySelectorAll('.brief-md h2').length === 2 && !/anterior/.test(box().querySelector('[data-b="aviso"]').textContent);
+      // Antes de correr el SQL: lo dice
+      falla = 'falta crear la tabla en Supabase: corré supabase/brief.sql'; BRIEF_DATA = null;
       await briefCargar('ars', true);
-      out.viejo = /20\/11\/2026/.test(box().querySelector('[data-b="aviso"]').textContent);
-      // Antes del primero: la rama no existe todavía
-      resp = { status: 404 };
-      await briefCargar('ars', true);
+      out.sinTabla = /supabase\/brief\.sql/.test(box().textContent);
+      falla = null;
+      // Sin briefs todavía
+      base = {}; await briefCargar('ars', true);
       out.falta = /Todavía no hay brief/.test(box().textContent);
+      // El admin ve la lista de lectores
+      window.isAdmin = () => true;
+      briefLectoresTraer = async () => { BRIEF_LECT = [{ email: 'uno@ejemplo.com' }, { email: 'dos@ejemplo.com' }]; };
+      await briefLectoresPintar('ars', true);
+      const lect = box().querySelector('[data-b="lect"]');
+      out.lectores = lect.hidden === false && lect.querySelectorAll('.brief-lect-fila').length === 2 && /uno@ejemplo\.com/.test(lect.textContent);
+      window.isAdmin = real.isAdmin;
+      // Al cerrar sesión se olvida: la cuenta deja de ser del equipo y el brief se borra de la página
+      briefOlvidar();
+      out.olvida = BRIEF_DATA === null && BRIEF_EQUIPO === false && !document.querySelector('#page-comentario > .brief .brief-md');
       // El mismo en dólares
-      resp = { status: 200, body: { fecha: hoyAR(), actualizado: 'x', markdown: '## Uno', fuentes: [] } };
-      BRIEF_DATA = null;
+      base = { [hoy]: fila(hoy, '## Uno') }; BRIEF_EQUIPO = true; BRIEF_DATA = null;
       switchSection('usd'); switchUsdTab('usd-comentario'); await espera(300);
       out.usd = !!document.querySelector('#page-usd-comentario > .brief .brief-md h2');
     } catch (e) { out.err = e.message; }
     finally {
-      window.fetch = realFetch; BRIEF_DATA = guardado;
-      if (ls == null) localStorage.removeItem(BRIEF_LS); else localStorage.setItem(BRIEF_LS, ls);
-      switchSection('pesos'); switchTab('breakeven');
+      briefLeerUltimo = real.ultimo; briefLeerFechas = real.fechas; briefLeerDia = real.dia; briefLectoresTraer = real.lectTraer;
+      window.isAdmin = real.isAdmin; SUPA_USER = real.user; BRIEF_EQUIPO = real.equipo;
+      BRIEF_DATA = guard.data; BRIEF_HIST = guard.hist; BRIEF_VER = guard.ver; BRIEF_LECT = guard.lect;
+      authUpdateAdminUI(); switchSection('pesos'); switchTab('breakeven');
     }
     return out;
   });
-  check(brf.abre && brf.render, 'la solapa Comentario abre el Morning Brief, con sus secciones y sus tablas', JSON.stringify(brf));
+  check(brf.oculta && brf.sinAcceso, 'el brief es del equipo: sin sesión la solapa no se ve, y abierta igual no lo muestra', JSON.stringify(brf));
+  check(brf.equipoVe && brf.render, 'una cuenta de la lista ve la solapa y el brief, con sus secciones y sus tablas', JSON.stringify(brf));
   check(brf.seguro === true, 'el brief no ejecuta nada de lo que trae, y sus links son sólo http o https', JSON.stringify(brf));
-  check(brf.viejo && brf.falta, 'si el brief no es de hoy avisa de qué día es, y antes del primero lo dice', JSON.stringify(brf));
+  check(brf.lista && brf.anterior && brf.vuelve, 'los briefs anteriores, uno por día: elegir uno lo muestra y «Último» vuelve', JSON.stringify(brf));
+  check(brf.sinTabla && brf.falta, 'antes de crear la tabla lo dice, y sin briefs también', JSON.stringify(brf));
+  check(brf.lectores && brf.olvida, 'sólo el admin ve la lista de lectores; al cerrar sesión el brief se olvida', JSON.stringify(brf));
   check(brf.usd === true, 'el mismo brief en Comentario de dólares', JSON.stringify(brf));
-
-  // Comentario: los briefs anteriores, del historial de la rama.
-  console.log('\nComentario: los briefs anteriores');
-  const bant = await page.evaluate(async () => {
-    const espera = ms => new Promise(r => setTimeout(r, ms));
-    const out = {}, realFetch = window.fetch, ls = localStorage.getItem(BRIEF_LS);
-    const guard = { data: BRIEF_DATA, hist: BRIEF_HIST, ver: BRIEF_VER };
-    const sha = n => String(n).repeat(40);
-    // Del más nuevo al más viejo, como la API: dos corridas el 25/11 y una el 24 y el 21.
-    const commits = [
-      { sha: sha('a'), commit: { message: 'data(brief): Morning Brief del 25/11/2026', committer: { date: '2026-11-25T20:01:23Z' } } },
-      { sha: sha('b'), commit: { message: 'data(brief): Morning Brief del 25/11/2026', committer: { date: '2026-11-25T12:40:00Z' } } },
-      { sha: sha('c'), commit: { message: 'data(brief): Morning Brief del 24/11/2026', committer: { date: '2026-11-24T12:40:00Z' } } },
-      { sha: sha('d'), commit: { message: 'otro mensaje', committer: { date: '2026-11-21T12:41:00Z' } } },
-    ];
-    const brief = (f, t) => ({ fecha: f, actualizado: f.split('-').reverse().join('/') + ' 09:34 ART', palabras: 10, markdown: '## ' + t, fuentes: [] });
-    const raw = { [sha('a')]: brief('2026-11-25', 'Ultimo'), [sha('c')]: brief('2026-11-24', 'Del 24'), [sha('d')]: brief('2026-11-21', 'Del 21') };
-    let api = { status: 200, body: commits };
-    window.fetch = (u, o) => {
-      const s = String(u);
-      if (s.startsWith(BRIEF_API)) return Promise.resolve(new Response(api.status === 200 ? JSON.stringify(api.body) : '{}', { status: api.status }));
-      if (s.startsWith(BRIEF_URL)) return Promise.resolve(new Response(JSON.stringify(raw[sha('a')]), { status: 200 }));
-      const m = s.match(/bonos-ar\/([0-9a-f]{40})\/brief\.json/);
-      if (m) return Promise.resolve(raw[m[1]] ? new Response(JSON.stringify(raw[m[1]]), { status: 200 }) : new Response('x', { status: 404 }));
-      return realFetch(u, o);
-    };
-    try {
-      localStorage.removeItem(BRIEF_LS); BRIEF_DATA = null; BRIEF_HIST = null; BRIEF_VER = null;
-      switchSection('pesos'); switchTab('comentario');
-      await briefCargar('ars', true); await espera(100);
-      const sel = () => document.getElementById('brief-sel-ars');
-      const opciones = () => [...sel().options].filter(o => !o.disabled).map(o => o.value ? o.value.slice(0, 1) : 'ultimo');
-      const cuerpo = () => document.querySelector('#page-comentario > .brief .brief-md').textContent;
-      const aviso = () => document.querySelector('#page-comentario > .brief [data-b="aviso"]').textContent;
-      // El 25 no se repite con el último; de los dos del 25 queda el primero; el 21 sale de la fecha del commit
-      out.lista = opciones().join('|') === 'ultimo|c|d' && /Último · .*25\/11\/2026/.test(sel().options[0].textContent);
-      await briefVer(sha('c'));
-      out.anterior = /Del 24/.test(cuerpo()) && /anterior/.test(aviso()) && /25\/11\/2026/.test(aviso()) && sel().value === sha('c');
-      out.usd = document.getElementById('brief-sel-usd') == null || document.getElementById('brief-sel-usd').value === sha('c');
-      await briefVer('');
-      out.vuelve = /Ultimo/.test(cuerpo()) && !/anterior/.test(aviso()) && sel().value === '';
-      // GitHub sin cupo: la lista lo dice y el último se sigue viendo
-      // Sin una lista ya traída: con una, la app la sigue mostrando.
-      api = { status: 403 }; BRIEF_HIST = null;
-      await briefHistFetch(true); briefSelPintar();
-      out.sinCupo = [...sel().options].some(o => o.disabled && /limita los pedidos/.test(o.textContent)) && /Ultimo/.test(cuerpo());
-    } catch (e) { out.err = e.message; }
-    finally {
-      window.fetch = realFetch; BRIEF_DATA = guard.data; BRIEF_HIST = guard.hist; BRIEF_VER = guard.ver;
-      if (ls == null) localStorage.removeItem(BRIEF_LS); else localStorage.setItem(BRIEF_LS, ls);
-      switchSection('pesos'); switchTab('breakeven');
-    }
-    return out;
-  });
-  check(bant.lista === true, 'los briefs anteriores salen del historial de la rama, uno por día y sin repetir el último', JSON.stringify(bant));
-  check(bant.anterior && bant.vuelve && bant.usd, 'elegir un día muestra ese brief, avisa que es anterior, y «Último» vuelve', JSON.stringify(bant));
-  check(bant.sinCupo === true, 'si GitHub no da la lista, lo dice y el último se sigue viendo', JSON.stringify(bant));
 
   // Descuento: el conversor TNA ⇄ TEA ⇄ TEM, intercambiable, en las dos secciones.
   console.log('\nDescuento: conversor de tasas');
