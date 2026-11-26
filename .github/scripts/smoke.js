@@ -4568,6 +4568,47 @@ const omitir = (label, motivo) =>
             cruces: cruces ? cruces.data.length : 0, solos, arrastre: r3.vsCurva, modo: licOrdModo(o, ord1),
             csv: F.filas.length, fila: F.filas[0], ticker: o.i.ticker, resalta, auto, miles };
         }
+        // El globo de cada punto: tasa, precio y días, uno por renglón.
+        {
+          const id = Object.keys(LIC_CHARTS.ars).find(x => x.startsWith('lic-prox-g-')), g = id && LIC_CHARTS.ars[id];
+          const dm = g && g.data.datasets.find(d => d._rol === 'mercado');
+          const it = dm && { raw: dm.data[0], dataset: dm, parsed: { x: dm.data[0].x, y: dm.data[0].y } };
+          const L = it ? g.options.plugins.tooltip.callbacks.label(it) : null;
+          out.globo = { lineas: L, tasa: !!L && L.some(x => /^Tasa: [\d.,−-]+% /.test(x)), precio: !!L && L.some(x => /^Precio: (US)?\$ [\d.,]+/.test(x)),
+            dias: !!L && L.some(x => /^Días: \d+$/.test(x)), clic: !!g && typeof g.options.onClick === 'function' };
+        }
+        // El precio desde la solapa: el de la calculadora, que mueve el punto.
+        {
+          const c = (PX.E.find(o => o.cu && o.sec !== 'BON') || {}).i;
+          if (c) {
+            licPxAbrir('ars', c.clase);
+            const inp = [...document.querySelectorAll(`#lic-px-${c.clase} input.lic-px-in:not([disabled])`)].find(x => x.value);
+            if (inp) {
+              const tk = inp.dataset.tk, b0 = licBonoApp(tk), listas = [LECAPS, CER_BONDS, TAMAR_BONDS, DLK_BONDS];
+              const antes = listas.map(L => { const i = L.findIndex(x => x.ticker === tk); return i >= 0 ? [L, i, L[i]] : null; }).filter(Boolean);
+              const nuevo = +(licPxDe(inp.dataset.sector, b0) * 1.02).toFixed(2);
+              inp.value = String(nuevo).replace('.', ',');
+              inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+              await espera(1200);
+              const b1 = licBonoApp(tk), g = LIC_CHARTS.ars['lic-prox-g-' + c.clase];
+              const q = g && (g.data.datasets.find(d => d._rol === 'mercado') || { data: [] }).data.find(x => x.t === tk);
+              out.pxSolapa = { tk, nuevo, lista: b1.precio, mano: b1.manualOverride === true, punto: q && q.px, esperado: `$ ${licN(nuevo)} c/100 VN`, filas: document.querySelectorAll(`#lic-px-${c.clase} tbody tr`).length };
+              antes.forEach(([L, i, b]) => { L[i] = b; });
+              // Un refresco mientras se escribe no guarda lo escrito ni lo borra.
+              const inp2 = document.getElementById(inp.id), p2 = licBonoApp(tk).precio;
+              if (inp2) {
+                inp2.focus(); inp2.value = '1,5';
+                await licRenderProximo('ars');
+                const inp3 = document.getElementById(inp.id);
+                out.pxSolapa.tipeo = !!inp3 && inp3.value === '1,5' && document.activeElement === inp3 && licBonoApp(tk).precio === p2;
+                inp3.value = inp3.dataset.ini; inp3.blur();
+              }
+              savePortfolio(); tamarSaveBonds(); dlkSaveBonds();
+              DATA = LECAPS.map(enrich); CER_DATA = CER_BONDS.map(cerEnrich); TAMAR_DATA = TAMAR_BONDS.map(tamarEnrich); DLK_DATA = DLK_BONDS.map(dlkEnrich);
+            }
+            LIC_ESTADO.ars.px = {};
+          }
+        }
       } finally {
         LIC_ESTADO.ars.foco = null;
         LIC_ORD = null;
@@ -4575,6 +4616,25 @@ const omitir = (label, motivo) =>
         D.llamado = llOrig;
         await licRenderProximo('ars');
       }
+    }
+    // Dollar linked: el bono a emitir se integra con el A3500 del día hábil
+    // anterior —el que informa el comunicado— y el secundario cotiza con el de
+    // ese día. El precio en dólares se pasa a pesos con el primero y a dólares
+    // del mercado con el segundo.
+    {
+      const con = D.licitaciones.filter(l => l.a3500 > 0).slice(-3);
+      const emOk = con.map(l => { const e = licTCEmision(l.fecha); return !e.est && Math.abs(e.v - l.a3500) < 0.01; });
+      const l = con[con.length - 1], T = l && licTCDe(l);
+      const liq = addHabiles(TODAY, 2), let1 = { nombre: 'LETRA DEL TESORO NACIONAL VINCULADA AL DÓLAR ESTADOUNIDENSE CERO CUPÓN', clase: 'dl' };
+      const tasa2 = licTasaDe(let1, 'DLK', 980, liq, { mer: 1600, em: 1608 }, 100), tasa1 = licTasaDe(let1, 'DLK', 980, liq, 1600, 100);
+      const esperada = dlkCalcTNA((Math.pow(1000 / (980 * 1608 / 1600), 365 / 100) - 1) * 100, 100);
+      const bono = DLK_BONDS.find(b => b.precio > 0 && b.vcto > hoyAR());
+      const mot = bono && licTasaMotor('DLK', bono, 99 * 1608, liq, 1600);
+      const conBono = bono && licTasaDe({ ticker: bono.ticker, clase: 'dl' }, 'DLK', 990, liq, { mer: 1600, em: 1608 }, 100);
+      out.tcDl = { emOk, de: T && { em: T.em === l.a3500, mer: T.mer === (licA3500En(l.fecha) || l.a3500) },
+        // Integrado a un A3500 más alto, cada dólar ofrecido cuesta más pesos: menos tasa.
+        letra: Math.abs(tasa2 - esperada) < 1e-9 && tasa2 < tasa1, bono: !bono || (!!mot && Math.abs(conBono - mot.v) < 1e-9),
+        enUsd: licEnUsd({ clase: 'dual', dual: 'dl' }, 'TAMAR') && licEnUsd({ clase: 'dl' }, 'DLK') && !licEnUsd({ clase: 'usd' }, 'BON') && !licEnUsd({ clase: 'dual', dual: 'cer' }, 'TAMAR') };
     }
     // Tus órdenes contra el resultado: con órdenes cargadas para la última
     // licitación, la que ofrece más que el corte entra, la que ofrece justo el
@@ -4695,6 +4755,15 @@ const omitir = (label, motivo) =>
     if (sm) check(sm.resalta && sm.auto !== false && sm.miles.join('|') === '2.000.000|1.234.567,5|100.000',
           'ampliada, el panel muestra todas las órdenes y destaca las de esa curva; pararse en otra la amplía; VN con separadores',
           JSON.stringify({ resalta: sm.resalta, auto: sm.auto, miles: sm.miles }));
+    if (sm) check(lic.globo && lic.globo.tasa && lic.globo.precio && lic.globo.dias && lic.globo.clic,
+          'el globo de cada punto de la próxima licitación dice tasa, precio y días, y un clic abre su precio', JSON.stringify(lic.globo));
+    const ps = lic.pxSolapa;
+    if (sm && !ps) omitir('el precio se cambia desde Licitaciones', 'ninguna curva con bonos editables');
+    else if (ps) check(ps.lista === ps.nuevo && ps.mano && ps.punto === ps.esperado && ps.filas >= 4 && ps.tipeo === true,
+          'el precio se cambia desde Licitaciones: es el de la calculadora, queda a mano y mueve el punto del gráfico', JSON.stringify(ps));
+    const tdl = lic.tcDl;
+    check(tdl && tdl.emOk.length > 0 && tdl.emOk.every(Boolean) && tdl.de && tdl.de.em && tdl.de.mer && tdl.letra && tdl.bono && tdl.enUsd,
+          'dólar linked: el bono a emitir va con el A3500 de la víspera (el del comunicado) y el secundario con el del día', JSON.stringify(tdl));
     const TUS = 'tus órdenes contra el resultado: arriba del corte entra, en el corte entra al corte, abajo queda afuera; se paga al corte y el llamado siguiente las guarda';
     const tu = lic.tus;
     if (!tu) omitir(TUS, 'la última licitación no trae un instrumento en pesos con precio de corte');
@@ -7234,6 +7303,28 @@ const omitir = (label, motivo) =>
       out.ambos.costado = fA().top >= gA().bottom - 1 && Math.abs(fA().left - gA().left) <= 2;
       calcPanelParte('cer', 0.85); await espera(100);
       out.ambos.pisoAlto = cuA().height < 500 || fA().height >= 218;
+      // Invertido: al costado, los forwards arriba; abajo, a la izquierda. El
+      // botón sólo está con los dos a la vista.
+      const ib = () => areaC.querySelector('.calc-inv-btn');
+      calcPanelParte('cer', 0.5); calcInvertir('cer', true); await espera(300);
+      out.inv = { arriba: gA().top >= fA().bottom - 1, textoCostado: ib().textContent };
+      calcLado('cer', false); await espera(400);
+      out.inv.izquierda = gA().left >= fA().right - 1;
+      out.inv.texto = ib().textContent;
+      out.inv.guardado = calcEstado('cer').inv === true;
+      // Un precio de la tabla se ve en la matriz con los dos a la vista
+      const tdP = document.querySelector('#calc-fwd-cer td[data-px]');
+      if (tdP) {
+        const tk = tdP.dataset.px, i = CER_BONDS.findIndex(x => x.ticker === tk), orig = CER_BONDS[i], nuevo = +(orig.precio * 1.01).toFixed(2);
+        cerFijarPrecio(tk, nuevo); await espera(400);
+        const td2 = document.querySelector(`#calc-fwd-cer td[data-px="${tk}"]`);
+        out.inv.sigue = !!td2 && td2.textContent.trim() === fmtPx(nuevo);
+        CER_BONDS[i] = orig; savePortfolio(); CER_DATA = CER_BONDS.map(cerEnrich); cerRenderTable(); cerRenderTabChart();
+      }
+      calcInvertir('cer', false); await espera(300);
+      out.inv.vuelve = fA().left >= gA().right - 1 && calcEstado('cer').inv === false;
+      calcPanelVista('cer', 'curva'); await espera(200);
+      out.inv.oculto = getComputedStyle(ib()).display === 'none';
       calcLado('cer', false); calcPanelVista('cer', 'curva'); await espera(200);
       out.ambos.vuelve = getComputedStyle(areaC.querySelector('.calc-fwd')).display === 'none' && getComputedStyle(calcPanelGrafico(areaC)).display !== 'none';
       out.lado.vuelve = !document.querySelector('#page-cer .calc-lado') && areaC.getBoundingClientRect().top >= document.getElementById('cer-table-body').closest('.table-scroll').getBoundingClientRect().bottom - 2;
@@ -7368,6 +7459,10 @@ const omitir = (label, motivo) =>
   check(am.abajo && am.filas >= 3 && am.parte && am.costado && am.vuelve,
         'curva y forwards a la vez: abajo uno al lado del otro, al costado uno arriba del otro, con el reparto a elección', JSON.stringify(am));
   check(am.piso && am.pisoAlto, 'con la curva tirada hasta el borde, los forwards no se esconden: 440 px de ancho abajo, 220 px de alto al costado', JSON.stringify(am));
+  const inv = cvista.inv || {};
+  check(inv.arriba && inv.izquierda && inv.guardado && inv.vuelve && inv.oculto && /⇅/.test(inv.textoCostado || '') && /⇄/.test(inv.texto || ''),
+        'curva y forwards se invierten: los forwards arriba o a la izquierda, se guarda y vuelve', JSON.stringify(inv));
+  check(inv.sigue === true, 'con la curva y los forwards a la vez, un precio de la tabla se ve en la matriz', JSON.stringify(inv));
   const la = cvista.lado || {};
   check(la.env && la.costado && Math.abs(la.alto - la.altoTabla) <= 2 && /abajo/.test(la.boton || '') && la.guardado && la.vuelve,
         'la curva va al costado de la tabla, a toda la altura, y vuelve abajo', JSON.stringify(la));

@@ -213,6 +213,9 @@ body.theme-light .fuente-archivo{border-color:#c62828;color:#c62828;}
 .calc-cuerpo>*{min-width:0;min-height:0;}
 .calc-cuerpo>.calc-fwd{flex:1 1 0;}
 .calc-cuerpo.fila{flex-direction:row;}
+/* Invertido: los forwards antes que la curva (arriba o a la izquierda). */
+.calc-cuerpo.calc-ambos.inv{flex-direction:column-reverse;}
+.calc-cuerpo.calc-ambos.fila.inv{flex-direction:row-reverse;}
 .calc-div{display:none;flex:0 0 6px;background:var(--border);cursor:row-resize;}
 .calc-cuerpo.calc-ambos>.calc-div{display:block;}
 .calc-cuerpo.fila>.calc-div{cursor:col-resize;}
@@ -557,6 +560,9 @@ td.ticker-cell{text-align:left;}
    en el gráfico y verla en la tabla a la vez; en pantallas angostas, una debajo
    de la otra. El panel de órdenes queda a la vista al bajar por los gráficos. */
 .lic-par{display:grid;grid-template-columns:minmax(0,1fr) minmax(500px,612px);gap:14px;align-items:start;}
+.lic-px-in{width:92px;font-family:var(--mono);font-size:var(--fs11);background:var(--surface2);border:1px solid var(--border2);border-radius:2px;padding:1px 5px;color:var(--text);text-align:right;outline:none;}
+.lic-px-in:focus{border-color:var(--accent);}
+.lic-px-in:disabled{opacity:.5;}
 .lic-ord-panel{position:sticky;top:8px;max-height:calc(100vh - var(--alto-barras) - 24px);overflow:auto;border:1px solid var(--border);border-radius:4px;padding:8px 10px;background:var(--surface);}
 @media (max-width:1180px){.lic-par{grid-template-columns:1fr;}.lic-ord-panel{position:static;max-height:none;}}
 .lic-ord{width:100%;min-width:0;border-collapse:collapse;font-family:var(--mono);}
@@ -16202,7 +16208,7 @@ var CALC_FWD_NOTA={
 
 function calcEstadoTodo(){try{const o=JSON.parse(localStorage.getItem(CALC_LS)||'{}');return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(e){return{};}}
 function calcEstado(k){const e=calcEstadoTodo()[k]||{};return{vista:e.vista==='fwd'||e.vista==='ambos'?e.vista:'curva',parte:e.parte>=.15&&e.parte<=.85?+e.parte:.5,min:!!e.min,cols:Array.isArray(e.cols)?e.cols:[],orden:Array.isArray(e.orden)?e.orden:[],
-  anchos:e.anchos&&typeof e.anchos==='object'&&!Array.isArray(e.anchos)?e.anchos:{},lado:!!e.lado,
+  anchos:e.anchos&&typeof e.anchos==='object'&&!Array.isArray(e.anchos)?e.anchos:{},lado:!!e.lado,inv:!!e.inv,
   ladoAncho:e.ladoAncho>=.15&&e.ladoAncho<=.9?+e.ladoAncho:null};}
 function calcEstadoGuardar(k,cambio){
   const o=calcEstadoTodo();
@@ -16225,7 +16231,9 @@ function calcAlRepintar(clave){
   if(typeof CALC_DEF==='undefined'||!CALC_DEF)return;
   const k=CALC_POR_CLAVE[clave];
   if(!k)return;
-  if(calcEstado(k).vista==='fwd')setTimeout(()=>{try{calcFwdRender(k);}catch(e){}},0);
+  // Con la curva y los forwards a la vez también: un precio cambiado en la
+  // tabla tiene que verse en la matriz, como uno de la matriz se ve en la tabla.
+  if(calcEstado(k).vista!=='curva')setTimeout(()=>{try{calcFwdRender(k);}catch(e){}},0);
   setTimeout(()=>{try{calcColsAplicar(k);}catch(e){}},0);
 }
 
@@ -16267,7 +16275,8 @@ function calcPanelMontar(k){
   ctl.innerHTML=(D.fwd?`<span class="calc-seg" role="group" aria-label="Qué mostrar abajo">
       <button type="button" data-v="curva" onclick="calcPanelVista('${k}','curva')">Curva</button>
       <button type="button" data-v="fwd" onclick="calcPanelVista('${k}','fwd')">Forwards</button>
-      <button type="button" data-v="ambos" onclick="calcPanelVista('${k}','ambos')" title="La curva y los forwards a la vez: uno al lado del otro abajo, uno arriba del otro al costado">Ambos</button></span>`:'')
+      <button type="button" data-v="ambos" onclick="calcPanelVista('${k}','ambos')" title="La curva y los forwards a la vez: uno al lado del otro abajo, uno arriba del otro al costado">Ambos</button></span>`
+      +`<button type="button" class="calc-achicar calc-inv-btn" onclick="calcInvertir('${k}')" aria-pressed="false">⇄ invertir</button>`:'')
     +(D.tabla?`<button type="button" class="calc-achicar calc-lado-btn" onclick="calcLado('${k}',!calcEstado('${k}').lado)" title="Poner el panel a la derecha de la tabla, a toda la altura (sirve con la tabla angosta)" aria-pressed="false">⇥ al costado</button>`:'')
     +`<button type="button" class="calc-achicar" onclick="calcPanelMin('${k}',true)" title="Achicar el panel a una tira, para que la tabla ocupe la pantalla">▾ achicar</button>`;
   // Lo de control va a la derecha: si la barra tiene un título que empuja todo,
@@ -16327,7 +16336,18 @@ function calcPanelAplicar(k){
   if(cu){
     cu.classList.toggle('calc-ambos',v==='ambos');
     cu.classList.toggle('fila',v==='ambos'&&!E.lado);
+    cu.classList.toggle('inv',v==='ambos'&&E.inv);
     calcPanelParte(k,E.parte);
+  }
+  // Invertir sólo tiene sentido con los dos a la vista: abajo cambia izquierda
+  // por derecha; al costado, arriba por abajo.
+  const ib=area.querySelector('.calc-inv-btn');
+  if(ib){
+    ib.style.display=v==='ambos'?'':'none';
+    ib.textContent=E.lado?'⇅ invertir':'⇄ invertir';
+    ib.title=E.lado?'Cambiar de lugar la curva y los forwards: '+(E.inv?'la curva arriba':'los forwards arriba')
+      :'Cambiar de lugar la curva y los forwards: '+(E.inv?'la curva a la izquierda':'los forwards a la izquierda');
+    ib.setAttribute('aria-pressed',String(!!E.inv));
   }
   area.querySelectorAll('.calc-seg button').forEach(b=>{b.classList.toggle('on',b.dataset.v===v);b.setAttribute('aria-pressed',String(b.dataset.v===v));});
   if(fwd&&(!E.min||E.lado))calcFwdRender(k);
@@ -16336,6 +16356,14 @@ function calcPanelAplicar(k){
   if(curva&&(!E.min||E.lado))setTimeout(()=>{try{const c=D.chart&&D.chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
 }
 function calcPanelVista(k,v){calcEstadoGuardar(k,{vista:v==='fwd'||v==='ambos'?v:'curva'});calcPanelAplicar(k);}
+// Los forwards antes que la curva, o al revés. La parte que se guarda sigue
+// siendo la de la curva, esté donde esté.
+function calcInvertir(k,inv){
+  calcEstadoGuardar(k,{inv:inv==null?!calcEstado(k).inv:!!inv});
+  calcPanelAplicar(k);
+  const D=CALC_DEF[k];
+  setTimeout(()=>{try{const c=D.chart&&D.chart();if(c&&c.canvas&&c.canvas.isConnected)c.resize();}catch(e){}},0);
+}
 // Cuánto del panel va para la curva cuando se ven los dos (de 0,15 a 0,85).
 // Los forwards guardan siempre un mínimo: al lado de la curva, 440 px, lo que
 // ocupan el bono, el precio, los años y tres o cuatro columnas de la matriz;
@@ -16363,13 +16391,15 @@ function calcDivArrastrar(k,e){
   const D=CALC_DEF[k],area=document.getElementById(D.area),cu=area&&area.querySelector(':scope>.calc-cuerpo');
   if(!cu||!cu.classList.contains('calc-ambos'))return;
   e.preventDefault();
-  const fila=cu.classList.contains('fila'),r=cu.getBoundingClientRect();
+  const fila=cu.classList.contains('fila'),inv=cu.classList.contains('inv'),r=cu.getBoundingClientRect();
   document.body.classList.add(fila?'anc-arrastrando':'calc-div-alto');
   // Se guarda lo que se ve: si el mouse pasa el tope, la división queda en el tope.
   let p=calcEstado(k).parte;
   const tope=calcPanelTope(fila?r.width:r.height,fila);
   const mover=ev=>{
-    p=Math.max(.15,Math.min(tope,fila?(ev.clientX-r.left)/r.width:(ev.clientY-r.top)/r.height));
+    // Invertido, la curva está a la derecha o abajo: se mide desde ese borde.
+    const f=fila?(inv?(r.right-ev.clientX):(ev.clientX-r.left))/r.width:(inv?(r.bottom-ev.clientY):(ev.clientY-r.top))/r.height;
+    p=Math.max(.15,Math.min(tope,f));
     calcPanelParte(k,p);
   };
   const soltar=()=>{
@@ -27638,6 +27668,32 @@ function licA3500En(f){
   (DLK_INDEX||[]).forEach(x=>{if(x.fecha<=f&&x.valor>0&&(!mejor||x.fecha>mejor.fecha))mejor=x;});
   return mejor?mejor.valor:null;
 }
+// ── Dollar linked: dos tipos de cambio ───────────────────────────────────────
+// El día de la licitación el secundario cotiza con el tipo de cambio de ese
+// día, y el bono a emitir se integra con el A3500 del día hábil anterior, que
+// es el que informa el comunicado (el del 28/10/2026, 1.538,741, es el del
+// 27/10). Para medir el bono contra la curva, su precio en dólares se pasa a
+// pesos con el de la emisión (em) y esos pesos a dólares del mercado (mer): un
+// día de tipo de cambio, en una letra de pocos meses, son decenas de pb.
+// tc es {mer, em}, o un número cuando los dos son el mismo.
+function licTC(tc){return tc&&typeof tc==='object'?tc:{mer:tc||null,em:tc||null};}
+// Se licita en dólares por VNO 1.000 y el motor del bono va en pesos: el
+// dollar linked y el dual TAMAR/dólar linked. Los Bonares van en dólares.
+function licEnUsd(i,sec){return sec==='DLK'||(sec!=='BON'&&!!i&&i.clase==='dual'&&i.dual==='dl');}
+// Los de una licitación hecha: el del comunicado para integrar y el A3500 del
+// día de la licitación para el mercado, el mismo con que se mide el secundario
+// (licMercado).
+function licTCDe(l){const em=licA3500(l);return{mer:licA3500En(l.fecha)||em,em};}
+// El A3500 con que se integra el próximo llamado: el último publicado antes
+// del día de la licitación. Si la licitación es mañana o más adelante y el de
+// la víspera todavía no salió, el tipo de cambio de hoy, como estimación.
+function licTCEmision(fecha){
+  let x=null;
+  (DLK_INDEX||[]).forEach(r=>{if(r.fecha<fecha&&r.valor>0&&(!x||r.fecha>x.fecha))x=r;});
+  if(x&&(fecha<=hoyAR()||x.fecha>=licHabilAnterior(fecha)))return{v:x.valor,fecha:x.fecha,est:false};
+  const h=typeof dlkTCHoy==='function'?dlkTCHoy():null;
+  return{v:h||(x?x.valor:null),fecha:null,est:true};
+}
 // Valor efectivo de un instrumento, en millones de pesos o de dólares.
 function licVE(i,l,mon){
   if(i.desierto||!(i.veAdjudicado>0))return 0;
@@ -27730,14 +27786,17 @@ function licMercado(i,sec,refFecha,m){
 // dólares (dollar linked, dual TAMAR/DL) se pasa a pesos con el A3500 del
 // comunicado, que es el que usó Finanzas.
 function licCorte(i,sec,liq,tc,dias,m){
-  const p=i.precio!=null?i.precio/10:null;
-  // Los Bonares cotizan en dólares; el resto, en pesos.
-  const pSnap=p!=null&&i.moneda==='USD'&&sec!=='BON'?(tc?p*tc:null):p;
+  const T=licTC(tc),p=i.precio!=null?i.precio/10:null;
+  // Los Bonares cotizan en dólares; el resto, en pesos. Lo que se licita en
+  // dólares se integra con el A3500 del comunicado, y el motor del dollar
+  // linked pasa esos pesos a dólares del día de la licitación, como el
+  // secundario contra el que se mide (ver licTC).
+  const pSnap=p!=null&&i.moneda==='USD'&&sec!=='BON'?(T.em?p*T.em:null):p;
   const bono=licBono(sec,i.ticker);
   const oficial=v=>v!=null&&isFinite(v)?{v,oficial:true}:null;
   const pata=i.tireaPata||null;
   if(bono&&pSnap!=null&&!(sec==='TF'&&i.precio==null)){
-    const r=licTasaMotor(sec,bono,pSnap,liq,tc);
+    const r=licTasaMotor(sec,bono,pSnap,liq,T.mer);
     if(r)return r;
   }
   if(sec==='TF'){
@@ -27754,7 +27813,11 @@ function licCorte(i,sec,liq,tc,dias,m){
   if(sec==='CER')return oficial(pata&&pata!=='CER'?null:(i.tirea!=null?i.tirea:i.tna));
   if(sec==='TAMAR')return oficial(i.margen);
   if(sec==='DLK'){
-    const t=pata&&pata!=='DL'?null:i.tirea;
+    let t=pata&&pata!=='DL'?null:i.tirea;
+    // La TIREA del comunicado es contra el A3500 de la víspera. En una letra se
+    // pasa a dólares del día de la licitación: (1+t)^(d/365) · mer / em.
+    if(t!=null&&dias&&T.em>0&&T.mer>0&&T.em!==T.mer&&/CERO CUP|^LETRA/i.test(i.nombre||''))
+      t=(Math.pow(Math.pow(1+t/100,dias/365)*T.mer/T.em,365/dias)-1)*100;
     return oficial(t!=null&&dias?dlkCalcTNA(t,dias):null);
   }
   if(sec==='BON')return oficial(i.tirea);
@@ -27772,7 +27835,7 @@ function licCurva(ref,sec,combo){
   if(sec==='TAMAR')ref.filas.filter(r=>r.sector!=='TAMAR').forEach(r=>{if(!du.has(r.ticker))du.set(r.ticker,'otro');});
   const pts=ref.filas.filter(r=>r.sector===sec&&r.tir!=null&&isFinite(r.tir)&&r[eje]>0&&(eje!=='dias'||r.dias>=CURVAS_DIAS_MIN))
     .filter(r=>combo?(sec==='TAMAR'&&du.has(r.ticker)&&(combo==='todos'||du.get(r.ticker)===combo)):!du.has(r.ticker))
-    .map(r=>({x:+r[eje],y:+r.tir,ticker:r.ticker}));
+    .map(r=>({x:+r[eje],y:+r.tir,ticker:r.ticker,price:r.price>0?+r.price:null}));
   let out=null;
   if(pts.length>=LIC_CURVA_MIN){
     const aj=curvaAjustar(pts.map(q=>({x:q.x,y:q.y})));
@@ -27797,7 +27860,7 @@ function licCalcular(l){
   licNormalizar();
   const ref=licRef(l.fecha);
   const liq=parseDate(licLiq(l));
-  const tc=licA3500(l);
+  const tc=licTCDe(l);
   const ins=(l.instrumentos||[]).map(i=>{
     const C=LIC_CLASES[i.clase]||LIC_CLASES.fija;
     const sec=C.s,sec2=i.clase==='dual'?LIC_PATA[i.dual]:null;
@@ -28102,14 +28165,19 @@ function licDespejar(f,obj,lo,hi){
 // que es como da el precio del comunicado.
 function licTasaDe(i,sec,p,liq,tc,dias){
   if(!(p>0))return null;
-  const bono=licBono(sec,i.ticker);
+  const T=licTC(tc),eu=licEnUsd(i,sec),bono=licBono(sec,i.ticker);
   if(bono){
-    if(sec==='DLK'&&!tc)return null;
-    const r=licTasaMotor(sec,bono,sec==='DLK'?p/10*tc:p/10,liq,tc);
+    if((eu&&!(T.em>0))||(sec==='DLK'&&!(T.mer>0)))return null;
+    // En dólares: a pesos con el A3500 de la emisión; el motor del dollar
+    // linked los lleva a dólares del mercado.
+    const r=licTasaMotor(sec,bono,eu?p/10*T.em:p/10,liq,T.mer);
     return r?r.v:null;
   }
   if(dias&&(sec==='CER'||sec==='DLK')&&/CERO CUP|^LETRA/i.test(i.nombre||'')){
-    const tir=(Math.pow(1000/p,365/dias)-1)*100;
+    // Un dollar linked que se integra al A3500 de la víspera vale, en dólares
+    // de hoy, p · em / mer.
+    const pe=sec==='DLK'&&T.em>0&&T.mer>0?p*T.em/T.mer:p;
+    const tir=(Math.pow(1000/pe,365/dias)-1)*100;
     return sec==='DLK'?dlkCalcTNA(tir,dias):tir;
   }
   return null;
@@ -28126,8 +28194,9 @@ function licPrecioPara(i,sec,tasa,liq,tc,dias,px){
   }
   if(i.estado==='nuevo'&&i.clase==='tamar'&&!licBono(sec,i.ticker))return{margen:tasa};
   const f=p=>licTasaDe(i,sec,p,liq,tc,dias);
-  const p0=px>0&&!(sec==='DLK'&&!tc)?(sec==='DLK'?px*10/tc:px*10):1000;
-  for(const k of[4,2,1.3]){const p=licDespejar(f,tasa,p0/k,p0*k);if(p!=null)return{precio:p,usd:sec==='DLK'||sec==='BON'};}
+  const T=licTC(tc),eu=licEnUsd(i,sec);
+  const p0=px>0&&!(eu&&!T.em)?(eu?px*10/T.em:px*10):1000;
+  for(const k of[4,2,1.3]){const p=licDespejar(f,tasa,p0/k,p0*k);if(p!=null)return{precio:p,usd:eu||sec==='BON'};}
   return null;
 }
 
@@ -28153,6 +28222,7 @@ function licLleva(liq){
 // se cancela. Sin factor, o sin precio, queda la misma tasa (constante).
 function licALiq(i,sec,r1,pantalla,L,liq,tc,dias,dias1,px){
   const f=L.factor,igual=()=>({tasa:r1,precio:licPrecioPara(i,sec,r1,liq,tc,dias,px),constante:true});
+  const T=licTC(tc),eu=licEnUsd(i,sec);
   if(r1==null||!isFinite(r1))return{tasa:null,precio:null};
   if(!f)return igual();
   if(i.estado==='nuevo'&&i.clase==='fija'){
@@ -28161,11 +28231,13 @@ function licALiq(i,sec,r1,pantalla,L,liq,tc,dias,dias1,px){
   }
   if(i.estado==='nuevo'&&i.clase==='tamar'&&!licBono(sec,i.ticker))return igual();
   let p1=null;
-  if(pantalla>0)p1=sec==='DLK'?(tc?pantalla*10/tc:null):pantalla*10;
+  // El de pantalla, en dólares a licitar: lo que cuesta en pesos, al A3500 de
+  // la emisión.
+  if(pantalla>0)p1=eu?(T.em?pantalla*10/T.em:null):pantalla*10;
   else{const q=licPrecioPara(i,sec,r1,L.t1,tc,dias1,px);p1=q&&q.precio>0?q.precio:null;}
   if(!(p1>0))return igual();
   const pl=p1*f,t=licTasaDe(i,sec,pl,liq,tc,dias);
-  return t!=null&&isFinite(t)?{tasa:t,precio:{precio:pl,usd:sec==='DLK'||sec==='BON'}}:igual();
+  return t!=null&&isFinite(t)?{tasa:t,precio:{precio:pl,usd:eu||sec==='BON'}}:igual();
 }
 
 // Un instrumento del llamado sobre la curva de hoy, con sus dos precios. La
@@ -28215,7 +28287,8 @@ function licTablaEstimada(E,liq,hist,L){
   const filas=E.map(o=>{
     const i=o.i,C=o.C;
     const nombre=`${betrEsc(licNombre(i))}<span style="${chico}">${C.l}${i.dual?' '+i.dual.toUpperCase()+'/TAMAR':''} · ${i.estado||''}</span>`;
-    const pant=o.yo&&+o.yo.price>0?`<span style="${chico}">pantalla ${o.sec==='DLK'||o.sec==='BON'?'US$':'$'} ${licN(o.sec==='DLK'?(L&&L.tc?+o.yo.price*10/L.tc:null):+o.yo.price*10)} a T+1 · ${licN(o.mercado1)}%</span>`:'';
+    const eu=licEnUsd(i,o.sec),T=licTC(L&&L.tc);
+    const pant=o.yo&&+o.yo.price>0?`<span style="${chico}">pantalla ${eu||o.sec==='BON'?'US$':'$'} ${licN(eu?(T.mer?+o.yo.price*10/T.mer:null):+o.yo.price*10)} a T+1 · ${licN(o.mercado1)}%</span>`:'';
     const merc=o.mercado!=null?celda(o,o.mercado,o.pMercado)+pant:gris(i.estado==='nuevo'?'nuevo':'sin cotización hoy');
     const curva=o.curva!=null?celda(o,o.curva,o.pCurva)+(o.ext?`<span style="${chico};color:var(--warn)">curva extrapolada</span>`:''):gris('sin curva de hoy');
     let pre=gris(o.curva==null&&o.mercado==null?'—':!hist?'cargando el historial…':'pocas licitaciones para medirlo');
@@ -28232,7 +28305,21 @@ function licTablaEstimada(E,liq,hist,L){
   const nota=`Precios por cada VNO 1.000, como en el comunicado, y tasas a la liquidación del ${betrF(fmtDate(liq))}; una LECAP nueva se licita por TEM y una TAMAR nueva por margen, a la par. El secundario y la curva son de hoy a T+1: ${L&&L.factor?`se llevan a la liquidación con la caución de ${L.dias} día${L.dias===1?'':'s'} (${licN(L.cau)}% TNA), que es lo que cuesta comprar hoy en pantalla financiándose hasta ahí`:'sin caución de BYMA, se toma la misma tasa a la liquidación'}${E.some(o=>o.sec==='BON')?'; los Bonares, a la misma tasa':''}. En curva: la tasa de la curva al mismo vencimiento. Con premio: el secundario del mismo bono —o la curva, si es nuevo o no cotiza— más la mediana de los últimos ${LIC_PREMIO_N} premios de su tipo, medidos igual. Esos premios se midieron contra el cierre a T+1 del día de cada licitación, sin llevarlo con la caución: un día, unos pocos pb. Se espera premio cuando la mediana pasa +${LIC_PREMIO_UMBRAL} pb y lo dieron al menos dos de cada tres.`;
   return`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:var(--fs12);min-width:780px">
     <thead><tr><th style="${th};text-align:left">Instrumento${ayuda(nota,'Cómo se calculan los precios')}</th><th style="${th}">Vence</th><th style="${th}">Secundario hoy</th><th style="${th}">En curva</th><th style="${th}">Premio histórico</th><th style="${th}">Con premio</th></tr></thead>
-    <tbody>${filas}</tbody></table></div>`;
+    <tbody>${filas}</tbody></table></div>${licTCAviso(E,L)}`;
+}
+// El tipo de cambio del dollar linked, a la vista: con cuál se integra el bono
+// y con cuál cotiza el secundario.
+function licTCAviso(E,L){
+  if(!E.some(o=>licEnUsd(o.i,o.sec))||!L||!L.tc)return'';
+  const T=licTC(L.tc),em=L.tcEm||{};
+  if(!(T.mer>0)||!(T.em>0))return'';
+  const pesos=v=>'$ '+licN(v);
+  const d=(T.em/T.mer-1)*100;
+  const txt=em.est
+    ?`el A3500 con que se integra el bono todavía no se publicó: va el tipo de cambio de hoy, ${pesos(T.mer)}, para el bono y para el secundario`
+    :`el bono a emitir se integra con el A3500 del ${betrF(em.fecha)}, ${pesos(T.em)}, y el secundario cotiza con el de hoy, ${pesos(T.mer)}`
+      +(Math.abs(d)>=0.005?` (el de la emisión, ${d>0?'+':''}${licN(d)}%)`:'')+'. Las tasas y los precios de arriba ya lo tienen en cuenta';
+  return`<div style="${LIC_SUB};margin-top:6px">Dólar linked: ${txt}.</div>`;
 }
 
 // ── Órdenes ──────────────────────────────────────────────────────────────────
@@ -28350,13 +28437,14 @@ function licOrdCalc(o,ord,P){
   if(v==null){r.error='no es un número';return r;}
   if(modo==='tasa'){r.tasa=v;r.oferta=licPrecioPara(o.i,o.sec,v,P.liq,P.tc,o.dias,o.yo&&+o.yo.price);}
   else if(modo==='tem'){r.tasa=o.dias?calcTNA(100,calcVF(v,P.liq,parseDate(o.i.vencimiento)),o.dias):null;r.oferta={tem:v};}
-  else{r.tasa=licTasaDe(o.i,o.sec,v,P.liq,P.tc,o.dias);r.oferta={precio:v,usd:o.sec==='DLK'||o.sec==='BON'};}
+  else{r.tasa=licTasaDe(o.i,o.sec,v,P.liq,P.tc,o.dias);r.oferta={precio:v,usd:licEnUsd(o.i,o.sec)||o.sec==='BON'};}
   if(r.tasa==null||!isFinite(r.tasa)){r.tasa=null;r.error=modo==='precio'?'sin el bono en la app no se pasa a tasa':'no se pudo calcular';return r;}
   r.vsCurva=o.curva!=null?(r.tasa-o.curva)*100:null;
   r.vsBono=o.mercado!=null?(r.tasa-o.mercado)*100:null;
   const of=r.oferta;
   let porVN=of&&of.precio>0?of.precio/1000:of&&(of.tem!=null||of.margen!=null)?1:null;
-  if(porVN!=null&&o.sec==='DLK')porVN=P.tc?porVN*P.tc:null;
+  // Lo que se licita en dólares se paga en pesos al A3500 de la emisión.
+  if(porVN!=null&&licEnUsd(o.i,o.sec)){const T=licTC(P.tc);porVN=T.em?porVN*T.em:null;}
   r.porVN=porVN;
   const vn=licLeerNum(ord.vn),mo=licLeerNum(ord.monto);
   if(ord.base==='monto'){if(mo>0&&porVN>0){r.vn=Math.floor(mo/porVN);r.monto=r.vn*porVN;}}
@@ -28386,7 +28474,7 @@ function licOrdPuntos(sec,k,grande){
   return licOrdLista(o).map(ord=>({ord,r:licOrdCalc(o,ord,P)})).filter(x=>x.r.tasa!=null).map(({ord,r})=>{
     const vs=o.vs==='bono'?r.vsBono:r.vsCurva;
     const etq=(licOrdTexto(r.oferta)||licN(r.tasa)+'%')+(grande&&vs!=null?' · '+licPb(vs):'');
-    return{x:o.x,y:r.tasa,id:ord.id,t:'Orden '+licNombre(o.i),nota:etq,etq};
+    return{x:o.x,y:r.tasa,id:ord.id,t:'Orden '+licNombre(o.i),px:licPxTexto(r.oferta),nota:vs!=null?licPb(vs)+' vs '+(o.vs==='bono'?'el bono':'la curva'):null,etq};
   });
 }
 function licOrdGrafico(sec,k){
@@ -28647,17 +28735,21 @@ function licRenderGraficos(sec){
   LIC_ESTADO[sec].foco=foco;
   Object.keys(LIC_CHARTS[sec]).filter(id=>id.startsWith(p+'-prox-g')).forEach(id=>{LIC_CHARTS[sec][id].destroy();delete LIC_CHARTS[sec][id];});
   const ver=foco?[foco]:fams;
+  licPxSoltar(cont);
   cont.innerHTML=`<div style="display:grid;grid-template-columns:${foco?'1fr':'repeat(auto-fit,minmax(min(350px,100%),1fr))'};gap:14px">${ver.map(c=>{
     const C=LIC_CLASES[c],de=P.E.filter(o=>o.i.clase===c),cu=de.some(o=>o.cu);
-    const boton=foco?`${ayuda('Arrastrá el bono o una orden hacia arriba o hacia abajo: la orden se escribe en el panel de la derecha, con su precio. Del bono sale una orden nueva.','Cómo se arrastra')}<button class="btn" style="margin-left:auto;padding:2px 10px;font-size:var(--fs11)" onclick="licFoco('${sec}',null)">← todas las curvas</button>`
-      :cu?`<button class="btn" style="margin-left:auto;padding:2px 10px;font-size:var(--fs11)" onclick="licFoco('${sec}','${c}')">⤢ ampliar</button>`:'';
+    const abierto=!!(LIC_ESTADO[sec].px&&LIC_ESTADO[sec].px[c]);
+    const precios=`<button class="btn" style="margin-left:auto;padding:2px 10px;font-size:var(--fs11)" aria-pressed="${abierto}" onclick="licPxAlternar('${sec}','${c}')" title="Ver y cambiar el precio de los bonos de esta curva: es el mismo de la calculadora">✎ precios</button>`;
+    const boton=precios+(foco?`${ayuda('Arrastrá el bono o una orden hacia arriba o hacia abajo: la orden se escribe en el panel de la derecha, con su precio. Del bono sale una orden nueva.','Cómo se arrastra')}<button class="btn" style="padding:2px 10px;font-size:var(--fs11)" onclick="licFoco('${sec}',null)">← todas las curvas</button>`
+      :cu?`<button class="btn" style="padding:2px 10px;font-size:var(--fs11)" onclick="licFoco('${sec}','${c}')">⤢ ampliar</button>`:'');
     return`<div style="border:1px solid var(--border);border-radius:4px;padding:8px 10px 6px;min-width:0">
       <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
         <span style="font-family:var(--mono);font-size:var(--fs12);color:${colVar(C.c)}">${C.l}</span><span style="${LIC_SUB}">${C.u}</span>${boton}</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:3px">${de.map(o=>`<span style="${LIC_SUB};display:inline-flex;align-items:center"><span style="color:var(--text2);margin-right:5px">${betrEsc(licNombre(o.i))}</span>${betrEsc(licTextoCorto(o))}${ayuda(licTextoProx(o))}</span>`).join('')}</div>
       ${!cu?`<div style="${LIC_SUB};margin-top:8px;display:flex;align-items:center">Sin curva hoy${ayuda('Sin curva no hay gráfico: las órdenes se cargan igual en el panel de la derecha'+(de.some(o=>o.mercado!=null)?', con su premio contra el mismo bono':'')+'.')}</div>`
       :`
-      <div style="height:${foco?'min(520px,62vh)':'360px'};position:relative;margin-top:6px"><canvas id="${p}-prox-g-${c}"></canvas></div>`}</div>`;
+      <div style="height:${foco?'min(520px,62vh)':'360px'};position:relative;margin-top:6px"><canvas id="${p}-prox-g-${c}"></canvas></div>`}
+      ${abierto?`<div id="${p}-px-${c}">${licPxTabla(sec,c)}</div>`:''}</div>`;
   }).join('')}</div>`;
   const col=licColores();
   ver.forEach(c=>licGraficoFamilia(sec,c,col,!!foco));
@@ -28669,14 +28761,17 @@ function licGraficoFamilia(sec,c,col,grande){
   if(!cu)return;
   const f=grande?11:10;
   const xs=cu.pts.map(q=>q.x).concat(de.filter(x=>x.o.x>0).map(x=>x.o.x));
-  const ds=[{label:'Mercado hoy',data:cu.pts.map(q=>({x:q.x,y:q.y,t:q.ticker})),showLine:false,pointRadius:3.5,
+  const pant=v=>v>0?`${C.s==='BON'?'US$':'$'} ${licN(v)} c/100 VN`:null;
+  const ds=[{label:'Mercado hoy',_rol:'mercado',data:cu.pts.map(q=>({x:q.x,y:q.y,t:q.ticker,px:pant(q.price),nota:'Clic: editar el precio'})),showLine:false,pointRadius:3.5,
     pointBackgroundColor:C.c+'aa',pointBorderColor:C.c+'aa',datalabels:{display:true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].t,color:col.tenue,font:{size:f-2,family:'DM Mono, monospace'},anchor:'end',align:'top',offset:1}}];
   const cd=curvaDatasets(cu.aj,xs,{color:C.c,ancho:1.5,label:'_curva',banda:false});
   if(cd.linea.data.length)ds.push(cd.linea);
   de.forEach(({o,k})=>{
     const x=o.x,y=o.mercado!=null?o.mercado:o.curva;
     if(!(x>0)||y==null)return;
-    ds.push({label:licNombre(o.i),_rol:'bono',_k:k,data:[{x,y}],showLine:false,pointRadius:grande?9:8,pointHitRadius:grande?14:6,pointBorderWidth:2.5,
+    const pPunto=o.mercado!=null?o.pMercado:o.pCurva;
+    ds.push({label:licNombre(o.i),_rol:'bono',_k:k,data:[{x,y,t:licNombre(o.i)+(o.mercado!=null?' · secundario a la liquidación':' · en curva'),
+      px:licPxTexto(pPunto),pant:o.yo&&+o.yo.price>0?pant(+o.yo.price)+' a T+1':null}],showLine:false,pointRadius:grande?9:8,pointHitRadius:grande?14:6,pointBorderWidth:2.5,
       pointBackgroundColor:o.yo?C.c:'transparent',pointBorderColor:col.acento,
       // Siempre a la vista: el nombre del bono y el precio de cada orden no se
       // ocultan aunque se pisen (los demás rótulos, sí).
@@ -28684,7 +28779,7 @@ function licGraficoFamilia(sec,c,col,grande){
     // Del ancla al corte con premio, una raya punteada: el premio que se espera.
     if(o.conPremio!=null){
       ds.push({label:'_premio',type:'line',data:[{x,y},{x,y:o.conPremio}],borderColor:col.acento,borderWidth:1.5,borderDash:[3,3],pointRadius:0,showLine:true,datalabels:{display:false}});
-      ds.push({label:'Con premio',data:[{x,y:o.conPremio,t:'Con premio histórico',nota:licPb(o.pe.med)+' vs '+(o.vs==='bono'?'el bono':'la curva')}],showLine:false,pointRadius:6,pointStyle:'rectRot',
+      ds.push({label:'Con premio',data:[{x,y:o.conPremio,t:'Con premio histórico',px:licPxTexto(o.pPremio),nota:licPb(o.pe.med)+' vs '+(o.vs==='bono'?'el bono':'la curva')}],showLine:false,pointRadius:6,pointStyle:'rectRot',
         pointBackgroundColor:col.acento,pointBorderColor:col.acento,
         datalabels:{display:true,formatter:()=>licPb(o.pe.med),color:col.acento,font:{size:f-1,family:'DM Mono, monospace'},anchor:'center',align:35,offset:8}});
     }
@@ -28694,7 +28789,13 @@ function licGraficoFamilia(sec,c,col,grande){
       datalabels:{display:()=>true,formatter:(_,ctx)=>ctx.dataset.data[ctx.dataIndex].etq,color:col.texto,font:{size:f-1,family:'DM Mono, monospace'},anchor:'center',offset:10,clamp:true,
         align:ctx=>{const g=ctx.chart,a=g.chartArea,px=g.scales.x.getPixelForValue(ctx.dataset.data[ctx.dataIndex].x);return px<a.left+(a.right-a.left)*.35?'right':'left';}}});
   });
-  licChart(sec,`${p}-prox-g-${c}`,{type:'scatter',data:{datasets:ds},options:licOpcionesCurva(col,cu.eje,C.u)});
+  const op=licOpcionesCurva(col,cu.eje,C.u);
+  // Un clic en un bono del mercado abre su precio en la lista de abajo.
+  op.onClick=(e,els,g)=>{
+    const el=(els||[]).find(x=>g.data.datasets[x.datasetIndex]._rol==='mercado');
+    if(el)licPxAbrir(sec,c,g.data.datasets[el.datasetIndex].data[el.index].t);
+  };
+  licChart(sec,`${p}-prox-g-${c}`,{type:'scatter',data:{datasets:ds},options:op});
   if(grande)licArrastre(sec,c);
 }
 // En el gráfico ampliado, el bono y sus órdenes se arrastran en vertical: del
@@ -28745,12 +28846,108 @@ function licArrastre(sec,c){
   cv.addEventListener('pointercancel',soltar);
 }
 
+// ── Precios desde la solapa ──────────────────────────────────────────────────
+// Cada curva tiene su lista de precios: los bonos del gráfico, los del llamado
+// que están en la app y los de la familia sin precio de hoy (con uno, entran a
+// la curva). Es el precio de la calculadora: escrito acá queda a mano, como en
+// la tabla, hasta el próximo precio de mercado, y cambia la lista, su gráfico y
+// esta solapa. Un clic en un bono del gráfico abre la lista en ese bono.
+function licBonoApp(t){
+  for(const L of[LECAPS,CER_BONDS,TAMAR_BONDS,DLK_BONDS,BON_BONDS,GLO_BONDS]){const b=(L||[]).find(x=>x.ticker===t);if(b)return b;}
+  return null;
+}
+// El precio de pantalla, en la unidad de la curva: pesos por cada 100, y los
+// Bonares en dólares MEP, la base del histórico (ver curvasSnapshotFromMemory).
+function licPxDe(sector,b){
+  if(!b)return null;
+  if(sector==='BON')return b.lastPrecioMEP!=null?b.lastPrecioMEP:(usdCurrency==='MEP'&&b.lastPrecio>0?b.lastPrecio:null);
+  return b.precio>0?b.precio:null;
+}
+function licPxBonos(sec,c){
+  const P=LIC_ESTADO[sec].prox;
+  if(!P)return[];
+  const sector=LIC_CLASES[c].s,de=P.E.filter(o=>o.i.clase===c),con=de.find(o=>o.cu),cu=con&&con.cu;
+  const out=new Map();
+  (cu?cu.pts:[]).forEach(q=>out.set(q.ticker,{ticker:q.ticker,x:q.x,tasa:q.y}));
+  de.forEach(o=>{if(o.i.ticker&&!out.has(o.i.ticker)&&licBonoApp(o.i.ticker))out.set(o.i.ticker,{ticker:o.i.ticker,x:o.x,tasa:o.mercado1});});
+  if(sector!=='BON'){
+    const liq=G_LIQ||addHabiles(TODAY,1),du=dualCombos(sector),combo=c==='dual'?licCombo((con||de[0]||{}).i):null;
+    licLista(sector).forEach(b=>{
+      if(out.has(b.ticker)||!b.vcto||(b.precio>0&&!b.precioCierre))return;
+      const d=diasAlPago(liq,parseDate(b.vcto));
+      if(!(d>=CURVAS_DIAS_MIN))return;
+      const dual=du.has(b.ticker);
+      if(c==='dual'?!(dual&&(combo==='todos'||du.get(b.ticker)===combo)):dual)return;
+      out.set(b.ticker,{ticker:b.ticker,x:d,tasa:null});
+    });
+  }
+  return[...out.values()].map(r=>({...r,b:licBonoApp(r.ticker)})).sort((a,b)=>(a.x||0)-(b.x||0));
+}
+function licPxTabla(sec,c){
+  const p=LIC_SEC[sec].p,C=LIC_CLASES[c],sector=C.s,filas=licPxBonos(sec,c);
+  if(!filas.length)return`<div style="${LIC_SUB};margin-top:8px">No hay bonos de esta familia en la app.</div>`;
+  const editable=sector!=='BON'||usdCurrency==='MEP';
+  const th='text-align:right;padding:3px 6px;font-weight:400;color:var(--text3);border-bottom:1px solid var(--border)';
+  const td='text-align:right;padding:2px 6px;border-bottom:1px solid var(--border)';
+  return`<div style="${LIC_SUB};margin:8px 0 4px">Precio de pantalla por cada 100 de VN, ${sector==='BON'?'en dólares MEP':'en pesos'}: el mismo de la calculadora, que queda a mano hasta el próximo precio de mercado. Enter guarda; Escape deja el que estaba.${editable?'':' Los Bonares se editan en MEP: cambiá la moneda de Dólares a MEP.'}</div>
+    <div style="max-height:280px;overflow:auto"><table style="width:100%;min-width:0;border-collapse:collapse;font-family:var(--mono);font-size:var(--fs11)">
+    <thead><tr><th style="${th};text-align:left">Bono</th><th style="${th}">${sector==='BON'?'MD':'Días'}</th><th style="${th}">Precio</th><th style="${th}">${C.u}</th></tr></thead>
+    <tbody>${filas.map(r=>{
+      const px=licPxDe(sector,r.b),val=px!=null?String(+px.toFixed(4)).replace('.',','):'',tk=betrEsc(r.ticker);
+      const mano=r.b&&r.b.manualOverride?` <span style="color:var(--warn);font-size:var(--fs9)" title="Precio escrito a mano: lo pisa el próximo precio de mercado">a mano</span>`:'';
+      return`<tr><td style="${td};text-align:left">${tk}${mano}</td>
+        <td style="${td}">${r.x>0?(sector==='BON'?licN(r.x):Math.round(r.x)):'—'}</td>
+        <td style="${td}"><input id="${p}-px-${c}-${tk}" class="lic-px-in" inputmode="decimal" autocomplete="off" value="${val}" data-ini="${val}" data-sector="${sector}" data-tk="${tk}"${editable?'':' disabled'} aria-label="Precio de ${tk}" onkeydown="licPxTecla(event,this)" onblur="licPxGuardar(this)"></td>
+        <td style="${td}">${r.tasa!=null&&isFinite(r.tasa)?licN(r.tasa)+'%':'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
+}
+function licPxAlternar(sec,c){
+  const o=LIC_ESTADO[sec].px||(LIC_ESTADO[sec].px={});
+  o[c]=!o[c];
+  licRenderGraficos(sec);
+}
+function licPxAbrir(sec,c,t){
+  const o=LIC_ESTADO[sec].px||(LIC_ESTADO[sec].px={});
+  if(!o[c]){o[c]=true;licRenderGraficos(sec);}
+  const el=t&&document.getElementById(`${LIC_SEC[sec].p}-px-${c}-${t}`);
+  if(el){el.scrollIntoView({block:'nearest'});el.focus();el.select();}
+}
+function licPxTecla(e,el){
+  if(e.key==='Enter'){e.preventDefault();licPxGuardar(el);}
+  else if(e.key==='Escape'){e.preventDefault();el.value=el.dataset.ini;el.blur();}
+}
+// Al repintar, la casilla que tiene el foco se borra y el navegador le manda un
+// blur: eso no es guardar. Lo que va escrito pasa a la casilla nueva.
+function licPxSoltar(cont){if(cont)cont.querySelectorAll('input.lic-px-in').forEach(x=>{x.dataset.quitado='1';});}
+function licPxGuardar(el){
+  if(el.dataset.quitado)return;
+  const v=licLeerNum(el.value),ini=licLeerNum(el.dataset.ini);
+  if(!(v>0)){el.value=el.dataset.ini;return;}
+  if(ini!=null&&Math.abs(v-ini)<1e-9)return;
+  el.dataset.ini=el.value;
+  licFijarPx(el.dataset.sector,el.dataset.tk,v);
+}
+// El precio va a cada lista donde está el bono: un dual está en dos.
+function licFijarPx(sector,t,v){
+  if(!(v>0))return;
+  if(sector==='BON'){
+    const g=(BON_BONDS||[]).some(b=>b.ticker===t)?'bon':(GLO_BONDS||[]).some(b=>b.ticker===t)?'glo':null;
+    if(g)usdFijarPrecio(g,t,'precio',v);
+  }else{
+    if((LECAPS||[]).some(b=>b.ticker===t))tfFijarPrecio(t,v);
+    if((CER_BONDS||[]).some(b=>b.ticker===t))cerFijarPrecio(t,v);
+    if((TAMAR_BONDS||[]).some(b=>b.ticker===t))tamarFijarPrecio(t,v);
+    if((DLK_BONDS||[]).some(b=>b.ticker===t))dlkFijarPrecio(t,v);
+  }
+  licRefrescar();
+}
+
 async function licRenderProximo(sec){
   const p=LIC_SEC[sec].p,cont=document.getElementById(p+'-prox-c');
   if(!cont)return;
   if(LIC_ESTADO[sec].arrastrando)return;
-  // Si se está escribiendo una orden, el repintado no le saca el foco.
-  const act=document.activeElement,activo=act&&act.id&&cont.contains(act)?{id:act.id,a:act.selectionStart,b:act.selectionEnd}:null;
+  // Si se está escribiendo una orden, el repintado no le saca el foco; si es
+  // un precio, tampoco lo que va escrito, que todavía no se guardó.
+  const act=document.activeElement,activo=act&&act.id&&cont.contains(act)?{id:act.id,a:act.selectionStart,b:act.selectionEnd,v:act.classList.contains('lic-px-in')?act.value:null}:null;
   const v=LIC_ESTADO[sec].ver,P=licProxima();
   if(!P){cont.innerHTML=`<div style="${LIC_SUB}">No hay más licitaciones en el cronograma publicado.</div>`;return;}
   const pasos=[['Llamado',P.llamado,'#38bdf8'],['Licitación',P.fecha,'var(--accent)'],['Liquidación',P.liquidacion,'#f59e0b']];
@@ -28792,13 +28989,17 @@ async function licRenderProximo(sec){
   const liq=parseDate(P.liquidacion||fmtDate(addHabiles(parseDate(P.fecha),2)));
   // Sin el secundario de cada licitación anterior todavía no hay premios.
   const hist=!LIC_DATA.licitaciones.some(l=>l.fecha<P.fecha&&!LIC_SNAP.has(l.fecha));
-  const tc=licA3500En(hoyAR()),L={...licLleva(liq),tc};
+  // Dollar linked: el secundario, con el tipo de cambio de hoy, el mismo con que
+  // se calcula la curva; el bono a emitir, con el A3500 con que se integra.
+  const em=licTCEmision(P.fecha),mer=(typeof dlkTCHoy==='function'?dlkTCHoy():null)||licA3500En(hoyAR());
+  const tc={mer,em:em.v||mer},L={...licLleva(liq),tc,tcEm:em};
   // Todos los del llamado, para las órdenes; en pantalla, los de la vista.
   const todos=P.inst.instrumentos.map(i=>licEstimar(i,ref,liq,P.fecha,hist,tc,L));
   const E=todos.filter(o=>licEnVista(o.i,v));
   if(LIC_ESTADO[sec].arrastrando)return;
   h+=`<div id="${p}-prox-est" style="margin-bottom:14px"></div>
     <div class="lic-par"><div id="${p}-prox-graf" style="min-width:0"></div><div id="${p}-prox-ord" class="lic-ord-panel"></div></div>`;
+  licPxSoltar(cont);
   cont.innerHTML=h;
   LIC_ESTADO[sec].prox={E,todos,liq,tc,fecha:P.fecha,lleva:L};
   licOrdenes(P.fecha);
@@ -28807,13 +29008,28 @@ async function licRenderProximo(sec){
   licRenderGraficos(sec);
   licRenderOrdenes(sec);
   const fe=activo&&document.getElementById(activo.id);
-  if(fe){fe.focus();try{if(activo.a!=null)fe.setSelectionRange(activo.a,activo.b);}catch(e){}}
+  if(fe){if(activo.v!=null)fe.value=activo.v;fe.focus();try{if(activo.a!=null)fe.setSelectionRange(activo.a,activo.b);}catch(e){}}
+}
+function licGlobo(i,eje,u){
+  const r=i.raw||{},L=[r.t||i.dataset.label,`Tasa: ${licN(i.parsed.y)}% ${u}`];
+  if(r.px)L.push(`Precio: ${r.px}`);
+  if(r.pant)L.push(`Pantalla: ${r.pant}`);
+  L.push(eje==='md'?`MD: ${licN(i.parsed.x)} años`:`Días: ${Math.round(i.parsed.x)}`);
+  if(r.nota)L.push(r.nota);
+  return L;
+}
+// Lo que se ofrece, como en el comunicado, para el globo.
+function licPxTexto(pr){
+  if(!pr)return null;
+  if(pr.margen!=null)return`margen ${licN(pr.margen)}% (a la par)`;
+  if(pr.tem!=null)return`TEM ${licN(pr.tem)}% (a la par)`;
+  return pr.precio>0?`${pr.usd?'US$':'$'} ${licN(pr.precio)} c/VNO 1.000`:null;
 }
 function licOpcionesCurva(col,eje,u){
   return{responsive:true,maintainAspectRatio:false,animation:{duration:150},
     plugins:{legend:{display:false},datalabels:{display:false},
-      tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{label:i=>{
-        const r=i.raw||{};return`${r.t||i.dataset.label} — ${eje==='md'?'MD '+licN(i.parsed.x):Math.round(i.parsed.x)+' d'}, ${licN(i.parsed.y)}%`+(r.nota?` · ${r.nota}`:'');}}}},
+      // Tasa, precio y días de cada punto, uno por renglón.
+      tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{title:()=>'',label:i=>licGlobo(i,eje,u)}}},
     scales:{x:{type:'linear',title:{display:true,text:eje==='md'?'Duration modificada (años)':'Días al vencimiento',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10}}},
       y:{title:{display:true,text:u+' (%)',color:col.texto,font:{size:10}},grid:{color:col.grilla},ticks:{color:col.texto,font:{size:10},callback:v=>(+v).toFixed(1)+'%'}}}};
 }
@@ -28826,10 +29042,11 @@ function licOpcionesCurva(col,eje,u){
 // comunicado no lo informa. Una orden en tasa se pasa a precio como en el CSV.
 function licOrdVsCorte(i,ord,liq,tc){
   const o={i,sec:i.sec,C:LIC_CLASES[i.clase]||LIC_CLASES.fija};
-  const modo=licOrdModo(o,ord),v=licLeerNum(ord.valor),usd=i.sec==='DLK'||i.sec==='BON';
+  const T=licTC(tc),eu=licEnUsd(i,i.sec);
+  const modo=licOrdModo(o,ord),v=licLeerNum(ord.valor),usd=eu||i.sec==='BON';
   const out={i,ord,modo,estado:null,dif:null};
   if(v==null)return out;
-  const px=i.precio>0?(i.sec==='DLK'?(tc?i.precio/10*tc:null):i.precio/10):null;
+  const px=i.precio>0?(eu?(T.em?i.precio/10*T.em:null):i.precio/10):null;
   let of=null;
   if(modo==='precio')of={precio:v,usd};
   else if(modo==='tem')of={tem:v};
@@ -28841,7 +29058,7 @@ function licOrdVsCorte(i,ord,liq,tc){
   out.tasa=modo==='tasa'?v:modo==='tem'?(i.dias&&i.vencimiento?calcTNA(100,calcVF(v,liq,parseDate(i.vencimiento)),i.dias):null):licTasaDe(i,i.sec,v,liq,tc,i.dias);
   if(out.tasa!=null&&!isFinite(out.tasa))out.tasa=null;
   // Los VN, como en el CSV: con monto, los que entran al precio ofrecido.
-  const aPesos=x=>x/1000*(i.sec==='DLK'?tc:1);
+  const aPesos=x=>x/1000*(eu?T.em:1);
   const ofVN=of&&of.precio>0?aPesos(of.precio):of?1:null;
   const q=licLeerNum(ord.base==='monto'?ord.monto:ord.vn);
   out.vn=!(q>0)?null:ord.base==='monto'?(ofVN>0?Math.floor(q/ofVN):null):q;
@@ -28864,7 +29081,7 @@ function licOrdVsCorte(i,ord,liq,tc){
 function licOrdContra(l,ver){
   const O=licOrdDe(l.fecha);
   if(!licOrdConValor(O))return null;
-  const r=licCalcular(l),liq=parseDate(licLiq(l)),tc=licA3500(l);
+  const r=licCalcular(l),liq=parseDate(licLiq(l)),tc=licTCDe(l);
   const usadas=new Set(),filas=[];
   r.ins.filter(i=>i.ronda!==2).forEach(i=>{
     [i.ticker,i.clase+'|'+(i.vencimiento||'')].forEach(c=>{
