@@ -7634,7 +7634,7 @@ function bcraReintentarTodo(){
 const MAE_CIERRE_H=15;
 const MAE_PATH_FOR='/api/mercado/resumen/FOR';
 const MAE_PATH_DDF='/api/mercado/resumen/DDF';
-let A3500_LIVE=null;    // {valor, hora:'HH:MM'} — mayorista intradiario del MAE
+let A3500_LIVE=null;    // {valor, hora:'HH:MM', plazo:'000'|'001'} — mayorista intradiario del MAE
 let MAE_FUTUROS=[];     // [{ticker,mes,anio,precio,hora}] curva DDF ascendente
 let _a3500Pintado=null; // último TC propagado, para no repintar de gusto
 
@@ -7669,15 +7669,22 @@ async function maeGet(path){
 
 // Mayorista contado: ticker UST$T, plazo 000. La API puede devolver más de una
 // fila para el mismo plazo, así que nos queda la del tick más reciente.
+// Un día sin contado —feriado en EE.UU., cuando el dólar no liquida: el
+// 26/11/2026, Thanksgiving, sólo operó UST$T 001 a 1.599— va el de 24 hs, con
+// plazo '001', y cada lugar que lo muestra lo dice (dlkTCFuente, FX).
 async function maeFetchSpot(){
   const data=await maeGet(MAE_PATH_FOR);
-  const filas=(data||[]).filter(x=>x.ticker==='UST$T'&&x.plazo==='000'&&x.ultimo>0);
+  const de=pl=>(data||[]).filter(x=>x.ticker==='UST$T'&&x.plazo===pl&&x.ultimo>0);
+  let filas=de('000'),plazo='000';
+  if(!filas.length){filas=de('001');plazo='001';}
   if(!filas.length)return null;
   filas.sort((a,b)=>maeUltimoTickTs(b)-maeUltimoTickTs(a));
   const f=filas[0];
-  A3500_LIVE={valor:+f.ultimo,hora:maeHoraART(maeUltimoTickTs(f))};
+  A3500_LIVE={valor:+f.ultimo,hora:maeHoraART(maeUltimoTickTs(f)),plazo};
   return A3500_LIVE;
 }
+// El mayorista en vivo es el de 24 hs porque hoy no hubo contado.
+function maeSpot24(){return!!(A3500_LIVE&&A3500_LIVE.valor>0&&A3500_LIVE.plazo==='001');}
 
 // Curva DDF completa: los tickers son DLR + MM + YYYY.
 async function maeFetchFuturos(){
@@ -7789,7 +7796,8 @@ function dlkOficialDeHoy(){
 function dlkTCFuente(){
   if(dlkTCOverride!=null&&dlkTCOverride>0)return{tipo:'manual',etiqueta:'manual'};
   if(dlkOficialDeHoy()!=null)return{tipo:'oficial',etiqueta:`A3500 oficial ${hoyAR().split('-').reverse().join('/')}`};
-  if(A3500_LIVE&&A3500_LIVE.valor>0)return{tipo:'mae',etiqueta:`${A3500_LIVE.hora||''} MAE`.trim()};
+  if(A3500_LIVE&&A3500_LIVE.valor>0)return{tipo:'mae',etiqueta:`${A3500_LIVE.hora||''} MAE${maeSpot24()?' 24 hs':''}`.trim(),
+    titulo:maeSpot24()?'Hoy el MAE no operó el mayorista de contado (feriado en EE.UU.): es el de 24 hs':''};
   if(DLK_INDEX.length){
     const u=[...DLK_INDEX].sort((a,b)=>a.fecha.localeCompare(b.fecha)).pop();
     return{tipo:'cierre',etiqueta:`A3500 ${u.fecha.split('-').reverse().join('/')}`};
@@ -16000,7 +16008,8 @@ function fxPintarSec(s){
   const pg=fxPg(s),cu=pg&&pg.querySelector('.fx-cuerpo');
   if(!cu)return;
   const sp=typeof A3500_LIVE!=='undefined'&&A3500_LIVE&&A3500_LIVE.valor>0?A3500_LIVE:null;
-  const L1=fxLibro(1),L0=fxLibro(0),c1=fxCalc(L1,null),c0=fxCalc(L0,sp&&sp.valor);
+  const sp24=!!(sp&&sp.plazo==='001');
+  const L1=fxLibro(1),L0=fxLibro(0),c1=fxCalc(L1,null),c0=fxCalc(L0,sp&&!sp24?sp.valor:null);
   const t0=siguienteHabil(parseDate(hoyAR())),t1=addHabiles(t0,1);
   const dia=d=>d.toLocaleDateString('es-AR',{weekday:'short'}).replace('.','')+' '+cantFec(fmtDate(d));
   const n2=v=>v.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -16022,8 +16031,9 @@ function fxPintarSec(s){
   let h='';
   if(L1&&FX.fuente==='archivo')h+=`<div class="fx-aviso">⚠ Ni data912 ni BYMA responden: los precios archivados no tienen puntas, así que no hay bid ni offer.</div>`;
   // El spot: uno solo, el último operado.
-  h+=`<section class="fx-caja" data-fx="spot" aria-label="SPOT"><div class="fx-caja-tit" title="Mayorista contado (UST$T) del MAE. El MAE no publica puntas: es el último operado${maeRuedaAbierta()?'':'; con la rueda cerrada, el cierre'}">SPOT<span>T+0 · liquida ${e(dia(t0))}</span></div>`
-    +`<div class="fx-spot${sp?'':' fx-vacio'}"><b>${sp?px(sp.valor):'—'}</b><span class="fx-liq">${sp?`último${sp.hora?' · '+e(sp.hora):''} · sin puntas`:'Sin dato del MAE: probá ↻ Actualizar'}</span></div></section>`;
+  h+=`<section class="fx-caja" data-fx="spot" aria-label="SPOT"><div class="fx-caja-tit" title="${sp24?'Hoy el MAE no operó el mayorista de contado (feriado en EE.UU., el dólar no liquida): va el de 24 hs (UST$T 001).':'Mayorista contado (UST$T) del MAE.'} El MAE no publica puntas: es el último operado${maeRuedaAbierta()?'':'; con la rueda cerrada, el cierre'}">SPOT<span>${sp24?`T+1 · liquida ${e(dia(t1))}`:`T+0 · liquida ${e(dia(t0))}`}</span></div>`
+    +`<div class="fx-spot${sp?'':' fx-vacio'}"><b>${sp?px(sp.valor):'—'}</b><span class="fx-liq">${sp?`último${sp.hora?' · '+e(sp.hora):''} · sin puntas`:'Sin dato del MAE: probá ↻ Actualizar'}</span>`
+    +`${sp24?'<span class="fx-aviso" style="display:block;margin-top:4px;font-size:var(--fs10)">⚠ 24 hs: hoy el MAE no operó contado</span>':''}</div></section>`;
   const fMep='AL30 / AL30D · bid = AL30 bid / AL30D offer · offer = AL30 offer / AL30D bid · T+1 de '+de;
   const fCcl='AL30 / AL30C · bid = AL30 bid / AL30C offer · offer = AL30 offer / AL30C bid · T+1 de '+de;
   const fCj='AL30D / AL30C − 1, directo entre los dos dólares, sin pasar por pesos · bid = AL30D bid / AL30C offer − 1 · offer = AL30D offer / AL30C bid − 1 · T+1 de '+de;
@@ -20244,7 +20254,7 @@ function a3500Pintar(){
   const inp=document.getElementById('usd-a3500-input');
   if(inp&&f.tipo!=='manual'&&val!=null)inp.value=val.toFixed(4);
   const lbl=document.getElementById('usd-a3500-label');
-  if(lbl)lbl.textContent=f.etiqueta;
+  if(lbl){lbl.textContent=f.etiqueta;lbl.title=f.titulo||'';}
   const el=document.getElementById('sint-a3500-display');
   if(el)el.textContent=val!=null?'$'+val.toFixed(4):'—';
   if(typeof brechaPintar==='function')brechaPintar();

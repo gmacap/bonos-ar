@@ -1499,7 +1499,7 @@ const omitir = (label, motivo) =>
     // Sin el Worker redeployado con la ruta /mae esto falla, y tiene que verse.
     check(false, 'el MAE responde por el Worker', red.error);
   } else {
-    check(red.spot > 0, 'llega el mayorista contado', `${red.spot} a las ${red.hora}`);
+    check(red.spot > 0, 'llega el mayorista (contado, o de 24 hs si ese día no hubo contado)', `${red.spot} a las ${red.hora}`);
     // El MAE devuelve sólo los contratos que ya operaron ese día, así que la
     // curva se va llenando durante la rueda: a las 10:20 había 3 contratos y al
     // cierre 12. Exigir un número fijo haría fallar el build por la hora.
@@ -8204,6 +8204,34 @@ const omitir = (label, motivo) =>
   check(conv.desdeTna && conv.desdeTem && conv.idaVuelta, 'Descuento: el conversor pasa entre TNA, TEA y TEM desde cualquiera, con las cuentas de la tasa fija', JSON.stringify(conv));
   check(conv.dias && conv.vacio, 'Descuento: cambiar los días recalcula desde la última escrita, y borrar la vacía', JSON.stringify(conv));
   check(conv.usd === true, 'Descuento: el conversor también en dólares', JSON.stringify(conv));
+
+  // Un día sin mayorista de contado (feriado en EE.UU.) va el de 24 hs, dicho.
+  console.log('\nMayorista de 24 hs cuando no hay contado');
+  const m24 = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, real = { get: maeGet, live: A3500_LIVE, over: dlkTCOverride, idx: DLK_INDEX };
+    try {
+      dlkTCOverride = null; DLK_INDEX = real.idx.filter(x => x.fecha < hoyAR());
+      maeGet = async () => [{ ticker: 'USMEP', plazo: '000', ultimo: 1598 }, { ticker: 'UST$T', plazo: '001', ultimo: 1599, datosGrafico: { precios: [{ time: 1764160860 }] } }];
+      const s = await maeFetchSpot();
+      out.toma = !!s && s.valor === 1599 && s.plazo === '001' && maeSpot24();
+      a3500Pintar();
+      const f = dlkTCFuente();
+      out.etiqueta = /24 hs/.test(f.etiqueta) && /no operó el mayorista de contado/.test(f.titulo);
+      switchSection('pesos'); switchTab('fx'); await espera(200); fxPintar();
+      const caja = document.querySelector('#page-fx .fx-caja[data-fx="spot"]');
+      out.fx = !!caja && /T\+1/.test(caja.querySelector('.fx-caja-tit').textContent) && /24 hs: hoy el MAE no operó contado/.test(caja.textContent);
+      // Con contado, el de siempre
+      maeGet = async () => [{ ticker: 'UST$T', plazo: '000', ultimo: 1601 }, { ticker: 'UST$T', plazo: '001', ultimo: 1603 }];
+      const c = await maeFetchSpot(); fxPintar();
+      out.contado = c.valor === 1601 && c.plazo === '000' && !maeSpot24() && !/24 hs/.test(dlkTCFuente().etiqueta)
+        && !/24 hs/.test(document.querySelector('#page-fx .fx-caja[data-fx="spot"]').textContent);
+    } catch (e) { out.err = e.message; }
+    finally { maeGet = real.get; A3500_LIVE = real.live; dlkTCOverride = real.over; DLK_INDEX = real.idx; a3500Pintar(); fxPintar(); switchTab('breakeven'); }
+    return out;
+  });
+  check(m24.toma && m24.etiqueta && m24.fx, 'sin mayorista de contado va el de 24 hs, y la barra y FX lo dicen', JSON.stringify(m24));
+  check(m24.contado === true, 'con contado va el de contado, sin aviso', JSON.stringify(m24));
 
   console.log('\nHigiene');
   const undef = req400.filter(r => r.includes('/undefined'));
