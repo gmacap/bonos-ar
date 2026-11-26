@@ -5538,9 +5538,14 @@ const omitir = (label, motivo) =>
     }).map(o => o.contrato + ' ' + o.vence);
     // La historia de la última rueda es la tasa a 90 días de su curva.
     out.t90 = Math.abs(futTasa90(C.rows) - H[H.length - 1][2]) < 0.01;
-    // Con T+1 los días se cuentan desde la liquidación y el spot se lleva hasta ahí.
-    const T = futCurva(D.rueda, 't1'), dd = futDias(D.rueda, futT1(D.rueda));
-    out.t1 = T.rows.length > 0 && T.spot > C.spot
+    // Con T+1 los días se cuentan desde la liquidación y el spot se lleva hasta ahí
+    // con la tasa del primer contrato: sube si es positiva y baja si es negativa.
+    // El 25/11/2026 el de noviembre ajustó a 1.597 con el A3500 en 1.604 (−31,9%
+    // de TNA a 5 días) y el spot a T+1 quedó en 1.602,60: antes esto exigía que
+    // siempre subiera.
+    const T = futCurva(D.rueda, 't1'), dd = futDias(D.rueda, futT1(D.rueda)), r0 = C.rows[0];
+    out.t1 = T.rows.length > 0 && !!r0 && Math.abs(T.spot - C.spot * (1 + r0.tna / 100 * dd / 365)) < 1e-6
+      && Math.sign(T.spot - C.spot) === Math.sign(r0.tna)
       && T.rows.every(o => { const r = C.rows.find(x => x.contrato === o.contrato); return r && o.dias === r.dias - dd; });
     out.filas = document.querySelectorAll('#fut-tabla tbody tr').length;
     out.cauFilas = document.querySelectorAll('#fut-cau-c tbody tr').length;
