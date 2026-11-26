@@ -7307,9 +7307,11 @@ const omitir = (label, motivo) =>
       // botón sólo está con los dos a la vista.
       const ib = () => areaC.querySelector('.calc-inv-btn');
       calcPanelParte('cer', 0.5); calcInvertir('cer', true); await espera(300);
-      out.inv = { arriba: gA().top >= fA().bottom - 1, textoCostado: ib().textContent };
+      const seVe = () => getComputedStyle(ib()).display !== 'none' && ib().getBoundingClientRect().width > 0;
+      out.inv = { arriba: gA().top >= fA().bottom - 1, textoCostado: ib().textContent, veCostado: seVe() };
       calcLado('cer', false); await espera(400);
       out.inv.izquierda = gA().left >= fA().right - 1;
+      out.inv.veAbajo = seVe();
       out.inv.texto = ib().textContent;
       out.inv.guardado = calcEstado('cer').inv === true;
       // Un precio de la tabla se ve en la matriz con los dos a la vista
@@ -7460,7 +7462,7 @@ const omitir = (label, motivo) =>
         'curva y forwards a la vez: abajo uno al lado del otro, al costado uno arriba del otro, con el reparto a elección', JSON.stringify(am));
   check(am.piso && am.pisoAlto, 'con la curva tirada hasta el borde, los forwards no se esconden: 440 px de ancho abajo, 220 px de alto al costado', JSON.stringify(am));
   const inv = cvista.inv || {};
-  check(inv.arriba && inv.izquierda && inv.guardado && inv.vuelve && inv.oculto && /⇅/.test(inv.textoCostado || '') && /⇄/.test(inv.texto || ''),
+  check(inv.arriba && inv.izquierda && inv.guardado && inv.vuelve && inv.oculto && inv.veCostado && inv.veAbajo && /⇅/.test(inv.textoCostado || '') && /⇄/.test(inv.texto || ''),
         'curva y forwards se invierten: los forwards arriba o a la izquierda, se guarda y vuelve', JSON.stringify(inv));
   check(inv.sigue === true, 'con la curva y los forwards a la vez, un precio de la tabla se ve en la matriz', JSON.stringify(inv));
   const la = cvista.lado || {};

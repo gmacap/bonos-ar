@@ -333,7 +333,8 @@ tr.run-fuera>td{opacity:.38;}
 .calc-lado{display:flex;flex:1;min-height:0;overflow:hidden;}
 .calc-lado>:first-child{min-width:0;}
 .calc-lado>:last-child{flex:1 1 0!important;min-width:300px;height:auto!important;border-top:0!important;border-left:1px solid var(--border);}
-.calc-lado .chart-resize-handle,.calc-lado .calc-achicar:not(.calc-lado-btn){display:none!important;}
+/* Al costado no se achica ni se cambia el alto; invertir, sí. */
+.calc-lado .chart-resize-handle,.calc-lado .calc-achicar:not(.calc-lado-btn):not(.calc-inv-btn){display:none!important;}
 .calc-lado>:last-child>:nth-child(2){flex-wrap:wrap;row-gap:4px;height:auto!important;min-height:0;}
 .calc-lado .chart-title{white-space:nowrap;}
 .calc-lado-btn.on{color:var(--accent);border-color:var(--accent);}
