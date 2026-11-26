@@ -7465,6 +7465,47 @@ const omitir = (label, motivo) =>
   check(inv.arriba && inv.izquierda && inv.guardado && inv.vuelve && inv.oculto && inv.veCostado && inv.veAbajo && /⇅/.test(inv.textoCostado || '') && /⇄/.test(inv.texto || ''),
         'curva y forwards se invierten: los forwards arriba o a la izquierda, se guarda y vuelve', JSON.stringify(inv));
   check(inv.sigue === true, 'con la curva y los forwards a la vez, un precio de la tabla se ve en la matriz', JSON.stringify(inv));
+  // Un refresco de precios llega a la matriz de forwards de cada calculadora,
+  // se esté mirando o no: es la misma lista que la tabla. Hasta el 26/11/2026
+  // la de CER, la de TAMAR y la de los Bonares se quedaban con el precio
+  // anterior. Se simula con data912 devolviendo un bono de cada una 1% arriba.
+  const refr = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const num = s => { s = String(s || '').replace(/[^\d,.\-]/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); return parseFloat(s); };
+    const calcs = [['lecap', 'fwd'], ['cer', 'ambos'], ['tamar', 'fwd'], ['dlk', 'ambos'], ['usd-bonares', 'fwd']];
+    const ini = {}, out = {};
+    const orig = fetchData912;
+    try {
+      for (const [k, v] of calcs) {
+        if (CALC_DEF[k].sec === 'usd') { switchSection('usd'); switchUsdTab(k); } else { switchSection('pesos'); switchTab(k); }
+        await espera(1200);
+        calcPanelVista(k, v); await espera(300);
+        const td = document.querySelector(`#calc-fwd-${k} td[data-px]`);
+        if (td) ini[k] = { tk: td.dataset.px, p0: calcFwdPrecio(CALC_DEF[k].fwd, td.dataset.px) };
+      }
+      switchSection('pesos'); switchTab('breakeven'); await espera(300);
+      const tks = Object.values(ini).map(x => x.tk);
+      fetchData912 = async (...a) => (await orig(...a)).map(x => tks.some(t => x.symbol === t || x.symbol === t + 'D' || x.symbol === t + 'C')
+        ? { ...x, c: x.c > 0 ? x.c * 1.01 : x.c, px_bid: x.px_bid > 0 ? x.px_bid * 1.01 : x.px_bid, px_ask: x.px_ask > 0 ? x.px_ask * 1.01 : x.px_ask } : x);
+      await fetchAllPrices(true); await espera(2500);
+      for (const [k] of calcs) {
+        const I = ini[k];
+        if (!I) { out[k] = null; continue; }
+        const td = document.querySelector(`#calc-fwd-${k} td[data-px="${I.tk}"]`), p1 = calcFwdPrecio(CALC_DEF[k].fwd, I.tk);
+        out[k] = { tk: I.tk, cambio: Math.abs(p1 / I.p0 - 1.01) < 0.002, sigue: !!td && Math.abs(num(td.textContent) - p1) < 0.006 * Math.max(1, p1 / 100), celda: td && td.textContent.trim(), p1 };
+      }
+    } catch (e) { out.err = e.message; }
+    finally {
+      fetchData912 = orig;
+      calcs.forEach(([k]) => calcPanelVista(k, 'curva'));
+      try { await fetchAllPrices(true); } catch (e) {}
+      await espera(2000);
+    }
+    return out;
+  });
+  const rv = Object.entries(refr).filter(([k]) => k !== 'err');
+  check(!refr.err && rv.length === 5 && rv.filter(([, x]) => x).length >= 4 && rv.every(([, x]) => !x || (x.cambio && x.sigue)),
+        'un refresco de precios llega a la matriz de forwards de cada calculadora (TF, CER, TAMAR, DLK, Bonares), aunque no se esté mirando', JSON.stringify(refr));
   const la = cvista.lado || {};
   check(la.env && la.costado && Math.abs(la.alto - la.altoTabla) <= 2 && /abajo/.test(la.boton || '') && la.guardado && la.vuelve,
         'la curva va al costado de la tabla, a toda la altura, y vuelve abajo', JSON.stringify(la));

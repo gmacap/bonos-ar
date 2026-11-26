@@ -5326,7 +5326,7 @@ async function pesosCompletarCierres(){
     {get:()=>CER_BONDS,set:v=>{CER_BONDS=v;},
      repintar:()=>{CER_DATA=CER_BONDS.map(cerEnrich);savePortfolio();cerRenderTable();if(cerSelectedTicker)cerRecalcPanel();}},
     {get:()=>TAMAR_BONDS,set:v=>{TAMAR_BONDS=v;},
-     repintar:()=>{tamarSaveBonds();tamarRenderTable();if(tamarSelectedTicker)tamarOpenPanel(tamarSelectedTicker);}},
+     repintar:()=>{tamarSaveBonds();tamarRenderTable();tamarRepintarGrafico();if(tamarSelectedTicker)tamarOpenPanel(tamarSelectedTicker);}},
     {get:()=>DLK_BONDS,set:v=>{DLK_BONDS=v;},
      repintar:()=>{dlkSaveBonds();DLK_DATA=DLK_BONDS.map(dlkEnrich);dlkRenderTable();if(dlkSelectedTicker)dlkRecalcPanel();}},
   ];
@@ -5486,7 +5486,9 @@ async function fetchAllPrices(auto){
         if(r.vcto&&diasACT(liq,parseDate(r.vcto))>0) notFound.push(r.ticker);
         return pesosSinPrecioHoy(r,liq);
       });
-      tamarSaveBonds();tamarRenderTable();
+      // La tabla de TAMAR no arrastra el gráfico (la de CER, DLK y tasa fija sí):
+      // sin esto, el gráfico y los forwards se quedaban con el precio anterior.
+      tamarSaveBonds();tamarRenderTable();tamarRepintarGrafico();
     }
 
     // DLK (Sintético ARS)
@@ -5517,6 +5519,7 @@ async function fetchAllPrices(auto){
     beRefreshIfVisible();
     // Lo que no vino en vivo: el último cierre, marcado.
     const ci=await pesosCompletarCierres();
+    calcFwdRefrescar('pesos');
     st.textContent=pesosEstado(total,ci);
     st.className=ci.sinPrecio.length||PRECIOS_FUENTE.fuente!=='data912'?'api-status err':'api-status ok';
   }catch(e){
@@ -16413,6 +16416,22 @@ function calcDivArrastrar(k,e){
 }
 function calcPanelMin(k,min){calcEstadoGuardar(k,{min:!!min});calcPanelAplicar(k);}
 
+// Las matrices de forwards de las calculadoras montadas, con los precios de
+// ahora. Va al final de cada refresco, en pesos y en dólares: la matriz es la
+// misma lista que la tabla y no puede depender de que cada solapa repinte su
+// gráfico (la de TAMAR no lo hacía, y en tasa fija los indexados que fijaron
+// llegan después de repintarla).
+function calcFwdRefrescar(sec){
+  if(typeof CALC_DEF==='undefined'||!CALC_DEF)return;
+  Object.keys(CALC_DEF).forEach(k=>{
+    const D=CALC_DEF[k];
+    if(!D.fwd||(sec&&D.sec!==sec)||calcEstado(k).vista==='curva')return;
+    try{calcFwdRender(k);}catch(e){console.warn('[forwards]',k,e);}
+  });
+}
+function tamarRepintarGrafico(){
+  try{if(TAMAR_INDEX.length&&typeof tamarRenderTabChart==='function')tamarRenderTabChart();}catch(e){console.warn('[tamar]',e);}
+}
 // Los forwards entre los bonos del gráfico: los que no se sacaron con "Bonos",
 // sin los que van fuera del ajuste (duales, el BONTE al vencimiento), vigentes y
 // con precio. El precio se edita con un clic en la columna Px y es el mismo de
@@ -21008,6 +21027,9 @@ async function usdRefreshPrices(){
       }
       const sl=document.getElementById('page-usd-spreadleg');
       if(sl&&sl.style.display!=='none')spreadLegRender();
+      // Los forwards de Bonares, Globales y Bopreales, también los de las
+      // solapas que no se están mirando.
+      calcFwdRefrescar('usd');
       if(currentSection==='usd'&&currentUsdTab==='usd-retornos')try{retRender('usd');}catch(e){console.warn('[retornos]',e.message);}
       if(currentSection==='usd'&&currentUsdTab==='usd-cartera')try{cartRender('usd');}catch(e){console.warn('[cartera]',e.message);}
       if(currentSection==='pesos'&&currentTab==='cartera')try{cartRender('ars');}catch(e){console.warn('[cartera]',e.message);}
