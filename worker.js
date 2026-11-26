@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // royal-resonance-d470  —  worker.js
-// Rutas: /mae · /test-snapshot (POST) · BCRA proxy (default)
+// Rutas: /mae · /byma · /brief (POST) · /test-snapshot (POST) · BCRA proxy (default)
 //        scheduled cron (weekdays 20:15 UTC = 17:15 ART)
 //
 // /rofex y /iol se eliminaron: /rofex apuntaba al entorno demo de Primary
@@ -14,6 +14,10 @@
 //   SNAPSHOT_TOKEN        secreto para POST /test-snapshot        [encrypted]
 //                         Sin esta variable, /test-snapshot devuelve 503.
 //                         Generar con: openssl rand -hex 32
+//   BRIEF_TOKEN           secreto para POST /brief                [encrypted]
+//                         Sin esta variable, /brief devuelve 503. El mismo
+//                         valor va como network secret del entorno de la nube
+//                         (Authorization: Bearer …), y sólo ahí.
 //
 // Seguridad (ver ALLOWED_ORIGINS / MAE_ALLOWED_PATHS más abajo):
 //   · CORS restringido a los orígenes de la app (antes era '*')
@@ -198,6 +202,29 @@ function jsonError(msg, status, cors) {
     { status, headers: { 'Content-Type': 'application/json', ...cors } });
 }
 
+// El brief como fila de la tabla, o el motivo por el que no se acepta. Sólo
+// pasan los campos conocidos, con su forma y un largo máximo.
+function briefFila(b) {
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return 'Cuerpo inválido';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.fecha || '') || isNaN(Date.parse(b.fecha))) return 'fecha inválida (YYYY-MM-DD)';
+  if (typeof b.markdown !== 'string' || !b.markdown.trim() || b.markdown.length > 60000) return 'markdown inválido';
+  if (typeof b.generado !== 'string' || isNaN(Date.parse(b.generado))) return 'generado inválido (ISO 8601)';
+  const fuentes = Array.isArray(b.fuentes) ? b.fuentes : [];
+  if (fuentes.length > 100) return 'demasiadas fuentes';
+  if (fuentes.some(f => !f || typeof f.url !== 'string' || !/^https:\/\//.test(f.url) || f.url.length > 1000))
+    return 'cada fuente necesita una url https';
+  return {
+    fecha: b.fecha,
+    generado: new Date(b.generado).toISOString(),
+    actualizado: typeof b.actualizado === 'string' ? b.actualizado.slice(0, 60) : null,
+    palabras: Number.isInteger(b.palabras) && b.palabras >= 0 ? b.palabras : null,
+    markdown: b.markdown,
+    fuentes: fuentes.map(f => ({ titulo: String(f.titulo || '').slice(0, 300), url: f.url })),
+    modelo: typeof b.modelo === 'string' ? b.modelo.slice(0, 80) : null,
+    subido: new Date().toISOString(),
+  };
+}
+
 // Comparación en tiempo constante para no filtrar el token por timing
 function safeEqual(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
@@ -229,6 +256,34 @@ export default {
       } catch (e) {
         console.error('test-snapshot:', e.message);
         return jsonError(e.message, 500, cors);
+      }
+    }
+
+    // ── Morning Brief ──────────────────────────────────────────────────────────
+    // POST /brief: lo manda la tarea en la nube de las 9:30, con la clave que
+    // agrega la red de su entorno (Authorization: Bearer BRIEF_TOKEN). Escribe
+    // con SERVICE_ROLE en la tabla briefs, que sólo leen el admin y los mails de
+    // brief_lectores (supabase/brief.sql). La clave sirve sólo para esto: no lee
+    // nada ni toca otra tabla. Una corrida repetida el mismo día reemplaza la
+    // anterior.
+    if (url.pathname === '/brief') {
+      if (request.method !== 'POST') return jsonError('POST required', 405, cors);
+      if (!env.BRIEF_TOKEN) return jsonError('BRIEF_TOKEN no configurado en el Worker', 503, cors);
+      if (!safeEqual(request.headers.get('Authorization') || '', `Bearer ${env.BRIEF_TOKEN}`))
+        return jsonError('No autorizado', 401, cors);
+      const texto = await request.text();
+      if (texto.length > 200000) return jsonError('Demasiado grande', 413, cors);
+      let b;
+      try { b = JSON.parse(texto); } catch (e) { return jsonError('JSON inválido', 400, cors); }
+      const fila = briefFila(b);
+      if (typeof fila === 'string') return jsonError(fila, 400, cors);
+      try {
+        await supaUpsert(env, 'briefs', [fila], 'fecha');
+        return new Response(JSON.stringify({ ok: true, fecha: fila.fecha }),
+          { headers: { 'Content-Type': 'application/json', ...cors } });
+      } catch (e) {
+        console.error('brief:', e.message);
+        return jsonError('No se pudo guardar el brief', 502, cors);
       }
     }
 
