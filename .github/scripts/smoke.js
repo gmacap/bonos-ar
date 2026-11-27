@@ -1822,6 +1822,52 @@ const omitir = (label, motivo) =>
   check(tam5.sinBonos || tam5.identico,
         'con fuente 5 días la proyección reproduce el cálculo de siempre', JSON.stringify(tam5));
 
+  // La fuente '1 día': el sendero plano en el último dato, el margen contra su
+  // TEM, lo congelado quieto, y el panel valúa con la misma fuente que la fila.
+  const tam1 = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const hoy = fmtDate(TODAY);
+    const b = [...TAMAR_BONDS].filter(x => x.precio != null && x.vcto && x.vcto > hoy)
+      .sort((a, c) => c.vcto.localeCompare(a.vcto))[0];
+    if (!b || !TAMAR_INDEX.length) return { sinBonos: true };
+    const prev = PROJ_FUENTE.tamar;
+    try {
+      proySetFuente('tamar', '1dia');
+      const ult = [...TAMAR_INDEX].sort((x, y) => x.fecha.localeCompare(y.fecha)).pop();
+      const e = tamarEnrich(b), d = e._debug;
+      const mensual = Math.pow(Math.pow(1 + (ult.valor + (b.margen || 0)) / 100 * 32 / 365, 365 / 32), 1 / 12) - 1;
+      const out = { t: b.ticker, ult: ult.valor,
+        plano: tamarSendero().lista.every(p => p.v === ult.valor && p.origen === '1dia'),
+        proyF: d.DIAS_TAMAR_PROYECTAR === 0 || Math.abs(d.TAMAR_MARGEN_PROY_F / 100 - mensual) < 1e-12,
+        margen: Math.abs(e.margenTNAProy - (e.temProy - tamarTEM(ult.valor)) * 12) < 1e-9,
+        selector: [...document.querySelectorAll('[data-proy-sel="tamar"] select')].every(x => x.value === '1dia')
+          && proyFuenteLabel('tamar') === '1 día' };
+      PROJ_FUENTE.tamar = '5dias'; proyInvalidar();
+      const e5 = tamarEnrich(b);
+      out.congelado = e5.margenTNA === e.margenTNA && e5.tna === e.tna && e5.vpv === e.vpv;
+      proySetFuente('tamar', '1dia');
+      switchSection('pesos'); switchTab('tamar'); await espera(300);
+      tamarOpenPanel(b.ticker); await espera(100);
+      const fila = TAMAR_DATA.find(x => x.ticker === b.ticker);
+      const txt = id => (document.getElementById(id) || {}).textContent;
+      out.panel = { tir: txt('tp-r-tir'), esperadaTir: fmtPct(fila.tir),
+        margen: txt('tp-r-margen-tna'), esperadoMargen: fmtPct(fila.margenTNA), fuente: txt('tp-r-fuente') };
+      // Cambiar la fuente con el panel abierto lo repinta
+      proySetFuente('tamar', '5dias'); await espera(100);
+      out.panel.repinta = txt('tp-r-fuente') === '5 días' && txt('tp-r-tir') === fmtPct(tamarEnrich(b).tir);
+      tamarClosePanel();
+      return out;
+    } finally { proySetFuente('tamar', prev); }
+  });
+  if (tam1.sinBonos) omitir('la fuente 1 día de TAMAR', 'no hay bonos TAMAR vigentes con precio');
+  else {
+    check(tam1.plano && tam1.proyF && tam1.margen && tam1.selector && tam1.congelado,
+          'TAMAR con fuente 1 día: sendero plano en el último dato, margen contra su TEM, y el snapshot de curvas quieto', JSON.stringify(tam1));
+    const p = tam1.panel || {};
+    check(p.tir === p.esperadaTir && p.margen === p.esperadoMargen && p.fuente === '1 día' && p.repinta,
+          'el panel de TAMAR valúa con la fuente del selector, igual que la fila, y se repinta al cambiarla', JSON.stringify(p));
+  }
+
   // La que protege el histórico: cambiar la fuente NO puede mover los campos
   // que _curvasSnapshotTodayImpl guarda en Supabase.
   const congelado = await page.evaluate(() => {
@@ -1971,12 +2017,12 @@ const omitir = (label, motivo) =>
       if (Math.abs(e.tna - esperada) > 1e-9 || Math.abs(e.tna - 12 * e.tem) > 1e-9)
         out.errores.push(`${b.ticker}: ${e.tna} vs ${esperada}`);
       if (e.dias > 365 && (!out.largo || e.dias > out.largo.dias))
-        out.largo = { ticker: b.ticker, dias: e.dias, tna: e.tna, tir: e.tir };
+        out.largo = { ticker: b.ticker, dias: e.dias, tna: e.tna, tir: e.tir, tnaVista: tamarVista(e).tna };
     }
     if (out.largo) {
       tamarOpenPanel(out.largo.ticker);
       const txt = (document.getElementById('tp-r-tna') || {}).textContent || '';
-      const esperado = fmtPct(out.largo.tna);
+      const esperado = fmtPct(out.largo.tnaVista);
       out.panel = { txt, esperado };
       tamarClosePanel();
     }
@@ -4515,11 +4561,14 @@ const omitir = (label, motivo) =>
         const baja = E.filter(o => o.pe && o.pPremio && o.pPremio.precio > 0 && o.pMercado && o.pMercado.precio > 0 && Math.abs(o.pe.med) >= 1)
           .map(o => (o.pe.med > 0) === (o.pPremio.precio < o.pMercado.precio));
         // El secundario se lleva a la liquidación con la caución: el precio de
-        // pantalla por el factor. Y un instrumento sin cotización se ubica en la
-        // curva al mismo vencimiento, con los días desde T+1.
-        const Lp = licLleva(liqP);
+        // pantalla por el factor. El que se licita en dólares (el dual TAMAR /
+        // dólar) va antes a dólares con el A3500 de la emisión. Y un instrumento
+        // sin cotización se ubica en la curva al mismo vencimiento, con los días
+        // desde T+1.
+        const Lp = licLleva(liqP), Tp = licTC(tcP);
         const lleva = Lp.factor ? E.filter(o => o.sec !== 'DLK' && o.sec !== 'BON' && o.yo && +o.yo.price > 0 && o.pMercado && o.pMercado.precio > 0)
-          .map(o => Math.abs(o.pMercado.precio - o.yo.price * 10 * Lp.factor) < 1e-6) : null;
+          .map(o => { const p1 = licEnUsd(o.i, o.sec) ? o.yo.price * 10 / Tp.em : o.yo.price * 10;
+            return Math.abs(o.pMercado.precio - p1 * Lp.factor) < 1e-6; }) : null;
         const mismoVto = E.filter(o => !o.yo && o.x > 0 && o.cu && o.cu.eje === 'dias').every(o => o.x === diasAlPago(Lp.t1, parseDate(o.i.vencimiento)));
         out.estimado = { filas: document.querySelectorAll('#lic-prox-est > div:first-child tbody tr').length, esperadas: E.length, hist,
           conPremio: E.filter(o => o.pe).length, vuelve: vuelve.length, vuelveOk: vuelve.every(Boolean), baja: baja.length, bajaOk: baja.every(Boolean),

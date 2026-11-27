@@ -8934,12 +8934,20 @@ function tamarProm5(){
   const s=[...TAMAR_INDEX].sort((a,b)=>a.fecha.localeCompare(b.fecha)).slice(-5);
   return s.reduce((acc,t)=>acc+t.valor,0)/s.length;
 }
+// El último dato publicado, base del sendero plano de la fuente '1 día'.
+function tamarUltimo(){
+  if(!TAMAR_INDEX.length)return 0;
+  return TAMAR_INDEX.reduce((u,t)=>t.fecha>u.fecha?t:u).valor;
+}
+// La TAMAR plana: el último dato con '1 día'; con las demás fuentes, el
+// promedio de 5 ruedas, que también rellena los meses que el REM no cubre.
+function tamarPlano(fuente){return fuente==='1dia'?tamarUltimo():tamarProm5();}
 
 // [{mes,v,origen}] desde el mes actual, ya con los overrides manuales aplicados.
 function tamarSenderoLista(){
   const hoy=proyMesHoy(),hasta=proyMesAdd(hoy,PROY_MESES);
   const fuente=PROJ_FUENTE.tamar||'5dias';
-  const plano=tamarProm5();
+  const plano=tamarPlano(fuente);
   let base=[];
   if(fuente==='rem'&&REM_DATA&&REM_DATA.tamar&&REM_DATA.tamar.length){
     base=proyExtender(REM_DATA.tamar,(REM_DATA.anclas||{}).tamar,'tamar',hasta);
@@ -8951,8 +8959,9 @@ function tamarSenderoLista(){
     const mes=proyMesAdd(hoy,k);
     let p=porMes.get(mes);
     if(!p){
-      // Antes del primer mes del REM, o sin REM: el promedio de 5 días plano.
-      p={mes,v:ultimo!=null?ultimo:plano,origen:(fuente==='rem'||fuente==='manual'||fuente==='gma')?'auto':'5dias'};
+      // Antes del primer mes del REM, o sin REM: la TAMAR plana, el promedio
+      // de 5 días o, con la fuente '1 día', el último dato.
+      p={mes,v:ultimo!=null?ultimo:plano,origen:(fuente==='rem'||fuente==='manual'||fuente==='gma')?'auto':(fuente==='1dia'?'1dia':'5dias')};
     }
     ultimo=p.v;
     out.push({mes,v:p.v,origen:p.origen});
@@ -9298,7 +9307,7 @@ function tamarRealAtna(mes,real){
 function proyFuenteLabel(serie){
   const f=PROJ_FUENTE[serie];
   if(f==='gma')return'GMA';
-  if(serie==='tamar')return f==='rem'?'REM':(f==='manual'?'Manual':'5 días');
+  if(serie==='tamar')return f==='rem'?'REM':f==='manual'?'Manual':f==='1dia'?'1 día':'5 días';
   if(serie==='tcn')return f==='rem'?'REM':(f==='manual'?'Manual':'Futuros');
   return f==='rem'?'REM':'Manual';
 }
@@ -9309,7 +9318,7 @@ function proyFuenteLabel(serie){
 // sin que haya tres estados que se puedan desincronizar.
 const PROY_OPCIONES={
   infla:[['manual','Manual'],['rem','REM'],['gma','GMA']],
-  tamar:[['5dias','5 días'],['rem','REM'],['gma','GMA'],['manual','Manual']],
+  tamar:[['5dias','5 días'],['1dia','1 día'],['rem','REM'],['gma','GMA'],['manual','Manual']],
   tcn:[['futuros','Futuros'],['rem','REM'],['gma','GMA'],['manual','Manual']],
 };
 const PROY_TITULOS={infla:'Inflación',tamar:'TAMAR',tcn:'Dólar'};
@@ -9353,7 +9362,7 @@ function proySetFuente(serie,val){
 function proyRepropagar(){
   try{
     if(typeof currentTab!=='undefined'){
-      if(currentTab==='tamar'){tamarRenderTable();if(typeof tamarRenderTabChart==='function')tamarRenderTabChart();}
+      if(currentTab==='tamar'){tamarRenderTable();if(typeof tamarRenderTabChart==='function')tamarRenderTabChart();if(tamarSelectedTicker)tamarOpenPanel(tamarSelectedTicker);}
       else if(currentTab==='cer'){cerRenderTable();if(cerSelectedTicker)cerRecalcPanel();}
       else if(currentTab==='dlk'){dlkRenderTable();if(dlkSelectedTicker)dlkRecalcPanel();}
       else if(currentTab==='proyecciones'&&typeof projRecalc==='function')projRecalc();
@@ -9749,7 +9758,7 @@ function proySetTamarReal(mes,val){
 const PROY_ORIGEN_ESTILO={
   rem:['REM','#6366f1'],ancla:['ancla REM','#6366f1'],extrap:['extrap','#6b7280'],
   futuro:['futuro','#f59e0b'],respaldo:['respaldo','#6b7280'],
-  manual:['manual','#f59e0b'],auto:['auto','#6b7280'],'5dias':['5 días','#38bdf8'],
+  manual:['manual','#f59e0b'],auto:['auto','#6b7280'],'5dias':['5 días','#38bdf8'],'1dia':['1 día','#38bdf8'],
   gma:['GMA',PROY_GMA_COLOR],
 };
 function proyBadge(origen){
@@ -9907,6 +9916,7 @@ function proyRenderTablaTamar(){
     ?(remRelevamiento()?'relevamiento '+remRelevamiento().split('-').reverse().join('/'):'sin REM descargado')
     :PROJ_FUENTE.tamar==='manual'?`${(PROJ_TAMAR||[]).length} meses cargados`
     :PROJ_FUENTE.tamar==='gma'?proyGmaDet('tamar')
+    :PROJ_FUENTE.tamar==='1dia'?(last?'último dato, del '+last.fecha.split('-').reverse().join('/'):'sin datos')
     :'promedio de las últimas 5 ruedas';
   set('proy-tamar-fuente-det',det);
 }
@@ -10927,7 +10937,10 @@ function tamarEnrich(r){
   // TASA_NOMINAL_MENSUAL_CAPITALIZABLE → VPV → tasas
   const totalDias=DIAS_TAMAR_TRANSCURRIDOS+DIAS_TAMAR_PROYECTAR;
   const tcInicial=r.tcInicial||1;
-  const cierre=proyMensual=>{
+  // El margen se mide contra la TAMAR que se proyecta plana: con '1 día', el
+  // último dato; con las demás, el promedio de 5 días de siempre.
+  const refTEMpct=_fuenteTamar==='1dia'?tamarTEM(lastTamar.valor):prom5TEMpct;
+  const cierre=(proyMensual,refTEM)=>{
     const nmc=totalDias>0
       ?(DIAS_TAMAR_TRANSCURRIDOS*TAMAR_MARGEN_DIAS_TRANSCURRIDOS+DIAS_TAMAR_PROYECTAR*proyMensual)/totalDias
       :proyMensual;
@@ -10940,10 +10953,10 @@ function tamarEnrich(r){
     return{nmc,vpv,directa,
       tna:tem*12,
       tir:(Math.pow(1+directa,365/DIAS)-1)*100,
-      tem,margenTNA:(tem-prom5TEMpct)*12};
+      tem,margenTNA:(tem-refTEM)*12};
   };
-  const base=cierre(TAMAR_MARGEN_PROYECTAR);
-  const proy=_fuenteTamar==='5dias'?base:cierre(TAMAR_MARGEN_PROY_F);
+  const base=cierre(TAMAR_MARGEN_PROYECTAR,prom5TEMpct);
+  const proy=_fuenteTamar==='5dias'?base:cierre(TAMAR_MARGEN_PROY_F,refTEMpct);
 
   const TASA_NMC=base.nmc,VPV=base.vpv,TASA_DIRECTA=base.directa;
   const TNA=base.tna,TIR=base.tir,TEM_MERCADO=base.tem,MARGEN_TNA=base.margenTNA;
@@ -10960,7 +10973,8 @@ function tamarEnrich(r){
     TNA,TIR,TEM_MERCADO,MARGEN_TNA,prom5TNA:prom5TNA_val,prom5TEM:prom5TEMpct,
     fuente:_fuenteTamar,
     TAMAR_MARGEN_PROY_F:TAMAR_MARGEN_PROY_F*100,
-    TASA_NMC_F:proy.nmc*100,VPV_F:proy.vpv
+    TASA_NMC_F:proy.nmc*100,VPV_F:proy.vpv,
+    refTEM_F:refTEMpct,ultTNA:lastTamar.valor,ultFecha:lastTamar.fecha
   };
 
   return{...r,dias:DIAS,modDuration,tir:TIR,tna:TNA,tem:TEM_MERCADO,margenTNA:MARGEN_TNA,
@@ -11104,7 +11118,10 @@ function tamarPanelRecalc(){
   const tirEl=document.getElementById('tp-tir');
   if(!precioEl||!tirEl)return;
 
-  const VPV=d.VPV; // VPV calculado con el margen fijo del bono
+  // La misma fuente que la tabla. Antes el panel quedaba siempre en 5 días y
+  // con el REM elegido mostraba otra TIR que la fila.
+  const F=tamarPanelFuente(d);
+  const VPV=F?d.VPV_F:d.VPV;
   const DIAS=d.DIAS;
   const tcInicial=r.tcInicial||1;
 
@@ -11131,7 +11148,7 @@ function tamarPanelRecalc(){
   const TIR_calc=(Math.pow(1+TASA_DIRECTA,365/DIAS)-1)*100;
   const TEM_MERCADO=(Math.pow(1+TASA_DIRECTA,(365/12)/DIAS)-1)*100;
   const TNA=TEM_MERCADO*12;
-  const MARGEN_TNA=(TEM_MERCADO-d.prom5TEM)*12;
+  const MARGEN_TNA=(TEM_MERCADO-(F?d.refTEM_F:d.prom5TEM))*12;
 
   const s=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
   s('tp-r-vpv',   fmtPct(VPV));
@@ -11141,6 +11158,9 @@ function tamarPanelRecalc(){
   s('tp-r-tem',   fmtPct(TEM_MERCADO));
   s('tp-r-margen-tna', fmtPct(MARGEN_TNA));
 }
+
+// Si el panel valúa con el sendero de la fuente elegida y no con el de 5 días.
+function tamarPanelFuente(d){return!!d&&!!d.fuente&&d.fuente!=='5dias'&&d.VPV_F>0;}
 
 function tamarOpenPanel(ticker){
   tamarSelectedTicker=ticker;
@@ -11163,6 +11183,8 @@ function tamarOpenPanel(ticker){
 
   const d=r._debug;
   const precioActual=(r.precio||100).toFixed(4);
+  const F=tamarPanelFuente(d),uno=d.fuente==='1dia';
+  const fF=f=>f?f.split('-').reverse().join('/'):'—';
 
   panel.innerHTML=`
     <div class="panel-header">
@@ -11189,11 +11211,14 @@ function tamarOpenPanel(ticker){
         <tr><td>TAMAR prom. real</td><td>${fmtPct(d.TAMAR_DIAS_TRANSCURRIDOS)}</td></tr>
         <tr><td>TAMAR+Margen transcurrida</td><td>${fmtPct(d.TAMAR_MARGEN_DIAS_TRANSCURRIDOS)}</td></tr>
         <tr><td>Días a proyectar</td><td>${d.DIAS_TAMAR_PROYECTAR}</td></tr>
-        <tr><td>TAMAR+Margen proyectada</td><td>${fmtPct(d.TAMAR_MARGEN_PROYECTAR)}</td></tr>
-        <tr><td>Prom 5d TNA</td><td>${fmtPct(d.prom5TNA)}</td></tr>
-        <tr><td>Prom 5d TEM</td><td>${fmtPct(d.prom5TEM)}</td></tr>
-        <tr class="hi"><td>Tasa NMC</td><td>${fmtPct(d.TASA_NMC)}</td></tr>
-        <tr class="hi"><td>VPV</td><td id="tp-r-vpv">${fmtPct(d.VPV)}</td></tr>
+        <tr><td title="La fuente del selector de TAMAR, arriba de la tabla">Proyección</td><td id="tp-r-fuente">${proyFuenteLabel('tamar')}</td></tr>
+        <tr><td>TAMAR+Margen proyectada</td><td>${fmtPct(F?d.TAMAR_MARGEN_PROY_F:d.TAMAR_MARGEN_PROYECTAR)}</td></tr>
+        ${uno?`<tr><td>Último dato TNA · ${fF(d.ultFecha)}</td><td>${fmtPct(d.ultTNA)}</td></tr>
+        <tr><td>Último dato TEM</td><td>${fmtPct(d.refTEM_F)}</td></tr>`
+        :`<tr><td>Prom 5d TNA</td><td>${fmtPct(d.prom5TNA)}</td></tr>
+        <tr><td>Prom 5d TEM</td><td>${fmtPct(d.prom5TEM)}</td></tr>`}
+        <tr class="hi"><td>Tasa NMC</td><td>${fmtPct(F?d.TASA_NMC_F:d.TASA_NMC)}</td></tr>
+        <tr class="hi"><td>VPV</td><td id="tp-r-vpv">${fmtPct(F?d.VPV_F:d.VPV)}</td></tr>
       </table>
 
       <!-- CALCULADORA -->
@@ -11226,7 +11251,7 @@ function tamarOpenPanel(ticker){
         <tr class="bl"><td>TIR</td><td id="tp-r-tir">—</td></tr>
         <tr class="wa"><td title="Capitalizable mensual: 12 × TEM">TNA</td><td id="tp-r-tna">—</td></tr>
         <tr class="wa"><td>TEM mercado</td><td id="tp-r-tem">—</td></tr>
-        <tr class="wa"><td>Margen TNA (spread)</td><td id="tp-r-margen-tna">—</td></tr>
+        <tr class="wa"><td title="${uno?'Contra la TEM del último dato de TAMAR':'Contra la TEM promedio de las últimas 5 ruedas de TAMAR'}">Margen TNA (spread)</td><td id="tp-r-margen-tna">—</td></tr>
       </table>
     </div>`;
 
@@ -12361,7 +12386,7 @@ var TAB_MES_DIAS=30.4;
 var TAB_CAU=null,TAB_CAU_PIDIENDO=false,TAB_CAU_FALLO=0;
 var TAB_TIMER=null;
 var TAB_ORIGEN={futuro:'Futuros',respaldo:'REM',rem:'REM',ancla:'REM',manual:'Manual',gma:'GMA',
-  '5dias':'5 días',extrap:'extrapolado',real:'realizada',plano:'plano'};
+  '5dias':'5 días','1dia':'1 día',extrap:'extrapolado',real:'realizada',plano:'plano'};
 
 // La TAMAR que espera el REM sobre la ventana que proyecta el breakeven: de la
 // última publicada al fixing, promedio por días hábiles.
