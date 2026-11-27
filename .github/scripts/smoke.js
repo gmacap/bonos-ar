@@ -45,6 +45,10 @@ const omitir = (label, motivo) =>
 
   await page.goto(APP, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof supa !== 'undefined', null, { timeout: 60000 });
+  // Sin el refresco automático: en horario de rueda cae cada 5 minutos, pisa los
+  // precios que un check acaba de escribir y vuelve a armar la tabla con una
+  // casilla abierta. Los checks que lo necesitan llaman a refrescoCiclo a mano.
+  await page.evaluate(() => { if (typeof _refrescoTimer !== 'undefined' && _refrescoTimer) { clearInterval(_refrescoTimer); _refrescoTimer = null; } });
 
   // Esperar la CONDICIÓN, no un tiempo fijo. Los precios USD dependen de que
   // supaLoadSharedData() traiga primero las equivalencias ticker → símbolo MEP,
@@ -5087,9 +5091,12 @@ const omitir = (label, motivo) =>
   const resp = await page.evaluate(async () => {
     const espera = ms => new Promise(r => setTimeout(r, ms));
     const out = {}, realFetch = window.fetch;
+    // Una letra que se ve en la tabla: la que liquida en su vencimiento ya no está.
+    const liqH = fmtDate(G_LIQ || addHabiles(TODAY, 1));
+    const TK = ((LECAPS || []).filter(b => b.vcto > liqH).sort((x, y) => x.vcto.localeCompare(y.vcto))[0] || { ticker: 'S30N6' }).ticker;
     const panel = [
-      { symbol: 'S30N6', settlementType: '2', trade: 129.5, bidPrice: 129.4, quantityBid: 1000, offerPrice: 129.6, quantityOffer: 2000, previousClosingPrice: 129, volume: 5000, numberOfOrders: 3 },
-      { symbol: 'S30N6', settlementType: '1', trade: 129.2, bidPrice: 129.1, offerPrice: 129.3, previousClosingPrice: 129 },
+      { symbol: TK, settlementType: '2', trade: 129.5, bidPrice: 129.4, quantityBid: 1000, offerPrice: 129.6, quantityOffer: 2000, previousClosingPrice: 129, volume: 5000, numberOfOrders: 3 },
+      { symbol: TK, settlementType: '1', trade: 129.2, bidPrice: 129.1, offerPrice: 129.3, previousClosingPrice: 129 },
     ];
     let byma = true;
     const av = document.getElementById('precios-aviso');
@@ -5108,7 +5115,7 @@ const omitir = (label, motivo) =>
       out.byma = { c: d[0] && d[0].c, fuente: PRECIOS_FUENTE.fuente, aviso: !av.hidden && /BYMA/.test(av.textContent) && av.classList.contains('byma') };
       await fetchAllPrices(); await espera(300);
       switchSection('pesos'); switchTab('lecap'); await espera(400);
-      const fila = [...document.querySelectorAll('#table-body tr')].find(tr => (tr.querySelector('.c-ticker') || {}).textContent === 'S30N6');
+      const fila = [...document.querySelectorAll('#table-body tr')].find(tr => (tr.querySelector('.c-ticker') || {}).textContent === TK);
       out.marca = !!fila && !!fila.querySelector('.fuente-marca.fuente-byma');
       out.estado = /BYMA/.test(document.getElementById('api-status').textContent);
       // BYMA también cae: lo último archivado
@@ -5127,7 +5134,7 @@ const omitir = (label, motivo) =>
         : { sinArchivo: PRECIOS_FUENTE.fuente === 'ninguna' };
       // data912 vuelve: la franja se va
       window.fetch = (u, o) => String(u).includes('data912.com/live')
-        ? Promise.resolve(new Response(JSON.stringify([{ symbol: 'S30N6', c: 129.1, px_bid: 129, px_ask: 129.2 }]), { status: 200 }))
+        ? Promise.resolve(new Response(JSON.stringify([{ symbol: TK, c: 129.1, px_bid: 129, px_ask: 129.2 }]), { status: 200 }))
         : realFetch(u, o);
       fetchData912.tandas = {};
       await fetchData912('arg_notes', true); await fetchData912('arg_bonds', true);
@@ -5325,6 +5332,69 @@ const omitir = (label, motivo) =>
   check(tfc.enAjuste && tfc.aparte === 1 && tfc.sacaPut && tfc.excluye && tfc.resumen && tfc.graficoResumen && tfc.cal,
         'el del put entra al ajuste de la curva y el del vencimiento va aparte; se sacan por separado, están en la tabla y el gráfico del Resumen, y van al calendario',
         JSON.stringify({ ajuste: tfc.enAjuste, aparte: tfc.aparte, sacaPut: tfc.sacaPut, excluye: tfc.excluye, resumen: tfc.resumen, graficoResumen: tfc.graficoResumen, cal: tfc.cal }));
+
+  // El TY30P se edita y abre su detalle como una letra: el precio (uno solo
+  // para el put y el vencimiento) y las tasas desde la tabla, el panel con sus
+  // cupones, y la matriz de forwards con el mismo precio que la tabla.
+  const tfe = await page.evaluate(async () => {
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const out = {}, guardado = TF_CUPON.slice(), liq = G_LIQ || addHabiles(TODAY, 1);
+    TF_CUPON = TF_CUPON.map(x => x.ticker === 'TY30P' ? { ...x, precio: 99.5, manualOverride: false } : x);
+    switchSection('pesos'); switchTab('lecap'); renderTable(); await espera(300);
+    const escribir = async (tk, col, v) => {
+      const c = document.querySelector(`#tfc-wrap .cv.editable[data-tk="${tk}"][data-ed="${col}"]`);
+      if (!c) return false;
+      c.click(); await espera(80);
+      const inp = document.getElementById('ci-input');
+      if (!inp) return false;
+      inp.value = String(v); inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await espera(250);
+      return true;
+    };
+    const px = () => TF_CUPON.find(x => x.ticker === 'TY30P').precio;
+    const conPut = !!tfcVariantes(liq).find(v => v.ticker === 'TY30P put');
+    out.precio = await escribir('TY30P', 'precio', 98.25) && px() === 98.25 && TF_CUPON.find(x => x.ticker === 'TY30P').manualOverride === true
+      && (!conPut || document.querySelector('#tfc-wrap .cv[data-tk="TY30P put"][data-ed="precio"]').textContent.trim().startsWith(fmtPx(98.25)));
+    const fila = conPut ? 'TY30P put' : 'TY30P';
+    out.tir = await escribir(fila, 'tir', 36) && Math.abs(tfcVariantes(liq).find(v => v.ticker === fila).tir - 36) < 1e-6;
+    out.tna = await escribir('TY30P', 'tna', 31) && Math.abs(tfcVariantes(liq).find(v => v.ticker === 'TY30P').tna - 31) < 1e-6;
+    // El detalle
+    const tr = [...document.querySelectorAll('#tfc-wrap tbody tr')].find(r => r.querySelector('.c-ticker').textContent === fila);
+    tr.querySelector('.c-ticker').click(); await espera(300);
+    const caja = document.getElementById('p-bonte'), fl = tfcFlujos(TF_CUPON.find(x => x.ticker === 'TY30P'), liq, conPut);
+    out.panel = { abierto: document.getElementById('right-panel').classList.contains('open') && selectedTicker === fila && (document.querySelector('#tfc-wrap tr.selected .c-ticker') || {}).textContent === fila,
+      bonte: caja.style.display !== 'none' && document.getElementById('p-lecap').style.display === 'none',
+      cupones: caja.querySelectorAll('.tfc-flujo tbody tr').length === fl.length + 1,
+      precio: Math.abs(parseFloat(document.getElementById('p-precio-in').value) - px()) < 1e-4,
+      put: !conPut || /Ejercer el put/i.test(caja.textContent) };
+    setMode('tir'); document.getElementById('p-tir-in').value = '40'; recalcPanel();
+    const pTir = parseFloat(document.getElementById('p-precio-in').value);
+    out.panel.tir = Math.abs(pTir - tfcPrecioDeTir(fl, 40, liq)) < 1e-3;
+    setMode('precio');
+    // La matriz de forwards: el mismo precio, y escrito ahí llega a la tabla y al panel
+    calcPanelVista('lecap', 'fwd'); await espera(400);
+    const td = document.querySelector(`#calc-fwd-lecap td[data-px="${fila}"]`);
+    if (td) {
+      out.matriz = { igual: td.textContent.trim() === fmtPx(px()) };
+      td.click(); await espera(80);
+      const inp = td.querySelector('input');
+      if (inp) { inp.value = '101.75'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await espera(400); }
+      out.matriz.llega = px() === 101.75 && document.querySelector('#tfc-wrap .cv[data-tk="TY30P"][data-ed="precio"]').textContent.trim().startsWith(fmtPx(101.75))
+        && Math.abs(parseFloat(document.getElementById('p-precio-in').value) - 101.75) < 1e-4;
+    }
+    calcPanelVista('lecap', 'curva');
+    // Una letra después: vuelve su panel
+    const l = DATA.find(r => r.dias > 0);
+    if (l) { openPanel(l.ticker); await espera(200); out.vuelveLecap = document.getElementById('p-lecap').style.display !== 'none' && document.getElementById('p-bonte').style.display === 'none'; }
+    closePanel();
+    TF_CUPON = guardado; renderTable(); renderChart();
+    return out;
+  });
+  check(tfe.precio && tfe.tir && tfe.tna,
+        'TY30P: el precio se escribe en la tabla (uno solo al put y al vencimiento) y una TIR o TNA escrita da su precio', JSON.stringify(tfe));
+  check(tfe.panel && tfe.panel.abierto && tfe.panel.bonte && tfe.panel.cupones && tfe.panel.precio && tfe.panel.put && tfe.panel.tir && tfe.vuelveLecap !== false,
+        'TY30P: la fila abre su detalle, con sus cupones, el put y el precio desde una tasa; una letra después vuelve a su panel', JSON.stringify(tfe.panel));
+  check(tfe.matriz && tfe.matriz.igual && tfe.matriz.llega,
+        'TY30P: en la matriz de forwards va el precio de la tabla, y escrito ahí llega a la tabla y al detalle', JSON.stringify(tfe.matriz));
 
   // Resumen: los eventos del calendario de hoy a N días, en pesos y en dólares.
   // Más días traen al menos los mismos; achicado no muestra la lista; un clic
@@ -7349,12 +7419,12 @@ const omitir = (label, motivo) =>
       const celda = document.querySelector('#calc-fwd-lecap tbody tr td:nth-child(4)');
       const esquina = document.querySelector('#calc-fwd-lecap thead th');
       out.tf = { tem: celda ? celda.textContent : null, fwdMode: fwdMode === fm, esquina: esquina ? esquina.textContent : null };
-      // Los dos TY30P (al put y al vencimiento) entran, por duration y sin editar su precio
+      // Los dos TY30P (al put y al vencimiento) entran, por duration y con su precio editable
       const cup = tfcVariantes().filter(v => v.precio > 0 && isFinite(v.tem) && v.durDias > 0).map(v => v.ticker);
       const filasTF = [...document.querySelectorAll('#calc-fwd-lecap tbody tr')];
       const anios = filasTF.map(tr => parseFloat(tr.children[2].textContent));
       out.tfCupon = { cup, filas: filasTF.map(tr => tr.children[0].textContent.trim()), ordenado: anios.every((a, i) => i === 0 || a >= anios[i - 1]),
-        sinEditar: cup.every(tk => { const tr = filasTF.find(r => r.children[0].textContent.trim() === tk); return !!tr && !tr.children[1].hasAttribute('onclick'); }),
+        editable: cup.every(tk => { const tr = filasTF.find(r => r.children[0].textContent.trim() === tk); return !!tr && tr.children[1].hasAttribute('onclick') && tr.children[1].dataset.px === tk; }),
         tasa: cup.every(tk => { const tr = filasTF.find(r => r.children[0].textContent.trim() === tk); const i = tr ? filasTF.indexOf(tr) : -1; return i >= 0 && /%$/.test(tr.children[3 + i].textContent); }) };
       chartMode = cm; calcPanelVista('lecap', 'curva');
       // Dólares: las subsolapas van en la barra de arriba
@@ -7455,8 +7525,8 @@ const omitir = (label, motivo) =>
         'en la matriz de forwards las columnas van con el mismo ancho, que se arrastra, se guarda y vuelve con doble clic', JSON.stringify(anF));
   const tcu = cvista.tfCupon;
   if (!tcu || !tcu.cup.length) omitir('los bonos con cupón en los forwards de tasa fija', 'el TY30P sin precio');
-  else check(tcu.cup.every(tk => tcu.filas.includes(tk)) && tcu.ordenado && tcu.sinEditar && tcu.tasa,
-        'los forwards de tasa fija suman el TY30P al put y al vencimiento, por duration y con su precio de pantalla', JSON.stringify(tcu));
+  else check(tcu.cup.every(tk => tcu.filas.includes(tk)) && tcu.ordenado && tcu.editable && tcu.tasa,
+        'los forwards de tasa fija suman el TY30P al put y al vencimiento, por duration y con su precio editable', JSON.stringify(tcu));
   const am = cvista.ambos || {};
   check(am.abajo && am.filas >= 3 && am.parte && am.costado && am.vuelve,
         'curva y forwards a la vez: abajo uno al lado del otro, al costado uno arriba del otro, con el reparto a elección', JSON.stringify(am));
